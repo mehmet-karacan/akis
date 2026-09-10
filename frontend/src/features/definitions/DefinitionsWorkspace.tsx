@@ -1,0 +1,638 @@
+import {
+  AlertCircle,
+  Braces,
+  Check,
+  ChevronRight,
+  CirclePlus,
+  FileCode2,
+  GitBranch,
+  Layers3,
+  LoaderCircle,
+  Plus,
+  RefreshCw,
+  Save,
+  Search,
+  ShieldCheck,
+  X,
+} from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { ApiProblem } from '../../core/api/client'
+import { definitionsApi } from './api'
+import { createDefaultContent, isMappingContent } from './defaults'
+import { definitionTypeKey, useDefinitionsI18n } from './i18n'
+import { JsonDraftEditor } from './JsonDraftEditor'
+import { MappingGrid } from './MappingGrid'
+import type {
+  DataBinding,
+  Definition,
+  DefinitionType,
+  DefinitionTypeDescriptor,
+  DefinitionVersion,
+  Draft,
+  Folder,
+  NewDefinitionInput,
+  Scenario,
+} from './types'
+import { DEFINITION_TYPES } from './types'
+import './definitions.css'
+
+interface DefinitionsWorkspaceProps {
+  projectUuid: string
+}
+
+type WorkspaceTab = 'draft' | 'versions' | 'bindings'
+type EditorMode = 'visual' | 'json'
+
+const executableTypes = new Set<DefinitionType>(['MAPPING', 'PACKAGE', 'PROCEDURE', 'LOAD_PLAN'])
+const bindingTypes = new Set<DefinitionType>(['MAPPING', 'REUSABLE_MAPPING'])
+
+const fallbackTypes: DefinitionTypeDescriptor[] = DEFINITION_TYPES.map((code) => ({
+  code,
+  label: code,
+  category: code === 'LOAD_PLAN' ? 'ORKESTRASYON' : 'TASARIM',
+  folderRequired: ['MAPPING', 'REUSABLE_MAPPING', 'PACKAGE', 'PROCEDURE'].includes(code),
+  globalAllowed: ['REUSABLE_MAPPING', 'VARIABLE', 'SEQUENCE', 'USER_FUNCTION', 'KNOWLEDGE_MODULE'].includes(code),
+  requiredContentFields: [],
+}))
+
+function errorMessage(error: unknown, fallback: string) {
+  if (error instanceof ApiProblem) return error.message
+  if (error instanceof Error) return error.message
+  return fallback
+}
+
+export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps) {
+  const { language, t } = useDefinitionsI18n()
+  const [definitions, setDefinitions] = useState<Definition[]>([])
+  const [folders, setFolders] = useState<Folder[]>([])
+  const [types, setTypes] = useState<DefinitionTypeDescriptor[]>(fallbackTypes)
+  const [selectedUuid, setSelectedUuid] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
+  const [typeFilter, setTypeFilter] = useState<DefinitionType | ''>('')
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [showCreate, setShowCreate] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [tab, setTab] = useState<WorkspaceTab>('draft')
+  const [editorMode, setEditorMode] = useState<EditorMode>('visual')
+  const [draft, setDraft] = useState<Draft | null>(null)
+  const [content, setContent] = useState<unknown>({})
+  const [schemaVersion, setSchemaVersion] = useState(1)
+  const [draftLoading, setDraftLoading] = useState(false)
+  const [dirty, setDirty] = useState(false)
+  const [jsonValid, setJsonValid] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [versions, setVersions] = useState<DefinitionVersion[]>([])
+  const [versionDescription, setVersionDescription] = useState('')
+  const [creatingVersion, setCreatingVersion] = useState(false)
+  const [selectedVersionUuid, setSelectedVersionUuid] = useState<string | null>(null)
+  const [scenarios, setScenarios] = useState<Scenario[]>([])
+  const [bindings, setBindings] = useState<DataBinding[]>([])
+  const [compiling, setCompiling] = useState(false)
+  const [status, setStatus] = useState<{ tone: 'success' | 'error' | 'info'; text: string } | null>(null)
+
+  const selectedDefinition = definitions.find((definition) => definition.uuid === selectedUuid) ?? null
+  const selectedVersion = versions.find((version) => version.uuid === selectedVersionUuid) ?? null
+
+  const typeLabel = useCallback(
+    (type: DefinitionType) => t(definitionTypeKey[type]),
+    [t],
+  )
+
+  const loadWorkspace = useCallback(async () => {
+    setLoading(true)
+    setLoadError(null)
+    try {
+      const [nextDefinitions, nextFolders, nextTypes] = await Promise.all([
+        definitionsApi.listDefinitions(projectUuid),
+        definitionsApi.listFolders(projectUuid),
+        definitionsApi.listTypes().catch(() => fallbackTypes),
+      ])
+      setDefinitions(nextDefinitions)
+      setFolders(nextFolders)
+      setTypes(nextTypes)
+      setSelectedUuid((current) =>
+        current && nextDefinitions.some((definition) => definition.uuid === current)
+          ? current
+          : (nextDefinitions[0]?.uuid ?? null),
+      )
+    } catch (error) {
+      setLoadError(errorMessage(error, t('loadError')))
+    } finally {
+      setLoading(false)
+    }
+  }, [projectUuid, t])
+
+  useEffect(() => {
+    void loadWorkspace()
+  }, [loadWorkspace])
+
+  const loadDefinition = useCallback(async () => {
+    if (!selectedDefinition) return
+    setDraftLoading(true)
+    setStatus(null)
+    setVersions([])
+    setScenarios([])
+    setBindings([])
+    setSelectedVersionUuid(null)
+    try {
+      const [nextDraft, nextVersions] = await Promise.all([
+        definitionsApi.getDraft(projectUuid, selectedDefinition.uuid),
+        definitionsApi.listVersions(projectUuid, selectedDefinition.uuid),
+      ])
+      setDraft(nextDraft)
+      setSchemaVersion(nextDraft?.schemaVersion ?? 1)
+      setContent(nextDraft?.content ?? createDefaultContent(selectedDefinition.type))
+      setDirty(false)
+      setJsonValid(true)
+      setVersions(nextVersions)
+      setSelectedVersionUuid(nextVersions[0]?.uuid ?? null)
+    } catch (error) {
+      setStatus({ tone: 'error', text: errorMessage(error, t('requestError')) })
+    } finally {
+      setDraftLoading(false)
+    }
+  }, [projectUuid, selectedDefinition, t])
+
+  useEffect(() => {
+    void loadDefinition()
+  }, [loadDefinition])
+
+  useEffect(() => {
+    if (!selectedDefinition || !selectedVersionUuid) {
+      setScenarios([])
+      setBindings([])
+      return
+    }
+    let active = true
+    void definitionsApi
+      .listScenarios(projectUuid, selectedDefinition.uuid, selectedVersionUuid)
+      .then((rows) => active && setScenarios(rows))
+      .catch(() => active && setScenarios([]))
+    if (bindingTypes.has(selectedDefinition.type)) {
+      void definitionsApi
+        .listBindings(projectUuid, selectedDefinition.uuid, selectedVersionUuid)
+        .then((rows) => active && setBindings(rows))
+        .catch(() => active && setBindings([]))
+    }
+    return () => {
+      active = false
+    }
+  }, [projectUuid, selectedDefinition, selectedVersionUuid])
+
+  const filteredDefinitions = useMemo(() => {
+    const normalized = query.trim().toLocaleLowerCase(language)
+    return definitions.filter((definition) => {
+      if (typeFilter && definition.type !== typeFilter) return false
+      if (!normalized) return true
+      return `${definition.code} ${definition.name} ${typeLabel(definition.type)}`
+        .toLocaleLowerCase(language)
+        .includes(normalized)
+    })
+  }, [definitions, language, query, typeFilter, typeLabel])
+
+  async function saveDraft() {
+    if (!selectedDefinition || saving || !jsonValid) return
+    setSaving(true)
+    setStatus(null)
+    try {
+      const saved = await definitionsApi.saveDraft(
+        projectUuid,
+        selectedDefinition.uuid,
+        draft?.version ?? 0,
+        schemaVersion,
+        content,
+      )
+      setDraft(saved)
+      setContent(saved.content)
+      setDirty(false)
+      setStatus({ tone: 'success', text: t('saved') })
+    } catch (error) {
+      const isConflict = error instanceof ApiProblem && error.status === 409
+      setStatus({ tone: 'error', text: isConflict ? t('conflict') : errorMessage(error, t('requestError')) })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function handleWorkspaceKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === 's') {
+      event.preventDefault()
+      void saveDraft()
+    }
+  }
+
+  async function createVersion(event: FormEvent) {
+    event.preventDefault()
+    if (!selectedDefinition || !draft || dirty || creatingVersion) return
+    setCreatingVersion(true)
+    setStatus(null)
+    try {
+      const created = await definitionsApi.createVersion(
+        projectUuid,
+        selectedDefinition.uuid,
+        draft.version,
+        versionDescription,
+      )
+      setVersions((current) => [created, ...current])
+      setSelectedVersionUuid(created.uuid)
+      setVersionDescription('')
+      setStatus({ tone: 'success', text: `${t('version')} ${created.versionNumber}` })
+    } catch (error) {
+      const isConflict = error instanceof ApiProblem && error.status === 409
+      setStatus({ tone: 'error', text: isConflict ? t('conflict') : errorMessage(error, t('requestError')) })
+    } finally {
+      setCreatingVersion(false)
+    }
+  }
+
+  async function compileScenario() {
+    if (!selectedDefinition || !selectedVersion || compiling) return
+    setCompiling(true)
+    setStatus(null)
+    try {
+      const scenario = await definitionsApi.compileScenario(
+        projectUuid,
+        selectedDefinition.uuid,
+        selectedVersion.uuid,
+      )
+      setScenarios((current) => [scenario, ...current.filter((item) => item.uuid !== scenario.uuid)])
+      setStatus({ tone: 'success', text: t('scenarioVersion', { version: scenario.scenarioVersion }) })
+    } catch (error) {
+      setStatus({ tone: 'error', text: errorMessage(error, t('requestError')) })
+    } finally {
+      setCompiling(false)
+    }
+  }
+
+  function updateContent(next: unknown) {
+    setContent(next)
+    setDirty(true)
+    setStatus(null)
+  }
+
+  return (
+    <div className="definitions-workspace" onKeyDown={handleWorkspaceKeyDown}>
+      <header className="definitions-titlebar">
+        <div>
+          <p className="definition-eyebrow">DESIGN CONTROL</p>
+          <h1>{t('title')}</h1>
+          <p>{t('subtitle')}</p>
+        </div>
+        <button className="definition-button definition-button--primary" type="button" onClick={() => setShowCreate(true)}>
+          <CirclePlus size={17} aria-hidden="true" /> {t('newDefinition')}
+        </button>
+      </header>
+
+      <div className="definitions-shell">
+        <aside className="definitions-browser" aria-label={t('title')}>
+          <div className="definitions-browser-tools">
+            <label className="definition-search">
+              <Search size={17} aria-hidden="true" />
+              <span className="sr-only">{t('search')}</span>
+              <input value={query} placeholder={t('searchPlaceholder')} onChange={(event) => setQuery(event.target.value)} />
+            </label>
+            <label>
+              <span className="sr-only">{t('filterType')}</span>
+              <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as DefinitionType | '')}>
+                <option value="">{t('allTypes')}</option>
+                {types.map((type) => <option key={type.code} value={type.code}>{typeLabel(type.code)}</option>)}
+              </select>
+            </label>
+          </div>
+
+          {loading ? (
+            <div className="definition-state"><LoaderCircle className="spin" aria-hidden="true" /> {t('loading')}</div>
+          ) : loadError ? (
+            <div className="definition-state definition-state--error">
+              <AlertCircle aria-hidden="true" />
+              <p>{loadError}</p>
+              <button className="definition-button definition-button--quiet" type="button" onClick={() => void loadWorkspace()}>{t('retry')}</button>
+            </div>
+          ) : filteredDefinitions.length === 0 ? (
+            <div className="definition-state"><FileCode2 aria-hidden="true" /><p>{t('empty')}</p></div>
+          ) : (
+            <ul className="definition-list">
+              {filteredDefinitions.map((definition) => (
+                <li key={definition.uuid}>
+                  <button
+                    type="button"
+                    className={definition.uuid === selectedUuid ? 'is-selected' : ''}
+                    aria-current={definition.uuid === selectedUuid ? 'true' : undefined}
+                    onClick={() => {
+                      setSelectedUuid(definition.uuid)
+                      setTab('draft')
+                    }}
+                  >
+                    <span className="definition-list-icon"><Braces size={17} aria-hidden="true" /></span>
+                    <span className="definition-list-copy">
+                      <strong>{definition.name}</strong>
+                      <span><code>{definition.code}</code> · {typeLabel(definition.type)}</span>
+                    </span>
+                    <ChevronRight size={16} aria-hidden="true" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </aside>
+
+        <main className="definition-workbench">
+          {!selectedDefinition ? (
+            <div className="definition-empty-workbench">
+              <Layers3 aria-hidden="true" />
+              <h2>{t('selectDefinition')}</h2>
+            </div>
+          ) : (
+            <>
+              <header className="definition-document-header">
+                <div>
+                  <div className="definition-document-meta">
+                    <span className="definition-type-chip">{typeLabel(selectedDefinition.type)}</span>
+                    <span>{selectedDefinition.status}</span>
+                    <span><code>{selectedDefinition.code}</code></span>
+                  </div>
+                  <h2>{selectedDefinition.name}</h2>
+                  {selectedDefinition.description && <p>{selectedDefinition.description}</p>}
+                </div>
+                <button className="definition-icon-button" type="button" aria-label={t('reloadDraft')} onClick={() => void loadDefinition()}>
+                  <RefreshCw size={17} aria-hidden="true" />
+                </button>
+              </header>
+
+              <div className="definition-tabs" role="tablist" aria-label={t('details')}>
+                <button type="button" role="tab" aria-selected={tab === 'draft'} onClick={() => setTab('draft')}>
+                  <FileCode2 size={16} aria-hidden="true" /> {t('draft')}
+                  {dirty && <span className="definition-dirty-dot" aria-label={t('unsaved')} />}
+                </button>
+                <button type="button" role="tab" aria-selected={tab === 'versions'} onClick={() => setTab('versions')}>
+                  <ShieldCheck size={16} aria-hidden="true" /> {t('versions')} <span className="definition-count">{versions.length}</span>
+                </button>
+                {bindingTypes.has(selectedDefinition.type) && (
+                  <button type="button" role="tab" aria-selected={tab === 'bindings'} onClick={() => setTab('bindings')}>
+                    <GitBranch size={16} aria-hidden="true" /> {t('binding')} <span className="definition-count">{bindings.length}</span>
+                  </button>
+                )}
+              </div>
+
+              {status && (
+                <div className={`definition-notice definition-notice--${status.tone}`} role={status.tone === 'error' ? 'alert' : 'status'}>
+                  {status.tone === 'success' ? <Check size={16} aria-hidden="true" /> : <AlertCircle size={16} aria-hidden="true" />}
+                  <span>{status.text}</span>
+                  {status.tone === 'error' && draft && (
+                    <button type="button" onClick={() => void loadDefinition()}>{t('reloadDraft')}</button>
+                  )}
+                </div>
+              )}
+
+              {draftLoading ? (
+                <div className="definition-state"><LoaderCircle className="spin" aria-hidden="true" /> {t('loading')}</div>
+              ) : tab === 'draft' ? (
+                <section className="definition-editor-panel" role="tabpanel">
+                  <div className="definition-editor-toolbar">
+                    <div className="definition-draft-state">
+                      <strong>{draft ? t('draftVersion', { version: draft.version }) : t('noDraft')}</strong>
+                      {dirty && <span>{t('unsaved')}</span>}
+                    </div>
+                    <div className="definition-editor-actions">
+                      {selectedDefinition.type === 'MAPPING' && (
+                        <div className="definition-segmented" aria-label={t('draft')}>
+                          <button type="button" aria-pressed={editorMode === 'visual'} onClick={() => setEditorMode('visual')}>{t('visualEditor')}</button>
+                          <button type="button" aria-pressed={editorMode === 'json'} onClick={() => setEditorMode('json')}>{t('jsonEditor')}</button>
+                        </div>
+                      )}
+                      <label className="definition-schema-version">
+                        <span>{t('schemaVersion')}</span>
+                        <input type="number" min="1" value={schemaVersion} onChange={(event) => { setSchemaVersion(Number(event.target.value)); setDirty(true) }} />
+                      </label>
+                      <button className="definition-button definition-button--primary" type="button" disabled={saving || !dirty || !jsonValid} onClick={() => void saveDraft()}>
+                        {saving ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Save size={16} aria-hidden="true" />}
+                        {saving ? t('saving') : t('saveDraft')}
+                      </button>
+                    </div>
+                  </div>
+                  {selectedDefinition.type === 'MAPPING' && editorMode === 'visual' && isMappingContent(content) ? (
+                    <MappingGrid value={content} onChange={updateContent} />
+                  ) : (
+                    <JsonDraftEditor value={content} onChange={updateContent} onValidityChange={setJsonValid} />
+                  )}
+                </section>
+              ) : tab === 'versions' ? (
+                <VersionsPanel
+                  versions={versions}
+                  selectedVersionUuid={selectedVersionUuid}
+                  setSelectedVersionUuid={setSelectedVersionUuid}
+                  draft={draft}
+                  dirty={dirty}
+                  versionDescription={versionDescription}
+                  setVersionDescription={setVersionDescription}
+                  creatingVersion={creatingVersion}
+                  createVersion={createVersion}
+                  scenarios={scenarios}
+                  executable={executableTypes.has(selectedDefinition.type)}
+                  compiling={compiling}
+                  compileScenario={compileScenario}
+                />
+              ) : (
+                <BindingsPanel
+                  projectUuid={projectUuid}
+                  definition={selectedDefinition}
+                  selectedVersion={selectedVersion}
+                  versions={versions}
+                  selectVersion={setSelectedVersionUuid}
+                  bindings={bindings}
+                  onCreated={(binding) => setBindings((current) => [binding, ...current])}
+                  onError={(text) => setStatus({ tone: 'error', text })}
+                />
+              )}
+            </>
+          )}
+        </main>
+      </div>
+
+      {showCreate && (
+        <CreateDefinitionDialog
+          projectUuid={projectUuid}
+          folders={folders}
+          types={types}
+          creating={creating}
+          close={() => setShowCreate(false)}
+          onCreate={async (input) => {
+            setCreating(true)
+            try {
+              const created = await definitionsApi.createDefinition(projectUuid, input)
+              setDefinitions((current) => [created, ...current])
+              setSelectedUuid(created.uuid)
+              setShowCreate(false)
+              setTab('draft')
+            } catch (error) {
+              setStatus({ tone: 'error', text: errorMessage(error, t('requestError')) })
+            } finally {
+              setCreating(false)
+            }
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+interface VersionsPanelProps {
+  versions: DefinitionVersion[]
+  selectedVersionUuid: string | null
+  setSelectedVersionUuid: (uuid: string) => void
+  draft: Draft | null
+  dirty: boolean
+  versionDescription: string
+  setVersionDescription: (value: string) => void
+  creatingVersion: boolean
+  createVersion: (event: FormEvent) => void
+  scenarios: Scenario[]
+  executable: boolean
+  compiling: boolean
+  compileScenario: () => void
+}
+
+function VersionsPanel(props: VersionsPanelProps) {
+  const { language, t } = useDefinitionsI18n()
+  const formatter = useMemo(() => new Intl.DateTimeFormat(language, { dateStyle: 'medium', timeStyle: 'short' }), [language])
+  const selected = props.versions.find((version) => version.uuid === props.selectedVersionUuid)
+  return (
+    <section className="definition-version-layout" role="tabpanel">
+      <div className="definition-version-column">
+        <form className="definition-version-form" onSubmit={props.createVersion}>
+          <label>
+            <span>{t('versionDescription')}</span>
+            <input value={props.versionDescription} placeholder={t('versionDescriptionPlaceholder')} onChange={(event) => props.setVersionDescription(event.target.value)} />
+          </label>
+          <button className="definition-button definition-button--primary" type="submit" disabled={!props.draft || props.dirty || props.creatingVersion}>
+            {props.creatingVersion ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}
+            {props.creatingVersion ? t('creatingVersion') : t('createVersion')}
+          </button>
+        </form>
+        <div className="definition-version-list">
+          {props.versions.length === 0 ? <p className="definition-state">{t('noVersions')}</p> : props.versions.map((version) => (
+            <button key={version.uuid} type="button" className={version.uuid === props.selectedVersionUuid ? 'is-selected' : ''} onClick={() => props.setSelectedVersionUuid(version.uuid)}>
+              <span className="definition-version-number">v{version.versionNumber}</span>
+              <span><strong>{version.description || `${t('version')} ${version.versionNumber}`}</strong><small>{formatter.format(new Date(version.createdAt))}</small></span>
+              <ChevronRight size={16} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="definition-scenario-column">
+        <div className="definition-panel-heading">
+          <div><h3>{t('scenarios')}</h3>{selected && <p>{t('version')} {selected.versionNumber} · <code>{selected.contentHash.slice(0, 12)}</code></p>}</div>
+          {props.executable && selected && (
+            <button className="definition-button definition-button--primary" type="button" disabled={props.compiling} onClick={props.compileScenario}>
+              {props.compiling ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <GitBranch size={16} aria-hidden="true" />}
+              {props.compiling ? t('compiling') : t('compile')}
+            </button>
+          )}
+        </div>
+        {!selected ? <p className="definition-state">{t('selectVersion')}</p> : !props.executable ? <p className="definition-state">{t('notExecutable')}</p> : props.scenarios.length === 0 ? <p className="definition-state">{t('noScenarios')}</p> : (
+          <div className="definition-scenario-list">
+            {props.scenarios.map((scenario) => (
+              <article key={scenario.uuid}>
+                <div><strong>{t('scenarioVersion', { version: scenario.scenarioVersion })}</strong><span>{t('planVersion', { version: scenario.planVersion })}</span></div>
+                <code>{scenario.planHash}</code>
+                <time dateTime={scenario.createdAt}>{formatter.format(new Date(scenario.createdAt))}</time>
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+interface BindingsPanelProps {
+  projectUuid: string
+  definition: Definition
+  selectedVersion: DefinitionVersion | null
+  versions: DefinitionVersion[]
+  selectVersion: (uuid: string) => void
+  bindings: DataBinding[]
+  onCreated: (binding: DataBinding) => void
+  onError: (message: string) => void
+}
+
+function BindingsPanel(props: BindingsPanelProps) {
+  const { t } = useDefinitionsI18n()
+  const [input, setInput] = useState<{
+    nodeCode: string
+    role: 'SOURCE' | 'TARGET'
+    dataObjectUuid: string
+    schemaSnapshotUuid: string
+  }>({ nodeCode: '', role: 'SOURCE', dataObjectUuid: '', schemaSnapshotUuid: '' })
+  const [saving, setSaving] = useState(false)
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    if (!props.selectedVersion) return
+    setSaving(true)
+    try {
+      const created = await definitionsApi.createBinding(props.projectUuid, props.definition.uuid, props.selectedVersion.uuid, input)
+      props.onCreated(created)
+      setInput({ nodeCode: '', role: 'SOURCE', dataObjectUuid: '', schemaSnapshotUuid: '' })
+    } catch (error) {
+      props.onError(errorMessage(error, t('requestError')))
+    } finally {
+      setSaving(false)
+    }
+  }
+  return (
+    <section className="definition-bindings-panel" role="tabpanel">
+      <div className="definition-panel-heading">
+        <h3>{t('binding')}</h3>
+        <label><span>{t('version')}</span><select value={props.selectedVersion?.uuid ?? ''} onChange={(event) => props.selectVersion(event.target.value)}><option value="">—</option>{props.versions.map((version) => <option key={version.uuid} value={version.uuid}>v{version.versionNumber}</option>)}</select></label>
+      </div>
+      <form className="definition-binding-form" onSubmit={submit}>
+        <label><span>{t('nodeCode')}</span><input required value={input.nodeCode} onChange={(event) => setInput({ ...input, nodeCode: event.target.value })} /></label>
+        <label><span>{t('role')}</span><select value={input.role} onChange={(event) => setInput({ ...input, role: event.target.value as 'SOURCE' | 'TARGET' })}><option value="SOURCE">SOURCE</option><option value="TARGET">TARGET</option></select></label>
+        <label><span>{t('dataObjectUuid')}</span><input required pattern="[0-9a-fA-F-]{36}" value={input.dataObjectUuid} onChange={(event) => setInput({ ...input, dataObjectUuid: event.target.value })} /></label>
+        <label><span>{t('schemaSnapshotUuid')}</span><input required pattern="[0-9a-fA-F-]{36}" value={input.schemaSnapshotUuid} onChange={(event) => setInput({ ...input, schemaSnapshotUuid: event.target.value })} /></label>
+        <button className="definition-button definition-button--primary" type="submit" disabled={!props.selectedVersion || saving}>{saving ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}{t('saveBinding')}</button>
+      </form>
+      {props.bindings.length === 0 ? <p className="definition-state">{t('noBindings')}</p> : (
+        <div className="definition-binding-list">{props.bindings.map((binding) => <article key={binding.uuid}><span className={`definition-role definition-role--${binding.role.toLowerCase()}`}>{binding.role}</span><strong>{binding.nodeCode}</strong><dl><div><dt>{t('dataObjectUuid')}</dt><dd><code>{binding.dataObjectUuid}</code></dd></div><div><dt>{t('schemaSnapshotUuid')}</dt><dd><code>{binding.schemaSnapshotUuid}</code></dd></div></dl></article>)}</div>
+      )}
+    </section>
+  )
+}
+
+interface CreateDefinitionDialogProps {
+  projectUuid: string
+  folders: Folder[]
+  types: DefinitionTypeDescriptor[]
+  creating: boolean
+  close: () => void
+  onCreate: (input: NewDefinitionInput) => Promise<void>
+}
+
+function CreateDefinitionDialog({ folders, types, creating, close, onCreate }: CreateDefinitionDialogProps) {
+  const { t } = useDefinitionsI18n()
+  const [input, setInput] = useState<NewDefinitionInput>({ folderUuid: null, type: 'MAPPING', code: '', name: '', description: '' })
+  const descriptor = types.find((type) => type.code === input.type)
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    if (descriptor?.folderRequired && !input.folderUuid) return
+    await onCreate(input)
+  }
+  return (
+    <div className="definition-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) close() }}>
+      <section className="definition-dialog" role="dialog" aria-modal="true" aria-labelledby="new-definition-title">
+        <header><div><p className="definition-eyebrow">DESIGN CONTROL</p><h2 id="new-definition-title">{t('newDefinition')}</h2></div><button className="definition-icon-button" type="button" aria-label={t('close')} onClick={close}><X size={18} aria-hidden="true" /></button></header>
+        <form onSubmit={submit}>
+          <div className="definition-form-grid">
+            <label><span>{t('type')}</span><select value={input.type} onChange={(event) => setInput({ ...input, type: event.target.value as DefinitionType, folderUuid: null })}>{types.map((type) => <option key={type.code} value={type.code}>{t(definitionTypeKey[type.code])}</option>)}</select></label>
+            <label><span>{t('folder')}</span><select required={descriptor?.folderRequired} value={input.folderUuid ?? ''} onChange={(event) => setInput({ ...input, folderUuid: event.target.value || null })}><option value="">{t('noFolder')}</option>{folders.map((folder) => <option key={folder.uuid} value={folder.uuid}>{folder.name} · {folder.code}</option>)}</select>{descriptor?.folderRequired && !input.folderUuid && <small>{t('folderRequired')}</small>}</label>
+            <label><span>{t('code')}</span><input autoFocus required pattern="[A-Z][A-Z0-9_]{0,99}" placeholder="CUSTOMER_LOAD" value={input.code} onChange={(event) => setInput({ ...input, code: event.target.value.toLocaleUpperCase('en-US').replace(/[^A-Z0-9_]/g, '') })} /></label>
+            <label><span>{t('name')}</span><input required value={input.name} onChange={(event) => setInput({ ...input, name: event.target.value })} /></label>
+            <label className="definition-form-grid--wide"><span>{t('description')}</span><textarea rows={3} value={input.description} onChange={(event) => setInput({ ...input, description: event.target.value })} /></label>
+          </div>
+          <footer><button className="definition-button definition-button--quiet" type="button" onClick={close}>{t('cancel')}</button><button className="definition-button definition-button--primary" type="submit" disabled={creating || (descriptor?.folderRequired && !input.folderUuid)}>{creating ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}{creating ? t('creating') : t('createDefinition')}</button></footer>
+        </form>
+      </section>
+    </div>
+  )
+}

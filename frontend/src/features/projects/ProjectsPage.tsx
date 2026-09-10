@@ -1,0 +1,77 @@
+import { ArrowUpRight, Database, Plus, RotateCcw, X } from 'lucide-react'
+import { useEffect, useState, type FormEvent } from 'react'
+import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
+import { ApiProblem } from '../../core/api/client'
+import { createProject, listProjects, type Project } from './projectsApi'
+
+export function ProjectsPage() {
+  const { t, i18n } = useTranslation()
+  const navigate = useNavigate()
+  const [projects, setProjects] = useState<Project[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [showCreate, setShowCreate] = useState(false)
+  const [creating, setCreating] = useState(false)
+
+  async function load() {
+    setLoading(true)
+    setError('')
+    try { setProjects(await listProjects()) }
+    catch (cause) { setError(cause instanceof ApiProblem ? cause.message : t('common.loadError')) }
+    finally { setLoading(false) }
+  }
+
+  useEffect(() => { void load() }, [])
+
+  async function create(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const form = new FormData(event.currentTarget)
+    setCreating(true)
+    setError('')
+    try {
+      const project = await createProject({
+        code: String(form.get('code')).trim().toUpperCase(),
+        name: String(form.get('name')).trim(),
+        description: String(form.get('description')).trim() || undefined,
+      })
+      navigate(`/projects/${project.uuid}`)
+    } catch (cause) {
+      setError(cause instanceof ApiProblem ? cause.message : t('common.saveError'))
+    } finally { setCreating(false) }
+  }
+
+  const dateFormat = new Intl.DateTimeFormat(i18n.language === 'tr' ? 'tr-TR' : 'en-GB', { dateStyle: 'medium' })
+
+  return (
+    <section className="page-stack">
+      <header className="page-header">
+        <div><p className="eyebrow">{t('projects.eyebrow')}</p><h1>{t('projects.title')}</h1><p>{t('projects.description')}</p></div>
+        <button className="button primary" onClick={() => setShowCreate(true)}><Plus size={17} />{t('projects.new')}</button>
+      </header>
+
+      {error && <div className="error-banner action-banner" role="alert"><span>{error}</span><button onClick={() => void load()}><RotateCcw size={15} />{t('common.retry')}</button></div>}
+      {loading ? <div className="project-grid" aria-label={t('common.loading')}>{[1, 2, 3].map((item) => <div className="project-card skeleton" key={item} />)}</div> :
+        projects.length === 0 ? <div className="empty-state"><Database size={30} /><h2>{t('projects.empty')}</h2><button className="button secondary" onClick={() => setShowCreate(true)}>{t('projects.new')}</button></div> :
+          <div className="project-grid">{projects.map((project) => (
+            <button className="project-card" key={project.uuid} onClick={() => navigate(`/projects/${project.uuid}`)}>
+              <div className="project-card-top"><span className="code-badge">{project.code}</span><ArrowUpRight size={18} /></div>
+              <h2>{project.name}</h2><p>{project.description || t('common.noDescription')}</p>
+              <footer><span className="status-dot"><i />{t('projects.active')}</span><time>{dateFormat.format(new Date(project.createdAt))}</time></footer>
+            </button>
+          ))}</div>}
+
+      {showCreate && <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowCreate(false) }}>
+        <section className="dialog" role="dialog" aria-modal="true" aria-labelledby="create-project-title">
+          <header><div><p className="eyebrow">{t('projects.eyebrow')}</p><h2 id="create-project-title">{t('projects.new')}</h2></div><button className="icon-button" onClick={() => setShowCreate(false)}><X size={19} /></button></header>
+          <form onSubmit={create}>
+            <label>{t('projects.code')}<input name="code" pattern="[A-Za-z][A-Za-z0-9_-]{1,39}" required placeholder="FINANCE_DWH" /></label>
+            <label>{t('projects.name')}<input name="name" required /></label>
+            <label>{t('projects.descriptionField')}<textarea name="description" rows={4} /></label>
+            <footer><button className="button secondary" type="button" onClick={() => setShowCreate(false)}>{t('common.cancel')}</button><button className="button primary" disabled={creating}>{creating ? t('projects.creating') : t('projects.create')}</button></footer>
+          </form>
+        </section>
+      </div>}
+    </section>
+  )
+}

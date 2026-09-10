@@ -4,9 +4,9 @@ Akış, ilk aşamada Oracle'dan Oracle'a güvenilir veri taşıma hedefiyle geli
 bir veri entegrasyon platformudur. Metadata ve kontrol verisi PostgreSQL'de tutulur;
 taşınan iş verisi PostgreSQL üzerinden geçirilmez.
 
-Bu repository şu anda Faz 0 teknik spike, Faz 1 metadata veritabanı ve backend
-domain/API kapıları tamamlanmış; UI kapısına hazır durumdadır. Oracle DML/worker
-kapısı henüz başlamamıştır ve üretim kullanımı için hazır değildir.
+Bu repository'de Faz 0 teknik spike, Faz 1 metadata veritabanı, backend domain/API
+ve ilk uçtan uca tanım yönetimi UI kapıları tamamlanmıştır. Oracle DML/worker kapısı
+henüz başlamamıştır ve ürün üretim kullanımı için hazır değildir.
 
 ## Teknoloji tabanı
 
@@ -15,6 +15,7 @@ kapısı henüz başlamamıştır ve üretim kullanımı için hazır değildir.
 - Maven 3.9.16 Wrapper
 - PostgreSQL 18.6
 - Oracle JDBC 23.26.3.0.0 (Oracle 19c bağlantı/discovery)
+- React 19, TypeScript 6 ve Vite 8
 - Docker Compose ile yerel geliştirme ortamı
 
 ## Yerel kurulum
@@ -43,6 +44,15 @@ Backend derleme ve test:
 Backend çalıştırma:
 
     .\scripts\run-backend.ps1
+
+UI çalıştırma (ayrı terminalde):
+
+    Set-Location frontend
+    npm ci
+    npm run dev
+
+UI varsayılan olarak İngilizce açılır; Türkçe ile açık, koyu ve sistem temaları
+uygulama içinden seçilebilir. Yerel giriş parolası browser storage alanına yazılmaz.
 
 Sağlık uç noktası: http://localhost:8080/actuator/health
 

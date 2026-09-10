@@ -1,0 +1,7 @@
+{
+  "extends": "../../../tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "../../../node_modules/.tmp/tsconfig.operations.tsbuildinfo"
+  },
+  "include": ["../../vite-env.d.ts", "./**/*.ts", "./**/*.tsx"]
+}
