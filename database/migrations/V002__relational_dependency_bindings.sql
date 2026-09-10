@@ -116,4 +116,3 @@ CREATE TRIGGER tr_yayin_veri_bagi_immutable BEFORE UPDATE ON yayin_veri_bagi
 
 COMMENT ON TABLE tanim_veri_nesnesi IS 'Mapping veya başka tanım sürümünün ilişkisel kaynak/hedef veri nesnesi bağı';
 COMMENT ON TABLE yayin_veri_bagi IS 'Yayında context ile çözülüp sabitlenmiş fiziksel veri bağı';
-
