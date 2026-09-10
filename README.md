@@ -43,6 +43,16 @@ Backend çalıştırma:
 
 Sağlık uç noktası: http://localhost:8080/actuator/health
 
+Oracle 19c bağlantı ve discovery probe'u için gerçek değerleri yalnız .env
+dosyasına girin ve çalıştırın:
+
+    .\scripts\run-oracle-probe.ps1
+
+Script, EZConnect URL içindeki host ve portu önce TCP düzeyinde sınar. Host
+erişilemiyorsa kurumsal VPN'in açılması gerektiğini açıkça bildirir. Probe kaynak
+ve hedefte yalnız bağlantı, sürüm ve current-user nesne sayısı sorguları çalıştırır;
+DDL veya DML yapmaz.
+
 Container'ları durdurmak için:
 
     .\scripts\dev-down.ps1
