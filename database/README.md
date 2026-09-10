@@ -1,7 +1,7 @@
 # Metadata veritabanı
 
 PostgreSQL metadata baseline şeması `entegrasyon` namespace'inde sürümlü SQL
-migrasyonlarıyla tanımlanır. İlk baseline 55 tablo içerir ve ortak tanım kataloğu
+migrasyonlarıyla tanımlanır. Baseline 58 tablo içerir ve ortak tanım kataloğu
 üzerinden şu dokuz geliştirme nesnesini saklar:
 
 - Mapping ve Yeniden Kullanılabilir Mapping
@@ -20,7 +20,7 @@ değer olayları, checkpoint, audit ve lineage aynı baseline içindedir.
     .\database\test-schema.ps1
 
 Test geçici bir veritabanı oluşturur, migrasyonu tek transaction içinde uygular,
-55 tabloyu ve dokuz tanım türünü denetler, sahiplik ve immutable kayıt negatif
+58 tabloyu ve dokuz tanım türünü denetler, sahiplik ve immutable kayıt negatif
 testlerini çalıştırır; ardından geçici veritabanını siler. Geliştirme veritabanına
 ve Oracle kaynak/hedeflerine dokunmaz.
 

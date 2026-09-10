@@ -63,8 +63,8 @@ BEGIN
      WHERE table_schema = 'entegrasyon'
        AND table_type = 'BASE TABLE';
 
-    IF actual_table_count <> 55 THEN
-        RAISE EXCEPTION 'Expected 55 metadata tables, found %', actual_table_count;
+    IF actual_table_count <> 58 THEN
+        RAISE EXCEPTION 'Expected 58 metadata tables, found %', actual_table_count;
     END IF;
 
     IF EXISTS (
@@ -118,7 +118,7 @@ BEGIN
         RAISE EXCEPTION 'A forbidden cleartext secret column exists';
     END IF;
 
-    IF (SELECT count(*) FROM public.flyway_schema_history WHERE success) <> 1 THEN
+    IF (SELECT count(*) FROM public.flyway_schema_history WHERE success) <> 2 THEN
         RAISE EXCEPTION 'Flyway replay was not a no-op';
     END IF;
 
@@ -218,7 +218,7 @@ END $$;
         throw "Metadata schema assertions failed."
     }
 
-    Write-Output "Metadata schema test: PASS (55 tables, 9 definition types)"
+    Write-Output "Metadata schema test: PASS (58 tables, 9 definition types, 2 Flyway migrations)"
 }
 finally {
     & $docker exec $container dropdb --if-exists --force -U $databaseUser $testDatabase | Out-Null
