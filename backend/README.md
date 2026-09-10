@@ -27,6 +27,9 @@ Temel yüzeyler:
 - `POST|GET /api/v1/projects/{projectUuid}/logical-schemas`
 - `POST|GET /api/v1/projects/{projectUuid}/environments`
 - `POST|GET /api/v1/projects/{projectUuid}/schema-bindings`
+- `POST|GET /api/v1/projects/{projectUuid}/models`
+- `POST|GET /api/v1/projects/{projectUuid}/models/{modelUuid}/submodels`
+- `POST|GET /api/v1/projects/{projectUuid}/models/{modelUuid}/data-objects`
 
 Proje kapsamında Mapping, Yeniden Kullanılabilir Mapping, Paket, Prosedür,
 Değişken, Sequence, Kullanıcı Fonksiyonu, Knowledge Module ve Load Plan bulunur.
@@ -51,6 +54,11 @@ bağlanır. Policy JSON'unda password, token, secret veya credential alanları
 reddedilir. Ortam-şema bağı, fiziksel şema ile aynı bağlantıya ait belirli bir
 bağlantı sürümünü sabitler.
 
+Model bir mantıksal şemaya bağlıdır; Alt Model hiyerarşisi ve veri nesneleri model
+sınırından çıkamaz. Veri nesnesi `TABLO`, `VIEW` veya `SORGU` olabilir. Kontrollü
+Sorgu pozitif bir sözleşme sürümü ve yalnız `SELECT`/`WITH` ile başlayan bir SQL
+tanımı ister; bu kayıt canlı veritabanında otomatik çalıştırılmaz.
+
 ## Çalıştırma ve test
 
 Repository kökünde:
@@ -61,14 +69,15 @@ Repository kökünde:
     .\scripts\run-backend.ps1
 
 `test-api.ps1` geçici ve yalıtılmış bir PostgreSQL veritabanı oluşturur; topology
-bağını, secret sızıntısı korumasını, dokuz proje türünü, beş global türü, taslak
-optimistic lock davranışını, immutable sürüm sözleşmesini ve temel hata yanıtlarını
-gerçek HTTP üzerinden sınar. Test sonunda uygulamayı durdurur ve geçici
-veritabanını siler.
+bağını, model/veri nesnesi kataloğunu, secret sızıntısı korumasını, dokuz proje
+türünü, beş global türü, taslak optimistic lock davranışını, immutable sürüm
+sözleşmesini ve temel hata yanıtlarını gerçek HTTP üzerinden sınar. Test sonunda
+uygulamayı durdurur ve geçici veritabanını siler.
 
 ## Kapsam sınırı
 
-Bu teslimat metadata tasarım ve topology kayıt çekirdeğidir. Canlı connection
-test/discovery, OIDC ve proje yetkilendirmesi, dependency çözümleme, Scenario
-derleme/yayın ve run/worker API'leri backend kapısının sonraki dilimleridir. UI ve
-Oracle DML entegrasyonu bu kapı tamamlanmadan başlatılmaz.
+Bu teslimat metadata tasarım, topology ve model katalog çekirdeğidir. Canlı
+connection test/discovery ve immutable şema görüntüsü, OIDC ve proje
+yetkilendirmesi, dependency çözümleme, Scenario derleme/yayın ve run/worker API'leri
+backend kapısının sonraki dilimleridir. UI ve Oracle DML entegrasyonu bu kapı
+tamamlanmadan başlatılmaz.

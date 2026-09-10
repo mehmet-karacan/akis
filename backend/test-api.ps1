@@ -174,6 +174,57 @@ try {
         code = "APP_LOGICAL"
         name = "Application logical schema"
     }
+    $model = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/models" @{
+        logicalSchemaUuid = $logicalSchema.uuid
+        code = "APP_MODEL"
+        name = "Application model"
+    }
+    $submodel = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/models/$($model.uuid)/submodels" @{
+        code = "REFERENCE"
+        name = "Reference data"
+    }
+    Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/models/$($model.uuid)/data-objects" @{
+        submodelUuid = $submodel.uuid
+        code = "SOURCE_TABLE"
+        objectReference = "APP_OWNER.SOURCE_TABLE"
+        type = "TABLO"
+        name = "Source table"
+    } | Out-Null
+    Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/models/$($model.uuid)/data-objects" @{
+        code = "SOURCE_VIEW"
+        objectReference = "APP_OWNER.SOURCE_VIEW"
+        type = "VIEW"
+        name = "Source view"
+    } | Out-Null
+    Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/models/$($model.uuid)/data-objects" @{
+        code = "CONTROLLED_QUERY"
+        objectReference = "CONTROLLED_QUERY"
+        type = "SORGU"
+        querySchemaVersion = 1
+        queryDefinition = @{ sql = "SELECT ID FROM APP_OWNER.SOURCE_TABLE" }
+        name = "Controlled query"
+    } | Out-Null
+    $dataObjects = Invoke-AkisJson GET "/api/v1/projects/$($project.uuid)/models/$($model.uuid)/data-objects"
+    if ($dataObjects.Count -ne 3) {
+        throw "Expected 3 model data objects, found $($dataObjects.Count)."
+    }
+
+    try {
+        Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/models/$($model.uuid)/data-objects" @{
+            code = "INVALID_QUERY"
+            objectReference = "INVALID_QUERY"
+            type = "SORGU"
+            querySchemaVersion = 1
+            queryDefinition = @{ sql = "DELETE FROM APP_OWNER.SOURCE_TABLE" }
+            name = "Invalid query"
+        }
+        throw "Non-read-only controlled query was accepted."
+    }
+    catch {
+        if ($_.Exception.Response.StatusCode.value__ -ne 422) {
+            throw
+        }
+    }
     $environment = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/environments" @{
         code = "TEST"
         risk = "DUSUK"
@@ -384,7 +435,7 @@ try {
         }
     }
 
-    Write-Output "Backend API test: PASS (topology binding, 9 project types, 5 global types, version locks)"
+    Write-Output "Backend API test: PASS (topology, model catalog, 9 project types, 5 global types, locks)"
 }
 catch {
     if (Test-Path -LiteralPath $stdoutLog) {
