@@ -1,0 +1,32 @@
+# Local secrets and environment overrides
+.env
+.env.*
+!.env.example
+
+# Local conversation exports
+codex-session-*.md
+
+# Java / Maven
+target/
+**/target/
+.mvn/timing.properties
+
+# Node
+node_modules/
+dist/
+coverage/
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Logs and local runtime data
+*.log
+logs/
+.data/
+
+# CI/CD is intentionally disabled for the bootstrap phase.
+.github/workflows/
