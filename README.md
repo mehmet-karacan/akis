@@ -4,8 +4,8 @@ Akış, ilk aşamada Oracle'dan Oracle'a güvenilir veri taşıma hedefiyle geli
 bir veri entegrasyon platformudur. Metadata ve kontrol verisi PostgreSQL'de tutulur;
 taşınan iş verisi PostgreSQL üzerinden geçirilmez.
 
-Bu repository şu anda Faz 0 teknik spike ve Faz 1 nesne/metadata sözleşmesi
-aşamasındadır.
+Bu repository şu anda Faz 0 teknik spike tamamlanmış, Faz 1 metadata veritabanı
+tamamlanmış ve backend domain/API kapısı geliştirilmekte olan aşamadadır.
 Üretim kullanımı için hazır değildir.
 
 ## Teknoloji tabanı
@@ -37,6 +37,7 @@ PostgreSQL durumunu kontrol etmek için:
 Backend derleme ve test:
 
     .\mvnw.cmd test
+    .\backend\test-api.ps1
 
 Backend çalıştırma:
 
