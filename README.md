@@ -4,9 +4,9 @@ Akış, ilk aşamada Oracle'dan Oracle'a güvenilir veri taşıma hedefiyle geli
 bir veri entegrasyon platformudur. Metadata ve kontrol verisi PostgreSQL'de tutulur;
 taşınan iş verisi PostgreSQL üzerinden geçirilmez.
 
-Bu repository şu anda Faz 0 teknik spike tamamlanmış, Faz 1 metadata veritabanı
-tamamlanmış ve backend domain/API kapısı geliştirilmekte olan aşamadadır.
-Üretim kullanımı için hazır değildir.
+Bu repository şu anda Faz 0 teknik spike, Faz 1 metadata veritabanı ve backend
+domain/API kapıları tamamlanmış; UI kapısına hazır durumdadır. Oracle DML/worker
+kapısı henüz başlamamıştır ve üretim kullanımı için hazır değildir.
 
 ## Teknoloji tabanı
 
@@ -14,6 +14,7 @@ tamamlanmış ve backend domain/API kapısı geliştirilmekte olan aşamadadır.
 - Spring Boot 4.1.1
 - Maven 3.9.16 Wrapper
 - PostgreSQL 18.6
+- Oracle JDBC 23.26.3.0.0 (Oracle 19c bağlantı/discovery)
 - Docker Compose ile yerel geliştirme ortamı
 
 ## Yerel kurulum

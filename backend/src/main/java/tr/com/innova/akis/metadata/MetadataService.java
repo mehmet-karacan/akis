@@ -31,10 +31,15 @@ public class MetadataService {
 
     private final MetadataRepository repository;
     private final ObjectMapper objectMapper;
+    private final DefinitionContentValidator contentValidator;
 
-    public MetadataService(MetadataRepository repository, ObjectMapper objectMapper) {
+    public MetadataService(
+            MetadataRepository repository,
+            ObjectMapper objectMapper,
+            DefinitionContentValidator contentValidator) {
         this.repository = repository;
         this.objectMapper = objectMapper;
+        this.contentValidator = contentValidator;
     }
 
     List<DefinitionType> definitionTypes() {
@@ -279,69 +284,7 @@ public class MetadataService {
     }
 
     void validateContent(DefinitionType type, JsonNode content) {
-        requireObject(content);
-        List<String> missing = type.requiredContentFields().stream()
-                .filter(field -> content.get(field) == null || content.get(field).isNull())
-                .toList();
-        if (!missing.isEmpty()) {
-            throw validation(type.label() + " içeriğinde zorunlu alanlar eksik: "
-                    + String.join(", ", missing));
-        }
-        switch (type) {
-            case PACKAGE -> {
-                requireArray(content, "steps");
-                requireArray(content, "transitions");
-                requireText(content, "firstStepId");
-            }
-            case PROCEDURE -> requireArray(content, "tasks");
-            case VARIABLE -> {
-                requireAllowed(content, "dataType", List.of(
-                        "STRING", "INTEGER", "DECIMAL", "BOOLEAN", "DATE", "TIMESTAMP", "JSON"));
-                requireAllowed(content, "scope", List.of(
-                        "GLOBAL", "PROJECT", "PACKAGE_RUN", "STEP"));
-                requireAllowed(content, "historyMode", List.of("NONE", "LATEST", "ALL"));
-                requireAllowed(content, "valueSource", List.of(
-                        "INPUT", "DEFAULT", "REFRESH_QUERY", "EXPRESSION", "STEP_OUTPUT"));
-            }
-            case SEQUENCE -> {
-                requireAllowed(content, "implementation", List.of("NATIVE", "REPOSITORY", "TABLE"));
-                if (!content.path("start").isNumber() || !content.path("increment").isNumber()) {
-                    throw validation("Sequence start ve increment sayısal olmalıdır.");
-                }
-                if (content.path("increment").decimalValue().signum() == 0) {
-                    throw validation("Sequence increment sıfır olamaz.");
-                }
-                if (!content.path("cycle").isBoolean()) {
-                    throw validation("Sequence cycle boolean olmalıdır.");
-                }
-            }
-            case MAPPING -> {
-                requireArray(content, "datasets");
-                requireArray(content, "columnMappings");
-                if (!content.path("writeStrategy").isObject()) {
-                    throw validation("Mapping writeStrategy nesne olmalıdır.");
-                }
-            }
-            case REUSABLE_MAPPING -> {
-                requireArray(content, "inputs");
-                requireArray(content, "outputs");
-                requireArray(content, "nodes");
-            }
-            case USER_FUNCTION -> {
-                requireText(content, "returnType");
-                requireArray(content, "parameters");
-                requireArray(content, "implementations");
-            }
-            case KNOWLEDGE_MODULE -> {
-                requireAllowed(content, "kmType", List.of("RKM", "CKM", "LKM", "IKM", "XKM", "JKM", "SKM"));
-                requireArray(content, "tasks");
-                requireArray(content, "options");
-            }
-            case LOAD_PLAN -> {
-                requireArray(content, "steps");
-                requireText(content, "restartPolicy");
-            }
-        }
+        contentValidator.validate(type, content);
     }
 
     private void validateOwnership(DefinitionRow definition, JsonNode content) {
@@ -377,25 +320,6 @@ public class MetadataService {
     private void requireObject(JsonNode content) {
         if (content == null || !content.isObject()) {
             throw validation("Tanım içeriği JSON nesnesi olmalıdır.");
-        }
-    }
-
-    private void requireArray(JsonNode content, String field) {
-        if (!content.path(field).isArray()) {
-            throw validation(field + " alanı dizi olmalıdır.");
-        }
-    }
-
-    private void requireText(JsonNode content, String field) {
-        if (!content.path(field).isString() || content.path(field).stringValue().isBlank()) {
-            throw validation(field + " alanı boş olmayan metin olmalıdır.");
-        }
-    }
-
-    private void requireAllowed(JsonNode content, String field, List<String> allowed) {
-        requireText(content, field);
-        if (!allowed.contains(content.path(field).stringValue())) {
-            throw validation(field + " alanı desteklenmeyen değer içeriyor.");
         }
     }
 

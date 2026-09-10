@@ -11,6 +11,9 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.slf4j.MDC;
+
+import tr.com.innova.akis.web.CorrelationIdFilter;
 
 @RestControllerAdvice
 final class ApiExceptionHandler {
@@ -55,6 +58,10 @@ final class ApiExceptionHandler {
         detail.setType(URI.create("urn:akis:problem:" + code.toLowerCase().replace('_', '-')));
         detail.setTitle(status.getReasonPhrase());
         detail.setProperty("code", code);
+        String correlationId = MDC.get(CorrelationIdFilter.MDC_KEY);
+        if (correlationId != null) {
+            detail.setProperty("correlationId", correlationId);
+        }
         return detail;
     }
 }

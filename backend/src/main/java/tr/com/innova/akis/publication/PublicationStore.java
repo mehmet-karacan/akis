@@ -1,0 +1,47 @@
+package tr.com.innova.akis.publication;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import tr.com.innova.akis.publication.PublicationModels.ApprovalActor;
+import tr.com.innova.akis.publication.PublicationModels.ApprovalRow;
+import tr.com.innova.akis.publication.PublicationModels.PublicationContext;
+import tr.com.innova.akis.publication.PublicationModels.PublicationDraft;
+import tr.com.innova.akis.publication.PublicationModels.PublicationRow;
+import tr.com.innova.akis.publication.PublicationModels.ResolvedBinding;
+
+interface PublicationStore {
+
+    boolean projectExists(UUID projectUuid);
+
+    Optional<PublicationContext> lockContext(
+            UUID projectUuid, UUID scenarioUuid, UUID environmentUuid);
+
+    List<ResolvedBinding> resolveBindings(PublicationContext context);
+
+    Optional<PublicationRow> findByReleaseHash(
+            long scenarioId, long environmentId, String releaseHash);
+
+    PublicationRow create(PublicationDraft draft, UUID publicationUuid);
+
+    Optional<PublicationRow> find(UUID projectUuid, UUID publicationUuid);
+
+    List<PublicationRow> list(UUID projectUuid);
+
+    Optional<PublicationRow> lockPublication(UUID projectUuid, UUID publicationUuid);
+
+    Optional<ApprovalActor> findActiveActor(String provider, String subject);
+
+    Optional<ApprovalRow> findLatestApproval(
+            long publicationId, long actorId, String decision);
+
+    ApprovalRow createApproval(
+            PublicationRow publication,
+            ApprovalActor actor,
+            String decision,
+            String reason,
+            UUID approvalUuid);
+
+    PublicationRow transition(long publicationId, String expectedStatus, String targetStatus);
+}

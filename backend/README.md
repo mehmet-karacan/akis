@@ -30,6 +30,16 @@ Temel yüzeyler:
 - `POST|GET /api/v1/projects/{projectUuid}/models`
 - `POST|GET /api/v1/projects/{projectUuid}/models/{modelUuid}/submodels`
 - `POST|GET /api/v1/projects/{projectUuid}/models/{modelUuid}/data-objects`
+- `POST|GET /api/v1/identity/users`
+- `POST|GET /api/v1/projects/{projectUuid}/memberships`
+- `POST|GET /api/v1/projects/{projectUuid}/data-objects/{dataObjectUuid}/schema-snapshots`
+- `POST|GET /api/v1/projects/{projectUuid}/definitions/{definitionUuid}/versions/{versionUuid}/data-bindings`
+- `POST /api/v1/projects/{projectUuid}/definitions/{definitionUuid}/versions/{versionUuid}/scenarios/compile`
+- `GET /api/v1/projects/{projectUuid}/definitions/{definitionUuid}/versions/{versionUuid}/scenarios`
+- `POST|GET /api/v1/projects/{projectUuid}/publications`
+- `POST /api/v1/projects/{projectUuid}/publications/{publicationUuid}/approvals`
+- `POST /api/v1/projects/{projectUuid}/connections/{connectionUuid}/versions/{versionUuid}/test`
+- `POST /api/v1/projects/{projectUuid}/connections/{connectionUuid}/versions/{versionUuid}/physical-schemas/{schemaUuid}/discover`
 
 Proje kapsamında Mapping, Yeniden Kullanılabilir Mapping, Paket, Prosedür,
 Değişken, Sequence, Kullanıcı Fonksiyonu, Knowledge Module ve Load Plan bulunur.
@@ -41,6 +51,12 @@ Taslak ilk kez `expectedVersion: 0` ile oluşturulur. Sonraki yazmalarda mevcut
 yalnız tür sözleşmesi geçerli bir taslaktan oluşturulur. İçerik nesne anahtarlarına
 göre kanonikleştirilir ve SHA-256 özetiyle saklanır. İç veritabanı ID'leri API'ye
 çıkarılmaz; dış kimlik her zaman UUID'dir.
+
+Sürüm sınırında Mapping, Paket, Prosedür ve Load Plan graf/seçim kuralları derin
+olarak doğrulanır. Tanım sürümü veri nesnesiyle ve belirli immutable şema
+snapshot'ıyla bağlanır. Scenario aynı tanım sürümünden deterministik ve idempotent
+derlenir. Yayın; Scenario, ortam, fiziksel şema, bağlantı sürümü ve snapshot'ları
+bir `releaseHash` altında sabitler. Üretim riskli ortam yayınları onay bekler.
 
 Hatalar RFC 9457 `application/problem+json` biçimindedir ve makine tarafından
 okunabilir `code` alanı taşır. Şifre veya secret değeri hiçbir metadata isteğinin
@@ -59,6 +75,21 @@ sınırından çıkamaz. Veri nesnesi `TABLO`, `VIEW` veya `SORGU` olabilir. Kon
 Sorgu pozitif bir sözleşme sürümü ve yalnız `SELECT`/`WITH` ile başlayan bir SQL
 tanımı ister; bu kayıt canlı veritabanında otomatik çalıştırılmaz.
 
+## Güvenlik ve Oracle discovery
+
+Varsayılan güvenlik modu `fail-closed` olup health dışında API çağrılarını reddeder.
+Yerel geliştirmede yalnız loopback adresinde HTTP Basic, kurumsal kullanımda issuer
+ve audience doğrulamalı OIDC resource server seçilir. Her endpoint merkezi sistem
+veya proje RBAC kontrolünden geçer. Varsayılan proje rolleri Proje Yöneticisi,
+Geliştirici ve İzleyici'dir. Mutating çağrılar correlation ID ve kullanıcı adıyla
+append-only audit olayı üretir; istek gövdesi veya secret değeri kaydedilmez.
+
+Oracle 19c bağlantı testi ve metadata discovery salt okunur JDBC bağlantısı açar.
+Secret referansı `ENV` sağlayıcısında, değeri `username` ve `password` alanlarını
+taşıyan yerel JSON ortam değişkenine işaret eder. Değer metadata veritabanına,
+yanıta veya loga yazılmaz. Discovery yalnız tablo/view, kolon, PK/UK/FK metadata'sı
+okur; DDL veya DML çalıştırmaz.
+
 ## Çalıştırma ve test
 
 Repository kökünde:
@@ -68,16 +99,14 @@ Repository kökünde:
     .\backend\test-api.ps1
     .\scripts\run-backend.ps1
 
-`test-api.ps1` geçici ve yalıtılmış bir PostgreSQL veritabanı oluşturur; topology
-bağını, model/veri nesnesi kataloğunu, secret sızıntısı korumasını, dokuz proje
-türünü, beş global türü, taslak optimistic lock davranışını, immutable sürüm
-sözleşmesini ve temel hata yanıtlarını gerçek HTTP üzerinden sınar. Test sonunda
-uygulamayı durdurur ve geçici veritabanını siler.
+`test-api.ps1` geçici ve yalıtılmış bir PostgreSQL veritabanı oluşturur; auth/RBAC,
+audit, topology, katalog, immutable snapshot, dokuz proje türü, beş global tür,
+optimistic lock, data binding, Scenario derleme ve context-pinned yayın akışlarını
+gerçek HTTP üzerinden sınar. Test sonunda uygulamayı durdurur ve geçici
+veritabanını siler.
 
 ## Kapsam sınırı
 
-Bu teslimat metadata tasarım, topology ve model katalog çekirdeğidir. Canlı
-connection test/discovery ve immutable şema görüntüsü, OIDC ve proje
-yetkilendirmesi, dependency çözümleme, Scenario derleme/yayın ve run/worker API'leri
-backend kapısının sonraki dilimleridir. UI ve Oracle DML entegrasyonu bu kapı
-tamamlanmadan başlatılmaz.
+Bu teslimat backend domain/API kapısını tamamlar. Oracle DML, manuel run/worker,
+ledger, retry, fencing ve scheduler ürün kodu değildir; geliştirme sırasına göre UI
+kapısından sonra yalnız yayınlanmış planlar için ele alınır.

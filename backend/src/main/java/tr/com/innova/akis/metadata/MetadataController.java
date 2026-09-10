@@ -25,15 +25,19 @@ import tr.com.innova.akis.metadata.MetadataModels.DraftRow;
 import tr.com.innova.akis.metadata.MetadataModels.FolderRow;
 import tr.com.innova.akis.metadata.MetadataModels.ProjectRow;
 import tr.com.innova.akis.metadata.MetadataModels.VersionRow;
+import tr.com.innova.akis.security.AuthorizationService;
+import static tr.com.innova.akis.security.PermissionCodes.*;
 
 @RestController
 @RequestMapping("/api/v1")
 final class MetadataController {
 
     private final MetadataService service;
+    private final AuthorizationService authorization;
 
-    MetadataController(MetadataService service) {
+    MetadataController(MetadataService service, AuthorizationService authorization) {
         this.service = service;
+        this.authorization = authorization;
     }
 
     @GetMapping("/definition-types")
@@ -44,6 +48,7 @@ final class MetadataController {
     @PostMapping("/global-definitions")
     ResponseEntity<DefinitionView> createGlobalDefinition(
             @Valid @RequestBody CreateGlobalDefinitionRequest request) {
+        authorization.requireSystemPermission(GLOBAL_DEFINITION_WRITE);
         DefinitionRow definition = service.createGlobalDefinition(
                 request.type(), request.code(), request.name(), request.description());
         return ResponseEntity.created(URI.create(
@@ -54,16 +59,19 @@ final class MetadataController {
     @GetMapping("/global-definitions")
     List<DefinitionView> listGlobalDefinitions(
             @RequestParam(required = false) DefinitionType type) {
+        authorization.requireSystemPermission(GLOBAL_DEFINITION_READ);
         return service.listGlobalDefinitions(type).stream().map(DefinitionView::from).toList();
     }
 
     @GetMapping("/global-definitions/{definitionUuid}")
     DefinitionView globalDefinition(@PathVariable UUID definitionUuid) {
+        authorization.requireSystemPermission(GLOBAL_DEFINITION_READ);
         return DefinitionView.from(service.globalDefinition(definitionUuid));
     }
 
     @GetMapping("/global-definitions/{definitionUuid}/draft")
     DraftView globalDraft(@PathVariable UUID definitionUuid) {
+        authorization.requireSystemPermission(GLOBAL_DEFINITION_READ);
         return DraftView.from(service.globalDraft(definitionUuid));
     }
 
@@ -71,6 +79,7 @@ final class MetadataController {
     DraftView saveGlobalDraft(
             @PathVariable UUID definitionUuid,
             @Valid @RequestBody SaveDraftRequest request) {
+        authorization.requireSystemPermission(GLOBAL_DEFINITION_WRITE);
         return DraftView.from(service.saveGlobalDraft(
                 definitionUuid,
                 request.expectedVersion(),
@@ -82,6 +91,7 @@ final class MetadataController {
     ResponseEntity<VersionRow> createGlobalVersion(
             @PathVariable UUID definitionUuid,
             @Valid @RequestBody CreateVersionRequest request) {
+        authorization.requireSystemPermission(GLOBAL_DEFINITION_WRITE);
         VersionRow version = service.createGlobalVersion(
                 definitionUuid,
                 request.expectedDraftVersion(),
@@ -91,11 +101,13 @@ final class MetadataController {
 
     @GetMapping("/global-definitions/{definitionUuid}/versions")
     List<VersionRow> listGlobalVersions(@PathVariable UUID definitionUuid) {
+        authorization.requireSystemPermission(GLOBAL_DEFINITION_READ);
         return service.listGlobalVersions(definitionUuid);
     }
 
     @PostMapping("/projects")
     ResponseEntity<ProjectView> createProject(@Valid @RequestBody CreateProjectRequest request) {
+        authorization.requireSystemPermission(PROJECT_CREATE);
         ProjectRow project = service.createProject(request.code(), request.name(), request.description());
         return ResponseEntity.created(URI.create("/api/v1/projects/" + project.uuid()))
                 .body(ProjectView.from(project));
@@ -103,11 +115,16 @@ final class MetadataController {
 
     @GetMapping("/projects")
     List<ProjectView> listProjects() {
-        return service.listProjects().stream().map(ProjectView::from).toList();
+        var visibleProjects = authorization.visibleProjectUuids();
+        return service.listProjects().stream()
+                .filter(project -> visibleProjects.contains(project.uuid()))
+                .map(ProjectView::from)
+                .toList();
     }
 
     @GetMapping("/projects/{projectUuid}")
     ProjectView project(@PathVariable UUID projectUuid) {
+        authorization.requireProjectPermission(projectUuid, PROJECT_READ);
         return ProjectView.from(service.project(projectUuid));
     }
 
@@ -115,6 +132,7 @@ final class MetadataController {
     ResponseEntity<FolderView> createFolder(
             @PathVariable UUID projectUuid,
             @Valid @RequestBody CreateFolderRequest request) {
+        authorization.requireProjectPermission(projectUuid, PROJECT_WRITE);
         FolderRow folder = service.createFolder(
                 projectUuid,
                 request.parentUuid(),
@@ -129,6 +147,7 @@ final class MetadataController {
 
     @GetMapping("/projects/{projectUuid}/folders")
     List<FolderView> listFolders(@PathVariable UUID projectUuid) {
+        authorization.requireProjectPermission(projectUuid, PROJECT_READ);
         return service.listFolders(projectUuid).stream().map(FolderView::from).toList();
     }
 
@@ -136,6 +155,7 @@ final class MetadataController {
     ResponseEntity<DefinitionView> createDefinition(
             @PathVariable UUID projectUuid,
             @Valid @RequestBody CreateDefinitionRequest request) {
+        authorization.requireProjectPermission(projectUuid, PROJECT_WRITE);
         DefinitionRow definition = service.createDefinition(
                 projectUuid,
                 request.folderUuid(),
@@ -152,6 +172,7 @@ final class MetadataController {
     List<DefinitionView> listDefinitions(
             @PathVariable UUID projectUuid,
             @RequestParam(required = false) DefinitionType type) {
+        authorization.requireProjectPermission(projectUuid, PROJECT_READ);
         return service.listDefinitions(projectUuid, type).stream()
                 .map(DefinitionView::from)
                 .toList();
@@ -161,6 +182,7 @@ final class MetadataController {
     DefinitionView definition(
             @PathVariable UUID projectUuid,
             @PathVariable UUID definitionUuid) {
+        authorization.requireProjectPermission(projectUuid, PROJECT_READ);
         return DefinitionView.from(service.definition(projectUuid, definitionUuid));
     }
 
@@ -168,6 +190,7 @@ final class MetadataController {
     DraftView draft(
             @PathVariable UUID projectUuid,
             @PathVariable UUID definitionUuid) {
+        authorization.requireProjectPermission(projectUuid, PROJECT_READ);
         return DraftView.from(service.draft(projectUuid, definitionUuid));
     }
 
@@ -176,6 +199,7 @@ final class MetadataController {
             @PathVariable UUID projectUuid,
             @PathVariable UUID definitionUuid,
             @Valid @RequestBody SaveDraftRequest request) {
+        authorization.requireProjectPermission(projectUuid, PROJECT_WRITE);
         return DraftView.from(service.saveDraft(
                 projectUuid,
                 definitionUuid,
@@ -189,6 +213,7 @@ final class MetadataController {
             @PathVariable UUID projectUuid,
             @PathVariable UUID definitionUuid,
             @Valid @RequestBody CreateVersionRequest request) {
+        authorization.requireProjectPermission(projectUuid, PROJECT_WRITE);
         VersionRow version = service.createVersion(
                 projectUuid,
                 definitionUuid,
@@ -201,6 +226,7 @@ final class MetadataController {
     List<VersionRow> listVersions(
             @PathVariable UUID projectUuid,
             @PathVariable UUID definitionUuid) {
+        authorization.requireProjectPermission(projectUuid, PROJECT_READ);
         return service.listVersions(projectUuid, definitionUuid);
     }
 

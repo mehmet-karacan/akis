@@ -118,8 +118,30 @@ BEGIN
         RAISE EXCEPTION 'A forbidden cleartext secret column exists';
     END IF;
 
-    IF (SELECT count(*) FROM public.flyway_schema_history WHERE success) <> 2 THEN
+    IF (SELECT count(*) FROM public.flyway_schema_history WHERE success) <> 3 THEN
         RAISE EXCEPTION 'Flyway replay was not a no-op';
+    END IF;
+
+    IF (SELECT count(*) FROM entegrasyon.yetki) <> 20 THEN
+        RAISE EXCEPTION 'Security permission catalog is incomplete';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_schema = 'entegrasyon'
+           AND table_name = 'yayin'
+           AND column_name = 'release_hash'
+           AND is_generated = 'ALWAYS'
+    ) THEN
+        RAISE EXCEPTION 'Publication release hash guard is missing';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger
+         WHERE tgname = 'tr_denetim_olayi_immutable_delete'
+           AND NOT tgisinternal
+    ) THEN
+        RAISE EXCEPTION 'Append-only delete guards are missing';
     END IF;
 
     SELECT count(*) INTO actual_definition_types
@@ -174,6 +196,10 @@ BEGIN
         RAISE EXCEPTION 'Could not persist every required definition type';
     END IF;
 
+    IF (SELECT count(*) FROM entegrasyon.proje_rolu) <> 6 THEN
+        RAISE EXCEPTION 'Default project roles were not provisioned';
+    END IF;
+
     BEGIN
         INSERT INTO entegrasyon.tanim(kapsam_kodu, tur_kodu, kod, ad)
         VALUES ('GLOBAL', 'PACKAGE', 'INVALID_GLOBAL_PACKAGE', 'Geçersiz');
@@ -192,6 +218,22 @@ BEGIN
         RAISE EXCEPTION 'Cross-project folder reference was not rejected';
     EXCEPTION WHEN foreign_key_violation THEN
         NULL;
+    END;
+END $$;
+
+INSERT INTO entegrasyon.denetim_olayi(
+    korelasyon_kodu, aktor_turu, eylem_kodu, sonuc_kodu, olay_zamani, ayrinti)
+VALUES ('schema-test', 'SISTEM', 'TEST', 'BASARILI', current_timestamp, '{}'::jsonb);
+
+DO $$
+BEGIN
+    BEGIN
+        DELETE FROM entegrasyon.denetim_olayi WHERE korelasyon_kodu = 'schema-test';
+        RAISE EXCEPTION 'Append-only delete trigger did not reject delete';
+    EXCEPTION WHEN raise_exception THEN
+        IF SQLERRM = 'Append-only delete trigger did not reject delete' THEN
+            RAISE;
+        END IF;
     END;
 END $$;
 
@@ -218,7 +260,7 @@ END $$;
         throw "Metadata schema assertions failed."
     }
 
-    Write-Output "Metadata schema test: PASS (58 tables, 9 definition types, 2 Flyway migrations)"
+    Write-Output "Metadata schema test: PASS (58 tables, 9 definition types, 3 Flyway migrations, RBAC guards)"
 }
 finally {
     & $docker exec $container dropdb --if-exists --force -U $databaseUser $testDatabase | Out-Null

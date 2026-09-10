@@ -15,8 +15,19 @@ spring:
     validate-migration-naming: true
 
 server:
+  address: ${AKIS_SERVER_ADDRESS:127.0.0.1}
   port: ${AKIS_SERVER_PORT:8080}
   shutdown: graceful
+
+akis:
+  security:
+    mode: ${AKIS_SECURITY_MODE:fail-closed}
+    development:
+      username: ${AKIS_DEV_USERNAME:}
+      password: ${AKIS_DEV_PASSWORD:}
+    oidc:
+      issuer-uri: ${AKIS_OIDC_ISSUER_URI:}
+      audience: ${AKIS_OIDC_AUDIENCE:}
 
 management:
   endpoints:

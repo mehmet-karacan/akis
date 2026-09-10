@@ -26,21 +26,26 @@ import tr.com.innova.akis.topology.TopologyModels.LogicalSchemaRow;
 import tr.com.innova.akis.topology.TopologyModels.PhysicalSchemaRow;
 import tr.com.innova.akis.topology.TopologyModels.SchemaBindingRow;
 import tr.com.innova.akis.topology.TopologyModels.SecretReferenceRow;
+import tr.com.innova.akis.security.AuthorizationService;
+import static tr.com.innova.akis.security.PermissionCodes.*;
 
 @RestController
 @RequestMapping("/api/v1/projects/{projectUuid}")
 final class TopologyController {
 
     private final TopologyService service;
+    private final AuthorizationService authorization;
 
-    TopologyController(TopologyService service) {
+    TopologyController(TopologyService service, AuthorizationService authorization) {
         this.service = service;
+        this.authorization = authorization;
     }
 
     @PostMapping("/secret-references")
     ResponseEntity<SecretReferenceView> createSecretReference(
             @PathVariable UUID projectUuid,
             @Valid @RequestBody CreateSecretReferenceRequest request) {
+        authorization.requireProjectPermission(projectUuid, SECRET_WRITE);
         SecretReferenceRow row = service.createSecretReference(
                 projectUuid, request.code(), request.referencePath(),
                 request.versionReference(), request.provider(), request.name());
@@ -51,6 +56,7 @@ final class TopologyController {
 
     @GetMapping("/secret-references")
     List<SecretReferenceView> listSecretReferences(@PathVariable UUID projectUuid) {
+        authorization.requireProjectPermission(projectUuid, SECRET_READ);
         return service.listSecretReferences(projectUuid).stream()
                 .map(SecretReferenceView::from)
                 .toList();
@@ -60,6 +66,7 @@ final class TopologyController {
     ResponseEntity<ConnectionView> createConnection(
             @PathVariable UUID projectUuid,
             @Valid @RequestBody CreateConnectionRequest request) {
+        authorization.requireProjectPermission(projectUuid, TOPOLOGY_WRITE);
         ConnectionRow row = service.createConnection(
                 projectUuid, request.code(), request.databaseType(),
                 request.name(), request.description());
@@ -70,6 +77,7 @@ final class TopologyController {
 
     @GetMapping("/connections")
     List<ConnectionView> listConnections(@PathVariable UUID projectUuid) {
+        authorization.requireProjectPermission(projectUuid, TOPOLOGY_READ);
         return service.listConnections(projectUuid).stream().map(ConnectionView::from).toList();
     }
 
@@ -77,6 +85,7 @@ final class TopologyController {
     ConnectionView connection(
             @PathVariable UUID projectUuid,
             @PathVariable UUID connectionUuid) {
+        authorization.requireProjectPermission(projectUuid, TOPOLOGY_READ);
         return ConnectionView.from(service.connection(projectUuid, connectionUuid));
     }
 
@@ -85,6 +94,7 @@ final class TopologyController {
             @PathVariable UUID projectUuid,
             @PathVariable UUID connectionUuid,
             @Valid @RequestBody CreateConnectionVersionRequest request) {
+        authorization.requireProjectPermission(projectUuid, TOPOLOGY_WRITE);
         ConnectionVersionRow row = service.createConnectionVersion(
                 projectUuid, connectionUuid, request.driverReference(), request.host(),
                 request.serviceName(), request.sid(), request.databaseName(), request.tlsMode(),
@@ -97,6 +107,7 @@ final class TopologyController {
     List<ConnectionVersionView> listConnectionVersions(
             @PathVariable UUID projectUuid,
             @PathVariable UUID connectionUuid) {
+        authorization.requireProjectPermission(projectUuid, TOPOLOGY_READ);
         return service.listConnectionVersions(projectUuid, connectionUuid).stream()
                 .map(ConnectionVersionView::from)
                 .toList();
@@ -106,6 +117,7 @@ final class TopologyController {
     ResponseEntity<PhysicalSchemaView> createPhysicalSchema(
             @PathVariable UUID projectUuid,
             @Valid @RequestBody CreatePhysicalSchemaRequest request) {
+        authorization.requireProjectPermission(projectUuid, TOPOLOGY_WRITE);
         PhysicalSchemaRow row = service.createPhysicalSchema(
                 projectUuid, request.connectionUuid(), request.code(),
                 request.schemaReference(), request.name());
@@ -116,6 +128,7 @@ final class TopologyController {
 
     @GetMapping("/physical-schemas")
     List<PhysicalSchemaView> listPhysicalSchemas(@PathVariable UUID projectUuid) {
+        authorization.requireProjectPermission(projectUuid, TOPOLOGY_READ);
         return service.listPhysicalSchemas(projectUuid).stream()
                 .map(PhysicalSchemaView::from)
                 .toList();
@@ -125,6 +138,7 @@ final class TopologyController {
     ResponseEntity<LogicalSchemaView> createLogicalSchema(
             @PathVariable UUID projectUuid,
             @Valid @RequestBody CreateLogicalSchemaRequest request) {
+        authorization.requireProjectPermission(projectUuid, TOPOLOGY_WRITE);
         LogicalSchemaRow row = service.createLogicalSchema(
                 projectUuid, request.code(), request.name(), request.description());
         return ResponseEntity.created(URI.create(
@@ -134,6 +148,7 @@ final class TopologyController {
 
     @GetMapping("/logical-schemas")
     List<LogicalSchemaView> listLogicalSchemas(@PathVariable UUID projectUuid) {
+        authorization.requireProjectPermission(projectUuid, TOPOLOGY_READ);
         return service.listLogicalSchemas(projectUuid).stream()
                 .map(LogicalSchemaView::from)
                 .toList();
@@ -143,6 +158,7 @@ final class TopologyController {
     ResponseEntity<EnvironmentView> createEnvironment(
             @PathVariable UUID projectUuid,
             @Valid @RequestBody CreateEnvironmentRequest request) {
+        authorization.requireProjectPermission(projectUuid, TOPOLOGY_WRITE);
         EnvironmentRow row = service.createEnvironment(
                 projectUuid, request.code(), request.risk(),
                 request.policyVersion() == null ? 1 : request.policyVersion(),
@@ -154,6 +170,7 @@ final class TopologyController {
 
     @GetMapping("/environments")
     List<EnvironmentView> listEnvironments(@PathVariable UUID projectUuid) {
+        authorization.requireProjectPermission(projectUuid, TOPOLOGY_READ);
         return service.listEnvironments(projectUuid).stream()
                 .map(EnvironmentView::from)
                 .toList();
@@ -163,6 +180,7 @@ final class TopologyController {
     ResponseEntity<SchemaBindingRow> createSchemaBinding(
             @PathVariable UUID projectUuid,
             @Valid @RequestBody CreateSchemaBindingRequest request) {
+        authorization.requireProjectPermission(projectUuid, TOPOLOGY_WRITE);
         SchemaBindingRow row = service.createSchemaBinding(
                 projectUuid, request.logicalSchemaUuid(), request.environmentUuid(),
                 request.physicalSchemaUuid(), request.connectionVersionUuid());
@@ -171,6 +189,7 @@ final class TopologyController {
 
     @GetMapping("/schema-bindings")
     List<SchemaBindingRow> listSchemaBindings(@PathVariable UUID projectUuid) {
+        authorization.requireProjectPermission(projectUuid, TOPOLOGY_READ);
         return service.listSchemaBindings(projectUuid);
     }
 

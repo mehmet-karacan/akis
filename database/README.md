@@ -19,10 +19,11 @@ değer olayları, checkpoint, audit ve lineage aynı baseline içindedir.
 
     .\database\test-schema.ps1
 
-Test geçici bir veritabanı oluşturur, migrasyonu tek transaction içinde uygular,
-58 tabloyu ve dokuz tanım türünü denetler, sahiplik ve immutable kayıt negatif
-testlerini çalıştırır; ardından geçici veritabanını siler. Geliştirme veritabanına
-ve Oracle kaynak/hedeflerine dokunmaz.
+Test geçici bir veritabanı oluşturur, üç migrasyonu uygular, ikinci Flyway
+çalıştırmasının no-op olduğunu doğrular; 58 tabloyu, dokuz tanım türünü, 20 RBAC
+yetkisini, varsayılan proje rollerini ve append-only negatif testlerini denetler.
+Ardından geçici veritabanını siler; geliştirme veritabanına ve Oracle
+kaynak/hedeflerine dokunmaz.
 
 Testler geçtikten sonra baseline'ı `.env` içindeki yerel geliştirme PostgreSQL'ine
 Flyway ile uygulamak için:

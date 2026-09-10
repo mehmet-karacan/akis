@@ -20,21 +20,26 @@ import tools.jackson.databind.JsonNode;
 import tr.com.innova.akis.catalog.CatalogModels.DataObjectRow;
 import tr.com.innova.akis.catalog.CatalogModels.ModelRow;
 import tr.com.innova.akis.catalog.CatalogModels.SubmodelRow;
+import tr.com.innova.akis.security.AuthorizationService;
+import static tr.com.innova.akis.security.PermissionCodes.*;
 
 @RestController
 @RequestMapping("/api/v1/projects/{projectUuid}/models")
 final class CatalogController {
 
     private final CatalogService service;
+    private final AuthorizationService authorization;
 
-    CatalogController(CatalogService service) {
+    CatalogController(CatalogService service, AuthorizationService authorization) {
         this.service = service;
+        this.authorization = authorization;
     }
 
     @PostMapping
     ResponseEntity<ModelView> createModel(
             @PathVariable UUID projectUuid,
             @Valid @RequestBody CreateModelRequest request) {
+        authorization.requireProjectPermission(projectUuid, CATALOG_WRITE);
         ModelRow row = service.createModel(
                 projectUuid, request.logicalSchemaUuid(), request.code(),
                 request.name(), request.description());
@@ -45,11 +50,13 @@ final class CatalogController {
 
     @GetMapping
     List<ModelView> listModels(@PathVariable UUID projectUuid) {
+        authorization.requireProjectPermission(projectUuid, CATALOG_READ);
         return service.listModels(projectUuid).stream().map(ModelView::from).toList();
     }
 
     @GetMapping("/{modelUuid}")
     ModelView model(@PathVariable UUID projectUuid, @PathVariable UUID modelUuid) {
+        authorization.requireProjectPermission(projectUuid, CATALOG_READ);
         return ModelView.from(service.model(projectUuid, modelUuid));
     }
 
@@ -58,6 +65,7 @@ final class CatalogController {
             @PathVariable UUID projectUuid,
             @PathVariable UUID modelUuid,
             @Valid @RequestBody CreateSubmodelRequest request) {
+        authorization.requireProjectPermission(projectUuid, CATALOG_WRITE);
         SubmodelRow row = service.createSubmodel(
                 projectUuid, modelUuid, request.parentUuid(), request.code(), request.name());
         return ResponseEntity.status(201).body(SubmodelView.from(row));
@@ -67,6 +75,7 @@ final class CatalogController {
     List<SubmodelView> listSubmodels(
             @PathVariable UUID projectUuid,
             @PathVariable UUID modelUuid) {
+        authorization.requireProjectPermission(projectUuid, CATALOG_READ);
         return service.listSubmodels(projectUuid, modelUuid).stream()
                 .map(SubmodelView::from)
                 .toList();
@@ -77,6 +86,7 @@ final class CatalogController {
             @PathVariable UUID projectUuid,
             @PathVariable UUID modelUuid,
             @Valid @RequestBody CreateDataObjectRequest request) {
+        authorization.requireProjectPermission(projectUuid, CATALOG_WRITE);
         DataObjectRow row = service.createDataObject(
                 projectUuid, modelUuid, request.submodelUuid(), request.code(),
                 request.objectReference(), request.type(), request.querySchemaVersion(),
@@ -88,6 +98,7 @@ final class CatalogController {
     List<DataObjectView> listDataObjects(
             @PathVariable UUID projectUuid,
             @PathVariable UUID modelUuid) {
+        authorization.requireProjectPermission(projectUuid, CATALOG_READ);
         return service.listDataObjects(projectUuid, modelUuid).stream()
                 .map(DataObjectView::from)
                 .toList();

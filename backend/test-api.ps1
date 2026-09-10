@@ -56,6 +56,7 @@ function Invoke-AkisJson {
     $parameters = @{
         Method = $Method
         Uri = "http://127.0.0.1:$port$Path"
+        Headers = @{ Authorization = $script:authorizationHeader }
     }
     if ($null -ne $Body) {
         $parameters["ContentType"] = "application/json"
@@ -88,11 +89,20 @@ try {
         AKIS_DB_USERNAME = $env:AKIS_DB_USERNAME
         AKIS_DB_PASSWORD = $env:AKIS_DB_PASSWORD
         AKIS_SERVER_PORT = $env:AKIS_SERVER_PORT
+        AKIS_SECURITY_MODE = $env:AKIS_SECURITY_MODE
+        AKIS_DEV_USERNAME = $env:AKIS_DEV_USERNAME
+        AKIS_DEV_PASSWORD = $env:AKIS_DEV_PASSWORD
     }
     $env:AKIS_DB_URL = "jdbc:postgresql://127.0.0.1:$($settings['POSTGRES_PORT'])/$testDatabase"
     $env:AKIS_DB_USERNAME = $databaseUser
     $env:AKIS_DB_PASSWORD = $settings["POSTGRES_PASSWORD"]
     $env:AKIS_SERVER_PORT = $port
+    $env:AKIS_SECURITY_MODE = "development"
+    $env:AKIS_DEV_USERNAME = "api-test"
+    $env:AKIS_DEV_PASSWORD = [Guid]::NewGuid().ToString("N")
+    $credentialBytes = [Text.Encoding]::UTF8.GetBytes(
+        "$($env:AKIS_DEV_USERNAME):$($env:AKIS_DEV_PASSWORD)")
+    $script:authorizationHeader = "Basic " + [Convert]::ToBase64String($credentialBytes)
 
     $appProcess = Start-Process java -ArgumentList "-jar", $jar.FullName `
         -WindowStyle Hidden -PassThru `
@@ -118,6 +128,25 @@ try {
         throw "Backend health check timed out."
     }
 
+    try {
+        Invoke-RestMethod "http://127.0.0.1:$port/api/v1/projects" | Out-Null
+        throw "Anonymous API request was accepted."
+    }
+    catch {
+        if ($_.Exception.Response.StatusCode.value__ -ne 401) {
+            throw
+        }
+    }
+
+    $correlationProbe = Invoke-WebRequest "http://127.0.0.1:$port/api/v1/definition-types" `
+        -Headers @{
+            Authorization = $script:authorizationHeader
+            "X-Correlation-Id" = "api-contract-test"
+        }
+    if ($correlationProbe.Headers["X-Correlation-Id"] -ne "api-contract-test") {
+        throw "Correlation id was not preserved in the response."
+    }
+
     $types = Invoke-AkisJson GET "/api/v1/definition-types"
     if ($types.Count -ne 9) {
         throw "Expected 9 definition types, found $($types.Count)."
@@ -129,6 +158,21 @@ try {
     }
     if ($project.PSObject.Properties.Name -contains "id") {
         throw "Internal database id leaked through the project API."
+    }
+    $oidcUser = Invoke-AkisJson POST "/api/v1/identity/users" @{
+        issuer = "https://identity.example/realms/akis"
+        subject = "api-smoke-user"
+        name = "API Smoke User"
+        email = "api-smoke@example.invalid"
+    }
+    $membership = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/memberships" @{
+        userUuid = $oidcUser.uuid
+        role = "IZLEYICI"
+    }
+    $memberships = Invoke-AkisJson GET "/api/v1/projects/$($project.uuid)/memberships"
+    if ($membership.userUuid -ne $oidcUser.uuid -or $memberships.Count -ne 1 `
+            -or $membership.roles[0].code -ne "IZLEYICI") {
+        throw "OIDC user and project membership provisioning failed."
     }
     $folder = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/folders" @{
         code = "DEVELOPMENT"
@@ -183,16 +227,16 @@ try {
         code = "REFERENCE"
         name = "Reference data"
     }
-    Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/models/$($model.uuid)/data-objects" @{
+    $tableObject = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/models/$($model.uuid)/data-objects" @{
         submodelUuid = $submodel.uuid
         code = "SOURCE_TABLE"
-        objectReference = "APP_OWNER.SOURCE_TABLE"
+        objectReference = "SOURCE_TABLE"
         type = "TABLO"
         name = "Source table"
-    } | Out-Null
+    }
     Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/models/$($model.uuid)/data-objects" @{
         code = "SOURCE_VIEW"
-        objectReference = "APP_OWNER.SOURCE_VIEW"
+        objectReference = "SOURCE_VIEW"
         type = "VIEW"
         name = "Source view"
     } | Out-Null
@@ -207,6 +251,54 @@ try {
     $dataObjects = Invoke-AkisJson GET "/api/v1/projects/$($project.uuid)/models/$($model.uuid)/data-objects"
     if ($dataObjects.Count -ne 3) {
         throw "Expected 3 model data objects, found $($dataObjects.Count)."
+    }
+
+    $snapshot = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/data-objects/$($tableObject.uuid)/schema-snapshots" @{
+        physicalSchemaUuid = $physicalSchema.uuid
+        connectionVersionUuid = $connectionVersion.uuid
+        engineVersion = "Oracle Database 19c"
+        discoveredAt = [DateTimeOffset]::UtcNow.ToString("o")
+        propertyVersion = 1
+        properties = @{ source = "api-smoke" }
+        columns = @(
+            @{
+                reference = "ID"
+                producerType = "NUMBER(19)"
+                canonicalType = "INTEGER"
+                ordinal = 1
+                precision = 19
+                scale = 0
+                nullable = $false
+                name = "ID"
+            },
+            @{
+                reference = "NAME"
+                producerType = "VARCHAR2(100)"
+                canonicalType = "STRING"
+                ordinal = 2
+                length = 100
+                nullable = $true
+                name = "NAME"
+            }
+        )
+        constraints = @(
+            @{
+                externalReference = "PK_SOURCE_TABLE"
+                type = "PK"
+                enabled = $true
+                detailVersion = 1
+                details = @{}
+                name = "PK_SOURCE_TABLE"
+                columnReferences = @("ID")
+            }
+        )
+    }
+    if ($snapshot.fingerprint.Length -ne 64 -or $snapshot.columns.Count -ne 2) {
+        throw "Immutable schema snapshot contract failed."
+    }
+    $snapshots = Invoke-AkisJson GET "/api/v1/projects/$($project.uuid)/data-objects/$($tableObject.uuid)/schema-snapshots"
+    if ($snapshots.Count -ne 1 -or $snapshots[0].uuid -ne $snapshot.uuid) {
+        throw "Schema snapshot list contract failed."
     }
 
     try {
@@ -308,17 +400,48 @@ try {
     }
 
     $contracts = @(
-        @{ type = "MAPPING"; folder = $true; content = @{ datasets = @(); columnMappings = @(); writeStrategy = @{} } },
+        @{ type = "MAPPING"; folder = $true; content = @{
+            datasets = @(
+                @{ id = "source"; role = "SOURCE" },
+                @{ id = "target"; role = "TARGET" }
+            )
+            columnMappings = @(
+                @{
+                    source = @{ dataset = "source"; column = "ID" }
+                    target = @{ dataset = "target"; column = "ID" }
+                }
+            )
+            writeStrategy = @{ kind = "APPEND" }
+        } },
         @{ type = "REUSABLE_MAPPING"; folder = $true; content = @{ inputs = @(); outputs = @(); nodes = @() } },
-        @{ type = "PACKAGE"; folder = $true; content = @{ firstStepId = "START"; steps = @(); transitions = @() } },
-        @{ type = "PROCEDURE"; folder = $true; content = @{ tasks = @() } },
+        @{ type = "PACKAGE"; folder = $true; content = @{
+            firstStepId = "START"
+            steps = @( @{ id = "START"; type = "MAPPING" } )
+            transitions = @()
+        } },
+        @{ type = "PROCEDURE"; folder = $true; content = @{
+            tasks = @(
+                @{
+                    id = "READ"
+                    type = "SQL"
+                    connectionRole = "SOURCE"
+                    riskClass = "READ_ONLY"
+                    command = "SELECT 1 FROM DUAL"
+                }
+            )
+        } },
         @{ type = "VARIABLE"; folder = $false; content = @{ dataType = "STRING"; scope = "PROJECT"; historyMode = "NONE"; valueSource = "INPUT" } },
         @{ type = "SEQUENCE"; folder = $false; content = @{ implementation = "REPOSITORY"; start = 1; increment = 1; cycle = $false } },
         @{ type = "USER_FUNCTION"; folder = $false; content = @{ returnType = "STRING"; parameters = @(); implementations = @() } },
         @{ type = "KNOWLEDGE_MODULE"; folder = $false; content = @{ kmType = "IKM"; tasks = @(); options = @() } },
-        @{ type = "LOAD_PLAN"; folder = $false; content = @{ steps = @(); restartPolicy = "FAILED_STEP" } }
+        @{ type = "LOAD_PLAN"; folder = $false; content = @{
+            steps = @( @{ id = "SCENARIO"; type = "SCENARIO"; scenarioVersionUuid = "test-version" } )
+            restartPolicy = "FAILED_STEP"
+        } }
     )
 
+    $mappingDefinition = $null
+    $mappingVersion = $null
     foreach ($contract in $contracts) {
         $request = @{
             type = $contract.type
@@ -341,6 +464,42 @@ try {
         if ($version.versionNumber -ne 1 -or $version.contentHash.Length -ne 64) {
             throw "Version contract failed for $($contract.type)."
         }
+        if ($contract.type -eq "MAPPING") {
+            $mappingDefinition = $definition
+            $mappingVersion = $version
+        }
+    }
+
+    $scenarioPath = "/api/v1/projects/$($project.uuid)/definitions/$($mappingDefinition.uuid)/versions/$($mappingVersion.uuid)/scenarios"
+    $scenario = Invoke-AkisJson POST "$scenarioPath/compile"
+    $sameScenario = Invoke-AkisJson POST "$scenarioPath/compile"
+    $scenarios = Invoke-AkisJson GET $scenarioPath
+    if ($scenario.uuid -ne $sameScenario.uuid -or $scenario.planHash.Length -ne 64 -or $scenarios.Count -ne 1) {
+        throw "Deterministic idempotent scenario compilation failed."
+    }
+    $bindingPath = "/api/v1/projects/$($project.uuid)/definitions/$($mappingDefinition.uuid)/versions/$($mappingVersion.uuid)/data-bindings"
+    $definitionBinding = Invoke-AkisJson POST $bindingPath @{
+        nodeCode = "source"
+        role = "KAYNAK"
+        dataObjectUuid = $tableObject.uuid
+        schemaSnapshotUuid = $snapshot.uuid
+    }
+    $definitionBindings = Invoke-AkisJson GET $bindingPath
+    if ($definitionBinding.schemaSnapshotUuid -ne $snapshot.uuid -or $definitionBindings.Count -ne 1) {
+        throw "Immutable definition data binding failed."
+    }
+    $publication = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/publications" @{
+        scenarioUuid = $scenario.uuid
+        environmentUuid = $environment.uuid
+    }
+    $samePublication = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/publications" @{
+        scenarioUuid = $scenario.uuid
+        environmentUuid = $environment.uuid
+    }
+    $publications = Invoke-AkisJson GET "/api/v1/projects/$($project.uuid)/publications"
+    if ($publication.uuid -ne $samePublication.uuid -or $publication.status -ne "AKTIF" `
+            -or $publication.releaseHash.Length -ne 64 -or $publications.Count -ne 1) {
+        throw "Context-pinned idempotent publication failed."
     }
 
     $definitions = Invoke-AkisJson GET "/api/v1/projects/$($project.uuid)/definitions"
@@ -435,7 +594,18 @@ try {
         }
     }
 
-    Write-Output "Backend API test: PASS (topology, model catalog, 9 project types, 5 global types, locks)"
+    $auditCount = (& $docker exec $container psql -U $databaseUser -d $testDatabase `
+        -Atc "select count(*) from entegrasyon.denetim_olayi").Trim()
+    if ([int]$auditCount -lt 1) {
+        throw "Mutating API requests did not produce audit events."
+    }
+    $userAuditCount = (& $docker exec $container psql -U $databaseUser -d $testDatabase `
+        -Atc "select count(*) from entegrasyon.denetim_olayi where aktor_turu = 'KULLANICI' and ayrinti->>'principal' = 'api-test'").Trim()
+    if ([int]$userAuditCount -lt 1) {
+        throw "Authenticated mutating requests were not attributed in audit events."
+    }
+
+    Write-Output "Backend API test: PASS (auth, RBAC, audit, topology, catalog, snapshots, definitions, bindings, scenarios, publications, locks)"
 }
 catch {
     if (Test-Path -LiteralPath $stdoutLog) {
