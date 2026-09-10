@@ -1,5 +1,7 @@
 [CmdletBinding()]
-param()
+param(
+    [switch]$EnableCopy
+)
 
 $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
@@ -18,6 +20,13 @@ Get-Content -LiteralPath $envFile |
         [Environment]::SetEnvironmentVariable($name, $value, "Process")
     }
 
+if ($EnableCopy) {
+    [Environment]::SetEnvironmentVariable(
+        "AKIS_ORACLE_COPY_ENABLED",
+        "true",
+        "Process")
+}
+
 $required = @(
     "AKIS_ORACLE_EXPECTED_MAJOR",
     "AKIS_ORACLE_SOURCE_URL",
@@ -27,7 +36,13 @@ $required = @(
     "AKIS_ORACLE_TARGET_USERNAME",
     "AKIS_ORACLE_TARGET_PASSWORD",
     "AKIS_ORACLE_CONNECT_TIMEOUT_MS",
-    "AKIS_ORACLE_READ_TIMEOUT_MS"
+    "AKIS_ORACLE_READ_TIMEOUT_MS",
+    "AKIS_ORACLE_SOURCE_OWNER",
+    "AKIS_ORACLE_SOURCE_TABLE",
+    "AKIS_ORACLE_TARGET_OWNER",
+    "AKIS_ORACLE_TARGET_TABLE",
+    "AKIS_ORACLE_COPY_ENABLED",
+    "AKIS_ORACLE_BATCH_SIZE"
 )
 $missing = $required | Where-Object {
     -not $values.ContainsKey($_) -or [string]::IsNullOrWhiteSpace($values[$_])
