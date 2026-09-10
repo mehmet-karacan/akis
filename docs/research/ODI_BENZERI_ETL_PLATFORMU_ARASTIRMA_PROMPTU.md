@@ -327,6 +327,29 @@ gerekirse adlarini ve sinirlarini iyilestir:
 - Kolon silinmesi, tip degisikligi veya nullability degisikligi mapping'i nasil
   `GECERSIZ` veya `UYARI` durumuna gecirecek?
 
+## 4.7 Gelistirme ve orkestrasyon nesneleri
+
+Asagidaki nesneleri mapping'in icinde adsiz JSON bloklari olarak birakma; sahiplik,
+scope, surum, bagimlilik, dogrulama, yayin ve calistirma davranislarini ayri ayri
+tasarla:
+
+- Klasor ve alt klasor
+- Mapping ve yeniden kullanilabilir Mapping
+- Paket; ilk adim, basarili/basarisiz gecis ve kosullu dal
+- Prosedur; sirali gorev, source/target komutu ve typed option
+- Degisken; typed deger, default/input/refresh/evaluate ve history policy
+- Sequence; native/repository/table uygulamasi ve concurrency davranisi
+- Kullanici Fonksiyonu ve teknolojiye ozel implementasyon
+- Knowledge Module / entegrasyon stratejisi
+- Scenario; tasarim nesnesinden uretilen immutable executable surum
+- Load Plan; sirali/paralel/kosullu ust seviye orkestrasyon ve restart
+- Schedule, Session, Step ve Task
+
+Paket ile Load Plan'i, taslak ile Scenario'yu ve Sequence ile incremental
+watermark'i ayni kavram sayma. Serbest OS/script komutlarini varsayilan Prosedur
+yetkisiyle acma. Ilk urunde etkin olmayacak ODI nesnelerini de acik `ertelendi`
+katalogunda belirt; sessizce kapsamdan dusurme.
+
 Bu kavramlar icin bir domain modeli, iliski diyagrami ve yasam dongusu oner.
 
 ---
@@ -1002,6 +1025,9 @@ Yol haritasini somut kabul kriterleriyle fazlara ayir. En az su asamalari degerl
 - Connection ve secret referansi
 - Physical/logical schema ve context
 - Schema snapshot ve drift
+- Klasor ve ortak tanim/surum/bagimlilik katalogu
+- Paket, Prosedur, Degisken, Sequence, Kullanici Fonksiyonu ve KM tanimlari
+- Scenario ve Load Plan icin immutable surumleme temeli
 
 ## Faz 2 - Oracle -> Oracle mapping MVP
 
@@ -1010,6 +1036,7 @@ Yol haritasini somut kabul kriterleriyle fazlara ayir. En az su asamalari degerl
 - Validation ve preview
 - Insert ve kontrollu full load
 - Manuel run ve calistirma gecmisi
+- Mapping veya Paket surumunden Scenario uretme ve uygulama icinden calistirma
 
 ## Faz 3 - Guvenilir calistirma
 

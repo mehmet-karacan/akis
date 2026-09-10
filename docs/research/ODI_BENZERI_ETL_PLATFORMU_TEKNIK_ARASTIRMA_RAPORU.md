@@ -458,9 +458,13 @@ Silme işlemleri UI'da geliştiriciye verilen yetki değildir. Retention servis 
 
 ### 9.5 İlk migrasyon için tablo kataloğu
 
-Aşağıdaki kataloğun **bütün tabloları ilk şema migrasyonunda tanımlanır**. Bazı ekranlar ve işler sonraki fazlarda etkinleştirilir; FK, audit ve çalışma sözleşmesi sonradan yamalanmaz. Her tablo için 9.3'teki ilk `id`, sondaki `uuid` ve audit blokları zorunludur. Alanlar bu bloklar arasındaki fiziksel sırayı gösterir. Katalogdaki UQ ve CHECK/bütünlük kuralları, ortak PK/UUID/proje kısıtlarına ilavedir. Tek satırla doğrulanabilen kurallar SQL CHECK; parent/çapraz kayıt kuralları FK, transaction içi validator veya gerekirse kontrollü trigger ile uygulanır. PostgreSQL CHECK içinde başka tablodaki değişken duruma güvenilmez. `hedef_kaynagi` gibi global koordinasyon tabloları son kullanıcı RLS bağlamının dışında, yalnız özel runtime rolüyle erişilir.
+Aşağıdaki katalog ilk araştırma sürümünün çekirdek tablolarını tanımlar. 9.8'de
+belgelenen geliştirme nesnesi eksiği giderilmeden baseline migrasyon sayılmaz.
+Bazı ekranlar ve işler sonraki fazlarda etkinleştirilse de FK, audit ve çalışma
+sözleşmesi sonradan yamalanmaz. Her tablo için 9.3'teki ilk `id`, sondaki `uuid` ve audit blokları zorunludur. Alanlar bu bloklar arasındaki fiziksel sırayı gösterir. Katalogdaki UQ ve CHECK/bütünlük kuralları, ortak PK/UUID/proje kısıtlarına ilavedir. Tek satırla doğrulanabilen kurallar SQL CHECK; parent/çapraz kayıt kuralları FK, transaction içi validator veya gerekirse kontrollü trigger ile uygulanır. PostgreSQL CHECK içinde başka tablodaki değişken duruma güvenilmez. `hedef_kaynagi` gibi global koordinasyon tabloları son kullanıcı RLS bağlamının dışında, yalnız özel runtime rolüyle erişilir.
 
-**Katalog toplamı: 48 tablo.** Katalogda audit kolonları ayrıca yazılmadığı halde her tabloya M/E tanımına göre zorunlu eklenir. Standart şema lint testi tüm kolon sırasını denetler.
+**Bu bölümdeki eski çekirdek katalog: 48 tablo.** Bu sayı 9.8 düzeltmesinden
+sonra tam ürün toplamı değildir. Katalogda audit kolonları ayrıca yazılmadığı halde her tabloya M/E tanımına göre zorunlu eklenir. Standart şema lint testi tüm kolon sırasını denetler.
 
 
 
@@ -863,6 +867,22 @@ Aşağıdaki kataloğun **bütün tabloları ilk şema migrasyonunda tanımlanı
 **MVP'de zaman bazlı partition yoktur.** PostgreSQL partitioned tabloda global PK/UQ'nin partition anahtarını kapsamasını gerektirir. Yalnız `id` PK ve yalnız `uuid` UNIQUE standardıyla doğrudan aylık partition açmak uyumlu değildir. İlk çözüm doğru indeks, retention ve arşivdir; gerekirse gelecekte ayrı arşiv modeli veya standart değişikliği kararı alınır. [S036 · PostgreSQL 18 — Table Partitioning](https://www.postgresql.org/docs/18/ddl-partitioning.html)
 
 **ADR-03 — PostgreSQL metadata:** Hibrit model, merkezi ilişkisel sahiplik, immutable version/event ve ayrı mutable projeksiyon seçilmiştir. Tam normalize graph ve tek JSONB deposu elenmiştir. Faz 1 kapısı: katalog standardı, çapraz proje FK, optimistic locking, retention ve temiz DB'den migrasyon testlerinin tamamı geçmelidir.
+
+### 9.8 Düzeltme — geliştirme nesneleri kataloğu
+
+İlk araştırma sürümündeki 48 tablo; Mapping, topology ve runtime kanıtını ayrıntılı
+modellemesine rağmen Klasör, Paket, Prosedür, Değişken, Sequence, Kullanıcı
+Fonksiyonu, Knowledge Module, Scenario ve Load Plan tanımlarını birinci sınıf
+metadata nesneleri olarak kapsamıyordu. Bu nedenle “48 tablo ilk migrasyonda
+eksiksizdir” kabulü geri çekilmiştir; sayı bir kalite ölçütü değildir.
+
+Tamamlayıcı domain sözleşmesi `docs/architecture/NESNE_KATALOGU.md` dosyasındadır.
+PostgreSQL baseline migrasyonu bu katalogla birlikte yeniden sayılacak; ilişkisel
+sahiplik/scope/dependency ile sürümlü içerik ayrımı korunacaktır. Mapping'e özel IR,
+Paket kontrol grafı ve Prosedür görevleri birbirine dönüştürülmeyecektir. Scenario
+tasarım nesnesinin düzenlenebilir kopyası değil, immutable derleme çıktısıdır.
+
+Bu düzeltme bitmeden backend CRUD veya UI navigasyonu kaynak kabul edilmeyecektir.
 
 
 ## 10. Logical / physical architecture ve context modeli
@@ -1444,7 +1464,7 @@ Preview verisi PostgreSQL'e satır tablosu olarak yazılmaz. Worker sonucu kimli
 
 ### 17.1 Ortak ürün standardı
 
-Ana gezinme: **Projeler → Proje genel bakış → Bağlantılar ve topology → Mantıksal şemalar / Context'ler → Veri nesneleri → Mapping'ler → Çalıştırmalar → Zamanlamalar → Audit / Yetkiler**. Aynı kavram farklı ekranda başka adla sunulmaz; “Kaydet”, “Yayınla” ve “Çalıştır” ayrı eylemlerdir.
+Ana gezinme: **Projeler → Proje genel bakış → Bağlantılar ve topology → Mantıksal şemalar / Context'ler → Veri nesneleri → Tasarım (Mapping, Paket, Prosedür) → Değişkenler ve Sequence'ler → Scenario ve Load Planlar → Çalıştırmalar → Zamanlamalar → Audit / Yetkiler**. Aynı kavram farklı ekranda başka adla sunulmaz; “Kaydet”, “Doğrula”, “Scenario üret”, “Yayınla” ve “Çalıştır” ayrı eylemlerdir.
 
 Her ana ekran sırası: breadcrumb; aktif proje/context; bir başlık ve bir açıklama cümlesi; en fazla üç kritik özet kartı; arama/filtre; ana detay alanı; duruma uygun eylemler. Nötr zemin, ince sınır, sınırlı semantik vurgu önerilir. Production göstergesi yalnız renk değil, `ÜRETİM — gerçek hedefe veri yazılır` metni ve ikon taşır.
 
@@ -1887,7 +1907,7 @@ Yol haritası takvim taahhüdü değil, teslimat ve kanıt sırasıdır. Ekip b�
 
 ### 22.2 Faz 1 — Metadata ve proje çekirdeği
 
-**Teslimatlar:** 48 tabloluk ilk şema; migrasyon/şema lint; OIDC kimlik eşleme; proje/membership/role; connection/secret referansı; fiziksel/mantıksal şema ve context; immutable snapshot/drift; temel audit; global hedef kaynak koordinasyonu modeli.
+**Teslimatlar:** Düzeltilmiş nesne kataloğunun tamamını kapsayan baseline şema; migrasyon/şema lint; OIDC kimlik eşleme; proje/membership/role; klasör ve tasarım nesnesi sahipliği; connection/secret referansı; fiziksel/mantıksal şema ve context; immutable snapshot/drift; Paket, Prosedür, Değişken, Sequence, Kullanıcı Fonksiyonu ve Knowledge Module tanımları; Scenario ve Load Plan sürümleme temeli; temel audit; global hedef kaynak koordinasyonu modeli.
 
 **Bağımlılıklar:** Faz 0'ın seçilmiş driver, secret provider ve isimlendirme sözleşmesi. **Kabul:** Her ürün tablosunda ilk ID, UUID unique, doğru audit bloğu, FK/kısıt/index adları; cross-project FK'ler reddedilir; aynı kullanıcı iki projede farklı yetkiyle davranır; secret hiçbir GET yanıtında bulunmaz. Context binding değiştirmek eski yayınla farklı hedefe sessiz koşma yaratmaz.
 
@@ -1895,7 +1915,7 @@ Yol haritası takvim taahhüdü değil, teslimat ve kanıt sırasıdır. Ekip b�
 
 ### 22.3 Faz 2 — Oracle → Oracle temel mapping dilimi
 
-**Teslimatlar:** Kaynak/hedef seçimi; grid/drag-drop/klavye; explicit automatch onayı; typed IR; draft/version; validation ve maskeli preview; minimum immutable yayın; manuel run; insert ve kontrollü stage/full-load; çalışma geçmişi ve temel log.
+**Teslimatlar:** Kaynak/hedef seçimi; grid/drag-drop/klavye; explicit automatch onayı; typed IR; draft/version; Paket kontrol akışı ve temel Prosedür/Değişken/Sequence kullanımı; validation ve maskeli preview; Mapping veya Paket sürümünden immutable Scenario; minimum immutable yayın; manuel run; insert ve kontrollü stage/full-load; çalışma geçmişi ve temel log.
 
 **Bağımlılıklar:** Faz 1 izolasyon/metadata ve Faz 0 transfer codec'leri. **Kabul:** Basit mapping graph çizmeden oluşturulur; eksik zorunlu kolon/key/tip uyuşmazlığı publish'i engeller; preview hedefe DML yapmaz; kaydedilen ve çalıştırılan plan hash'i aynıdır. Kullanıcı context/gerçek hedef/write mode özetini görmeden destructive iş başlatamaz.
 

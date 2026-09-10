@@ -4,7 +4,8 @@ Akış, ilk aşamada Oracle'dan Oracle'a güvenilir veri taşıma hedefiyle geli
 bir veri entegrasyon platformudur. Metadata ve kontrol verisi PostgreSQL'de tutulur;
 taşınan iş verisi PostgreSQL üzerinden geçirilmez.
 
-Bu repository şu anda Faz 0 teknik spike ve mimari doğrulama aşamasındadır.
+Bu repository şu anda Faz 0 teknik spike ve Faz 1 nesne/metadata sözleşmesi
+aşamasındadır.
 Üretim kullanımı için hazır değildir.
 
 ## Teknoloji tabanı
@@ -72,12 +73,14 @@ Bu komut PostgreSQL volume'unu silmez.
 GitHub Actions ve diğer CI/CD workflow'ları bu aşamada bilinçli olarak kapalıdır.
 .github/workflows/ dizini ignore edilir ve repository'de workflow bulunmaz.
 
-## Sonraki teknik kapılar
+## Geliştirme kapıları
 
-1. Oracle JDBC tip, batch, LOB ve cancel spike'ı
-2. Target ledger, unknown commit ve fencing spike'ı
-3. Kanonik IR ve deterministik compiler spike'ı
-4. 500 kolonlu grid-first mapping UX spike'ı
+1. Nesne kataloğunu kesinleştirme
+2. PostgreSQL metadata baseline ve migrasyon testleri
+3. Backend domain/API
+4. UI ve uçtan uca tanım yönetimi
+5. Uygulama içi Oracle execution, ledger, retry ve fencing
 
-Her spike'ın ortamı, ölçümleri, başarısız senaryoları ve karar kaydı docs/spikes
-altında tutulacaktır.
+Paket, Prosedür, Değişken, Sequence, Scenario ve Load Plan dahil tam kavram
+sözleşmesi `docs/architecture/NESNE_KATALOGU.md` içindedir. Bir kapı tamamlanmadan
+sonraki katman ürün koduna eklenmez.
