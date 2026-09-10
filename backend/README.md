@@ -20,6 +20,13 @@ Temel yüzeyler:
 - `GET /api/v1/global-definitions/{definitionUuid}`
 - `GET|PUT /api/v1/global-definitions/{definitionUuid}/draft`
 - `POST|GET /api/v1/global-definitions/{definitionUuid}/versions`
+- `POST|GET /api/v1/projects/{projectUuid}/secret-references`
+- `POST|GET /api/v1/projects/{projectUuid}/connections`
+- `POST|GET /api/v1/projects/{projectUuid}/connections/{connectionUuid}/versions`
+- `POST|GET /api/v1/projects/{projectUuid}/physical-schemas`
+- `POST|GET /api/v1/projects/{projectUuid}/logical-schemas`
+- `POST|GET /api/v1/projects/{projectUuid}/environments`
+- `POST|GET /api/v1/projects/{projectUuid}/schema-bindings`
 
 Proje kapsamında Mapping, Yeniden Kullanılabilir Mapping, Paket, Prosedür,
 Değişken, Sequence, Kullanıcı Fonksiyonu, Knowledge Module ve Load Plan bulunur.
@@ -36,6 +43,14 @@ Hatalar RFC 9457 `application/problem+json` biçimindedir ve makine tarafından
 okunabilir `code` alanı taşır. Şifre veya secret değeri hiçbir metadata isteğinin
 parçası değildir.
 
+Bağlantı kimliği değişebilir kayıttır; host/port/service/SID/TLS/policy bilgileri
+immutable bağlantı sürümü olarak eklenir. Oracle için `serviceName` veya `sid`
+alanlarından tam biri, PostgreSQL/MySQL için yalnız `databaseName` zorunludur.
+Credential değeri yerine yalnız `ENV`, `VAULT` veya `KUBERNETES` secret referansı
+bağlanır. Policy JSON'unda password, token, secret veya credential alanları
+reddedilir. Ortam-şema bağı, fiziksel şema ile aynı bağlantıya ait belirli bir
+bağlantı sürümünü sabitler.
+
 ## Çalıştırma ve test
 
 Repository kökünde:
@@ -45,14 +60,15 @@ Repository kökünde:
     .\backend\test-api.ps1
     .\scripts\run-backend.ps1
 
-`test-api.ps1` geçici ve yalıtılmış bir PostgreSQL veritabanı oluşturur; dokuz proje
-türünü, beş global türü, taslak optimistic lock davranışını, immutable sürüm
-sözleşmesini ve temel hata yanıtlarını gerçek HTTP üzerinden sınar. Test sonunda
-uygulamayı durdurur ve geçici veritabanını siler.
+`test-api.ps1` geçici ve yalıtılmış bir PostgreSQL veritabanı oluşturur; topology
+bağını, secret sızıntısı korumasını, dokuz proje türünü, beş global türü, taslak
+optimistic lock davranışını, immutable sürüm sözleşmesini ve temel hata yanıtlarını
+gerçek HTTP üzerinden sınar. Test sonunda uygulamayı durdurur ve geçici
+veritabanını siler.
 
 ## Kapsam sınırı
 
-Bu teslimat metadata tasarım çekirdeğidir. Topology/connection discovery, OIDC ve
-proje yetkilendirmesi, dependency çözümleme, Scenario derleme/yayın ve run/worker
-API'leri backend kapısının sonraki dilimleridir. UI ve Oracle DML entegrasyonu bu
-kapı tamamlanmadan başlatılmaz.
+Bu teslimat metadata tasarım ve topology kayıt çekirdeğidir. Canlı connection
+test/discovery, OIDC ve proje yetkilendirmesi, dependency çözümleme, Scenario
+derleme/yayın ve run/worker API'leri backend kapısının sonraki dilimleridir. UI ve
+Oracle DML entegrasyonu bu kapı tamamlanmadan başlatılmaz.

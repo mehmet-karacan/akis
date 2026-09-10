@@ -136,6 +136,126 @@ try {
         type = "GELISTIRME"
     }
 
+    $secretReference = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/secret-references" @{
+        code = "TEST_ORACLE_CREDENTIAL"
+        referencePath = "AKIS_TEST_ORACLE_CREDENTIAL"
+        provider = "ENV"
+        name = "Test Oracle credential reference"
+    }
+    $connection = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/connections" @{
+        code = "TEST_ORACLE"
+        databaseType = "ORACLE"
+        name = "Test Oracle"
+    }
+    $connectionVersion = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/connections/$($connection.uuid)/versions" @{
+        driverReference = "oracle.jdbc.OracleDriver"
+        host = "db-host.invalid"
+        sid = "TESTDB"
+        port = 1521
+        tlsMode = "DISABLED"
+        policy = @{ connectTimeoutMs = 10000 }
+        secretReferenceUuid = $secretReference.uuid
+        secretRole = "KIMLIK"
+    }
+    if ($connectionVersion.versionNumber -ne 1) {
+        throw "First connection version number is invalid."
+    }
+    if ($connectionVersion.PSObject.Properties.Name -contains "secretValue") {
+        throw "Secret value leaked through the connection version API."
+    }
+
+    $physicalSchema = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/physical-schemas" @{
+        connectionUuid = $connection.uuid
+        code = "TEST_PHYSICAL"
+        schemaReference = "APP_OWNER"
+        name = "Test physical schema"
+    }
+    $logicalSchema = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/logical-schemas" @{
+        code = "APP_LOGICAL"
+        name = "Application logical schema"
+    }
+    $environment = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/environments" @{
+        code = "TEST"
+        risk = "DUSUK"
+        policy = @{ destructiveWritesAllowed = $false }
+        name = "Test"
+    }
+    $schemaBinding = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/schema-bindings" @{
+        logicalSchemaUuid = $logicalSchema.uuid
+        environmentUuid = $environment.uuid
+        physicalSchemaUuid = $physicalSchema.uuid
+        connectionVersionUuid = $connectionVersion.uuid
+    }
+    if ($schemaBinding.connectionVersionUuid -ne $connectionVersion.uuid) {
+        throw "Schema binding did not pin the connection version."
+    }
+
+    $otherConnection = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/connections" @{
+        code = "OTHER_ORACLE"
+        databaseType = "ORACLE"
+        name = "Other Oracle"
+    }
+    $otherVersion = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/connections/$($otherConnection.uuid)/versions" @{
+        driverReference = "oracle.jdbc.OracleDriver"
+        host = "other-host.invalid"
+        serviceName = "OTHER_SERVICE"
+        port = 1521
+    }
+    $otherLogical = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/logical-schemas" @{
+        code = "OTHER_LOGICAL"
+        name = "Other logical schema"
+    }
+    $otherEnvironment = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/environments" @{
+        code = "OTHER_TEST"
+        name = "Other test"
+    }
+    try {
+        Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/schema-bindings" @{
+            logicalSchemaUuid = $otherLogical.uuid
+            environmentUuid = $otherEnvironment.uuid
+            physicalSchemaUuid = $physicalSchema.uuid
+            connectionVersionUuid = $otherVersion.uuid
+        }
+        throw "Cross-connection schema binding was accepted."
+    }
+    catch {
+        if ($_.Exception.Response.StatusCode.value__ -ne 422) {
+            throw
+        }
+    }
+
+    try {
+        Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/connections/$($connection.uuid)/versions" @{
+            driverReference = "oracle.jdbc.OracleDriver"
+            host = "db-host.invalid"
+            serviceName = "SERVICE"
+            sid = "SID"
+            port = 1521
+        }
+        throw "Ambiguous Oracle endpoint was accepted."
+    }
+    catch {
+        if ($_.Exception.Response.StatusCode.value__ -ne 422) {
+            throw
+        }
+    }
+
+    try {
+        Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/connections/$($connection.uuid)/versions" @{
+            driverReference = "oracle.jdbc.OracleDriver"
+            host = "db-host.invalid"
+            serviceName = "SERVICE"
+            port = 1521
+            policy = @{ password = "must-not-be-stored" }
+        }
+        throw "Secret-bearing connection policy was accepted."
+    }
+    catch {
+        if ($_.Exception.Response.StatusCode.value__ -ne 422) {
+            throw
+        }
+    }
+
     $contracts = @(
         @{ type = "MAPPING"; folder = $true; content = @{ datasets = @(); columnMappings = @(); writeStrategy = @{} } },
         @{ type = "REUSABLE_MAPPING"; folder = $true; content = @{ inputs = @(); outputs = @(); nodes = @() } },
@@ -264,7 +384,7 @@ try {
         }
     }
 
-    Write-Output "Backend API test: PASS (9 project types, 5 global types, draft lock, immutable versions)"
+    Write-Output "Backend API test: PASS (topology binding, 9 project types, 5 global types, version locks)"
 }
 catch {
     if (Test-Path -LiteralPath $stdoutLog) {
