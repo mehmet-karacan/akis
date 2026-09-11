@@ -175,6 +175,10 @@ final class JdbcOracleMetadataGateway implements OracleMetadataGateway {
         List<ColumnMetadata> columns = new ArrayList<>();
         try (ResultSet resultSet = metadata.getColumns(null, owner, table, "%")) {
             while (resultSet.next()) {
+                // Oracle exposes COLUMN_DEF as a LONG-backed stream. Reading it through
+                // DatabaseMetaData can close the stream (ORA-17027) before iteration ends.
+                // Default expressions require a separate, explicit dictionary query.
+                String defaultValue = null;
                 columns.add(new ColumnMetadata(
                         resultSet.getString("COLUMN_NAME"),
                         resultSet.getInt("DATA_TYPE"),
@@ -183,7 +187,7 @@ final class JdbcOracleMetadataGateway implements OracleMetadataGateway {
                         nullableInteger(resultSet, "COLUMN_SIZE"),
                         nullableInteger(resultSet, "DECIMAL_DIGITS"),
                         resultSet.getInt("NULLABLE") != DatabaseMetaData.columnNoNulls,
-                        resultSet.getString("COLUMN_DEF")));
+                        defaultValue));
             }
         }
         return List.copyOf(columns);
