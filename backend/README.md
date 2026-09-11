@@ -114,7 +114,10 @@ publish-intent/checkpoint tamamlaması ve reconciliation durumlarını sınar. A
 koşuda runtime plana ait immutable source/target snapshot gövdelerinin exact yayın
 bağlarından, runtime Oracle bağlantı metadata'sının exact connection sürümünden ve
 append-only publish intent'in exact run kaydından yüklendiğini de doğrular; worker
-poller veya Oracle bağlantısı başlatmaz.
+poller veya Oracle bağlantısı başlatmaz. V010 run/target claim, preflight ve terminal
+geçiş ACK kaybı tekrarlarını; target başka run tarafından yeniden sahiplenildikten
+sonra eski başarı ACK'sinin immutable kanıttan doğrulanmasını da gerçek PostgreSQL
+üzerinde sınar.
 
 `run-oracle-ledger-it.ps1`, gerçek değerleri yalnız Git dışındaki `.env`
 dosyasından alır. Hedef Oracle 19c üzerinde production JDBC ledger adaptörüyle
@@ -140,7 +143,7 @@ worker tarafından yürütülemez.
 
 Faz 3D güvenlik temeli; V006 kontrollü completion/reconciliation durum API'lerini,
 V007/V008 exact append-only publish intent kanıtını, V009 reconciliation fence
-bariyerini, pinned snapshot loader'ını,
+bariyerini, V010 ACK-loss dayanımlı worker geçişlerini, pinned snapshot loader'ını,
 salt-okunur canlı Oracle schema preflight'ını, runtime connection/secret
 provider'ını ve bounded typed source/target I/O çekirdeğini ekler. Pilot payload
 codec'i yalnız gerçek pilotta gereken `NUMBER`, `VARCHAR2` ve
@@ -168,6 +171,13 @@ stratejisini kabul eder. Ana veri taşıma worker poller'ı, retry/resume, crash
 matrisi ve scheduler henüz ürün kodu değildir.
 Worker flag'i bu kapılar ve crash testleri tamamlanana kadar açık değerde fail-closed
 kalır.
+
+Her worker reference aynı anda en fazla bir run taşır. Claim ACK'si kaybolursa aynı
+profil/reference ile yapılan tek exact retry yeni run almak yerine aktif, hedefsiz
+`HAZIRLANIYOR` claimini döndürür. Kaynak batch'i okunmadan hemen önce pinned source
+snapshot canlı Oracle şemasıyla aynı salt-okunur session üzerinde yeniden doğrulanır.
+Preflight target claiminden önce güvenli biçimde reddedilirse run yalnız exact lease
+token ve null target kanıtıyla terminal duruma alınır.
 
 Aktivasyon öncesi iki availability kapısı daha zorunludur: fence ve fresh-read
 Oracle çağrılarının toplam süresinde lease'i periyodik yenileyen zaman bütçesi ve

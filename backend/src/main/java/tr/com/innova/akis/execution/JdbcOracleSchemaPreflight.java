@@ -120,6 +120,18 @@ final class JdbcOracleSchemaPreflight {
         return new PreflightResult(source.result(), target.result());
     }
 
+    /** Re-attests the source immediately before a bounded read on the same session. */
+    BindingResult verifySource(
+            PilotRuntimePlan plan,
+            Connection sourceConnection,
+            ExpectedSnapshot sourceSnapshot) {
+        if (plan == null || sourceConnection == null || sourceSnapshot == null) {
+            throw failure(OracleSchemaPreflightFailure.INVALID_CONTRACT);
+        }
+        return verifyBinding(
+                plan.source(), DatasetRole.SOURCE, sourceConnection, sourceSnapshot).result();
+    }
+
     /**
      * Re-attests the target on the caller's already exclusively locked physical
      * connection. Fresh catalog reads here close the gap between the earlier
