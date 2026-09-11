@@ -20,6 +20,10 @@ public final class PermissionCodes {
     public static final String PUBLICATION_READ = "PUBLICATION_READ";
     public static final String PUBLICATION_CREATE = "PUBLICATION_CREATE";
     public static final String PUBLICATION_APPROVE = "PUBLICATION_APPROVE";
+    public static final String RUN_READ = "RUN_READ";
+    public static final String RUN_START = "RUN_START";
+    public static final String RUN_CANCEL = "RUN_CANCEL";
+    public static final String PRODUCTION_RUN = "PRODUCTION_RUN";
     public static final String IDENTITY_USER_PROVISION = "IDENTITY_USER_PROVISION";
     public static final String PROJECT_MEMBERSHIP_MANAGE = "PROJECT_MEMBERSHIP_MANAGE";
 

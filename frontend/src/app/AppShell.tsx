@@ -1,6 +1,6 @@
 import {
   Blocks, Boxes, Braces, ChevronDown, CircleUserRound, DatabaseZap,
-  FileCheck2, FolderKanban, Languages, LogOut, Moon, Network,
+  FileCheck2, FolderKanban, Gauge, Languages, LogOut, Moon, Network,
   PanelLeftClose, PanelLeftOpen, Sun, UsersRound,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -17,6 +17,7 @@ const projectNavigation = [
   { path: '/models', key: 'nav.models', icon: Boxes },
   { path: '/definitions', key: 'nav.definitions', icon: Braces },
   { path: '/publications', key: 'nav.publications', icon: FileCheck2 },
+  { path: '/runs', key: 'nav.runs', icon: Gauge },
   { path: '/team', key: 'nav.team', icon: UsersRound },
 ]
 

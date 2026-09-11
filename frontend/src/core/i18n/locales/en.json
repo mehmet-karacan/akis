@@ -23,6 +23,7 @@
   "nav.models": "Models",
   "nav.definitions": "Definitions",
   "nav.publications": "Publications",
+  "nav.runs": "Runs",
   "nav.team": "Team & access",
   "nav.signOut": "Sign out",
   "header.noProject": "No project selected",

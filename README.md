@@ -4,9 +4,10 @@ Akış, ilk aşamada Oracle'dan Oracle'a güvenilir veri taşıma hedefiyle geli
 bir veri entegrasyon platformudur. Metadata ve kontrol verisi PostgreSQL'de tutulur;
 taşınan iş verisi PostgreSQL üzerinden geçirilmez.
 
-Bu repository'de Faz 0 teknik spike, Faz 1 metadata veritabanı, backend domain/API
-ve ilk uçtan uca tanım yönetimi UI kapıları tamamlanmıştır. Oracle DML/worker kapısı
-henüz başlamamıştır ve ürün üretim kullanımı için hazır değildir.
+Bu repository'de Faz 0 teknik spike, Faz 1 metadata veritabanı, backend domain/API,
+ilk uçtan uca tanım yönetimi UI kapıları ve Faz 2 güvenli manuel run kontrol düzlemi
+tamamlanmıştır. Manuel istek yalnız kalıcı `BEKLIYOR` run üretir; Oracle DML/worker
+kapısı henüz başlamamıştır ve ürün üretim kullanımı için hazır değildir.
 
 ## Teknoloji tabanı
 
@@ -63,6 +64,12 @@ bilinçli olarak taşımaz. Sözleşme:
 
 Sağlık uç noktası: http://localhost:8080/actuator/health
 
+Manuel run oluşturma varsayılan olarak kapalıdır. Yalnız kontrol düzlemi testi için
+`.env` içinde `AKIS_EXECUTION_ACCEPT_MANUAL_REQUESTS=true` yapılabilir. Worker
+bayrağı target ledger ve fencing tamamlanana kadar `false` kalmalıdır; uygulama
+`true` değerinde fail-closed açılmaz. Sözleşme:
+`docs/architecture/MANUAL_RUN_CONTROL_PLANE.md`.
+
 Oracle 19c bağlantı ve discovery probe'u için gerçek değerleri yalnız .env
 dosyasına girin ve çalıştırın:
 
@@ -98,7 +105,9 @@ GitHub Actions ve diğer CI/CD workflow'ları bu aşamada bilinçli olarak kapal
 2. PostgreSQL metadata baseline ve migrasyon testleri
 3. Backend domain/API
 4. UI, uçtan uca tanım yönetimi ve portable JSON proje bundle'ı
-5. Uygulama içi Oracle execution, ledger, retry ve fencing
+5. Kalıcı manuel run isteği, idempotency, izleme ve queued cancel
+6. Target ledger, lease/fencing ve Oracle worker
+7. Retry/resume, scheduler ve production operasyonları
 
 Paket, Prosedür, Değişken, Sequence, Scenario ve Load Plan dahil tam kavram
 sözleşmesi `docs/architecture/NESNE_KATALOGU.md` içindedir. Bir kapı tamamlanmadan

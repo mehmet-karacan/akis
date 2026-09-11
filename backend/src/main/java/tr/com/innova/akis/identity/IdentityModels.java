@@ -12,6 +12,7 @@ final class IdentityModels {
     enum DefaultProjectRole {
         PROJE_YONETICISI,
         GELISTIRICI,
+        CALISTIRICI,
         IZLEYICI
     }
 

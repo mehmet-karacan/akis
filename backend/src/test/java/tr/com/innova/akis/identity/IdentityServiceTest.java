@@ -84,6 +84,12 @@ class IdentityServiceTest {
     }
 
     @Test
+    void exposesRunnerAsAnAssignableDefaultProjectRole() {
+        assertEquals(DefaultProjectRole.CALISTIRICI,
+                DefaultProjectRole.valueOf("CALISTIRICI"));
+    }
+
+    @Test
     void rejectsRoleReturnedFromAnotherProject() {
         FakeStore store = new FakeStore();
         store.role = new ProjectRoleRef(

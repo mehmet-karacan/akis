@@ -50,13 +50,20 @@ function Invoke-AkisJson {
     param(
         [Parameter(Mandatory)] [string] $Method,
         [Parameter(Mandatory)] [string] $Path,
-        [object] $Body
+        [object] $Body,
+        [hashtable] $Headers
     )
 
+    $requestHeaders = @{ Authorization = $script:authorizationHeader }
+    if ($Headers) {
+        foreach ($header in $Headers.GetEnumerator()) {
+            $requestHeaders[$header.Key] = $header.Value
+        }
+    }
     $parameters = @{
         Method = $Method
         Uri = "http://127.0.0.1:$port$Path"
-        Headers = @{ Authorization = $script:authorizationHeader }
+        Headers = $requestHeaders
     }
     if ($null -ne $Body) {
         $parameters["ContentType"] = "application/json"
@@ -92,6 +99,8 @@ try {
         AKIS_SECURITY_MODE = $env:AKIS_SECURITY_MODE
         AKIS_DEV_USERNAME = $env:AKIS_DEV_USERNAME
         AKIS_DEV_PASSWORD = $env:AKIS_DEV_PASSWORD
+        AKIS_EXECUTION_ACCEPT_MANUAL_REQUESTS = $env:AKIS_EXECUTION_ACCEPT_MANUAL_REQUESTS
+        AKIS_EXECUTION_WORKER_ENABLED = $env:AKIS_EXECUTION_WORKER_ENABLED
     }
     $env:AKIS_DB_URL = "jdbc:postgresql://127.0.0.1:$($settings['POSTGRES_PORT'])/$testDatabase"
     $env:AKIS_DB_USERNAME = $databaseUser
@@ -100,6 +109,8 @@ try {
     $env:AKIS_SECURITY_MODE = "development"
     $env:AKIS_DEV_USERNAME = "api-test"
     $env:AKIS_DEV_PASSWORD = [Guid]::NewGuid().ToString("N")
+    $env:AKIS_EXECUTION_ACCEPT_MANUAL_REQUESTS = "true"
+    $env:AKIS_EXECUTION_WORKER_ENABLED = "false"
     $credentialBytes = [Text.Encoding]::UTF8.GetBytes(
         "$($env:AKIS_DEV_USERNAME):$($env:AKIS_DEV_PASSWORD)")
     $script:authorizationHeader = "Basic " + [Convert]::ToBase64String($credentialBytes)
@@ -126,6 +137,12 @@ try {
     }
     if (-not $healthy) {
         throw "Backend health check timed out."
+    }
+
+    & $docker exec $container psql -v ON_ERROR_STOP=1 -U $databaseUser -d $testDatabase `
+        -c "insert into entegrasyon.kullanici(oidc_saglayici, oidc_ozne, ad) values ('LOCAL_BASIC', 'api-test', 'API Test Runner')" | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not provision the temporary LOCAL_BASIC run actor."
     }
 
     try {
@@ -502,6 +519,45 @@ try {
         throw "Context-pinned idempotent publication failed."
     }
 
+    $runKey = "api-run-" + [Guid]::NewGuid().ToString("N")
+    $runHeaders = @{ "Idempotency-Key" = $runKey }
+    $run = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/runs" `
+        @{ publicationUuid = $publication.uuid } $runHeaders
+    $sameRun = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/runs" `
+        @{ publicationUuid = $publication.uuid } $runHeaders
+    $runs = Invoke-AkisJson GET "/api/v1/projects/$($project.uuid)/runs"
+    $runDetail = Invoke-AkisJson GET "/api/v1/projects/$($project.uuid)/runs/$($run.runUuid)"
+    $runEvents = Invoke-AkisJson GET "/api/v1/projects/$($project.uuid)/runs/$($run.runUuid)/events"
+    if ($run.status -ne "BEKLIYOR" -or $sameRun.runUuid -ne $run.runUuid `
+            -or $runs.Count -ne 1 -or $runDetail.runUuid -ne $run.runUuid `
+            -or $runEvents.Count -ne 1 -or $runEvents[0].eventNumber -ne 1 `
+            -or $run.PSObject.Properties.Name -contains "id") {
+        throw "Queued idempotent manual run contract failed."
+    }
+    try {
+        Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/runs" `
+            @{ publicationUuid = [Guid]::NewGuid() } $runHeaders
+        throw "Changed request reused an Idempotency-Key."
+    }
+    catch {
+        if ($_.Exception.Response.StatusCode.value__ -ne 409) {
+            throw
+        }
+    }
+    $cancelledRun = Invoke-AkisJson POST `
+        "/api/v1/projects/$($project.uuid)/runs/$($run.runUuid)/cancel"
+    $sameCancelledRun = Invoke-AkisJson POST `
+        "/api/v1/projects/$($project.uuid)/runs/$($run.runUuid)/cancel"
+    $cancelledEvents = Invoke-AkisJson GET `
+        "/api/v1/projects/$($project.uuid)/runs/$($run.runUuid)/events"
+    if ($cancelledRun.status -ne "IPTAL" `
+            -or $sameCancelledRun.runUuid -ne $cancelledRun.runUuid `
+            -or $cancelledEvents.Count -ne 2 `
+            -or $cancelledEvents[1].eventNumber -ne 2 `
+            -or $cancelledEvents[1].type -ne "RUN_CANCELLED") {
+        throw "Queued run cancellation contract failed."
+    }
+
     $definitions = Invoke-AkisJson GET "/api/v1/projects/$($project.uuid)/definitions"
     if ($definitions.Count -ne 9) {
         throw "Expected 9 definitions, found $($definitions.Count)."
@@ -636,7 +692,7 @@ try {
         throw "Authenticated mutating requests were not attributed in audit events."
     }
 
-    Write-Output "Backend API test: PASS (auth, RBAC, audit, topology, catalog, snapshots, definitions, bundles, bindings, scenarios, publications, locks)"
+    Write-Output "Backend API test: PASS (auth, RBAC, audit, topology, catalog, snapshots, definitions, bundles, bindings, scenarios, publications, queued runs, locks)"
 }
 catch {
     if (Test-Path -LiteralPath $stdoutLog) {

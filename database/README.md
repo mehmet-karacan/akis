@@ -19,9 +19,11 @@ değer olayları, checkpoint, audit ve lineage aynı baseline içindedir.
 
     .\database\test-schema.ps1
 
-Test geçici bir veritabanı oluşturur, üç migrasyonu uygular, ikinci Flyway
-çalıştırmasının no-op olduğunu doğrular; 58 tabloyu, dokuz tanım türünü, 20 RBAC
-yetkisini, varsayılan proje rollerini ve append-only negatif testlerini denetler.
+Test geçici bir veritabanı oluşturur; önce V003 legacy run kayıtlarını hazırlar,
+V004 yükseltmesini uygular ve son Flyway çalıştırmasının no-op olduğunu doğrular.
+58 tabloyu, dokuz tanım türünü, 24 RBAC yetkisini, dört varsayılan proje rolünü,
+run durum makinesini,
+tenant FK'larını ve append-only negatif testlerini denetler.
 Ardından geçici veritabanını siler; geliştirme veritabanına ve Oracle
 kaynak/hedeflerine dokunmaz.
 

@@ -3,6 +3,7 @@ import { useAuth } from '../core/auth/AuthContext'
 import { LoginPage } from '../features/auth/LoginPage'
 import { BundleImportPage } from '../features/bundles'
 import { DefinitionsWorkspace } from '../features/definitions'
+import { RunDetailPage, RunsPage } from '../features/execution'
 import { IdentityUsersPage, MembershipsPage, PublicationDetailPage, PublicationsPage } from '../features/operations'
 import { ProjectsPage } from '../features/projects/ProjectsPage'
 import { TopologyPage } from '../features/topology'
@@ -33,6 +34,8 @@ export function App() {
         <Route path="/projects/:projectUuid/definitions" element={<DefinitionsRoute />} />
         <Route path="/projects/:projectUuid/publications" element={<PublicationsPage />} />
         <Route path="/projects/:projectUuid/publications/:publicationUuid" element={<PublicationDetailPage />} />
+        <Route path="/projects/:projectUuid/runs" element={<RunsPage />} />
+        <Route path="/projects/:projectUuid/runs/:runUuid" element={<RunDetailPage />} />
         <Route path="/projects/:projectUuid/team" element={<MembershipsPage />} />
         <Route path="/identity/users" element={<IdentityUsersPage />} />
       </Route>
