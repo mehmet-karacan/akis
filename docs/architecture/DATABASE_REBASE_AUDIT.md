@@ -100,7 +100,71 @@ No password hash or secret value belongs in `app_user`. Local credentials, if
 retained for development, require a separate restricted record or environment
 configuration.
 
-### 3.4 Too many speculative tables in the baseline
+### 3.4 Role-based access control stays first-class
+
+Role and permission tables are required. The cleanup must remove duplication,
+not authorization. The current database splits system and project roles across
+multiple parallel table families. V2 should expose one consistent RBAC model:
+
+```text
+role
+├─ id (UUID primary key)
+├─ scope                  SYSTEM | PROJECT
+├─ code                   stable machine identifier
+├─ name
+├─ built_in
+└─ enabled
+
+permission
+├─ id (UUID primary key)
+├─ code                   stable machine identifier
+├─ scope
+├─ resource
+└─ action
+
+role_permission
+├─ role_id
+└─ permission_id
+
+user_role
+├─ user_id
+├─ role_id
+├─ project_id             required for PROJECT, null for SYSTEM
+├─ granted_at / granted_by
+└─ revoked_at / revoked_by
+```
+
+`project_member` remains the explicit user–project relationship. A project role
+assignment must belong to an active project membership. `user_role` grants the
+role; it does not replace the membership lifecycle or its audit history.
+
+Recommended built-in project roles:
+
+| Role code | Responsibility | Explicit exclusions |
+| --- | --- | --- |
+| `PROJECT_ADMIN` | Project settings, membership, connections and schemas | No implicit production approval or execution |
+| `DEVELOPER` | Interface/mapping/procedure/package authoring and validation | Cannot approve own release or operate production by default |
+| `OPERATOR` | Start, cancel, retry and inspect executions; manage schedules | Cannot modify definition content |
+| `RELEASE_APPROVER` | Review and approve runnable production versions | Cannot silently change the submitted version |
+| `VIEWER` | Read definitions, catalog and execution history | No mutation or execution |
+
+The system role `SYSTEM_ADMIN` manages global identities and platform policy but
+does not automatically bypass project or production permissions. Emergency
+break-glass access, if added later, must be explicit, time-limited and audited.
+
+Separation-of-duty rules belong in backend authorization and database invariants,
+not only in hidden buttons:
+
+- a developer cannot approve the exact production release they submitted,
+- an operator cannot modify the immutable version being executed,
+- project administration does not imply production execution,
+- revoked role assignments stop authorizing immediately while their history is
+  retained,
+- API authorization resolves the external identity to `app_user` once, then uses
+  user/project/role relations instead of joining OIDC issuer and subject through
+  every permission query.
+
+### 3.5 Too many speculative tables in the baseline
 
 The following empty tables have no direct backend source reference and no stored
 function reference in the current database:
@@ -190,9 +254,13 @@ migration followed by corrective migrations.
 
 - `app_user`
 - `external_identity`
-- `system_role`, `permission`, `system_role_permission`, `user_system_role`
-- `project_member`, `project_role`, `project_member_role`,
-  `project_role_permission`
+- `role`, `permission`, `role_permission`, `user_role`
+- `project_member`
+
+The role model covers both system and project scopes. Project-scoped assignments
+carry `project_id`; system-scoped assignments do not. Built-in Developer,
+Operator, Release Approver, Viewer and Project Admin roles are seeded once rather
+than duplicated as one physical role row per project.
 
 ### Projects and definitions
 
@@ -247,6 +315,10 @@ added only with a consuming API and acceptance test.
 - A clean database can be created from the V2 migrations only.
 - No migration contains real credentials or local connection values.
 - Local Basic and OIDC identities no longer share misleading columns.
+- Developer, Operator and Release Approver permissions are separated and enforced
+  server-side.
+- `role`, `permission`, `role_permission` and `user_role` have one system/project
+  scope contract; project assignments require membership.
 - Binary fields are boolean/timestamp facts; workflow states remain explicit.
 - Status/type/error values have one language and one Java enum contract.
 - The normal UI never shows raw state codes, UUID input or secret references.
