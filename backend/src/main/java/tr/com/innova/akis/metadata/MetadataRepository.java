@@ -41,41 +41,103 @@ public class MetadataRepository {
                 .single();
     }
 
-    ProjectRow createProject(UUID uuid, String code, String name, String description) {
-        return jdbc.sql("""
-                        insert into entegrasyon.proje(uuid, kod, ad, aciklama)
-                        values (:uuid, :code, :name, :description)
-                        returning id, uuid, kod, durum_kodu, ad, aciklama,
+    ProjectRow createProject(
+            UUID uuid,
+            String code,
+            String name,
+            String description,
+            String actorProvider,
+            String actorSubject) {
+        Long actorId = findActorId(actorProvider, actorSubject).orElse(null);
+        ProjectRow project = jdbc.sql("""
+                        insert into akis.proje(
+                            uuid, kod, ad, aciklama, olusturan_kullanici_id)
+                        values (:uuid, :code, :name, :description, :actorId)
+                        returning id, uuid, kod, 'AKTIF' as durum, ad, aciklama,
                                   versiyon_no, olusturulma_zamani
                         """)
                 .param("uuid", uuid)
                 .param("code", code)
                 .param("name", name)
                 .param("description", description, Types.VARCHAR)
+                .param("actorId", actorId, Types.BIGINT)
                 .query((rs, rowNum) -> new ProjectRow(
                         rs.getLong("id"),
                         rs.getObject("uuid", UUID.class),
                         rs.getString("kod"),
-                        rs.getString("durum_kodu"),
+                        rs.getString("durum"),
                         rs.getString("ad"),
                         rs.getString("aciklama"),
                         rs.getLong("versiyon_no"),
                         rs.getObject("olusturulma_zamani", OffsetDateTime.class)))
                 .single();
+        if (actorId != null) {
+            assignProjectManager(project.id(), actorId);
+        }
+        return project;
+    }
+
+    private Optional<Long> findActorId(String provider, String subject) {
+        if (provider == null || provider.isBlank() || subject == null || subject.isBlank()) {
+            return Optional.empty();
+        }
+        return jdbc.sql("""
+                        select k.id
+                          from akis.kullanici k
+                          join akis.harici_kimlik hk on hk.kullanici_id = k.id
+                         where k.devre_disi_birakilma_zamani is null
+                           and hk.harici_kullanici_anahtari = :subject
+                           and ((:provider = 'LOCAL_BASIC'
+                                 and hk.saglayici_turu = 'YEREL'
+                                 and hk.yayinlayici is null)
+                                or (hk.saglayici_turu = 'OIDC'
+                                    and hk.yayinlayici = :provider))
+                        """)
+                .param("provider", provider)
+                .param("subject", subject)
+                .query(Long.class)
+                .optional();
+    }
+
+    private void assignProjectManager(long projectId, long actorId) {
+        jdbc.sql("""
+                        insert into akis.proje_uyeligi(
+                            proje_id, kullanici_id, olusturan_kullanici_id)
+                        values (:projectId, :actorId, :actorId)
+                        """)
+                .param("projectId", projectId)
+                .param("actorId", actorId)
+                .update();
+        jdbc.sql("""
+                        insert into akis.kullanici_rol(
+                            kullanici_id, rol_id, rol_kapsami, proje_id,
+                            atayan_kullanici_id, olusturan_kullanici_id)
+                        select :actorId, id, 'PROJE', :projectId, :actorId, :actorId
+                          from akis.rol
+                         where kapsam = 'PROJE'
+                           and kod = 'PROJE_YONETICISI'
+                           and etkin_mi
+                        """)
+                .param("actorId", actorId)
+                .param("projectId", projectId)
+                .update();
     }
 
     List<ProjectRow> listProjects() {
         return jdbc.sql("""
-                        select id, uuid, kod, durum_kodu, ad, aciklama,
+                        select id, uuid, kod,
+                               case when arsivlenme_zamani is null
+                                    then 'AKTIF' else 'ARSIVLENDI' end as durum,
+                               ad, aciklama,
                                versiyon_no, olusturulma_zamani
-                          from entegrasyon.proje
+                          from akis.proje
                          order by kod
                         """)
                 .query((rs, rowNum) -> new ProjectRow(
                         rs.getLong("id"),
                         rs.getObject("uuid", UUID.class),
                         rs.getString("kod"),
-                        rs.getString("durum_kodu"),
+                        rs.getString("durum"),
                         rs.getString("ad"),
                         rs.getString("aciklama"),
                         rs.getLong("versiyon_no"),
@@ -85,9 +147,12 @@ public class MetadataRepository {
 
     Optional<ProjectRow> findProject(UUID uuid) {
         return jdbc.sql("""
-                        select id, uuid, kod, durum_kodu, ad, aciklama,
+                        select id, uuid, kod,
+                               case when arsivlenme_zamani is null
+                                    then 'AKTIF' else 'ARSIVLENDI' end as durum,
+                               ad, aciklama,
                                versiyon_no, olusturulma_zamani
-                          from entegrasyon.proje
+                          from akis.proje
                          where uuid = :uuid
                         """)
                 .param("uuid", uuid)
@@ -95,7 +160,7 @@ public class MetadataRepository {
                         rs.getLong("id"),
                         rs.getObject("uuid", UUID.class),
                         rs.getString("kod"),
-                        rs.getString("durum_kodu"),
+                        rs.getString("durum"),
                         rs.getString("ad"),
                         rs.getString("aciklama"),
                         rs.getLong("versiyon_no"),

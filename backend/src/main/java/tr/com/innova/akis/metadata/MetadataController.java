@@ -108,7 +108,10 @@ final class MetadataController {
     @PostMapping("/projects")
     ResponseEntity<ProjectView> createProject(@Valid @RequestBody CreateProjectRequest request) {
         authorization.requireSystemPermission(PROJECT_CREATE);
-        ProjectRow project = service.createProject(request.code(), request.name(), request.description());
+        var principal = authorization.currentPrincipalIdentity();
+        ProjectRow project = service.createProject(
+                request.code(), request.name(), request.description(),
+                principal.provider(), principal.subject());
         return ResponseEntity.created(URI.create("/api/v1/projects/" + project.uuid()))
                 .body(ProjectView.from(project));
     }

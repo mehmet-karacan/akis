@@ -92,6 +92,11 @@ public class AuthorizationService {
         return resolvePrincipal(currentAuthentication()).name();
     }
 
+    /** Returns the stable provider/subject pair used by audited provisioning workflows. */
+    public PrincipalIdentity currentPrincipalIdentity() {
+        return resolvePrincipal(currentAuthentication());
+    }
+
     PrincipalIdentity resolvePrincipal(Authentication authentication) {
         if (authentication == null
                 || !authentication.isAuthenticated()

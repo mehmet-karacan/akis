@@ -51,11 +51,11 @@ try {
     $env:SPRING_DATASOURCE_URL = "jdbc:postgresql://localhost:$($settings['POSTGRES_PORT'])/$testDatabase"
     $env:SPRING_DATASOURCE_USERNAME = $databaseUser
     $env:SPRING_DATASOURCE_PASSWORD = $settings["POSTGRES_PASSWORD"]
-    & $maven -pl backend "-Dtest=AuthorizationRepositoryIT,JdbcIdentityStoreIT" test
+    & $maven -pl backend "-Dtest=AuthorizationRepositoryIT,JdbcIdentityStoreIT,MetadataProjectRepositoryIT" test
     if ($LASTEXITCODE -ne 0) {
         throw "Clean RBAC repository test failed."
     }
-    Write-Output "Clean identity and RBAC repository tests: PASS"
+    Write-Output "Clean identity, RBAC and project repository tests: PASS"
 }
 finally {
     if ($databaseCreated -and $testDatabase -match '^akis_rbac_test_[0-9]+$') {

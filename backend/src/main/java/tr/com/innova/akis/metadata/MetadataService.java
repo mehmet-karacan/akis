@@ -55,10 +55,16 @@ public class MetadataService {
     }
 
     @Transactional
-    ProjectRow createProject(String code, String name, String description) {
+    ProjectRow createProject(
+            String code,
+            String name,
+            String description,
+            String actorProvider,
+            String actorSubject) {
         repository.lockProjectCodeNamespace();
         return repository.createProject(
-                UUID.randomUUID(), normalizeCode(code), normalizeName(name), trimToNull(description));
+                UUID.randomUUID(), normalizeCode(code), normalizeName(name), trimToNull(description),
+                actorProvider, actorSubject);
     }
 
     List<ProjectRow> listProjects() {

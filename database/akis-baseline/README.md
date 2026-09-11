@@ -64,9 +64,9 @@ Betik benzersiz adlı geçici bir veritabanı oluşturur, temiz migration'ı uyg
 olumlu ve olumsuz bütünlük kontrollerini çalıştırır ve yalnız bu geçici veritabanını
 siler. Geliştirme veritabanını değiştirmez ve Oracle sistemlerine bağlanmaz.
 
-Kimlik ve yetkilendirme repository sorgularının gerçek PostgreSQL üzerinde kullanıcı,
-dış kimlik, zamanlı üyelik, rol iptali, rol-yetki ve proje görünürlüğü kurallarını
-uyguladığını doğrulamak için:
+Kimlik, yetkilendirme ve proje repository sorgularının gerçek PostgreSQL üzerinde
+kullanıcı, dış kimlik, zamanlı üyelik, rol iptali, rol-yetki, proje yaşam döngüsü
+ve proje görünürlüğü kurallarını uyguladığını doğrulamak için:
 
 ```powershell
 .\database\akis-baseline\test-authorization.ps1

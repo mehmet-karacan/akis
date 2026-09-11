@@ -66,7 +66,7 @@ export function ProjectsPage() {
 
       <Dialog open={showCreate} title={t('projects.new')} eyebrow={t('projects.eyebrow')} closeLabel={t('common.close')} busy={creating} onClose={() => setShowCreate(false)}>
           <form onSubmit={create}>
-            <label>{t('projects.code')}<input name="code" pattern="[A-Za-z][A-Za-z0-9_-]{1,39}" required placeholder="FINANCE_DWH" /></label>
+            <label>{t('projects.code')}<input name="code" pattern="[A-Za-z][A-Za-z0-9_]{0,99}" required placeholder="FINANCE_DWH" /></label>
             <label>{t('projects.name')}<input name="name" required /></label>
             <label>{t('projects.descriptionField')}<textarea name="description" rows={4} /></label>
             <footer><button className="button secondary" type="button" onClick={() => setShowCreate(false)}>{t('common.cancel')}</button><button className="button primary" disabled={creating}>{creating ? t('projects.creating') : t('projects.create')}</button></footer>
