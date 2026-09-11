@@ -946,7 +946,7 @@ END $$;
         throw "Clean migration assertions failed."
     }
 
-    Write-Output "Metadata schema test: PASS (58 baseline tables, 9 definition types, 7 Flyway migrations, run, lease, publish-intent and RBAC guards)"
+    Write-Output "Metadata schema test: PASS (58 baseline tables, 9 definition types, 8 Flyway migrations, run, lease, publish-intent and RBAC guards)"
 }
 finally {
     & $docker exec $container dropdb --if-exists --force -U $databaseUser $testDatabase | Out-Null

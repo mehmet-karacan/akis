@@ -201,6 +201,8 @@ class JdbcRunLeaseStoreIT {
                 .single());
         assertTrue(startPublish(claimed.token(), target));
         assertTrue(startPublish(claimed.token(), target));
+        assertFalse(startPublish(
+                claimed.token(), target, UUID.randomUUID(), PAYLOAD_HASH));
         assertFalse(startPublish(claimed.token(), target, "0".repeat(64)));
         assertEquals(1, jdbc.sql("""
                         select count(*) from entegrasyon.pilot_yayin_niyeti
@@ -336,11 +338,19 @@ class JdbcRunLeaseStoreIT {
     }
 
     private boolean startPublish(RunLeaseToken run, TargetFenceToken target) {
-        return startPublish(run, target, PAYLOAD_HASH);
+        return startPublish(run, target, target.targetResourceUuid(), PAYLOAD_HASH);
     }
 
     private boolean startPublish(
             RunLeaseToken run, TargetFenceToken target, String payloadHash) {
+        return startPublish(run, target, target.targetResourceUuid(), payloadHash);
+    }
+
+    private boolean startPublish(
+            RunLeaseToken run,
+            TargetFenceToken target,
+            UUID targetUuid,
+            String payloadHash) {
         return jdbc.sql("""
                         select entegrasyon.calistirma_yayina_gec(
                             :runUuid, :workerReference, :runGeneration,
@@ -350,7 +360,7 @@ class JdbcRunLeaseStoreIT {
                 .param("runUuid", run.runUuid())
                 .param("workerReference", run.workerReference())
                 .param("runGeneration", run.generation())
-                .param("targetUuid", target.targetResourceUuid())
+                .param("targetUuid", targetUuid)
                 .param("targetGeneration", target.targetGeneration())
                 .param("runtimePlanHash", RUNTIME_PLAN_HASH)
                 .param("publishKeyHash", PUBLISH_KEY_HASH)

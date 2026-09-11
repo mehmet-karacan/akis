@@ -20,7 +20,7 @@ değer olayları, checkpoint, audit ve lineage aynı baseline içindedir.
     .\database\test-schema.ps1
 
 Test geçici bir veritabanı oluşturur; önce V003 legacy run kayıtlarını hazırlar,
-V004, V005, V006 ve V007 yükseltmelerini uygular ve son Flyway çalıştırmasının no-op olduğunu doğrular.
+V004-V008 yükseltmelerini uygular ve son Flyway çalıştırmasının no-op olduğunu doğrular.
 58 tabloyu, dokuz tanım türünü, 24 RBAC yetkisini, dört varsayılan proje rolünü,
 run durum makinesini, DB-time claim/heartbeat davranışını, hedef sahipliği ile
 fencing neslini, checkpoint kanıtını, tenant FK'larını ve append-only negatif
@@ -41,6 +41,9 @@ V007, Oracle DML başlamadan önce run/release/plan, target fence, payload ve sa
 kanıtını append-only `pilot_yayin_niyeti` kaydında sabitler. `YAYINLANIYOR`
 geçişi bu kayıt olmadan reddedilir; normal ve reconciliation checkpoint'leri de
 yalnız sabitlenmiş kanıtla birebir eşleşirse kabul edilir.
+
+V008, publish-intent idempotent acknowledgement yolunda exact target UUID ile
+aktif run/target lease ve generation kanıtını yeniden doğrular.
 
 Oracle 19c hedefinde kullanılacak target-local ledger/fencing DBA scriptleri,
 transaction sözleşmesi ve doğrulama adımları `database/oracle/README.md`
