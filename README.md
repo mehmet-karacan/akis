@@ -11,7 +11,8 @@ ledger/fencing kurulumu, Faz 3B Oracle ledger JDBC adaptörü, Faz 3C kanonik
 Oracle hedef kimliği ile bounded typed pilot runtime planı ve Faz 3D'nin kontrollü
 completion/reconciliation, append-only publish-intent, pinned snapshot preflight
 ve bounded typed I/O güvenlik temeli tamamlanmıştır. Exact runtime connection/secret
-provider ile tek guarded Oracle transaction sahibi atomic publish facade da hazırdır.
+provider, reconciliation sırasında target generation'ı kalıcı artıran V009 fence
+bariyeri ve tek guarded Oracle transaction sahibi atomic publish facade da hazırdır.
 Manuel
 istek yalnız kalıcı `BEKLIYOR` run üretir. Worker poller ve Oracle business DML
 kapalıdır; ürün üretim kullanımı için hazır değildir.

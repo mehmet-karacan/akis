@@ -93,7 +93,10 @@ transaction'da uzatır.
 Süresi dolan target sahibi yeni run'a verilmez. Reaper eski run'ı
 `SONUC_BELIRSIZ`, target kaynağını `ASKIDA` yapar ve olayı aynı PostgreSQL
 transaction'ında ekler. Reconciler daha yüksek target token'ını Oracle'da kalıcı
-yükseltirken eski transaction kilidinin çözülmesini bekler, sonra ledger'ı okur:
+yükseltirken eski transaction kilidinin çözülmesini bekler, sonra ledger'ı okur.
+Reconciliation claim aynı PostgreSQL transaction'ında run generation'ını `R+1`,
+askıdaki target generation'ını `T+1` yapar. PUBLISHED checkpoint eski marker nesli
+`T` ile mutabakat bariyeri `T+1` değerlerini ayrı saklar:
 
 Worker, Oracle target'ı sahiplenmeden önce `HAZIRLANIYOR` aşamasında kaybolursa
 Oracle DML başlamamıştır. Ayrı DB-time reaper bu hedefsiz ve lease'i dolmuş run'ı

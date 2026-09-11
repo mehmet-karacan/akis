@@ -288,24 +288,46 @@ class JdbcRunLeaseStoreIT {
         assertEquals("SONUC_BELIRSIZ", runStatus(claimed.token().runUuid()));
         assertEquals("ASKIDA", targetStatus(target.targetResourceUuid()));
 
-        long reconciliationGeneration = jdbc.sql("""
+        ReconciliationClaim reconciliation = jdbc.sql("""
                         select calistirma_nesil_no
+                              ,hedef_kaynagi_uuid, hedef_nesil_no
                           from entegrasyon.calistirma_mutabakat_sahiplen(
                             :runUuid, :profileUuid, :workerReference, 60)
                         """)
                 .param("runUuid", claimed.token().runUuid())
                 .param("profileUuid", workerProfileUuid())
                 .param("workerReference", "lease-it-reconciler")
-                .query(Long.class)
+                .query((rs, rowNum) -> new ReconciliationClaim(
+                        rs.getLong("calistirma_nesil_no"),
+                        rs.getObject("hedef_kaynagi_uuid", UUID.class),
+                        rs.getLong("hedef_nesil_no")))
                 .single();
-        assertEquals(claimed.token().generation() + 1, reconciliationGeneration);
+        assertEquals(claimed.token().generation() + 1,
+                reconciliation.runGeneration());
+        assertEquals(target.targetGeneration() + 1,
+                reconciliation.targetGeneration());
+        assertEquals(target.targetResourceUuid(), reconciliation.targetResourceUuid());
+        assertEquals(reconciliation, jdbc.sql("""
+                        select calistirma_nesil_no,
+                               hedef_kaynagi_uuid, hedef_nesil_no
+                          from entegrasyon.calistirma_mutabakat_sahiplen(
+                            :runUuid, :profileUuid, :workerReference, 60)
+                        """)
+                .param("runUuid", claimed.token().runUuid())
+                .param("profileUuid", workerProfileUuid())
+                .param("workerReference", "lease-it-reconciler")
+                .query((rs, rowNum) -> new ReconciliationClaim(
+                        rs.getLong("calistirma_nesil_no"),
+                        rs.getObject("hedef_kaynagi_uuid", UUID.class),
+                        rs.getLong("hedef_nesil_no")))
+                .single());
         assertTrue(jdbc.sql("""
                         select entegrasyon.calistirma_mutabakat_yasam_sinyali(
                             :runUuid, :workerReference, :runGeneration, 60)
                         """)
                 .param("runUuid", claimed.token().runUuid())
                 .param("workerReference", "lease-it-reconciler")
-                .param("runGeneration", reconciliationGeneration)
+                .param("runGeneration", reconciliation.runGeneration())
                 .query(Boolean.class)
                 .single());
 
@@ -318,13 +340,112 @@ class JdbcRunLeaseStoreIT {
                         """)
                 .param("runUuid", claimed.token().runUuid())
                 .param("workerReference", "lease-it-reconciler")
-                .param("runGeneration", reconciliationGeneration)
+                .param("runGeneration", reconciliation.runGeneration())
                 .param("targetUuid", target.targetResourceUuid())
-                .param("targetGeneration", target.targetGeneration())
+                .param("targetGeneration", reconciliation.targetGeneration())
                 .query(Boolean.class)
                 .single());
         assertEquals("YENIDEN_DENENEBILIR", runStatus(claimed.token().runUuid()));
         assertEquals("BOS", targetStatus(target.targetResourceUuid()));
+    }
+
+    @Test
+    void publishedReconciliationPreservesPublishAndBarrierGenerations() {
+        ClaimedRun claimed = claim("lease-it-worker-reconciled-publish");
+        TargetFenceToken target = store.acquireTarget(claimed.token(), TARGET_HASH, 1);
+        assertTrue(startWork(claimed.token(), target));
+        assertTrue(startPublish(claimed.token(), target));
+        assertTrue(jdbc.sql("""
+                        select entegrasyon.calistirma_sonucu_belirsiz_isaretle(
+                            :runUuid, :workerReference, :runGeneration,
+                            :targetUuid, :targetGeneration)
+                        """)
+                .param("runUuid", claimed.token().runUuid())
+                .param("workerReference", claimed.token().workerReference())
+                .param("runGeneration", claimed.token().generation())
+                .param("targetUuid", target.targetResourceUuid())
+                .param("targetGeneration", target.targetGeneration())
+                .query(Boolean.class)
+                .single());
+
+        ReconciliationClaim reconciliation = jdbc.sql("""
+                        select calistirma_nesil_no,
+                               hedef_kaynagi_uuid, hedef_nesil_no
+                          from entegrasyon.calistirma_mutabakat_sahiplen(
+                            :runUuid, :profileUuid, :workerReference, 60)
+                        """)
+                .param("runUuid", claimed.token().runUuid())
+                .param("profileUuid", workerProfileUuid())
+                .param("workerReference", "lease-it-publish-reconciler")
+                .query((rs, rowNum) -> new ReconciliationClaim(
+                        rs.getLong("calistirma_nesil_no"),
+                        rs.getObject("hedef_kaynagi_uuid", UUID.class),
+                        rs.getLong("hedef_nesil_no")))
+                .single();
+
+        assertThrows(DataAccessException.class, () -> jdbc.sql("""
+                        insert into entegrasyon.kontrol_noktasi(
+                            proje_id, calistirma_id, calistirma_adimi_id,
+                            kapsam_ozeti, bolum_kodu, sira_no, paket_anahtari,
+                            hedef_defter_referansi, tur_kodu, dogrulama_zamani,
+                            imlec, hedef_kaynagi_id, hedef_nesil_no,
+                            mutabakat_hedef_nesil_no, yayin_ozeti, plan_ozeti,
+                            payload_ozeti)
+                        select c.proje_id, c.id, ca.id,
+                               :runtimePlanHash, 'FORGED', 99, 'forged',
+                               :forgedReference, 'BATCH', clock_timestamp(),
+                               '{}'::jsonb, cd.hedef_kaynagi_id,
+                               :publishGeneration, :barrierGeneration,
+                               c.yayin_ozeti, c.plan_ozeti, :payloadHash
+                          from entegrasyon.calistirma c
+                          join entegrasyon.calistirma_durumu cd
+                            on cd.proje_id = c.proje_id and cd.calistirma_id = c.id
+                          join entegrasyon.calistirma_adimi ca
+                            on ca.proje_id = c.proje_id and ca.calistirma_id = c.id
+                           and ca.adim_kodu = 'PILOT_PUBLISH'
+                         where c.uuid = :runUuid
+                        """)
+                .param("runtimePlanHash", RUNTIME_PLAN_HASH)
+                .param("forgedReference", "f".repeat(64))
+                .param("publishGeneration", target.targetGeneration())
+                .param("barrierGeneration", reconciliation.targetGeneration())
+                .param("payloadHash", PAYLOAD_HASH)
+                .param("runUuid", claimed.token().runUuid())
+                .update());
+
+        assertTrue(jdbc.sql("""
+                        select entegrasyon.calistirma_mutabakat_sonlandir(
+                            :runUuid, :workerReference, :runGeneration,
+                            :targetUuid, :targetGeneration, 'PUBLISHED',
+                            :runtimePlanHash, :publishKeyHash, :payloadHash,
+                            33, 1024)
+                        """)
+                .param("runUuid", claimed.token().runUuid())
+                .param("workerReference", "lease-it-publish-reconciler")
+                .param("runGeneration", reconciliation.runGeneration())
+                .param("targetUuid", reconciliation.targetResourceUuid())
+                .param("targetGeneration", reconciliation.targetGeneration())
+                .param("runtimePlanHash", RUNTIME_PLAN_HASH)
+                .param("publishKeyHash", PUBLISH_KEY_HASH)
+                .param("payloadHash", PAYLOAD_HASH)
+                .query(Boolean.class)
+                .single());
+
+        assertEquals("BASARILI", runStatus(claimed.token().runUuid()));
+        assertEquals("BOS", targetStatus(target.targetResourceUuid()));
+        assertEquals(1, jdbc.sql("""
+                        select count(*) from entegrasyon.kontrol_noktasi kn
+                          join entegrasyon.calistirma c on c.id = kn.calistirma_id
+                         where c.uuid = :runUuid
+                           and kn.hedef_nesil_no = :publishGeneration
+                           and kn.mutabakat_hedef_nesil_no = :barrierGeneration
+                           and (kn.imlec ->> 'reconciled')::boolean is true
+                        """)
+                .param("runUuid", claimed.token().runUuid())
+                .param("publishGeneration", target.targetGeneration())
+                .param("barrierGeneration", reconciliation.targetGeneration())
+                .query(Integer.class)
+                .single());
     }
 
     @Test
@@ -493,5 +614,11 @@ class JdbcRunLeaseStoreIT {
             }
             return value;
         }
+    }
+
+    private record ReconciliationClaim(
+            long runGeneration,
+            UUID targetResourceUuid,
+            long targetGeneration) {
     }
 }

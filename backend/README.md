@@ -139,7 +139,8 @@ dönük yayınlanabilir; manifestte `DEFINITION_ONLY` olarak işaretlenir ve pil
 worker tarafından yürütülemez.
 
 Faz 3D güvenlik temeli; V006 kontrollü completion/reconciliation durum API'lerini,
-V007/V008 exact append-only publish intent kanıtını, pinned snapshot loader'ını,
+V007/V008 exact append-only publish intent kanıtını, V009 reconciliation fence
+bariyerini, pinned snapshot loader'ını,
 salt-okunur canlı Oracle schema preflight'ını, runtime connection/secret
 provider'ını ve bounded typed source/target I/O çekirdeğini ekler. Pilot payload
 codec'i yalnız gerçek pilotta gereken `NUMBER`, `VARCHAR2` ve
