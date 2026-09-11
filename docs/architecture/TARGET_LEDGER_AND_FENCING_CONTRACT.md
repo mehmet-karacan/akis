@@ -70,14 +70,18 @@ sürecidir.
 ## Commit sırası
 
 1. PostgreSQL kısa transaction: claim, DB-time lease, generation ve olay.
-2. PostgreSQL transaction: immutable publish intent; exact runtime plan, publish
+2. Salt-okunur Oracle oturumları: pinned source ve target snapshot'larının canlı
+   schema/constraint/write-safety ve kanonik DB/container/owner/table kimliğiyle
+   aynı bağlantıda yeniden doğrulanması. Bu oturumlarda DDL/DML yoktur.
+3. PostgreSQL transaction: immutable publish intent; exact runtime plan, publish
    key, payload, satır/bayt sayısı ve iki lease generation kanıtı; satır verisi içermez.
-3. Oracle kısa transaction: daha yüksek target fence token'ını kalıcı yükselt.
-4. Oracle data transaction: `PREPARE`, hedefte exclusive lock, aynı connection'da
+4. Oracle kısa transaction: canlı hedef kimliğini aynı `TARGET_FENCE` bağlantısında
+   yeniden doğrula; yalnız eşleşirse daha yüksek target fence token'ını kalıcı yükselt.
+5. Oracle data transaction: `PREPARE`, hedefte exclusive lock, aynı connection'da
    identity ile schema/trigger preflight, DML, transaction içi payload doğrulama,
    marker `RECORD` ve tek commit. Exact marker zaten varsa DML yapılmaz.
-5. Commit sonucu belirsizse Oracle marker yeni reconciliation connection'ında okunur.
-6. PostgreSQL transaction: checkpoint aynası, metrik/olay ve state projection.
+6. Commit sonucu belirsizse Oracle marker yeni reconciliation connection'ında okunur.
+7. PostgreSQL transaction: checkpoint aynası, metrik/olay ve state projection.
 
 Oracle commit'ten önce PostgreSQL'e tamamlandı checkpoint'i yazılmaz. Commit yanıtı
 kaybolursa kör retry yapılmaz; run `SONUC_BELIRSIZ` olur.
@@ -89,6 +93,14 @@ Varsayılan heartbeat 10 saniye, lease 60 saniyedir. Süreler PostgreSQL
 run UUID, worker referansı, run generation, target resource ve target generation'ın
 tamamı eşleşirse ve lease henüz dolmamışsa run ile target lease'ini aynı
 transaction'da uzatır.
+
+Supervisor aralığı `min(10 saniye, lease/3)` olarak hesaplanır. Claim, heartbeat,
+target acquire ve terminal yetki mutasyonları bağımsız `REQUIRES_NEW` transaction'larda
+çalışır. Heartbeat ile kısa PostgreSQL yetki adımları aynı in-process gate üzerinde
+serileştirilir; exact worker/run/generation token'ı ve kesinlikle daha ileri deadline
+gelmezse yetki kalıcı olarak düşer. Terminal mutasyon kabul edildiğinde terminal latch
+ve heartbeat iptali aynı kritik bölümde tamamlanır. Uzun Oracle/ağ I/O'su bu gate
+kilidi altında çalıştırılmaz; her sonraki yetkili adımda gate tekrar kontrol edilir.
 
 Süresi dolan target sahibi yeni run'a verilmez. Reaper eski run'ı
 `SONUC_BELIRSIZ`, target kaynağını `ASKIDA` yapar ve olayı aynı PostgreSQL

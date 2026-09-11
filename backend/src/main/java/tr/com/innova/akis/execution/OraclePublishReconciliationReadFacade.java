@@ -216,7 +216,7 @@ final class OraclePublishReconciliationReadFacade
             return null;
         }
 
-        boolean rollbackConfirmed = purpose == RuntimeOracleConnectionProvider.SessionPurpose.SOURCE_READ
+        boolean rollbackConfirmed = purpose != null && purpose.readOnly()
                 || rollback(session);
         boolean closeConfirmed = close(session);
         if (!rollbackConfirmed) {

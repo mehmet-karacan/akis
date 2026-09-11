@@ -10,6 +10,7 @@ import java.util.regex.Pattern;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import tr.com.innova.akis.execution.RunLeasePort.ClaimedRun;
@@ -32,7 +33,7 @@ public class JdbcRunLeaseStore implements RunLeasePort {
     }
 
     @Override
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Optional<ClaimedRun> claimForPreflight(WorkerIdentity worker, Duration lease) {
         WorkerIdentity safeWorker = worker(worker);
         int leaseSeconds = leaseSeconds(lease);
@@ -50,7 +51,7 @@ public class JdbcRunLeaseStore implements RunLeasePort {
     }
 
     @Override
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public HeartbeatResult heartbeat(RunLeaseToken token, Duration lease) {
         RunLeaseToken safeToken = token(token);
         int leaseSeconds = leaseSeconds(lease);
@@ -87,7 +88,7 @@ public class JdbcRunLeaseStore implements RunLeasePort {
     }
 
     @Override
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public TargetFenceToken acquireTarget(
             RunLeaseToken token, String canonicalTargetHash, int identityVersion) {
         RunLeaseToken safeToken = token(token);

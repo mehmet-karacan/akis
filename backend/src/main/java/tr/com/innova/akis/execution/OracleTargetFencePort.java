@@ -50,6 +50,7 @@ interface OracleTargetFencePort {
     enum FailureCode {
         INVALID_CONTRACT,
         CONNECTION_UNAVAILABLE,
+        TARGET_IDENTITY_MISMATCH,
         STALE_FENCE,
         ORACLE_OPERATION_REJECTED,
         ROLLBACK_NOT_CONFIRMED,

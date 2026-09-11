@@ -2,6 +2,7 @@ package tr.com.innova.akis.execution;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
@@ -28,6 +29,7 @@ import tr.com.innova.akis.execution.OracleTargetLedgerPort.DataLedgerSession;
 import tr.com.innova.akis.execution.OracleTargetLedgerPort.FenceSession;
 import tr.com.innova.akis.execution.OracleTargetLedgerPort.ReconciliationSession;
 import tr.com.innova.akis.execution.OracleTargetLedgerPort.TargetLedgerContext;
+import tr.com.innova.akis.execution.OracleTargetIdentityV1.CanonicalTargetIdentity;
 import tr.com.innova.akis.execution.PilotRuntimePlan.DataObjectType;
 import tr.com.innova.akis.execution.PilotRuntimePlan.DatabaseType;
 import tr.com.innova.akis.execution.PilotRuntimePlan.DatasetBinding;
@@ -55,7 +57,9 @@ class OracleTargetFenceFacadeTest {
 
         CommitConfirmed confirmed = assertInstanceOf(CommitConfirmed.class, result);
         assertEquals(7, confirmed.receipt().targetGeneration());
-        assertEquals(List.of("OPEN", "BIND", "ACQUIRE", "COMMIT", "CLOSE"),
+        assertSame(fixture.identityConnection, fixture.ledger.boundConnection);
+        assertEquals(List.of(
+                "OPEN", "IDENTITY", "BIND", "ACQUIRE", "COMMIT", "CLOSE"),
                 fixture.events);
     }
 
@@ -109,6 +113,66 @@ class OracleTargetFenceFacadeTest {
 
         assertEquals(FailureCode.INVALID_CONTRACT, result.failure());
         assertEquals(List.of("OPEN", "ROLLBACK", "CLOSE"), fixture.events);
+
+        Fixture readOnly = fixture();
+        OracleTargetFenceFacade readOnlyFacade = new OracleTargetFenceFacade(
+                readOnly.ledger,
+                target -> {
+                    readOnly.events.add("OPEN");
+                    return readOnly.provider.openTargetIdentityRead(target);
+                });
+
+        NotAttempted readOnlyResult = assertInstanceOf(NotAttempted.class,
+                readOnlyFacade.acquire(readOnly.command));
+
+        assertEquals(FailureCode.INVALID_CONTRACT, readOnlyResult.failure());
+        assertEquals(List.of("OPEN", "CLOSE"), readOnly.events);
+        assertEquals(0, readOnly.ledger.bindCalls);
+    }
+
+    @Test
+    void rejectsLiveTargetIdentityMismatchBeforeLedgerBinding() {
+        Fixture fixture = fixture();
+        fixture.identity = identity("f".repeat(64));
+
+        SafeFailure result = assertInstanceOf(SafeFailure.class,
+                fixture.facade.acquire(fixture.command));
+
+        assertEquals(FailureCode.TARGET_IDENTITY_MISMATCH, result.failure());
+        assertEquals(List.of("OPEN", "IDENTITY", "ROLLBACK", "CLOSE"),
+                fixture.events);
+        assertEquals(0, fixture.ledger.bindCalls);
+    }
+
+    @Test
+    void targetIdentityReadFailureIsSafeOnlyAfterConfirmedRollback() {
+        Fixture fixture = fixture();
+        fixture.identityFailure = new IllegalStateException(
+                "jdbc:oracle:user/secret@private-host");
+
+        SafeFailure result = assertInstanceOf(SafeFailure.class,
+                fixture.facade.acquire(fixture.command));
+
+        assertEquals(FailureCode.TARGET_IDENTITY_MISMATCH, result.failure());
+        assertEquals(List.of("OPEN", "IDENTITY", "ROLLBACK", "CLOSE"),
+                fixture.events);
+        assertEquals(0, fixture.ledger.bindCalls);
+    }
+
+    @Test
+    void targetIdentityFailureIsUnknownWhenRollbackCannotBeConfirmed() {
+        Fixture fixture = fixture();
+        fixture.identity = identity("f".repeat(64));
+        fixture.connection.rollbackFailure = true;
+
+        OutcomeUnknown result = assertInstanceOf(OutcomeUnknown.class,
+                fixture.facade.acquire(fixture.command));
+
+        assertEquals(FailureCode.ROLLBACK_NOT_CONFIRMED, result.failure());
+        assertEquals(List.of(
+                "OPEN", "IDENTITY", "ROLLBACK", "ROLLBACK", "CLOSE"),
+                fixture.events);
+        assertEquals(0, fixture.ledger.bindCalls);
     }
 
     @Test
@@ -121,7 +185,8 @@ class OracleTargetFenceFacadeTest {
 
         assertEquals(FailureCode.ORACLE_OPERATION_REJECTED, result.failure());
         assertEquals(List.of(
-                "OPEN", "BIND", "ACQUIRE", "ROLLBACK", "CLOSE"), fixture.events);
+                "OPEN", "IDENTITY", "BIND", "ACQUIRE", "ROLLBACK", "CLOSE"),
+                fixture.events);
     }
 
     @Test
@@ -141,7 +206,7 @@ class OracleTargetFenceFacadeTest {
 
             assertEquals(FailureCode.STALE_FENCE, result.failure());
             assertEquals(List.of(
-                    "OPEN", "BIND", "ACQUIRE", "ROLLBACK", "CLOSE"),
+                    "OPEN", "IDENTITY", "BIND", "ACQUIRE", "ROLLBACK", "CLOSE"),
                     fixture.events);
         }
     }
@@ -157,7 +222,7 @@ class OracleTargetFenceFacadeTest {
 
         assertEquals(FailureCode.ROLLBACK_NOT_CONFIRMED, result.failure());
         assertEquals(List.of(
-                "OPEN", "BIND", "ACQUIRE", "ROLLBACK", "ROLLBACK", "CLOSE"),
+                "OPEN", "IDENTITY", "BIND", "ACQUIRE", "ROLLBACK", "ROLLBACK", "CLOSE"),
                 fixture.events);
     }
 
@@ -171,7 +236,7 @@ class OracleTargetFenceFacadeTest {
 
         assertEquals(FailureCode.COMMIT_OUTCOME_UNKNOWN, result.failure());
         assertEquals(List.of(
-                "OPEN", "BIND", "ACQUIRE", "COMMIT", "ROLLBACK", "CLOSE"),
+                "OPEN", "IDENTITY", "BIND", "ACQUIRE", "COMMIT", "ROLLBACK", "CLOSE"),
                 fixture.events);
     }
 
@@ -186,13 +251,29 @@ class OracleTargetFenceFacadeTest {
                 ignored -> "{\"username\":\"INNOVA_ODI\",\"password\":\"hidden\"}",
                 (url, properties) -> connection.proxy(),
                 Runnable::run);
-        OracleTargetFenceFacade facade = new OracleTargetFenceFacade(
+        Fixture fixture = new Fixture(events, connection, ledger, command, provider);
+        fixture.facade = new OracleTargetFenceFacade(
                 ledger,
                 target -> {
                     events.add("OPEN");
                     return provider.openTargetFence(target);
+                },
+                (activeConnection, owner, objectType, objectName) -> {
+                    events.add("IDENTITY");
+                    fixture.identityConnection = activeConnection;
+                    if (fixture.identityFailure != null) {
+                        throw fixture.identityFailure;
+                    }
+                    return fixture.identity;
                 });
-        return new Fixture(events, connection, ledger, command, provider, facade);
+        return fixture;
+    }
+
+    private CanonicalTargetIdentity identity(String hash) {
+        return new CanonicalTargetIdentity(
+                OracleTargetIdentityV1.TARGET_IDENTITY_VERSION,
+                "AKISDB", "AKISPDB", "OWNER", "TABLE", "TABLE",
+                new byte[0], hash);
     }
 
     private OracleTargetFenceCommand command() {
@@ -231,13 +312,29 @@ class OracleTargetFenceFacadeTest {
                 "ENV", "AKIS_ORACLE_FENCE_SECRET");
     }
 
-    private record Fixture(
-            List<String> events,
-            FakeConnection connection,
-            FakeLedger ledger,
-            OracleTargetFenceCommand command,
-            RuntimeOracleConnectionProvider provider,
-            OracleTargetFenceFacade facade) {
+    private final class Fixture {
+        private final List<String> events;
+        private final FakeConnection connection;
+        private final FakeLedger ledger;
+        private final OracleTargetFenceCommand command;
+        private final RuntimeOracleConnectionProvider provider;
+        private OracleTargetFenceFacade facade;
+        private CanonicalTargetIdentity identity = identity(TARGET_HASH);
+        private RuntimeException identityFailure;
+        private Connection identityConnection;
+
+        private Fixture(
+                List<String> events,
+                FakeConnection connection,
+                FakeLedger ledger,
+                OracleTargetFenceCommand command,
+                RuntimeOracleConnectionProvider provider) {
+            this.events = events;
+            this.connection = connection;
+            this.ledger = ledger;
+            this.command = command;
+            this.provider = provider;
+        }
     }
 
     private static final class FakeLedger implements OracleTargetLedgerPort {
@@ -245,6 +342,8 @@ class OracleTargetFenceFacadeTest {
         private final List<String> events;
         private boolean acquireFailure;
         private OracleLedgerFailure fenceRejection;
+        private int bindCalls;
+        private Connection boundConnection;
 
         private FakeLedger(List<String> events) {
             this.events = events;
@@ -252,6 +351,8 @@ class OracleTargetFenceFacadeTest {
 
         @Override
         public FenceSession bindFence(Connection connection, TargetLedgerContext context) {
+            bindCalls++;
+            boundConnection = connection;
             events.add("BIND");
             return () -> {
                 events.add("ACQUIRE");

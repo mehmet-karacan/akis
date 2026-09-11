@@ -82,6 +82,11 @@ final class RuntimeOracleConnectionProvider {
         return open(binding, SessionPurpose.TARGET_FENCE);
     }
 
+    RuntimeOracleSession openTargetIdentityRead(DatasetBinding binding) {
+        requireRole(binding, DatasetRole.TARGET);
+        return open(binding, SessionPurpose.TARGET_IDENTITY_READ);
+    }
+
     RuntimeOracleSession openTargetData(
             DatasetBinding binding, TargetDataPermit permit) {
         if (!(permit instanceof OracleAtomicPublishFacade.PublishPermit)) {
@@ -125,7 +130,7 @@ final class RuntimeOracleConnectionProvider {
             connection = opener.open(jdbcUrl(profile), properties);
             connection.setNetworkTimeout(
                     networkTimeoutExecutor, timeouts.networkTimeoutMs());
-            if (purpose == SessionPurpose.SOURCE_READ) {
+            if (purpose.readOnly()) {
                 connection.setReadOnly(true);
                 connection.setAutoCommit(true);
             }
@@ -271,7 +276,7 @@ final class RuntimeOracleConnectionProvider {
             return;
         }
         try {
-            if (purpose != SessionPurpose.SOURCE_READ && !connection.getAutoCommit()) {
+            if (!purpose.readOnly() && !connection.getAutoCommit()) {
                 connection.rollback();
             }
         }
@@ -291,10 +296,21 @@ final class RuntimeOracleConnectionProvider {
     }
 
     enum SessionPurpose {
-        SOURCE_READ,
-        TARGET_FENCE,
-        TARGET_DATA,
-        TARGET_RECONCILIATION
+        SOURCE_READ(true),
+        TARGET_IDENTITY_READ(true),
+        TARGET_FENCE(false),
+        TARGET_DATA(false),
+        TARGET_RECONCILIATION(false);
+
+        private final boolean readOnly;
+
+        SessionPurpose(boolean readOnly) {
+            this.readOnly = readOnly;
+        }
+
+        boolean readOnly() {
+            return readOnly;
+        }
     }
 
     /** Compile-time capability; only the atomic facade can construct its permit. */
@@ -338,7 +354,7 @@ final class RuntimeOracleConnectionProvider {
                     connection, queryTimeoutSeconds);
             this.purpose = purpose;
             this.queryTimeoutSeconds = queryTimeoutSeconds;
-            this.transactionResolved = purpose == SessionPurpose.SOURCE_READ;
+            this.transactionResolved = purpose.readOnly();
         }
 
         Connection connection() {
@@ -421,7 +437,7 @@ final class RuntimeOracleConnectionProvider {
 
         private void requireTarget() {
             ensureOpen();
-            if (purpose == SessionPurpose.SOURCE_READ || transactionResolved) {
+            if (purpose.readOnly() || transactionResolved) {
                 throw new RuntimeOracleConnectionException(Failure.INVALID_CONTRACT);
             }
         }

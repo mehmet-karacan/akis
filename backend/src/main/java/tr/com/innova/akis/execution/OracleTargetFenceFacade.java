@@ -19,6 +19,7 @@ import tr.com.innova.akis.execution.OracleTargetFencePort.OutcomeUnknown;
 import tr.com.innova.akis.execution.OracleTargetFencePort.SafeFailure;
 import tr.com.innova.akis.execution.OracleTargetLedgerPort.FenceSession;
 import tr.com.innova.akis.execution.OracleTargetLedgerPort.TargetLedgerContext;
+import tr.com.innova.akis.execution.OracleTargetIdentityV1.CanonicalTargetIdentity;
 import tr.com.innova.akis.execution.PilotRuntimePlan.DatasetRole;
 import tr.com.innova.akis.execution.RuntimeOracleConnectionProvider.RuntimeOracleSession;
 import tr.com.innova.akis.execution.RuntimeOracleConnectionProvider.SessionPurpose;
@@ -29,6 +30,7 @@ final class OracleTargetFenceFacade implements OracleTargetFencePort {
 
     private final OracleTargetLedgerPort ledger;
     private final TargetFenceSessionOpener sessions;
+    private final TargetIdentityReader identityReader;
 
     @Autowired
     OracleTargetFenceFacade(
@@ -40,8 +42,17 @@ final class OracleTargetFenceFacade implements OracleTargetFencePort {
     OracleTargetFenceFacade(
             OracleTargetLedgerPort ledger,
             TargetFenceSessionOpener sessions) {
+        this(ledger, sessions, new JdbcOracleTargetIdentityReader()::read);
+    }
+
+    OracleTargetFenceFacade(
+            OracleTargetLedgerPort ledger,
+            TargetFenceSessionOpener sessions,
+            TargetIdentityReader identityReader) {
         this.ledger = Objects.requireNonNull(ledger, "Target ledger is required.");
         this.sessions = Objects.requireNonNull(sessions, "Target sessions are required.");
+        this.identityReader = Objects.requireNonNull(
+                identityReader, "Target identity reader is required.");
     }
 
     @Override
@@ -69,6 +80,7 @@ final class OracleTargetFenceFacade implements OracleTargetFencePort {
         OracleTargetFenceResult result;
         try {
             Connection connection = session.connection();
+            verifyTargetIdentity(connection, command);
             FenceSession fenceSession = ledger.bindFence(
                     connection,
                     TargetLedgerContext.from(command.fence(), command.execution()));
@@ -86,7 +98,9 @@ final class OracleTargetFenceFacade implements OracleTargetFencePort {
                 result = new OutcomeUnknown(FailureCode.COMMIT_OUTCOME_UNKNOWN);
             }
             else if (rollback(session)) {
-                result = deterministicFenceRejection(exception)
+                result = exception instanceof TargetIdentityMismatchException
+                        ? new SafeFailure(FailureCode.TARGET_IDENTITY_MISMATCH)
+                        : deterministicFenceRejection(exception)
                         ? new FencedOut(FailureCode.STALE_FENCE)
                         : new SafeFailure(FailureCode.ORACLE_OPERATION_REJECTED);
             }
@@ -147,13 +161,43 @@ final class OracleTargetFenceFacade implements OracleTargetFencePort {
 
     private OracleTargetFenceResult rejectWrongPurpose(RuntimeOracleSession session) {
         OracleTargetFenceResult result;
-        if (session.purpose() == SessionPurpose.SOURCE_READ || rollback(session)) {
+        SessionPurpose purpose = session.purpose();
+        if ((purpose != null && purpose.readOnly()) || rollback(session)) {
             result = new NotAttempted(FailureCode.INVALID_CONTRACT);
         }
         else {
             result = new OutcomeUnknown(FailureCode.ROLLBACK_NOT_CONFIRMED);
         }
         return closeAndReturn(session, result);
+    }
+
+    private void verifyTargetIdentity(
+            Connection connection, OracleTargetFenceCommand command) {
+        try {
+            CanonicalTargetIdentity actual = identityReader.read(
+                    connection,
+                    command.plan().target().owner(),
+                    command.plan().target().dataObjectType().name(),
+                    command.plan().target().objectName());
+            if (actual == null
+                    || actual.targetIdentityVersion()
+                            != command.fence().targetIdentityVersion()
+                    || !Objects.equals(actual.owner(), command.plan().target().owner())
+                    || !Objects.equals(actual.objectType(),
+                            command.plan().target().dataObjectType().name())
+                    || !Objects.equals(actual.objectName(),
+                            command.plan().target().objectName())
+                    || !equalHash(actual.canonicalTargetHash(),
+                            command.fence().canonicalTargetHash())) {
+                throw new TargetIdentityMismatchException();
+            }
+        }
+        catch (RuntimeException exception) {
+            if (exception instanceof TargetIdentityMismatchException) {
+                throw exception;
+            }
+            throw new TargetIdentityMismatchException();
+        }
     }
 
     private boolean deterministicFenceRejection(RuntimeException exception) {
@@ -204,5 +248,15 @@ final class OracleTargetFenceFacade implements OracleTargetFencePort {
     interface TargetFenceSessionOpener {
 
         RuntimeOracleSession open(PilotRuntimePlan.DatasetBinding target);
+    }
+
+    @FunctionalInterface
+    interface TargetIdentityReader {
+
+        CanonicalTargetIdentity read(
+                Connection connection, String owner, String objectType, String objectName);
+    }
+
+    private static final class TargetIdentityMismatchException extends RuntimeException {
     }
 }

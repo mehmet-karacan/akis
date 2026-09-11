@@ -132,6 +132,20 @@ final class JdbcOracleSchemaPreflight {
                 plan.source(), DatasetRole.SOURCE, sourceConnection, sourceSnapshot).result();
     }
 
+    /** Re-attests the target during the fresh read-only identity session. */
+    BindingResult verifyTarget(
+            PilotRuntimePlan plan,
+            Connection targetConnection,
+            ExpectedSnapshot targetSnapshot) {
+        if (plan == null || targetConnection == null || targetSnapshot == null) {
+            throw failure(OracleSchemaPreflightFailure.INVALID_CONTRACT);
+        }
+        VerifiedBinding target = verifyBinding(
+                plan.target(), DatasetRole.TARGET, targetConnection, targetSnapshot);
+        verifyTargetWriteSafety(targetConnection, plan.target(), target);
+        return target.result();
+    }
+
     /**
      * Re-attests the target on the caller's already exclusively locked physical
      * connection. Fresh catalog reads here close the gap between the earlier

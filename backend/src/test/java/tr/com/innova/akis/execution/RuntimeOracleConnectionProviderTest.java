@@ -57,17 +57,23 @@ class RuntimeOracleConnectionProviderTest {
                 });
 
         RuntimeOracleSession source = provider.openSource(binding(DatasetRole.SOURCE));
+        RuntimeOracleSession identity = provider.openTargetIdentityRead(
+                binding(DatasetRole.TARGET));
         RuntimeOracleSession fence = provider.openTargetFence(binding(DatasetRole.TARGET));
         RuntimeOracleSession reconciliation = provider.openTargetReconciliation(
                 binding(DatasetRole.TARGET));
 
-        assertEquals(3, opens.get());
-        assertNotSame(source.connection(), fence.connection());
+        assertEquals(4, opens.get());
+        assertNotSame(source.connection(), identity.connection());
+        assertNotSame(identity.connection(), fence.connection());
         assertNotSame(fence.connection(), reconciliation.connection());
         assertEquals(SessionPurpose.SOURCE_READ, source.purpose());
-        assertTrue(opened.get(0).readOnly);
-        assertTrue(opened.get(0).autoCommit);
-        for (int index = 1; index < opened.size(); index++) {
+        assertEquals(SessionPurpose.TARGET_IDENTITY_READ, identity.purpose());
+        for (int index = 0; index < 2; index++) {
+            assertTrue(opened.get(index).readOnly);
+            assertTrue(opened.get(index).autoCommit);
+        }
+        for (int index = 2; index < opened.size(); index++) {
             assertFalse(opened.get(index).readOnly);
             assertFalse(opened.get(index).autoCommit);
             assertEquals(45_000, opened.get(index).networkTimeout);
@@ -83,13 +89,15 @@ class RuntimeOracleConnectionProviderTest {
                 .getProperty("oracle.jdbc.ReadTimeout"));
 
         source.close();
+        identity.close();
         fence.close();
         reconciliation.commitConfirmed();
         reconciliation.close();
 
         assertEquals(List.of("close"), opened.get(0).terminalEvents());
-        assertEquals(List.of("rollback", "close"), opened.get(1).terminalEvents());
-        assertEquals(List.of("commit", "close"), opened.get(2).terminalEvents());
+        assertEquals(List.of("close"), opened.get(1).terminalEvents());
+        assertEquals(List.of("rollback", "close"), opened.get(2).terminalEvents());
+        assertEquals(List.of("commit", "close"), opened.get(3).terminalEvents());
     }
 
     @Test

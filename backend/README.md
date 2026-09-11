@@ -148,7 +148,10 @@ V007/V008 exact append-only publish intent kanıtını, V009 reconciliation fenc
 bariyerini, V010 ACK-loss dayanımlı worker geçişlerini, V011 güvenli pre-publish
 lease reaper'larını, pinned snapshot loader'ını,
 salt-okunur canlı Oracle schema preflight'ını, runtime connection/secret
-provider'ını ve bounded typed source/target I/O çekirdeğini ekler. Pilot payload
+provider'ını, aynı salt-okunur target session'ında kanonik hedef kimlik okumasını,
+fence ledger çağrısından önce aynı bağlantıda hedef kimlik doğrulamasını,
+`REQUIRES_NEW` lease mutasyonlarını ve tek-kapılı heartbeat supervisor'ını ekler.
+Pilot payload
 codec'i yalnız gerçek pilotta gereken `NUMBER`, `VARCHAR2` ve
 timezone'sız `TIMESTAMP(6)` tiplerini kabul eder; hücre ve batch limitleri uygular,
 satır sırasından bağımsız canonical hash üretir. Target writer exclusive table lock,
@@ -180,10 +183,13 @@ profil/reference ile yapılan tek exact retry yeni run almak yerine aktif, hedef
 `HAZIRLANIYOR` claimini döndürür. Kaynak batch'i okunmadan hemen önce pinned source
 snapshot canlı Oracle şemasıyla aynı salt-okunur session üzerinde yeniden doğrulanır.
 Preflight target claiminden önce güvenli biçimde reddedilirse run yalnız exact lease
-token ve null target kanıtıyla terminal duruma alınır.
+token ve null target kanıtıyla terminal duruma alınır. Heartbeat supervisor kısa
+PostgreSQL yetki mutasyonlarını periyodik heartbeat ile aynı kritik bölümde yürütür;
+başarılı terminal mutasyon heartbeat'i kilit bırakılmadan kapatır. Oracle ve ağ I/O'su
+bu kilidin dışında kalır; lease kaybı yeni yetkili adıma geçişi fail-closed durdurur.
 
-Aktivasyon öncesi iki availability kapısı daha zorunludur: fence ve fresh-read
-Oracle çağrılarının toplam süresinde lease'i periyodik yenileyen zaman bütçesi ve
-publish intent oluşmadan `CALISIYOR -> SONUC_BELIRSIZ` olan run'lar için ayrı typed
-`NOT_PUBLISHED`/manuel müdahale yolu. Mevcut publish reconciliation servisi bu
-durumlarda sonuç uydurmaz ve PostgreSQL completion yapmadan fail-closed kalır.
+Aktivasyon öncesinde bu parçaların kontrollü ana worker orkestrasyonunda birleştirilmesi,
+JDBC çağrıları için lease bütçesiyle uyumlu bounded timeout'ların uygulanması ve crash
+enjeksiyon matrisinin geçmesi zorunludur. Publish intent oluşmadan sona eren run'lar
+V011 exact pre-publish reaper yolunu kullanır; mevcut publish reconciliation servisi
+kanıt olmayan durumda sonuç uydurmaz ve PostgreSQL completion yapmadan fail-closed kalır.

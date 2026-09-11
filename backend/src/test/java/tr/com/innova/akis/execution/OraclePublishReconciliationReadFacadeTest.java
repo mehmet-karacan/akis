@@ -274,6 +274,19 @@ class OraclePublishReconciliationReadFacadeTest {
         assertEquals(List.of("OPEN", "CLOSE"), sourceRead.session.events);
         assertEquals(0, sourceRead.session.connectionAccesses);
 
+        Fixture targetIdentityRead = fixture();
+        targetIdentityRead.session.purpose =
+                RuntimeOracleConnectionProvider.SessionPurpose.TARGET_IDENTITY_READ;
+
+        var identityResult = targetIdentityRead.facade.reconcile(
+                targetIdentityRead.intent.runUuid());
+
+        assertEquals(Outcome.CONFLICT, identityResult.outcome());
+        assertEquals(Failure.INVALID_SESSION_PURPOSE, identityResult.failure());
+        assertEquals(List.of("OPEN", "CLOSE"), targetIdentityRead.session.events);
+        assertEquals(0, targetIdentityRead.session.connectionAccesses);
+        assertEquals(List.of(), targetIdentityRead.ledger.calls);
+
         Fixture uncertainTarget = fixture();
         uncertainTarget.session.purpose =
                 RuntimeOracleConnectionProvider.SessionPurpose.TARGET_FENCE;
