@@ -1,6 +1,6 @@
 # Akış Professional Product Experience
 
-Status: **Accepted direction / incremental implementation**  
+Status: **Superseded by `PRODUCT_EXPERIENCE_V2_DECISIONS.md` on 2026-09-11**
 Scope: Web information architecture, project home, terminology, Oracle connection UX and accessibility baseline.
 
 ## 1. Product promise
