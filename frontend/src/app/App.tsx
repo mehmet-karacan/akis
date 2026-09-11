@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { useAuth } from '../core/auth/AuthContext'
 import { LoginPage } from '../features/auth/LoginPage'
+import { BundleImportPage } from '../features/bundles'
 import { DefinitionsWorkspace } from '../features/definitions'
 import { IdentityUsersPage, MembershipsPage, PublicationDetailPage, PublicationsPage } from '../features/operations'
 import { ProjectsPage } from '../features/projects/ProjectsPage'
@@ -25,6 +26,7 @@ export function App() {
       <Route path="/login" element={username ? <Navigate to="/projects" replace /> : <LoginPage />} />
       <Route element={<ProtectedShell />}>
         <Route path="/projects" element={<ProjectsPage />} />
+        <Route path="/project-bundles/import" element={<BundleImportPage />} />
         <Route path="/projects/:projectUuid" element={<ProjectOverviewPage />} />
         <Route path="/projects/:projectUuid/topology" element={<TopologyPage />} />
         <Route path="/projects/:projectUuid/models" element={<TopologyPage initialTab="catalog" />} />

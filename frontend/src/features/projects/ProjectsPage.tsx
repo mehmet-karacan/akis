@@ -1,4 +1,4 @@
-import { ArrowUpRight, Database, Plus, RotateCcw, X } from 'lucide-react'
+import { ArrowUpRight, Database, FolderInput, Plus, RotateCcw, X } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -47,7 +47,10 @@ export function ProjectsPage() {
     <section className="page-stack">
       <header className="page-header">
         <div><p className="eyebrow">{t('projects.eyebrow')}</p><h1>{t('projects.title')}</h1><p>{t('projects.description')}</p></div>
-        <button className="button primary" onClick={() => setShowCreate(true)}><Plus size={17} />{t('projects.new')}</button>
+        <div className="page-actions">
+          <button className="button secondary" onClick={() => navigate('/project-bundles/import')}><FolderInput size={17} />{t('projects.import')}</button>
+          <button className="button primary" onClick={() => setShowCreate(true)}><Plus size={17} />{t('projects.new')}</button>
+        </div>
       </header>
 
       {error && <div className="error-banner action-banner" role="alert"><span>{error}</span><button onClick={() => void load()}><RotateCcw size={15} />{t('common.retry')}</button></div>}

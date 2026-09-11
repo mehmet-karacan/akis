@@ -28,6 +28,12 @@ public class MetadataRepository {
         this.objectMapper = objectMapper;
     }
 
+    void lockProjectCodeNamespace() {
+        jdbc.sql("select pg_advisory_xact_lock(hashtext('akis.projectbundle.project-code'))")
+                .query((rs, rowNum) -> 1)
+                .single();
+    }
+
     ProjectRow createProject(UUID uuid, String code, String name, String description) {
         return jdbc.sql("""
                         insert into entegrasyon.proje(uuid, kod, ad, aciklama)

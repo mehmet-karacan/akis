@@ -35,6 +35,7 @@
   "projects.title": "Integration projects",
   "projects.description": "Choose a security and ownership boundary, or create a new project.",
   "projects.new": "New project",
+  "projects.import": "Import bundle",
   "projects.code": "Project code",
   "projects.name": "Project name",
   "projects.descriptionField": "Description",

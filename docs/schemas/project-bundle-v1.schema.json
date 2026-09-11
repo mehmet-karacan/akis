@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://akis.innova.com/schemas/project-bundle-v1.schema.json",
+  "title": "Akis portable project bundle v1",
+  "type": "object",
+  "required": [
+    "format",
+    "formatVersion",
+    "schemaVersion",
+    "checksum",
+    "exportedAt",
+    "project",
+    "folders",
+    "definitions",
+    "topology"
+  ],
+  "properties": {
+    "format": { "const": "akis.project-bundle" },
+    "formatVersion": { "const": 1 },
+    "schemaVersion": { "const": 1 },
+    "checksum": { "$ref": "#/$defs/sha256" },
+    "exportedAt": { "type": "string", "format": "date-time" },
+    "project": { "$ref": "#/$defs/project" },
+    "folders": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": { "$ref": "#/$defs/folder" }
+    },
+    "definitions": {
+      "type": "array",
+      "maxItems": 20000,
+      "items": { "$ref": "#/$defs/definition" }
+    },
+    "topology": { "$ref": "#/$defs/topology" }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "code": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]{0,99}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "\\S"
+    },
+    "nullableText": { "type": ["string", "null"] },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "folderPath": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]{0,99}(?:/[A-Z][A-Z0-9_]{0,99})*$"
+    },
+    "project": {
+      "type": "object",
+      "required": ["code", "status", "name", "description"],
+      "properties": {
+        "code": { "$ref": "#/$defs/code" },
+        "status": { "enum": ["AKTIF", "ARSIV"] },
+        "name": { "$ref": "#/$defs/name" },
+        "description": { "$ref": "#/$defs/nullableText" }
+      },
+      "additionalProperties": false
+    },
+    "folder": {
+      "type": "object",
+      "required": ["path", "parentPath", "code", "type", "status", "name", "description"],
+      "properties": {
+        "path": { "$ref": "#/$defs/folderPath" },
+        "parentPath": {
+          "oneOf": [
+            { "$ref": "#/$defs/folderPath" },
+            { "type": "null" }
+          ]
+        },
+        "code": { "$ref": "#/$defs/code" },
+        "type": { "enum": ["GELISTIRME", "MODEL", "YUKLEME_PLANI"] },
+        "status": { "enum": ["AKTIF", "ARSIV"] },
+        "name": { "$ref": "#/$defs/name" },
+        "description": { "$ref": "#/$defs/nullableText" }
+      },
+      "additionalProperties": false
+    },
+    "definitionType": {
+      "enum": [
+        "MAPPING",
+        "REUSABLE_MAPPING",
+        "PACKAGE",
+        "PROCEDURE",
+        "VARIABLE",
+        "SEQUENCE",
+        "USER_FUNCTION",
+        "KNOWLEDGE_MODULE",
+        "LOAD_PLAN"
+      ]
+    },
+    "definition": {
+      "type": "object",
+      "required": [
+        "type",
+        "code",
+        "folderPath",
+        "status",
+        "name",
+        "description",
+        "draft",
+        "versions"
+      ],
+      "properties": {
+        "type": { "$ref": "#/$defs/definitionType" },
+        "code": { "$ref": "#/$defs/code" },
+        "folderPath": {
+          "oneOf": [
+            { "$ref": "#/$defs/folderPath" },
+            { "type": "null" }
+          ]
+        },
+        "status": { "enum": ["TASLAK", "AKTIF", "ARSIV"] },
+        "name": { "$ref": "#/$defs/name" },
+        "description": { "$ref": "#/$defs/nullableText" },
+        "draft": {
+          "oneOf": [
+            { "$ref": "#/$defs/draft" },
+            { "type": "null" }
+          ]
+        },
+        "versions": {
+          "type": "array",
+          "maxItems": 100000,
+          "items": { "$ref": "#/$defs/version" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "draft": {
+      "type": "object",
+      "required": ["schemaVersion", "content"],
+      "properties": {
+        "schemaVersion": { "type": "integer", "minimum": 1 },
+        "content": { "$ref": "#/$defs/content" }
+      },
+      "additionalProperties": false
+    },
+    "version": {
+      "type": "object",
+      "required": [
+        "versionNumber",
+        "schemaVersion",
+        "contentHash",
+        "content",
+        "description",
+        "createdAt"
+      ],
+      "properties": {
+        "versionNumber": { "type": "integer", "minimum": 1 },
+        "schemaVersion": { "type": "integer", "minimum": 1 },
+        "contentHash": { "$ref": "#/$defs/sha256" },
+        "content": { "$ref": "#/$defs/content" },
+        "description": { "$ref": "#/$defs/nullableText" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
+    "content": {
+      "description": "Definition domain JSON governed by DefinitionType and content schemaVersion.",
+      "type": "object"
+    },
+    "topology": {
+      "type": "object",
+      "required": ["sanitized"],
+      "properties": {
+        "sanitized": { "const": true }
+      },
+      "additionalProperties": false
+    }
+  }
+}

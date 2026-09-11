@@ -35,6 +35,7 @@
   "projects.title": "Entegrasyon projeleri",
   "projects.description": "Bir güvenlik ve sahiplik sınırı seçin veya yeni proje oluşturun.",
   "projects.new": "Yeni proje",
+  "projects.import": "Paket içe aktar",
   "projects.code": "Proje kodu",
   "projects.name": "Proje adı",
   "projects.descriptionField": "Açıklama",

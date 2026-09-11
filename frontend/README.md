@@ -22,6 +22,7 @@ Backend varsayılan olarak `http://127.0.0.1:8080` adresinde çalışmalıdır.
 - Paket, prosedür, değişken, sequence, mapping, reusable mapping ve load plan tanımları
 - Grid-first mapping editörü, sürümleme, Scenario derleme ve data binding
 - Değişmez yayın, onay, kullanıcı ve proje üyeliği yönetimi
+- Checksum doğrulamalı JSON proje export'u; validate, dry-run ve güvenli import
 
 UI kaynak veya hedef veritabanı parolası istemez; yalnız backend'de çözümlenen
 secret reference tanımlarıyla çalışır. CI/CD bu aşamada kapalıdır.

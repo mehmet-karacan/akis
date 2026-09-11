@@ -54,6 +54,13 @@ UI çalıştırma (ayrı terminalde):
 UI varsayılan olarak İngilizce açılır; Türkçe ile açık, koyu ve sistem temaları
 uygulama içinden seçilebilir. Yerel giriş parolası browser storage alanına yazılmaz.
 
+Proje taşınabilir tasarım paketi; proje, klasörler, JSON tanım taslakları ve
+değişmez tanım sürümlerini tek bir checksum korumalı JSON dosyasıyla export/import
+eder. Import önce bağımsız validation ve zorunlu dry-run çalıştırır. V1 fiziksel
+topoloji, secret, kullanıcı/yetki, Scenario, publication ve runtime kayıtlarını
+bilinçli olarak taşımaz. Sözleşme:
+`docs/architecture/PROJECT_BUNDLE_FORMAT.md`.
+
 Sağlık uç noktası: http://localhost:8080/actuator/health
 
 Oracle 19c bağlantı ve discovery probe'u için gerçek değerleri yalnız .env
@@ -90,7 +97,7 @@ GitHub Actions ve diğer CI/CD workflow'ları bu aşamada bilinçli olarak kapal
 1. Nesne kataloğunu kesinleştirme
 2. PostgreSQL metadata baseline ve migrasyon testleri
 3. Backend domain/API
-4. UI ve uçtan uca tanım yönetimi
+4. UI, uçtan uca tanım yönetimi ve portable JSON proje bundle'ı
 5. Uygulama içi Oracle execution, ledger, retry ve fencing
 
 Paket, Prosedür, Değişken, Sequence, Scenario ve Load Plan dahil tam kavram

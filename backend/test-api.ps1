@@ -507,6 +507,37 @@ try {
         throw "Expected 9 definitions, found $($definitions.Count)."
     }
 
+    $bundle = Invoke-AkisJson GET "/api/v1/projects/$($project.uuid)/bundle/export"
+    if ($bundle.format -ne "akis.project-bundle" -or $bundle.formatVersion -ne 1 `
+            -or $bundle.schemaVersion -ne 1 -or $bundle.checksum.Length -ne 64 `
+            -or -not $bundle.topology.sanitized -or $bundle.definitions.Count -ne 9) {
+        throw "Portable project bundle export contract failed."
+    }
+    $validation = Invoke-AkisJson POST "/api/v1/project-bundles/validate" $bundle
+    if (-not $validation.valid -or $validation.counts.definitions -ne 9) {
+        throw "Exported project bundle did not pass standalone validation."
+    }
+    $dryRun = Invoke-AkisJson POST "/api/v1/project-bundles/import?conflict=RENAME&dryRun=true" $bundle
+    if (-not $dryRun.dryRun -or $dryRun.imported `
+            -or $dryRun.projectCode -ne "API_TEST_IMPORT_1") {
+        throw "Project bundle deterministic rename dry-run failed."
+    }
+    $bundleImport = Invoke-AkisJson POST "/api/v1/project-bundles/import?conflict=RENAME&dryRun=false" $bundle
+    if (-not $bundleImport.imported -or $bundleImport.dryRun `
+            -or $bundleImport.projectCode -ne $dryRun.projectCode) {
+        throw "Project bundle import did not match its dry-run plan."
+    }
+    $importedDefinitions = Invoke-AkisJson GET "/api/v1/projects/$($bundleImport.projectUuid)/definitions"
+    $importedConnections = Invoke-AkisJson GET "/api/v1/projects/$($bundleImport.projectUuid)/connections"
+    if ($importedDefinitions.Count -ne 9 -or $importedConnections.Count -ne 0) {
+        throw "Portable design import count or sanitized topology boundary failed."
+    }
+    $bundle.project.name = "Tampered bundle"
+    $tamperedValidation = Invoke-AkisJson POST "/api/v1/project-bundles/validate" $bundle
+    if ($tamperedValidation.valid -or -not ($tamperedValidation.issues.code -contains "BUNDLE_CHECKSUM_MISMATCH")) {
+        throw "Tampered project bundle checksum was accepted."
+    }
+
     $globalTypes = @(
         "REUSABLE_MAPPING",
         "VARIABLE",
@@ -605,7 +636,7 @@ try {
         throw "Authenticated mutating requests were not attributed in audit events."
     }
 
-    Write-Output "Backend API test: PASS (auth, RBAC, audit, topology, catalog, snapshots, definitions, bindings, scenarios, publications, locks)"
+    Write-Output "Backend API test: PASS (auth, RBAC, audit, topology, catalog, snapshots, definitions, bundles, bindings, scenarios, publications, locks)"
 }
 catch {
     if (Test-Path -LiteralPath $stdoutLog) {

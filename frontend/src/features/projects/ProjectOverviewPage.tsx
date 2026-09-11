@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router-dom'
 import { ApiProblem } from '../../core/api/client'
+import { ExportProjectButton } from '../bundles'
 import { getProject, type Project } from './projectsApi'
 
 const steps = [
@@ -28,7 +29,10 @@ export function ProjectOverviewPage() {
   return <section className="page-stack">
     <header className="page-header project-heading">
       <div><p className="eyebrow">{project?.code ?? t('common.loading')}</p><h1>{project?.name ?? t('overview.title')}</h1><p>{project?.description || t('overview.description')}</p></div>
-      <div className="status-panel"><span>{t('overview.status')}</span><strong><i />{project?.status ?? t('projects.active')}</strong><small>v{project?.version ?? '—'}</small></div>
+      <div className="project-heading-actions">
+        {project && <ExportProjectButton projectUuid={project.uuid} projectCode={project.code} />}
+        <div className="status-panel"><span>{t('overview.status')}</span><strong><i />{project?.status ?? t('projects.active')}</strong><small>v{project?.version ?? '—'}</small></div>
+      </div>
     </header>
     {error && <div className="error-banner" role="alert">{error}</div>}
     <div className="safety-banner"><ShieldCheck size={21} /><div><strong>{t('overview.safetyTitle')}</strong><p>{t('overview.safetyText')}</p></div></div>

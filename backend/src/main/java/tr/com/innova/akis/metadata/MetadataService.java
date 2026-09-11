@@ -48,6 +48,7 @@ public class MetadataService {
 
     @Transactional
     ProjectRow createProject(String code, String name, String description) {
+        repository.lockProjectCodeNamespace();
         return repository.createProject(
                 UUID.randomUUID(), normalizeCode(code), normalizeName(name), trimToNull(description));
     }
