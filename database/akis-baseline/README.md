@@ -73,3 +73,14 @@ ve proje görünürlüğü kurallarını uyguladığını doğrulamak için:
 ```
 
 Bu test de yalnız benzersiz adlı geçici veritabanını kullanır ve sonunda siler.
+
+Bağlantı, JDBC/JNDI sürümü, kurum içi kimlik bağı, fiziksel/mantıksal şema ve
+ortam eşleştirmesi grubunu doğrulamak için:
+
+```powershell
+.\database\akis-baseline\test-connections.ps1
+```
+
+Bu kapı açık parola saklanmadığını, bütün audit foreign key'lerini ve projeler
+arası ya da farklı bağlantılar arası hatalı şema eşleştirmelerinin reddedildiğini
+de kontrol eder.
