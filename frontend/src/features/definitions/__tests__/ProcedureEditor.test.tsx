@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import { useState } from 'react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import i18n from '../../../core/i18n'
-import { DEFAULT_PROCEDURE } from '../defaults'
+import { DEFAULT_PROCEDURE, isProcedureContent, supportsVisualEditor } from '../defaults'
 import { ProcedureEditor } from '../ProcedureEditor'
 import type { ProcedureContent } from '../types'
 
@@ -50,5 +50,17 @@ describe('ProcedureEditor', () => {
 
     const formerConsumer = container.querySelectorAll('.procedure-task')[1] as HTMLElement
     expect(within(formerConsumer).getByLabelText('Consume rows from an earlier SELECT')).not.toBeChecked()
+  })
+
+  it('rejects malformed task arrays before the visual editor renders them', () => {
+    expect(isProcedureContent({ tasks: [null] })).toBe(false)
+    expect(isProcedureContent({ tasks: [{ id: 'BROKEN' }] })).toBe(false)
+    expect(isProcedureContent(DEFAULT_PROCEDURE)).toBe(true)
+  })
+
+  it('keeps legacy procedure drafts JSON-only until an explicit v2 upgrade', () => {
+    expect(supportsVisualEditor('PROCEDURE', 1)).toBe(false)
+    expect(supportsVisualEditor('PROCEDURE', 2)).toBe(true)
+    expect(supportsVisualEditor('MAPPING', 1)).toBe(true)
   })
 })

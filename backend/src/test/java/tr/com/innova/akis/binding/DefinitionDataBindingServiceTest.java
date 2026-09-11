@@ -13,6 +13,8 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import tr.com.innova.akis.binding.BindingModels.BindingRow;
 import tr.com.innova.akis.binding.BindingModels.CreateBinding;
@@ -25,6 +27,7 @@ import tr.com.innova.akis.metadata.DefinitionType;
 
 class DefinitionDataBindingServiceTest {
 
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final UUID PROJECT_UUID = UUID.randomUUID();
     private static final UUID DEFINITION_UUID = UUID.randomUUID();
     private static final UUID VERSION_UUID = UUID.randomUUID();
@@ -69,6 +72,32 @@ class DefinitionDataBindingServiceTest {
 
         assertEquals("READ_SOURCE", store.created.nodeCode());
         assertEquals(BindingRole.KAYNAK, store.created.role());
+    }
+
+    @Test
+    void rejectsProcedureBindingForUnknownTask() {
+        DefinitionDataBindingService service = new DefinitionDataBindingService(
+                new FakeStore(DefinitionType.PROCEDURE));
+
+        ApiException error = assertThrows(ApiException.class, () -> service.create(
+                PROJECT_UUID, DEFINITION_UUID, VERSION_UUID, "MISSING_TASK",
+                BindingRole.KAYNAK, DATA_OBJECT_UUID, SNAPSHOT_UUID));
+
+        assertEquals(HttpStatus.UNPROCESSABLE_CONTENT, error.status());
+        assertTrue(error.getMessage().contains("görev kimliği"));
+    }
+
+    @Test
+    void rejectsProcedureBindingWithOppositeConnectionRole() {
+        DefinitionDataBindingService service = new DefinitionDataBindingService(
+                new FakeStore(DefinitionType.PROCEDURE));
+
+        ApiException error = assertThrows(ApiException.class, () -> service.create(
+                PROJECT_UUID, DEFINITION_UUID, VERSION_UUID, "READ_SOURCE",
+                BindingRole.HEDEF, DATA_OBJECT_UUID, SNAPSHOT_UUID));
+
+        assertEquals(HttpStatus.UNPROCESSABLE_CONTENT, error.status());
+        assertTrue(error.getMessage().contains("eşleşmelidir"));
     }
 
     @Test
@@ -138,6 +167,7 @@ class DefinitionDataBindingServiceTest {
         private static final long DATA_OBJECT_ID = 30;
 
         private final DefinitionType type;
+        private final JsonNode definitionContent;
         private long snapshotDataObjectId = DATA_OBJECT_ID;
         private boolean duplicateNode;
         private CreateBinding created;
@@ -145,6 +175,11 @@ class DefinitionDataBindingServiceTest {
 
         private FakeStore(DefinitionType type) {
             this.type = type;
+            this.definitionContent = type == DefinitionType.PROCEDURE
+                    ? OBJECT_MAPPER.readTree("""
+                            {"tasks":[{"id":"READ_SOURCE","connectionRole":"SOURCE"}]}
+                            """)
+                    : OBJECT_MAPPER.createObjectNode();
         }
 
         @Override
@@ -161,7 +196,8 @@ class DefinitionDataBindingServiceTest {
                             && definitionUuid.equals(DEFINITION_UUID)
                             && definitionVersionUuid.equals(VERSION_UUID)
                     ? Optional.of(new DefinitionVersionRef(
-                            VERSION_ID, DEFINITION_UUID, VERSION_UUID, type))
+                            VERSION_ID, DEFINITION_UUID, VERSION_UUID, type,
+                            definitionContent))
                     : Optional.empty();
         }
 

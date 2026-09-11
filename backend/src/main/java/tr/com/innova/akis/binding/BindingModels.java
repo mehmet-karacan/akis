@@ -3,6 +3,7 @@ package tr.com.innova.akis.binding;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
+import tools.jackson.databind.JsonNode;
 import tr.com.innova.akis.metadata.DefinitionType;
 
 final class BindingModels {
@@ -17,7 +18,8 @@ final class BindingModels {
             long id,
             UUID definitionUuid,
             UUID versionUuid,
-            DefinitionType definitionType) {
+            DefinitionType definitionType,
+            JsonNode content) {
     }
 
     record DataObjectRef(long id, UUID uuid) {

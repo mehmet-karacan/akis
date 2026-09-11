@@ -18,7 +18,7 @@ import {
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { ApiProblem } from '../../core/api/client'
 import { definitionsApi } from './api'
-import { createDefaultContent, isMappingContent, isProcedureContent } from './defaults'
+import { createDefaultContent, isMappingContent, isProcedureContent, supportsVisualEditor } from './defaults'
 import { definitionTypeKey, useDefinitionsI18n } from './i18n'
 import { JsonDraftEditor } from './JsonDraftEditor'
 import { MappingGrid } from './MappingGrid'
@@ -396,7 +396,7 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
                       {dirty && <span>{t('unsaved')}</span>}
                     </div>
                     <div className="definition-editor-actions">
-                      {(selectedDefinition.type === 'MAPPING' || selectedDefinition.type === 'PROCEDURE') && (
+                      {supportsVisualEditor(selectedDefinition.type, schemaVersion) && (
                         <div className="definition-segmented" aria-label={t('draft')}>
                           <button type="button" aria-pressed={editorMode === 'visual'} onClick={() => setEditorMode('visual')}>{selectedDefinition.type === 'PROCEDURE' ? t('procedureEditor') : t('visualEditor')}</button>
                           <button type="button" aria-pressed={editorMode === 'json'} onClick={() => setEditorMode('json')}>{t('jsonEditor')}</button>
@@ -414,7 +414,7 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
                   </div>
                   {selectedDefinition.type === 'MAPPING' && editorMode === 'visual' && isMappingContent(content) ? (
                     <MappingGrid value={content} onChange={updateContent} />
-                  ) : selectedDefinition.type === 'PROCEDURE' && editorMode === 'visual' && isProcedureContent(content) ? (
+                  ) : selectedDefinition.type === 'PROCEDURE' && supportsVisualEditor(selectedDefinition.type, schemaVersion) && editorMode === 'visual' && isProcedureContent(content) ? (
                     <ProcedureEditor value={content} onChange={updateContent} />
                   ) : (
                     <JsonDraftEditor value={content} onChange={updateContent} onValidityChange={setJsonValid} />

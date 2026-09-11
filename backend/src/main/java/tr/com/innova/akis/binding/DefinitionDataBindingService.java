@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.JsonNode;
 
 import tr.com.innova.akis.binding.BindingModels.BindingRow;
 import tr.com.innova.akis.binding.BindingModels.CreateBinding;
@@ -47,6 +48,7 @@ public class DefinitionDataBindingService {
         if (role == null) {
             throw validation("Bağ rolü zorunludur.");
         }
+        validateProcedureBinding(version, normalizedNodeCode, role);
         DataObjectRef dataObject = store.findDataObject(project.id(), dataObjectUuid)
                 .orElseThrow(() -> notFound("Veri nesnesi bulunamadı."));
         SchemaSnapshotRef snapshot = store.findSchemaSnapshot(project.id(), schemaSnapshotUuid)
@@ -103,6 +105,32 @@ public class DefinitionDataBindingService {
         if (!SUPPORTED_TYPES.contains(version.definitionType())) {
             throw validation(
                     "Veri nesnesi bağı yalnızca Mapping, Reusable Mapping veya Procedure tanımlarında kullanılabilir.");
+        }
+    }
+
+    private void validateProcedureBinding(
+            DefinitionVersionRef version, String nodeCode, BindingRole role) {
+        if (version.definitionType() != DefinitionType.PROCEDURE) {
+            return;
+        }
+        JsonNode tasks = version.content().path("tasks");
+        JsonNode task = null;
+        for (JsonNode candidate : tasks) {
+            if (nodeCode.equals(candidate.path("id").asText())) {
+                task = candidate;
+                break;
+            }
+        }
+        if (task == null) {
+            throw validation("Düğüm kodu Procedure içindeki bir görev kimliği olmalıdır.");
+        }
+        BindingRole expectedRole = switch (task.path("connectionRole").asText()) {
+            case "SOURCE" -> BindingRole.KAYNAK;
+            case "TARGET" -> BindingRole.HEDEF;
+            default -> throw validation("Procedure görevinin bağlantı rolü geçersizdir.");
+        };
+        if (role != expectedRole) {
+            throw validation("Veri bağı rolü Procedure görevinin bağlantı rolüyle eşleşmelidir.");
         }
     }
 

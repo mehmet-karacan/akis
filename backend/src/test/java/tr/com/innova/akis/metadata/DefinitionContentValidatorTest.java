@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 
 import tools.jackson.databind.JsonNode;
@@ -134,6 +136,25 @@ class DefinitionContentValidatorTest {
                    "input":{"fromTask":"READ_SOURCE","mode":"BATCH","batchSize":250}}
                 ]}
                 """, "named bind");
+    }
+
+    @Test
+    void rejectsProcedureV2BindsThatOnlyAppearInsideCommentsOrLiterals() {
+        for (String command : List.of(
+                "INSERT INTO T (ID) VALUES (1) /* :ID */",
+                "INSERT INTO T (ID) VALUES (':ID')",
+                "INSERT INTO T (ID) VALUES (q'[ :ID ]')")) {
+            assertValidationContains(DefinitionType.PROCEDURE, 2, """
+                    {"tasks":[
+                      {"id":"READ_SOURCE","type":"SQL","connectionRole":"SOURCE",
+                       "riskClass":"READ_ONLY","command":"SELECT ID FROM S",
+                       "output":{"kind":"ROWSET","maxRows":1000}},
+                      {"id":"WRITE_TARGET","type":"SQL","connectionRole":"TARGET",
+                       "riskClass":"DML","command":"%s",
+                       "input":{"fromTask":"READ_SOURCE","mode":"BATCH","batchSize":250}}
+                    ]}
+                    """.formatted(command), "named bind");
+        }
     }
 
     @Test

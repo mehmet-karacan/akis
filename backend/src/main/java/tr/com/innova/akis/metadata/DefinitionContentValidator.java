@@ -56,9 +56,6 @@ public final class DefinitionContentValidator {
             "(?is)^\\s*(CREATE|ALTER|COMMENT|GRANT|REVOKE)\\b");
     private static final Pattern DML = Pattern.compile(
             "(?is)^\\s*(INSERT|UPDATE|DELETE|MERGE)\\b");
-    private static final Pattern NAMED_BIND = Pattern.compile(
-            "(?<!:):[A-Za-z][A-Za-z0-9_$#]*");
-
     public DefinitionContentValidator() {
     }
 
@@ -301,10 +298,82 @@ public final class DefinitionContentValidator {
             }
             if (!"SQL".equals(type) || !"TARGET".equals(connectionRole)
                     || !"DML".equals(risk) || !sql.startsWith("INSERT ")
-                    || sql.contains(";") || !NAMED_BIND.matcher(command).find()) {
+                    || sql.contains(";") || !containsNamedBind(command)) {
                 fail(path + ".input yalnız named bind kullanan tek bir TARGET DML INSERT SQL görevinde kullanılabilir.");
             }
         }
+    }
+
+    private boolean containsNamedBind(String sql) {
+        int index = 0;
+        while (index < sql.length()) {
+            char current = sql.charAt(index);
+            if (current == '-' && index + 1 < sql.length() && sql.charAt(index + 1) == '-') {
+                int lineEnd = sql.indexOf('\n', index + 2);
+                index = lineEnd < 0 ? sql.length() : lineEnd + 1;
+                continue;
+            }
+            if (current == '/' && index + 1 < sql.length() && sql.charAt(index + 1) == '*') {
+                int commentEnd = sql.indexOf("*/", index + 2);
+                index = commentEnd < 0 ? sql.length() : commentEnd + 2;
+                continue;
+            }
+            if ((current == 'q' || current == 'Q')
+                    && index + 2 < sql.length() && sql.charAt(index + 1) == '\'') {
+                index = skipOracleAlternativeQuote(sql, index);
+                continue;
+            }
+            if (current == '\'' || current == '"') {
+                index = skipQuoted(sql, index, current);
+                continue;
+            }
+            if (current == ':'
+                    && (index == 0 || sql.charAt(index - 1) != ':')
+                    && index + 1 < sql.length()
+                    && isBindStart(sql.charAt(index + 1))) {
+                return true;
+            }
+            index++;
+        }
+        return false;
+    }
+
+    private int skipQuoted(String sql, int start, char quote) {
+        int index = start + 1;
+        while (index < sql.length()) {
+            if (sql.charAt(index) == quote) {
+                if (index + 1 < sql.length() && sql.charAt(index + 1) == quote) {
+                    index += 2;
+                    continue;
+                }
+                return index + 1;
+            }
+            index++;
+        }
+        return sql.length();
+    }
+
+    private int skipOracleAlternativeQuote(String sql, int start) {
+        char opener = sql.charAt(start + 2);
+        char closer = switch (opener) {
+            case '[' -> ']';
+            case '(' -> ')';
+            case '{' -> '}';
+            case '<' -> '>';
+            default -> opener;
+        };
+        int index = start + 3;
+        while (index + 1 < sql.length()) {
+            if (sql.charAt(index) == closer && sql.charAt(index + 1) == '\'') {
+                return index + 2;
+            }
+            index++;
+        }
+        return sql.length();
+    }
+
+    private boolean isBindStart(char value) {
+        return value >= 'A' && value <= 'Z' || value >= 'a' && value <= 'z';
     }
 
     private void validateOptionalInteger(

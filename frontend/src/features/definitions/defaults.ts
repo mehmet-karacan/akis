@@ -75,6 +75,10 @@ export function createDefaultContent(type: DefinitionType): unknown {
   return structuredClone(defaults[type])
 }
 
+export function supportsVisualEditor(type: DefinitionType, schemaVersion: number): boolean {
+  return type === 'MAPPING' || (type === 'PROCEDURE' && schemaVersion === 2)
+}
+
 export function isMappingContent(value: unknown): value is MappingContent {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const candidate = value as Partial<MappingContent>
@@ -88,5 +92,28 @@ export function isMappingContent(value: unknown): value is MappingContent {
 
 export function isProcedureContent(value: unknown): value is ProcedureContent {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
-  return Array.isArray((value as Partial<ProcedureContent>).tasks)
+  const tasks = (value as Partial<ProcedureContent>).tasks
+  if (!Array.isArray(tasks)) return false
+  return tasks.every((task) => {
+    if (!task || typeof task !== 'object' || Array.isArray(task)) return false
+    const candidate = task as unknown as Record<string, unknown>
+    if (
+      typeof candidate.id !== 'string' ||
+      typeof candidate.command !== 'string' ||
+      !['SQL', 'PLSQL', 'STORED_PROCEDURE'].includes(String(candidate.type)) ||
+      !['SOURCE', 'TARGET'].includes(String(candidate.connectionRole)) ||
+      !['READ_ONLY', 'DML', 'DDL', 'DESTRUCTIVE'].includes(String(candidate.riskClass))
+    ) return false
+    if (candidate.output !== undefined) {
+      if (!candidate.output || typeof candidate.output !== 'object' || Array.isArray(candidate.output)) return false
+      const output = candidate.output as Record<string, unknown>
+      if (output.kind !== 'ROWSET' || typeof output.maxRows !== 'number') return false
+    }
+    if (candidate.input !== undefined) {
+      if (!candidate.input || typeof candidate.input !== 'object' || Array.isArray(candidate.input)) return false
+      const input = candidate.input as Record<string, unknown>
+      if (typeof input.fromTask !== 'string' || input.mode !== 'BATCH' || typeof input.batchSize !== 'number') return false
+    }
+    return true
+  })
 }

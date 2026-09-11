@@ -9,6 +9,8 @@ import java.util.UUID;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import tr.com.innova.akis.binding.BindingModels.BindingRow;
 import tr.com.innova.akis.binding.BindingModels.CreateBinding;
@@ -22,9 +24,11 @@ import tr.com.innova.akis.metadata.DefinitionType;
 public class JdbcDefinitionDataBindingStore implements DefinitionDataBindingStore {
 
     private final JdbcClient jdbc;
+    private final ObjectMapper objectMapper;
 
-    public JdbcDefinitionDataBindingStore(JdbcClient jdbc) {
+    public JdbcDefinitionDataBindingStore(JdbcClient jdbc, ObjectMapper objectMapper) {
         this.jdbc = jdbc;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -40,7 +44,8 @@ public class JdbcDefinitionDataBindingStore implements DefinitionDataBindingStor
             long projectId, UUID definitionUuid, UUID definitionVersionUuid) {
         return jdbc.sql("""
                         select ts.id, t.uuid as definition_uuid,
-                               ts.uuid as definition_version_uuid, t.tur_kodu
+                               ts.uuid as definition_version_uuid, t.tur_kodu,
+                               ts.icerik
                           from entegrasyon.tanim t
                           join entegrasyon.tanim_surumu ts on ts.tanim_id = t.id
                          where t.proje_id = :projectId
@@ -54,7 +59,8 @@ public class JdbcDefinitionDataBindingStore implements DefinitionDataBindingStor
                         rs.getLong("id"),
                         rs.getObject("definition_uuid", UUID.class),
                         rs.getObject("definition_version_uuid", UUID.class),
-                        DefinitionType.valueOf(rs.getString("tur_kodu"))))
+                        DefinitionType.valueOf(rs.getString("tur_kodu")),
+                        readJson(rs.getString("icerik"))))
                 .optional();
     }
 
@@ -179,5 +185,14 @@ public class JdbcDefinitionDataBindingStore implements DefinitionDataBindingStor
                 rs.getObject("data_object_uuid", UUID.class),
                 rs.getObject("schema_snapshot_uuid", UUID.class),
                 rs.getObject("olusturulma_zamani", OffsetDateTime.class));
+    }
+
+    private JsonNode readJson(String value) {
+        try {
+            return objectMapper.readTree(value);
+        }
+        catch (Exception exception) {
+            throw new IllegalStateException("Stored definition content is invalid JSON.", exception);
+        }
     }
 }
