@@ -156,9 +156,21 @@ commit edilmiş intent'i tekrar okuyup caller'dan connection/evidence kabul etme
 tek guarded Oracle session üzerinde
 `PREPARE -> LOCK -> IDENTITY -> LOCKED PREFLIGHT -> DML -> VERIFY -> RECORD -> COMMIT`
 sırasını zorlar. Exact marker varsa DML'i atlar; commit hatasını, sonradan rollback
-yanıt verse bile `OutcomeUnknown` olarak sınıflandırır. Pilot runtime plan yalnız iki Oracle tablo,
+yanıt verse bile `OutcomeUnknown` olarak sınıflandırır. Mutabakat servisi PostgreSQL'de
+run ve target generation'ını birlikte artıran exact lease'i alır; immutable intent'i
+yeniden yükler, Oracle'da `T+1` fence commit'ini kısa transaction'da doğrular ve yalnız
+bundan sonra ayrı reconciliation session'ında fence ile eski `T` publish marker'ını okur.
+`PUBLISHED`, `NOT_PUBLISHED` ve `CONFLICT` sonuçları heartbeat sonrası typed ve ACK-loss
+idempotent PostgreSQL completion'a çevrilir; Oracle sonucu belirsizse completion yapılmaz.
+Pilot runtime plan yalnız iki Oracle tablo,
 doğrudan kolon eşlemesi, en fazla 1000 kaynak satır ve atomik delete/insert
-stratejisini kabul eder. Run durumunu facade sonuçlarına bağlayan worker orchestration,
-fence-barrier reconciliation, retry/resume ve scheduler henüz ürün kodu değildir.
+stratejisini kabul eder. Ana veri taşıma worker poller'ı, retry/resume, crash enjeksiyon
+matrisi ve scheduler henüz ürün kodu değildir.
 Worker flag'i bu kapılar ve crash testleri tamamlanana kadar açık değerde fail-closed
 kalır.
+
+Aktivasyon öncesi iki availability kapısı daha zorunludur: fence ve fresh-read
+Oracle çağrılarının toplam süresinde lease'i periyodik yenileyen zaman bütçesi ve
+publish intent oluşmadan `CALISIYOR -> SONUC_BELIRSIZ` olan run'lar için ayrı typed
+`NOT_PUBLISHED`/manuel müdahale yolu. Mevcut publish reconciliation servisi bu
+durumlarda sonuç uydurmaz ve PostgreSQL completion yapmadan fail-closed kalır.

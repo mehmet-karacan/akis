@@ -96,13 +96,24 @@ transaction'ında ekler. Reconciler daha yüksek target token'ını Oracle'da ka
 yükseltirken eski transaction kilidinin çözülmesini bekler, sonra ledger'ı okur.
 Reconciliation claim aynı PostgreSQL transaction'ında run generation'ını `R+1`,
 askıdaki target generation'ını `T+1` yapar. PUBLISHED checkpoint eski marker nesli
-`T` ile mutabakat bariyeri `T+1` değerlerini ayrı saklar:
+`T` ile mutabakat bariyeri `T+1` değerlerini ayrı saklar. Uygulama sırası fail-closed
+olarak sabittir: PostgreSQL claim, aktif lease'ten pinned intent yükleme, kısa Oracle
+transaction'ında `T+1` fence commit'i, yeni Oracle reconciliation session'ında önce
+exact fence okuması sonra eski `T` marker doğrulaması, PostgreSQL heartbeat ve typed
+completion. Fence commit'i veya Oracle okuma sonucu belirsizse PostgreSQL completion
+yapılmaz:
 
 Worker, Oracle target'ı sahiplenmeden önce `HAZIRLANIYOR` aşamasında kaybolursa
 Oracle DML başlamamıştır. Ayrı DB-time reaper bu hedefsiz ve lease'i dolmuş run'ı
 neslini değiştirmeden `BASARISIZ` yapar, lease'i temizler ve
 `PREPARATION_LEASE_EXPIRED` olayını aynı transaction'da yazar. Bu yol
 `SONUC_BELIRSIZ`/reconcile üretmez.
+
+`CALISIYOR` aşamasında hedef sahiplenilmiş fakat immutable publish intent henüz
+oluşmamışken sonuç belirsizleşirse publish-marker reconciliation yolu kullanılmaz.
+Bu dal için typed intent-absent çözümü eklenene kadar run fail-closed `MUTABAKAT`
+durumunda kalır. Ayrıca iki Oracle session'ın toplam zaman bütçesi boyunca lease
+periyodik yenilenmeden otomatik worker aktive edilmez.
 
 - Eşleşen marker varsa checkpoint yeniden kurulur; DML tekrarlanmaz.
 - Kilit alındıktan sonra marker yoksa önceki transaction kesin sonuçlanmıştır;

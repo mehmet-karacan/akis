@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import javax.sql.DataSource;
@@ -28,6 +29,7 @@ import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.databind.ObjectMapper;
 
 import tr.com.innova.akis.execution.RunLeasePort.ClaimedRun;
 import tr.com.innova.akis.execution.RunLeasePort.HeartbeatOutcome;
@@ -35,6 +37,12 @@ import tr.com.innova.akis.execution.RunLeasePort.HeartbeatResult;
 import tr.com.innova.akis.execution.RunLeasePort.RunLeaseToken;
 import tr.com.innova.akis.execution.RunLeasePort.TargetFenceToken;
 import tr.com.innova.akis.execution.RunLeasePort.WorkerIdentity;
+import tr.com.innova.akis.execution.PilotRuntimePlan.DataObjectType;
+import tr.com.innova.akis.execution.PilotRuntimePlan.DatabaseType;
+import tr.com.innova.akis.execution.PilotRuntimePlan.DatasetBinding;
+import tr.com.innova.akis.execution.PilotRuntimePlan.DatasetRole;
+import tr.com.innova.akis.execution.PilotRuntimePlan.DirectColumnMapping;
+import tr.com.innova.akis.execution.PilotRuntimePlan.WriteStrategy;
 
 class JdbcRunLeaseStoreIT {
 
@@ -302,6 +310,7 @@ class JdbcRunLeaseStoreIT {
                         rs.getObject("hedef_kaynagi_uuid", UUID.class),
                         rs.getLong("hedef_nesil_no")))
                 .single();
+
         assertEquals(claimed.token().generation() + 1,
                 reconciliation.runGeneration());
         assertEquals(target.targetGeneration() + 1,
@@ -383,6 +392,24 @@ class JdbcRunLeaseStoreIT {
                         rs.getLong("hedef_nesil_no")))
                 .single();
 
+        ObjectMapper objectMapper = new ObjectMapper();
+        JdbcPinnedPublishReconciliationStore reconciliationEvidence =
+                new JdbcPinnedPublishReconciliationStore(
+                        jdbc,
+                        new JdbcPinnedExecutionContextStore(jdbc, objectMapper),
+                        (releaseHash, planHash, scenarioPlan, physicalManifest) ->
+                                pilotPlan(objectMapper));
+        var pinned = reconciliationEvidence.find(claimed.token().runUuid()).orElseThrow();
+        assertEquals(target.targetGeneration(),
+                pinned.barrier().originalPublishTargetGeneration());
+        assertEquals(reconciliation.targetGeneration(),
+                pinned.barrier().barrierTargetGeneration());
+        assertEquals(reconciliation.runGeneration(),
+                pinned.barrier().reconciliationRunGeneration());
+        assertEquals("lease-it-publish-reconciler",
+                pinned.barrier().reconciliationWorkerReference());
+        assertEquals(claimed.token().runUuid(), pinned.execution().runUuid());
+
         assertThrows(DataAccessException.class, () -> jdbc.sql("""
                         insert into entegrasyon.kontrol_noktasi(
                             proje_id, calistirma_id, calistirma_adimi_id,
@@ -446,6 +473,7 @@ class JdbcRunLeaseStoreIT {
                 .param("barrierGeneration", reconciliation.targetGeneration())
                 .query(Integer.class)
                 .single());
+        assertTrue(reconciliationEvidence.find(claimed.token().runUuid()).isEmpty());
     }
 
     @Test
@@ -566,6 +594,24 @@ class JdbcRunLeaseStoreIT {
                 .param("targetUuid", targetUuid)
                 .query(String.class)
                 .single();
+    }
+
+    private PilotRuntimePlan pilotPlan(ObjectMapper objectMapper) {
+        DatasetBinding source = new DatasetBinding(
+                "SOURCE", DatasetRole.SOURCE, DatabaseType.ORACLE, DataObjectType.TABLE,
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                UUID.randomUUID(), UUID.randomUUID(), 1, "1".repeat(64),
+                "TTBP.HAKEDIS_TIPI", "TTBP", "HAKEDIS_TIPI");
+        DatasetBinding target = new DatasetBinding(
+                "TARGET", DatasetRole.TARGET, DatabaseType.ORACLE, DataObjectType.TABLE,
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                UUID.randomUUID(), UUID.randomUUID(), 1, "2".repeat(64),
+                "INNOVA_ODI.STG_HAKEDIS_TIPI", "INNOVA_ODI", "STG_HAKEDIS_TIPI");
+        return new PilotRuntimePlan(
+                1, RUNTIME_PLAN_HASH, RELEASE_HASH, PLAN_HASH,
+                UUID.randomUUID(), UUID.randomUUID(), 1_000,
+                source, target, List.of(new DirectColumnMapping("ID", "ID")),
+                WriteStrategy.ATOMIC_DELETE_INSERT, objectMapper.createObjectNode());
     }
 
     @Configuration(proxyBeanMethods = false)
