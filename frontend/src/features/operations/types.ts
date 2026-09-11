@@ -35,6 +35,38 @@ export interface ApprovalResult {
   approval: Approval
 }
 
+export interface ProcedureSourcePreflight {
+  publicationUuid: string
+  publicationStatus: string
+  sourceTaskId: string
+  physicalIdentity: string
+  observedRowCount: number
+  maximumRows: number
+  payloadByteCount: number
+  payloadHash: string
+  durationMs: number
+  sourceReadOnly: boolean
+  targetSessionOpened: boolean
+}
+
+export interface ProcedureTargetPreflight {
+  publicationUuid: string
+  publicationStatus: string
+  targetTaskId: string
+  physicalIdentity: string
+  databaseUniqueName: string
+  containerName: string
+  targetIdentityHash: string
+  currentUser: string
+  ownsTarget: boolean
+  canTruncate: boolean
+  canInsert: boolean
+  canExecuteDbmsStats: boolean
+  durationMs: number
+  targetReadOnly: boolean
+  sourceSessionOpened: boolean
+}
+
 export interface IdentityUser {
   uuid: string
   issuer: string
@@ -60,4 +92,3 @@ export interface Membership {
   version: number
   roles: ProjectRoleView[]
 }
-

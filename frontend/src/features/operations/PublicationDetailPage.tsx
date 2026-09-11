@@ -1,10 +1,11 @@
-import { ArrowLeft, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Database, ShieldCheck } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { operationsApi } from './api'
 import { CopyValue, ErrorState, Field, LoadingState, PageHeader, Panel, StatusBadge } from './OperationsUi'
 import { useOperationsI18n } from './i18n'
 import type { ApprovalDecision } from './types'
+import type { ProcedureSourcePreflight, ProcedureTargetPreflight } from './types'
 import { apiErrorMessage, formatDate, redactSensitiveValues } from './utils'
 import { useRemoteData } from './useRemoteData'
 
@@ -20,6 +21,10 @@ export function PublicationDetailPage() {
   const [submitError, setSubmitError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [successActor, setSuccessActor] = useState('')
+  const [sourcePreflight, setSourcePreflight] = useState<ProcedureSourcePreflight | null>(null)
+  const [targetPreflight, setTargetPreflight] = useState<ProcedureTargetPreflight | null>(null)
+  const [preflightBusy, setPreflightBusy] = useState<'source' | 'target' | null>(null)
+  const [preflightError, setPreflightError] = useState('')
   const publication = remote.data
   const canApprove = publication?.environmentRisk === 'URETIM' && publication.status === 'ONAY_BEKLIYOR'
   const canWithdraw = publication?.environmentRisk === 'URETIM' && publication.status === 'AKTIF'
@@ -46,6 +51,22 @@ export function PublicationDetailPage() {
       setSubmitError(apiErrorMessage(error, t('requestFailed')))
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const preflight = async (side: 'source' | 'target') => {
+    setPreflightBusy(side)
+    setPreflightError('')
+    try {
+      if (side === 'source') {
+        setSourcePreflight(await operationsApi.preflightProcedureSource(projectUuid, publicationUuid))
+      } else {
+        setTargetPreflight(await operationsApi.preflightProcedureTarget(projectUuid, publicationUuid))
+      }
+    } catch (error) {
+      setPreflightError(apiErrorMessage(error, t('requestFailed')))
+    } finally {
+      setPreflightBusy(null)
     }
   }
 
@@ -114,6 +135,42 @@ export function PublicationDetailPage() {
               ) : <p className="ops-muted">{t('noApprovalNeeded')}</p>}
             </Panel>
           </div>
+
+          <Panel title={t('procedureReadiness')}>
+            <p className="ops-muted ops-preflight-help">{t('procedureReadinessHelp')}</p>
+            {preflightError ? <div className="ops-alert ops-alert-error" role="alert">{preflightError}</div> : null}
+            <div className="ops-preflight-grid">
+              <section className="ops-preflight-card">
+                <header><Database aria-hidden="true" /><strong>SKY</strong><StatusBadge value={sourcePreflight ? t('verified') : t('notVerified')} /></header>
+                {sourcePreflight ? (
+                  <dl className="ops-kv">
+                    <dt>{t('readOnlyProof')}</dt><dd>{sourcePreflight.sourceReadOnly && !sourcePreflight.targetSessionOpened ? t('passed') : t('failed')}</dd>
+                    <dt>{t('rowsObserved')}</dt><dd>{sourcePreflight.observedRowCount}</dd>
+                    <dt>{t('rowLimit')}</dt><dd>{sourcePreflight.maximumRows}</dd>
+                    <dt>{t('duration')}</dt><dd>{sourcePreflight.durationMs} ms</dd>
+                  </dl>
+                ) : <p className="ops-muted">{t('notVerified')}</p>}
+                <button className="ops-button ops-button-secondary" type="button" disabled={preflightBusy !== null} onClick={() => void preflight('source')}>
+                  <ShieldCheck aria-hidden="true" /> {preflightBusy === 'source' ? t('verifying') : t('verifySource')}
+                </button>
+              </section>
+              <section className="ops-preflight-card">
+                <header><Database aria-hidden="true" /><strong>GPU</strong><StatusBadge value={targetPreflight ? t('verified') : t('notVerified')} /></header>
+                {targetPreflight ? (
+                  <dl className="ops-kv">
+                    <dt>{t('oracleIdentity')}</dt><dd>{targetPreflight.databaseUniqueName} / {targetPreflight.containerName}</dd>
+                    <dt>{t('targetUser')}</dt><dd>{targetPreflight.currentUser}</dd>
+                    <dt>{t('targetPrivileges')}</dt><dd>{targetPreflight.ownsTarget && targetPreflight.canTruncate && targetPreflight.canInsert && targetPreflight.canExecuteDbmsStats ? t('passed') : t('failed')}</dd>
+                    <dt>{t('readOnlyProof')}</dt><dd>{targetPreflight.targetReadOnly && !targetPreflight.sourceSessionOpened ? t('passed') : t('failed')}</dd>
+                  </dl>
+                ) : <p className="ops-muted">{t('notVerified')}</p>}
+                <button className="ops-button ops-button-secondary" type="button" disabled={preflightBusy !== null} onClick={() => void preflight('target')}>
+                  <ShieldCheck aria-hidden="true" /> {preflightBusy === 'target' ? t('verifying') : t('verifyTarget')}
+                </button>
+              </section>
+            </div>
+            {publication.status === 'AKTIF' ? <Link className="ops-button ops-runs-link" to={`/projects/${encodeURIComponent(projectUuid)}/runs`}>{t('openRuns')}</Link> : null}
+          </Panel>
 
           <Panel title={t('dependencySummary')}>
             <code className="ops-summary-code">{publication.dependencySummary}</code>

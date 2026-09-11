@@ -4,8 +4,8 @@ Status date: 2026-09-11
 
 ## Current completion estimate
 
-- Controlled Oracle MVP: **approximately 68% complete / 32% remaining**.
-- Broad ODI-like enterprise platform: **approximately 31% complete / 69% remaining**.
+- Controlled Oracle MVP: **approximately 88% complete / 12% remaining**.
+- Broad ODI-like enterprise platform: **approximately 37% complete / 63% remaining**.
 
 The MVP estimate means one governed Oracle-to-Oracle procedure can be designed,
 versioned, bound, approved, executed manually, observed and reconciled. The broader
@@ -33,6 +33,19 @@ multi-engine support, deployment automation and production operations.
 - Published Procedure source preflight: exact immutable plan/binding resolution,
   trusted snapshot re-attestation, a fresh read-only Oracle session, bounded typed
   rowset encoding and payload hash; no source rows are returned by the API.
+- Published Procedure target preflight: live Oracle 19c database/container and
+  table identity fencing, trusted target snapshot re-attestation, ownership and
+  TRUNCATE/INSERT/DBMS_STATS privilege checks in a read-only session.
+- Controlled Procedure executor for ordered TRUNCATE, bounded source SELECT,
+  single-use in-memory rowset, batch INSERT and allow-listed PL/SQL; every target
+  step re-attests schema, database identity, target fence and privileges on the
+  same session before crossing the mutation boundary.
+- Single-flight Procedure worker with run/target leases, heartbeat supervision,
+  exact step journal acknowledgements and fail-closed outcome classification.
+  Manual requests, Procedure runtime and worker remain separately disabled by
+  default and in CI.
+- Publication operations UI now exposes independent SKY source and GPU target
+  read-only readiness checks beside approval, with bilingual result summaries.
 - Project bundle V1 export/import for definition metadata. Secret values remain
   outside bundles and Git.
 
@@ -49,24 +62,20 @@ multi-engine support, deployment automation and production operations.
   `ONAY_BEKLIYOR`, because `TRUNCATE` is irreversible.
 - Read-only source preflight: passed against live SKY with 33 rows, 13 supported
   columns and `targetSessionOpened=false`.
+- Read-only target preflight: passed against live GPU (`CDB19C / CT_GPU_TESTDB`)
+  for `INNOVA_ODI.STG_HAKEDIS_TIPI`; ownership, TRUNCATE, INSERT and DBMS_STATS
+  evidence passed with `sourceSessionOpened=false`.
 - No business-table DDL or DML has been executed by Akış yet.
 
 ## Remaining work for the controlled Oracle MVP
 
-1. Complete the production Oracle Procedure executor session. Published-plan
-   source SELECT/preflight and bounded typed payload are complete; remaining work
-   is target privilege/preflight, approved TRUNCATE, batch INSERT, allow-listed
-   `DBMS_STATS` and journal integration.
-2. Enforce execution-wide deadlines, cancellation, connection cleanup and
-   deterministic error/outcome classification for Oracle implicit commits.
-3. Connect Procedure execution to the guarded worker orchestrator while keeping
-   feature flags fail-closed until crash/retry tests pass.
-4. Add publication approval and dry-run/preflight views to the UI.
-5. Add operational run/step log details, row counts, durations, error guidance
-   and reconciliation actions to the landing dashboard.
-6. Continue the HAKEDIS_TIPI pilot stages. Read-only preflight is complete;
-   remaining gates are target privilege check, bounded rehearsal, explicit
-   approval, real transfer and source/target count/hash verification.
+1. Execute the controlled HAKEDIS_TIPI pilot: explicitly approve the pending
+   publication, enable manual requests/runtime/worker locally, submit one run,
+   and observe its durable step timeline. This is the first authorized DDL/DML.
+2. Verify source/target row counts and deterministic business-data evidence,
+   then document operator acceptance or invoke the manual intervention path.
+3. Add execution-wide user cancellation after claim and richer reconciliation
+   actions; queued cancellation and fail-closed lease recovery already exist.
 
 ## Work after the first pilot
 

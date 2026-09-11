@@ -6,6 +6,8 @@ import type {
   Membership,
   ProjectRole,
   Publication,
+  ProcedureSourcePreflight,
+  ProcedureTargetPreflight,
 } from './types'
 
 const projectPath = (projectUuid: string) =>
@@ -37,6 +39,18 @@ export const operationsApi = {
       { method: 'POST', ...jsonBody({ decision, reason: reason?.trim() || null }) },
     )
   },
+  preflightProcedureSource(projectUuid: string, publicationUuid: string) {
+    return apiRequest<ProcedureSourcePreflight>(
+      `${projectPath(projectUuid)}/procedure-preflights`,
+      { method: 'POST', ...jsonBody({ publicationUuid }) },
+    )
+  },
+  preflightProcedureTarget(projectUuid: string, publicationUuid: string) {
+    return apiRequest<ProcedureTargetPreflight>(
+      `${projectPath(projectUuid)}/procedure-preflights/target`,
+      { method: 'POST', ...jsonBody({ publicationUuid }) },
+    )
+  },
   listUsers() {
     return apiRequest<IdentityUser[]>('/api/v1/identity/users')
   },
@@ -64,4 +78,3 @@ export const operationsApi = {
     })
   },
 }
-

@@ -78,6 +78,23 @@ const en = {
   copy: 'Copy',
   copied: 'Copied',
   backToPublications: 'Back to publications',
+  procedureReadiness: 'Procedure readiness',
+  procedureReadinessHelp: 'Read-only checks against the exact published SKY and GPU bindings. No target data is changed.',
+  verifySource: 'Verify SKY source',
+  verifyTarget: 'Verify GPU target',
+  verifying: 'Verifying…',
+  notVerified: 'Not verified in this session',
+  verified: 'Verified',
+  rowsObserved: 'Rows observed',
+  rowLimit: 'Row limit',
+  duration: 'Duration',
+  oracleIdentity: 'Oracle identity',
+  targetUser: 'Target user',
+  targetPrivileges: 'Target privileges',
+  readOnlyProof: 'Read-only proof',
+  passed: 'Passed',
+  failed: 'Failed',
+  openRuns: 'Open runs',
 } as const
 
 const tr: Record<keyof typeof en, string> = {
@@ -158,6 +175,23 @@ const tr: Record<keyof typeof en, string> = {
   copy: 'Kopyala',
   copied: 'Kopyalandı',
   backToPublications: 'Yayınlara dön',
+  procedureReadiness: 'Procedure hazırlığı',
+  procedureReadinessHelp: 'Yayınlanmış SKY ve GPU bağlarına karşı salt-okunur kontroller. Hedef veri değiştirilmez.',
+  verifySource: 'SKY kaynağını doğrula',
+  verifyTarget: 'GPU hedefini doğrula',
+  verifying: 'Doğrulanıyor…',
+  notVerified: 'Bu oturumda doğrulanmadı',
+  verified: 'Doğrulandı',
+  rowsObserved: 'Gözlenen satır',
+  rowLimit: 'Satır sınırı',
+  duration: 'Süre',
+  oracleIdentity: 'Oracle kimliği',
+  targetUser: 'Hedef kullanıcı',
+  targetPrivileges: 'Hedef yetkileri',
+  readOnlyProof: 'Salt-okunur kanıt',
+  passed: 'Başarılı',
+  failed: 'Başarısız',
+  openRuns: 'Çalıştırmaları aç',
 }
 
 export type OperationsMessageKey = keyof typeof en
@@ -177,4 +211,3 @@ export function useOperationsI18n() {
   }
   return { language, locale: language === 'tr' ? 'tr-TR' : 'en-US', t }
 }
-
