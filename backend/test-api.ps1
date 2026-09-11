@@ -258,6 +258,65 @@ try {
     if ($v2JdbcVersion.mode -ne "JDBC" -or $v2JdbcVersion.driverReference -ne "oracle.jdbc.OracleDriver" -or $v2JdbcVersion.serviceName -ne "TEST_SERVICE" -or $v2JdbcVersion.tlsMode -ne "DISABLED") {
         throw "V2 JDBC connection version contract is invalid."
     }
+    if ($v2JdbcVersion.lifecycleStatus -ne "DRAFT" -or $v2JdbcVersion.lifecycleVersion -ne 1 `
+            -or $v2JdbcVersion.runtimeCapability -ne "EXECUTABLE") {
+        throw "New Oracle JDBC versions must start in the executable DRAFT lifecycle."
+    }
+    $v2Lifecycle = Invoke-AkisJson GET "/api/v2/projects/$($project.uuid)/connections/$($connection.uuid)/versions/$($v2JdbcVersion.uuid)/lifecycle"
+    $v2TestHistory = Invoke-AkisJson GET "/api/v2/projects/$($project.uuid)/connections/$($connection.uuid)/versions/$($v2JdbcVersion.uuid)/tests?limit=20"
+    $v2TestHistoryCount = if ($null -eq $v2TestHistory) { 0 } else { @($v2TestHistory).Count }
+    if ($v2Lifecycle.status -ne "DRAFT" -or $v2Lifecycle.stateVersion -ne 1 `
+            -or $v2TestHistoryCount -ne 0) {
+        throw "Oracle connection lifecycle or empty test journal contract is invalid."
+    }
+    # Seed a synthetic, non-secret successful probe in the isolated smoke database.
+    # The smoke suite must not open a real Oracle connection.
+    $lifecycleTestUuid = [Guid]::NewGuid()
+    $lifecycleFingerprint = "a" * 64
+    $lifecycleSql = @"
+begin;
+insert into entegrasyon.baglanti_surumu_testi(
+    proje_id, baglanti_id, baglanti_surumu_id, uuid, deneme_no,
+    sonuc_kodu, database_product, database_version, database_major,
+    database_minor, driver_name, driver_version, hedef_kimlik_surumu,
+    hedef_parmak_izi, baslama_zamani, tamamlanma_zamani, sure_ms)
+select p.id, b.id, bs.id, '$lifecycleTestUuid', 1,
+       'PASSED', 'Oracle', 'Oracle Database 19c', 19,
+       0, 'Oracle JDBC', 'smoke', 1,
+       '$lifecycleFingerprint', current_timestamp, current_timestamp, 0
+  from entegrasyon.proje p
+  join entegrasyon.baglanti b on b.proje_id = p.id
+  join entegrasyon.baglanti_surumu bs
+    on bs.proje_id = p.id and bs.baglanti_id = b.id
+ where p.uuid = '$($project.uuid)'
+   and b.uuid = '$($connection.uuid)'
+   and bs.uuid = '$($v2JdbcVersion.uuid)';
+update entegrasyon.baglanti_surumu_yasam_dongusu yd
+   set durum_kodu = 'TESTED', durum_surumu = 2,
+       hedef_kimlik_surumu = 1, hedef_parmak_izi = '$lifecycleFingerprint',
+       son_basarili_test_uuid = '$lifecycleTestUuid',
+       test_edilme_zamani = (
+           select tamamlanma_zamani
+             from entegrasyon.baglanti_surumu_testi
+            where uuid = '$lifecycleTestUuid')
+  from entegrasyon.baglanti_surumu bs
+ where yd.proje_id = bs.proje_id
+   and yd.baglanti_surumu_id = bs.id
+   and bs.uuid = '$($v2JdbcVersion.uuid)';
+commit;
+"@
+    & $docker exec $container psql -v ON_ERROR_STOP=1 -U $databaseUser -d $testDatabase `
+        -c $lifecycleSql | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not seed isolated connection lifecycle evidence."
+    }
+    $activatedLifecycle = Invoke-AkisJson POST "/api/v2/projects/$($project.uuid)/connections/$($connection.uuid)/versions/$($v2JdbcVersion.uuid)/activate" @{
+        testUuid = $lifecycleTestUuid
+        expectedStateVersion = 2
+    }
+    if ($activatedLifecycle.status -ne "ACTIVE" -or $activatedLifecycle.stateVersion -ne 3) {
+        throw "Evidence-backed Oracle connection activation failed."
+    }
     try {
         Invoke-AkisJson POST "/api/v2/projects/$($project.uuid)/connections/$($connection.uuid)/versions" @{
             mode = "JDBC"
@@ -447,7 +506,7 @@ try {
     }
     $activeConnection = Invoke-AkisJson GET "/api/v1/projects/$($project.uuid)/connections/$($connection.uuid)"
     if ($activeConnection.status -ne "AKTIF") {
-        throw "A valid first connection version did not activate its draft connection."
+        throw "Evidence-backed version activation did not activate its parent connection."
     }
     if ($connectionVersion.PSObject.Properties.Name -contains "secretValue") {
         throw "Secret value leaked through the connection version API."

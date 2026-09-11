@@ -3,6 +3,7 @@ package tr.com.innova.akis.oracle;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
@@ -36,6 +37,14 @@ final class JdbcOracleMetadataGateway implements OracleMetadataGateway {
 
     private static final int DEFAULT_CONNECT_TIMEOUT_MS = 10_000;
     private static final int DEFAULT_READ_TIMEOUT_MS = 30_000;
+    private static final String DATABASE_IDENTITY_SQL = """
+            SELECT SYS_CONTEXT('USERENV', 'DB_UNIQUE_NAME') AS DB_UNIQUE_NAME,
+                   SYS_CONTEXT('USERENV', 'CON_NAME') AS CON_NAME
+              FROM SYS.DUAL
+            """;
+
+    private final OracleDatabaseIdentityFingerprintV1 identityFingerprint =
+            new OracleDatabaseIdentityFingerprintV1();
 
     @Override
     public ConnectionProbe test(ConnectionProfile profile, Credentials credentials) {
@@ -44,16 +53,41 @@ final class JdbcOracleMetadataGateway implements OracleMetadataGateway {
                 throw connectionFailed();
             }
             DatabaseMetaData metadata = connection.getMetaData();
+            OracleDatabaseIdentityFingerprintV1.CanonicalDatabaseIdentity identity =
+                    readDatabaseIdentity(connection);
             return new ConnectionProbe(
                     metadata.getDatabaseProductName(),
                     metadata.getDatabaseProductVersion(),
                     metadata.getDatabaseMajorVersion(),
                     metadata.getDatabaseMinorVersion(),
                     metadata.getDriverName(),
-                    metadata.getDriverVersion());
+                    metadata.getDriverVersion(),
+                    identity.identityVersion(),
+                    identity.fingerprint());
         }
         catch (SQLException exception) {
             throw connectionFailed();
+        }
+    }
+
+    private OracleDatabaseIdentityFingerprintV1.CanonicalDatabaseIdentity readDatabaseIdentity(
+            Connection connection) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(DATABASE_IDENTITY_SQL);
+                ResultSet resultSet = statement.executeQuery()) {
+            if (!resultSet.next()) {
+                throw new SQLException("Oracle database identity query returned no row.");
+            }
+            String databaseUniqueName = resultSet.getString("DB_UNIQUE_NAME");
+            String containerName = resultSet.getString("CON_NAME");
+            if (resultSet.next()) {
+                throw new SQLException("Oracle database identity query was ambiguous.");
+            }
+            try {
+                return identityFingerprint.canonicalize(databaseUniqueName, containerName);
+            }
+            catch (IllegalArgumentException exception) {
+                throw new SQLException("Oracle database identity is invalid.", exception);
+            }
         }
     }
 

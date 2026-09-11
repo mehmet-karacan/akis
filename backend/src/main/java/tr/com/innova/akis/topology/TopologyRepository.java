@@ -179,7 +179,14 @@ public class TopologyRepository {
                                 :port, :policyVersion, cast(:policy as jsonb))
                         returning id, uuid, baglanti_id, surum_no, baglanti_modu, surucu_referansi,
                                   sunucu_adi, servis_adi, sid, veritabani_adi, jndi_adi, tls_modu,
-                                  port, politika_surumu, politika, olusturulma_zamani
+                                  port, politika_surumu, politika, olusturulma_zamani,
+                                  'DRAFT'::text as lifecycle_status,
+                                  1::bigint as lifecycle_version,
+                                  null::integer as target_identity_version,
+                                  null::text as target_fingerprint,
+                                  null::uuid as latest_successful_test_uuid,
+                                  null::timestamptz as tested_at,
+                                  null::timestamptz as activated_at
                         """)
                 .param("projectId", projectId)
                 .param("connectionId", connectionId)
@@ -219,8 +226,8 @@ public class TopologyRepository {
 
     List<ConnectionVersionRow> listConnectionVersions(long projectId, long connectionId) {
         return jdbc.sql(connectionVersionSelect()
-                        + " where proje_id = :projectId and baglanti_id = :connectionId"
-                        + " order by surum_no desc")
+                        + " where bs.proje_id = :projectId and bs.baglanti_id = :connectionId"
+                        + " order by bs.surum_no desc")
                 .param("projectId", projectId)
                 .param("connectionId", connectionId)
                 .query(this::mapConnectionVersion)
@@ -229,7 +236,7 @@ public class TopologyRepository {
 
     Optional<ConnectionVersionRow> findConnectionVersion(long projectId, UUID uuid) {
         return jdbc.sql(connectionVersionSelect()
-                        + " where proje_id = :projectId and uuid = :uuid")
+                        + " where bs.proje_id = :projectId and bs.uuid = :uuid")
                 .param("projectId", projectId)
                 .param("uuid", uuid)
                 .query(this::mapConnectionVersion)
@@ -430,10 +437,21 @@ public class TopologyRepository {
 
     private String connectionVersionSelect() {
         return """
-                select id, uuid, baglanti_id, surum_no, baglanti_modu, surucu_referansi,
-                       sunucu_adi, servis_adi, sid, veritabani_adi, jndi_adi, tls_modu,
-                       port, politika_surumu, politika, olusturulma_zamani
-                  from entegrasyon.baglanti_surumu
+                select bs.id, bs.uuid, bs.baglanti_id, bs.surum_no, bs.baglanti_modu,
+                       bs.surucu_referansi, bs.sunucu_adi, bs.servis_adi, bs.sid,
+                       bs.veritabani_adi, bs.jndi_adi, bs.tls_modu, bs.port,
+                       bs.politika_surumu, bs.politika, bs.olusturulma_zamani,
+                       yd.durum_kodu as lifecycle_status,
+                       yd.durum_surumu as lifecycle_version,
+                       yd.hedef_kimlik_surumu as target_identity_version,
+                       yd.hedef_parmak_izi as target_fingerprint,
+                       yd.son_basarili_test_uuid as latest_successful_test_uuid,
+                       yd.test_edilme_zamani as tested_at,
+                       yd.aktiflestirilme_zamani as activated_at
+                  from entegrasyon.baglanti_surumu bs
+                  join entegrasyon.baglanti_surumu_yasam_dongusu yd
+                    on yd.proje_id = bs.proje_id
+                   and yd.baglanti_surumu_id = bs.id
                 """;
     }
 
@@ -447,7 +465,13 @@ public class TopologyRepository {
                 rs.getString("veritabani_adi"), rs.getString("jndi_adi"), rs.getString("tls_modu"),
                 rs.getObject("port", Integer.class), rs.getInt("politika_surumu"),
                 json(rs.getString("politika")),
-                rs.getObject("olusturulma_zamani", OffsetDateTime.class));
+                rs.getObject("olusturulma_zamani", OffsetDateTime.class),
+                rs.getString("lifecycle_status"), rs.getLong("lifecycle_version"),
+                rs.getObject("target_identity_version", Integer.class),
+                rs.getString("target_fingerprint"),
+                rs.getObject("latest_successful_test_uuid", UUID.class),
+                rs.getObject("tested_at", OffsetDateTime.class),
+                rs.getObject("activated_at", OffsetDateTime.class));
     }
 
     private String physicalSchemaSelect() {

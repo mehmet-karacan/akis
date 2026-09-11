@@ -44,13 +44,18 @@ public class OracleDiscoveryRepository {
                                bs.politika,
                                sr.saglayici_kodu,
                                sr.referans_yolu,
-                               sr.durum_kodu as secret_status
+                               sr.durum_kodu as secret_status,
+                               yd.durum_kodu as lifecycle_status
                           from entegrasyon.proje p
                           join entegrasyon.baglanti b
                             on b.proje_id = p.id
                           join entegrasyon.baglanti_surumu bs
                             on bs.proje_id = p.id
                            and bs.baglanti_id = b.id
+                          join entegrasyon.baglanti_surumu_yasam_dongusu yd
+                            on yd.proje_id = p.id
+                           and yd.baglanti_id = b.id
+                           and yd.baglanti_surumu_id = bs.id
                           left join entegrasyon.baglanti_secret_bagi ssb
                             on ssb.proje_id = p.id
                            and ssb.baglanti_surumu_id = bs.id
@@ -82,7 +87,8 @@ public class OracleDiscoveryRepository {
                         json(rs.getString("politika")),
                         rs.getString("saglayici_kodu"),
                         rs.getString("referans_yolu"),
-                        rs.getString("secret_status")))
+                        rs.getString("secret_status"),
+                        rs.getString("lifecycle_status")))
                 .optional();
     }
 

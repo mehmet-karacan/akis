@@ -15,7 +15,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.ColumnMetadata;
-import tr.com.innova.akis.oracle.OracleDiscoveryModels.ConnectionProbe;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.ConstraintMetadata;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.DiscoveryResult;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.TableMetadata;
@@ -27,12 +26,15 @@ import static tr.com.innova.akis.security.PermissionCodes.DISCOVERY_WRITE;
 final class OracleDiscoveryController {
 
     private final OracleDiscoveryService service;
+    private final OracleConnectionLifecycleService lifecycleService;
     private final AuthorizationService authorization;
 
     OracleDiscoveryController(
             OracleDiscoveryService service,
+            OracleConnectionLifecycleService lifecycleService,
             AuthorizationService authorization) {
         this.service = service;
+        this.lifecycleService = lifecycleService;
         this.authorization = authorization;
     }
 
@@ -42,9 +44,8 @@ final class OracleDiscoveryController {
             @PathVariable UUID connectionUuid,
             @PathVariable UUID connectionVersionUuid) {
         authorization.requireProjectPermission(projectUuid, DISCOVERY_WRITE);
-        return ConnectionTestView.from(
-                connectionVersionUuid,
-                service.testConnection(projectUuid, connectionUuid, connectionVersionUuid));
+        return ConnectionTestView.from(lifecycleService.test(
+                projectUuid, connectionUuid, connectionVersionUuid));
     }
 
     @PostMapping("/physical-schemas/{physicalSchemaUuid}/discover")
@@ -85,17 +86,18 @@ final class OracleDiscoveryController {
             String driverName,
             String driverVersion) {
 
-        static ConnectionTestView from(UUID connectionVersionUuid, ConnectionProbe probe) {
+        static ConnectionTestView from(
+                OracleConnectionLifecycleModels.TestAttemptRow attempt) {
             return new ConnectionTestView(
-                    connectionVersionUuid,
+                    attempt.connectionVersionUuid(),
                     true,
                     true,
-                    probe.databaseProduct(),
-                    probe.databaseVersion(),
-                    probe.databaseMajorVersion(),
-                    probe.databaseMinorVersion(),
-                    probe.driverName(),
-                    probe.driverVersion());
+                    attempt.databaseProduct(),
+                    attempt.databaseVersion(),
+                    attempt.databaseMajorVersion(),
+                    attempt.databaseMinorVersion(),
+                    attempt.driverName(),
+                    attempt.driverVersion());
         }
     }
 

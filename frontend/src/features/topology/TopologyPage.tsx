@@ -2,14 +2,13 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNo
 import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router-dom'
 import {
-  Boxes, Cable, CheckCircle2, ChevronRight, CircleAlert, Database,
+  Boxes, Cable, ChevronRight, CircleAlert, Database,
   KeyRound, Layers3, Link2, LoaderCircle, Network, Plus, RefreshCw,
-  Search, ServerCog, TableProperties, TestTube2, X,
+  Search, ServerCog, TableProperties, X,
 } from 'lucide-react'
 import {
   topologyApi,
   type Connection,
-  type ConnectionTestResult,
   type ConnectionVersion,
   type DataObject,
   type DiscoveryResult,
@@ -22,6 +21,7 @@ import {
   type Submodel,
 } from './api'
 import { getTopologyCopy, type CopyKey } from './copy'
+import { ConnectionVersionLifecyclePanel, lifecycleLabel } from './ConnectionVersionLifecyclePanel'
 import { OracleConnectionVersionForm } from './OracleConnectionVersionForm'
 import './topology.css'
 
@@ -107,6 +107,11 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
   const projectUuid = projectUuidProp ?? params.projectUuid ?? ''
   const { i18n } = useTranslation()
   const c = useMemo(() => getTopologyCopy(i18n.resolvedLanguage ?? i18n.language), [i18n.language, i18n.resolvedLanguage])
+  const locale = (i18n.resolvedLanguage ?? i18n.language).startsWith('tr') ? 'tr-TR' : 'en-GB'
+  const dateFormatter = useMemo(
+    () => new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }),
+    [locale],
+  )
   const tr = useCallback((key: CopyKey) => c[key], [c])
 
   const [tab, setTab] = useState<Tab>(initialTab)
@@ -125,7 +130,6 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
   const [submodels, setSubmodels] = useState<Submodel[]>([])
   const [dataObjects, setDataObjects] = useState<DataObject[]>([])
   const [catalogLoading, setCatalogLoading] = useState(false)
-  const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null)
   const [discoveryResult, setDiscoveryResult] = useState<DiscoveryResult | null>(null)
 
   const loadAll = useCallback(async () => {
@@ -152,7 +156,6 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
   useEffect(() => { void loadAll() }, [loadAll])
 
   useEffect(() => {
-    setTestResult(null)
     setDiscoveryResult(null)
     if (!projectUuid || !selectedConnectionUuid) {
       setVersions([])
@@ -171,10 +174,6 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
       .finally(() => active && setVersionsLoading(false))
     return () => { active = false }
   }, [projectUuid, selectedConnectionUuid, tr])
-
-  useEffect(() => {
-    if (testResult?.connectionVersionUuid !== selectedVersionUuid) setTestResult(null)
-  }, [selectedVersionUuid, testResult?.connectionVersionUuid])
 
   useEffect(() => {
     if (!projectUuid || !selectedModelUuid) {
@@ -201,6 +200,14 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
   const executableVersions = versions.filter((item) => item.mode === 'JDBC')
   const connectionPhysicalSchemas = resources.physicalSchemas.filter((item) => item.connectionUuid === selectedConnectionUuid)
   const selectedModel = resources.models.find((item) => item.uuid === selectedModelUuid)
+  const refreshConnectionVersions = async (focusUuid = selectedVersionUuid) => {
+    if (!selectedConnectionUuid) return undefined
+    const items = await topologyApi.listVersions(projectUuid, selectedConnectionUuid)
+    setVersions(items)
+    const focused = items.find((item) => item.uuid === focusUuid)
+    setSelectedVersionUuid(focused?.uuid ?? items[0]?.uuid ?? '')
+    return focused
+  }
   const reloadSelectedCatalog = async () => {
     if (!selectedModelUuid) return
     const [nextSubmodels, nextObjects] = await Promise.all([
@@ -237,16 +244,6 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
     } finally {
       setBusy('')
     }
-  }
-
-  const runTest = async () => {
-    if (!selectedConnectionUuid || !selectedVersionUuid) return
-    setBusy('test')
-    setActionError('')
-    setTestResult(null)
-    try { setTestResult(await topologyApi.testOracle(projectUuid, selectedConnectionUuid, selectedVersionUuid)) }
-    catch (error) { setActionError(error instanceof Error ? error.message : tr('loadFailed')) }
-    finally { setBusy('') }
   }
 
   const runDiscovery = async (event: FormEvent<HTMLFormElement>) => {
@@ -301,10 +298,20 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
               <section className="topology-panel">
                 <PanelHeading icon={<ServerCog />} title={tr('versions')} count={versions.length} action={selectedConnection && <button className="topology-button topology-button--small" onClick={() => setForm('version')} disabled={selectedConnection.databaseType !== 'ORACLE'}><Plus />{tr('addVersion')}</button>} />
                 {!selectedConnection ? <Empty>{tr('chooseConnection')}</Empty> : versionsLoading ? <div className="topology-loading"><LoaderCircle className="is-spinning" />{tr('loading')}</div> : versions.length === 0 ? <Empty>{tr('noItems')}</Empty> : (
-                  <div className="topology-version-list">{versions.map((item) => <button key={item.uuid} aria-pressed={selectedVersionUuid === item.uuid} onClick={() => setSelectedVersionUuid(item.uuid)}><span>v{item.versionNumber} · {item.mode ?? 'JDBC'}</span><strong>{connectionVersionSummary(item)}</strong><small>{item.serviceName || item.sid || item.databaseName || (item.mode === 'JNDI' ? 'DataSource' : '—')}</small></button>)}</div>
+                  <div className="topology-version-list">{versions.map((item) => <button key={item.uuid} aria-pressed={selectedVersionUuid === item.uuid} onClick={() => setSelectedVersionUuid(item.uuid)}>
+                    <span className="topology-version-card-heading"><span>v{item.versionNumber} · {item.mode}</span><span className={`topology-lifecycle-badge topology-lifecycle-badge--${item.lifecycleStatus.toLowerCase()}`}>{lifecycleLabel(item.lifecycleStatus, c)}</span></span>
+                    <strong>{connectionVersionSummary(item)}</strong>
+                    <small>{item.testedAt ? `${c.testedAt}: ${dateFormatter.format(new Date(item.testedAt))}` : c.notTested}</small>
+                  </button>)}</div>
                 )}
-                {selectedVersion && <div className="topology-action-well"><div><strong>{tr('activeSelection')}</strong><span>{selectedConnection?.code} / v{selectedVersion.versionNumber}</span></div><button className="topology-button" onClick={() => void runTest()} disabled={busy === 'test'}><TestTube2 />{busy === 'test' ? tr('testing') : tr('test')}</button></div>}
-                {testResult && <div className="topology-result topology-result--success" role="status"><CheckCircle2 /><div><strong>{tr('testSuccess')}</strong><span>{testResult.databaseProduct} {testResult.databaseVersion}</span><small>{testResult.oracle19cCompatible ? tr('compatible') : tr('incompatible')} · {testResult.driverName} {testResult.driverVersion}</small></div></div>}
+                {selectedVersion && selectedConnection && <ConnectionVersionLifecyclePanel
+                  projectUuid={projectUuid}
+                  connectionUuid={selectedConnection.uuid}
+                  version={selectedVersion}
+                  copy={c}
+                  locale={locale}
+                  onVersionChanged={() => refreshConnectionVersions(selectedVersion.uuid).then(() => undefined)}
+                />}
               </section>
               <section className="topology-panel topology-panel--wide">
                 <PanelHeading icon={<KeyRound />} title={tr('secretRefs')} count={resources.secrets.length} action={<button className="topology-button topology-button--small" onClick={() => setForm('secret')}><Plus />{tr('addSecret')}</button>} />
@@ -379,7 +386,7 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
       {form && <Drawer title={formTitle[form]} closeLabel={tr('close')} onClose={() => setForm(null)}>
         {form === 'secret' && <form className="topology-form" onSubmit={(event) => void submit('secret', event, (data) => topologyApi.createSecret(projectUuid, { code: textValue(data, 'code'), name: textValue(data, 'name'), provider: textValue(data, 'provider'), referencePath: textValue(data, 'referencePath'), versionReference: optionalValue(data, 'versionReference') }))}><Field label={tr('name')} name="name" /><Field label={tr('code')} name="code" /><Field label={tr('provider')} name="provider" /><Field label={tr('referencePath')} name="referencePath" /><Field label={tr('versionReference')} name="versionReference" optional /> <p className="topology-security-note"><KeyRound />{tr('noSecretValues')}</p><Submit busy={busy === 'secret'} c={c} /></form>}
         {form === 'connection' && <form className="topology-form" onSubmit={(event) => void submit('connection', event, (data) => topologyApi.createConnection(projectUuid, { code: textValue(data, 'code'), name: textValue(data, 'name'), databaseType: textValue(data, 'databaseType'), description: optionalValue(data, 'description') }))}><Field label={tr('name')} name="name" /><Field label={tr('code')} name="code" /><Field label={tr('databaseType')} name="databaseType"><select name="databaseType" defaultValue="ORACLE" required><option value="ORACLE">Oracle</option></select></Field><Field label={tr('description')} name="description" optional><textarea name="description" rows={3} /></Field><Submit busy={busy === 'connection'} c={c} /></form>}
-        {form === 'version' && selectedConnection?.databaseType === 'ORACLE' && <OracleConnectionVersionForm projectUuid={projectUuid} connectionUuid={selectedConnection.uuid} secrets={resources.secrets} copy={c} onClose={() => setForm(null)} onCreated={async (version) => { const items = await topologyApi.listVersions(projectUuid, selectedConnection.uuid); setVersions(items); setSelectedVersionUuid(version.uuid) }} />}
+        {form === 'version' && selectedConnection?.databaseType === 'ORACLE' && <OracleConnectionVersionForm projectUuid={projectUuid} connectionUuid={selectedConnection.uuid} secrets={resources.secrets} copy={c} locale={locale} onClose={() => setForm(null)} onVersionChanged={refreshConnectionVersions} />}
         {form === 'physical' && <form className="topology-form" onSubmit={(event) => void submit('physical', event, (data) => topologyApi.createPhysicalSchema(projectUuid, { connectionUuid: textValue(data, 'connectionUuid'), code: textValue(data, 'code'), schemaReference: textValue(data, 'schemaReference'), name: textValue(data, 'name') }))}><Field label={tr('name')} name="name" /><Field label={tr('code')} name="code" /><Field label={tr('connection')} name="connectionUuid"><select name="connectionUuid" required defaultValue={selectedConnectionUuid}><option value="">—</option>{resources.connections.map((item) => <option key={item.uuid} value={item.uuid}>{item.name}</option>)}</select></Field><Field label={tr('schemaReference')} name="schemaReference" /><Submit busy={busy === 'physical'} c={c} /></form>}
         {form === 'logical' && <form className="topology-form" onSubmit={(event) => void submit('logical', event, (data) => topologyApi.createLogicalSchema(projectUuid, { code: textValue(data, 'code'), name: textValue(data, 'name'), description: optionalValue(data, 'description') }))}><Field label={tr('name')} name="name" /><Field label={tr('code')} name="code" /><Field label={tr('description')} name="description" optional><textarea name="description" rows={3} /></Field><Submit busy={busy === 'logical'} c={c} /></form>}
         {form === 'environment' && <form className="topology-form" onSubmit={(event) => void submit('environment', event, (data) => topologyApi.createEnvironment(projectUuid, { code: textValue(data, 'code'), name: textValue(data, 'name'), risk: textValue(data, 'risk'), policyVersion: Number(textValue(data, 'policyVersion') || 1) }))}><Field label={tr('name')} name="name" /><Field label={tr('code')} name="code" /><Field label={tr('risk')} name="risk"><select name="risk" defaultValue="DUSUK" required><option value="DUSUK">{tr('riskLow')}</option><option value="ORTA">{tr('riskMedium')}</option><option value="URETIM">{tr('riskProduction')}</option></select></Field><Field label={tr('policyVersion')} name="policyVersion"><input name="policyVersion" type="number" min="1" defaultValue="1" required /></Field><Submit busy={busy === 'environment'} c={c} /></form>}

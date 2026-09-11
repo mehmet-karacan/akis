@@ -182,13 +182,25 @@ final class OracleConnectionV2Controller {
             Integer port,
             int policyVersion,
             JsonNode policy,
-            OffsetDateTime createdAt) {
+            OffsetDateTime createdAt,
+            String lifecycleStatus,
+            long lifecycleVersion,
+            Integer targetIdentityVersion,
+            String targetFingerprint,
+            UUID latestSuccessfulTestUuid,
+            OffsetDateTime testedAt,
+            OffsetDateTime activatedAt,
+            String runtimeCapability) {
 
         static ConnectionVersionV2View from(ConnectionVersionRow row) {
             return new ConnectionVersionV2View(
                     row.uuid(), row.versionNumber(), row.mode(), row.driverReference(), row.host(),
                     row.serviceName(), row.sid(), row.databaseName(), row.jndiName(), row.tlsMode(),
-                    row.port(), row.policyVersion(), row.policy(), row.createdAt());
+                    row.port(), row.policyVersion(), row.policy(), row.createdAt(),
+                    row.lifecycleStatus(), row.lifecycleVersion(), row.targetIdentityVersion(),
+                    row.targetFingerprint(), row.latestSuccessfulTestUuid(), row.testedAt(),
+                    row.activatedAt(), "JNDI".equals(row.mode())
+                            ? "TEST_DISCOVERY_ONLY" : "EXECUTABLE");
         }
     }
 }

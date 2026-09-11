@@ -36,6 +36,14 @@ export interface ConnectionVersion {
   policyVersion: number
   policy?: unknown
   createdAt: string
+  lifecycleStatus: 'DRAFT' | 'TESTED' | 'ACTIVE'
+  lifecycleVersion: number
+  targetIdentityVersion?: number | null
+  targetFingerprint?: string | null
+  latestSuccessfulTestUuid?: string | null
+  testedAt?: string | null
+  activatedAt?: string | null
+  runtimeCapability: 'EXECUTABLE' | 'TEST_DISCOVERY_ONLY'
 }
 
 export type CreateConnectionVersionRequest = {
@@ -129,16 +137,38 @@ export interface DataObject {
   version: number
 }
 
-export interface ConnectionTestResult {
-  connectionVersionUuid: string
-  connected: boolean
-  oracle19cCompatible: boolean
+export interface ConnectionTestProbe {
   databaseProduct: string
   databaseVersion: string
   databaseMajorVersion: number
   databaseMinorVersion: number
   driverName: string
   driverVersion: string
+}
+
+export interface ConnectionTestAttempt {
+  uuid: string
+  connectionVersionUuid: string
+  attemptNumber: number
+  outcome: 'PASSED' | 'FAILED' | 'TARGET_MISMATCH'
+  errorCode?: string | null
+  probe?: ConnectionTestProbe | null
+  targetIdentityVersion?: number | null
+  targetFingerprint?: string | null
+  startedAt: string
+  completedAt: string
+  durationMs: number
+}
+
+export interface ConnectionVersionLifecycle {
+  connectionVersionUuid: string
+  status: 'DRAFT' | 'TESTED' | 'ACTIVE'
+  stateVersion: number
+  targetIdentityVersion?: number | null
+  targetFingerprint?: string | null
+  latestSuccessfulTestUuid?: string | null
+  testedAt?: string | null
+  activatedAt?: string | null
 }
 
 export interface DiscoveryColumn {
@@ -180,6 +210,8 @@ type JsonRecord = Record<string, unknown>
 const base = (projectUuid: string) => `/api/v1/projects/${encodeURIComponent(projectUuid)}`
 const connectionVersionsV2 = (projectUuid: string, connectionUuid: string) =>
   `/api/v2/projects/${encodeURIComponent(projectUuid)}/connections/${encodeURIComponent(connectionUuid)}/versions`
+const connectionVersionV2 = (projectUuid: string, connectionUuid: string, versionUuid: string) =>
+  `${connectionVersionsV2(projectUuid, connectionUuid)}/${encodeURIComponent(versionUuid)}`
 
 const get = <T>(path: string) => apiRequest<T>(path)
 const post = <T>(path: string, body?: JsonRecord) => apiRequest<T>(path, {
@@ -194,6 +226,16 @@ export const topologyApi = {
   createConnection: (projectUuid: string, body: JsonRecord) => post<Connection>(`${base(projectUuid)}/connections`, body),
   listVersions: (projectUuid: string, connectionUuid: string) => get<ConnectionVersion[]>(connectionVersionsV2(projectUuid, connectionUuid)),
   createVersion: (projectUuid: string, connectionUuid: string, body: CreateConnectionVersionRequest) => post<ConnectionVersion>(connectionVersionsV2(projectUuid, connectionUuid), body),
+  testConnectionVersion: (projectUuid: string, connectionUuid: string, versionUuid: string) =>
+    post<ConnectionTestAttempt>(`${connectionVersionV2(projectUuid, connectionUuid, versionUuid)}/tests`),
+  listConnectionVersionTests: (projectUuid: string, connectionUuid: string, versionUuid: string, limit = 20) =>
+    get<ConnectionTestAttempt[]>(`${connectionVersionV2(projectUuid, connectionUuid, versionUuid)}/tests?limit=${encodeURIComponent(String(limit))}`),
+  activateConnectionVersion: (
+    projectUuid: string,
+    connectionUuid: string,
+    versionUuid: string,
+    body: { testUuid: string; expectedStateVersion: number },
+  ) => post<ConnectionVersionLifecycle>(`${connectionVersionV2(projectUuid, connectionUuid, versionUuid)}/activate`, body),
   listPhysicalSchemas: (projectUuid: string) => get<PhysicalSchema[]>(`${base(projectUuid)}/physical-schemas`),
   createPhysicalSchema: (projectUuid: string, body: JsonRecord) => post<PhysicalSchema>(`${base(projectUuid)}/physical-schemas`, body),
   listLogicalSchemas: (projectUuid: string) => get<LogicalSchema[]>(`${base(projectUuid)}/logical-schemas`),
@@ -208,6 +250,5 @@ export const topologyApi = {
   createSubmodel: (projectUuid: string, modelUuid: string, body: JsonRecord) => post<Submodel>(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}/submodels`, body),
   listDataObjects: (projectUuid: string, modelUuid: string) => get<DataObject[]>(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}/data-objects`),
   createDataObject: (projectUuid: string, modelUuid: string, body: JsonRecord) => post<DataObject>(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}/data-objects`, body),
-  testOracle: (projectUuid: string, connectionUuid: string, versionUuid: string) => post<ConnectionTestResult>(`${base(projectUuid)}/connections/${encodeURIComponent(connectionUuid)}/versions/${encodeURIComponent(versionUuid)}/test`),
   discoverOracle: (projectUuid: string, connectionUuid: string, versionUuid: string, physicalSchemaUuid: string, body: JsonRecord) => post<DiscoveryResult>(`${base(projectUuid)}/connections/${encodeURIComponent(connectionUuid)}/versions/${encodeURIComponent(versionUuid)}/physical-schemas/${encodeURIComponent(physicalSchemaUuid)}/discover`, body),
 }

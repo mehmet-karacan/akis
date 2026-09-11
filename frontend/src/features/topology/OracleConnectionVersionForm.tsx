@@ -1,25 +1,26 @@
 import { useMemo, useState } from 'react'
-import { CheckCircle2, ChevronLeft, ChevronRight, CircleAlert, Database, LoaderCircle, ServerCog, TestTube2 } from 'lucide-react'
-import { topologyApi, type ConnectionTestResult, type ConnectionVersion, type SecretReference } from './api'
+import { CheckCircle2, ChevronLeft, ChevronRight, CircleAlert, Database, LoaderCircle, ServerCog } from 'lucide-react'
+import { topologyApi, type ConnectionVersion, type SecretReference } from './api'
 import { initialConnectionVersionDraft, toCreateConnectionVersionRequest, validateConnectionVersionDraft, type ConnectionVersionDraft } from './connectionVersionModel'
 import type { getTopologyCopy } from './copy'
+import { ConnectionVersionLifecyclePanel, lifecycleLabel } from './ConnectionVersionLifecyclePanel'
 
 interface Props {
   projectUuid: string
   connectionUuid: string
   secrets: SecretReference[]
   copy: ReturnType<typeof getTopologyCopy>
-  onCreated(version: ConnectionVersion): Promise<void> | void
+  locale: string
+  onVersionChanged(versionUuid: string): Promise<ConnectionVersion | undefined>
   onClose(): void
 }
 
-export function OracleConnectionVersionForm({ projectUuid, connectionUuid, secrets, copy: c, onCreated, onClose }: Props) {
+export function OracleConnectionVersionForm({ projectUuid, connectionUuid, secrets, copy: c, locale, onVersionChanged, onClose }: Props) {
   const [draft, setDraft] = useState<ConnectionVersionDraft>(initialConnectionVersionDraft)
   const [step, setStep] = useState(0)
   const [busy, setBusy] = useState<'create' | 'test' | ''>('')
   const [error, setError] = useState('')
   const [created, setCreated] = useState<ConnectionVersion | null>(null)
-  const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null)
   const eligibleSecrets = useMemo(
     () => secrets.filter((item) => item.provider === 'ENV' && item.status === 'AKTIF'),
     [secrets],
@@ -54,23 +55,10 @@ export function OracleConnectionVersionForm({ projectUuid, connectionUuid, secre
     try {
       const version = await topologyApi.createVersion(projectUuid, connectionUuid, toCreateConnectionVersionRequest(draft))
       setCreated(version)
-      await onCreated(version)
+      const refreshed = await onVersionChanged(version.uuid)
+      if (refreshed) setCreated(refreshed)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : c.saveFailed)
-    } finally {
-      setBusy('')
-    }
-  }
-
-  const test = async () => {
-    if (!created) return
-    setBusy('test')
-    setError('')
-    setTestResult(null)
-    try {
-      setTestResult(await topologyApi.testOracle(projectUuid, connectionUuid, created.uuid))
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : c.loadFailed)
     } finally {
       setBusy('')
     }
@@ -79,14 +67,20 @@ export function OracleConnectionVersionForm({ projectUuid, connectionUuid, secre
   if (created) {
     return <div className="topology-version-success">
       <CheckCircle2 />
-      <div><h3>{c.versionCreated}</h3><p>v{created.versionNumber} · {created.mode}</p></div>
+      <div><h3>{c.versionCreated}</h3><p>v{created.versionNumber} · {created.mode} · {lifecycleLabel(created.lifecycleStatus, c)}</p></div>
       {error && <div className="topology-inline-error" role="alert"><CircleAlert />{error}</div>}
-      {testResult && <div className="topology-result topology-result--success"><CheckCircle2 /><div><strong>{c.testSuccess}</strong><span>{testResult.databaseProduct} {testResult.databaseVersion}</span><small>{testResult.driverName} {testResult.driverVersion}</small></div></div>}
-      <div className="topology-form-actions">
-        <button className="topology-button topology-button--quiet" type="button" onClick={onClose}>{c.done}</button>
-        <button className="topology-button" type="button" onClick={() => void test()} disabled={busy === 'test'}>{busy === 'test' ? <LoaderCircle className="is-spinning" /> : <TestTube2 />}{busy === 'test' ? c.testing : c.test}</button>
-      </div>
-      {created.mode === 'JNDI' && <p className="topology-security-note"><CircleAlert />{c.jndiRuntimeHint}</p>}
+      <ConnectionVersionLifecyclePanel
+        projectUuid={projectUuid}
+        connectionUuid={connectionUuid}
+        version={created}
+        copy={c}
+        locale={locale}
+        onVersionChanged={async () => {
+          const refreshed = await onVersionChanged(created.uuid)
+          if (refreshed) setCreated(refreshed)
+        }}
+      />
+      <button className="topology-button topology-button--quiet" type="button" onClick={onClose}>{c.done}</button>
     </div>
   }
 

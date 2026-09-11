@@ -48,6 +48,7 @@ public class OracleDiscoveryService {
         try (Credentials credentials = credentials(profile)) {
             ConnectionProbe probe = gateway.test(profile, credentials);
             requireOracle19c(probe);
+            requireTargetIdentity(probe);
             return probe;
         }
     }
@@ -60,6 +61,12 @@ public class OracleDiscoveryService {
             String tableName,
             int limit) {
         ConnectionProfile profile = profile(projectUuid, connectionUuid, connectionVersionUuid);
+        if ("DRAFT".equals(profile.lifecycleStatus())) {
+            throw new ApiException(
+                    HttpStatus.CONFLICT,
+                    "CONNECTION_VERSION_NOT_TESTED",
+                    "Oracle metadata keşfinden önce bağlantı sürümü başarıyla test edilmelidir.");
+        }
         PhysicalSchemaProfile physicalSchema = repository.findPhysicalSchema(
                         profile.projectId(), physicalSchemaUuid)
                 .orElseThrow(() -> notFound("Fiziksel şema bulunamadı."));
@@ -147,6 +154,17 @@ public class OracleDiscoveryService {
                     HttpStatus.UNPROCESSABLE_CONTENT,
                     "ORACLE_VERSION_UNSUPPORTED",
                     "Bağlantı Oracle Database 19c ile uyumlu değil.");
+        }
+    }
+
+    private void requireTargetIdentity(ConnectionProbe probe) {
+        if (probe.targetIdentityVersion() != OracleDatabaseIdentityFingerprintV1.IDENTITY_VERSION
+                || probe.targetFingerprint() == null
+                || !probe.targetFingerprint().matches("[0-9a-f]{64}")) {
+            throw new ApiException(
+                    HttpStatus.BAD_GATEWAY,
+                    "ORACLE_TARGET_IDENTITY_UNAVAILABLE",
+                    "Oracle veritabanı hedef kimliği doğrulanamadı.");
         }
     }
 

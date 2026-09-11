@@ -221,9 +221,6 @@ public class TopologyService {
             repository.bindSecret(
                     project.id(), version.id(), secret.id(), normalizedRole);
         }
-        if ("JDBC".equals(normalizedMode)) {
-            repository.activateDraftConnection(connection.id());
-        }
         return version;
     }
 

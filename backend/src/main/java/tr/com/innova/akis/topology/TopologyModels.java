@@ -53,7 +53,14 @@ final class TopologyModels {
             Integer port,
             int policyVersion,
             JsonNode policy,
-            OffsetDateTime createdAt) {
+            OffsetDateTime createdAt,
+            String lifecycleStatus,
+            long lifecycleVersion,
+            Integer targetIdentityVersion,
+            String targetFingerprint,
+            UUID latestSuccessfulTestUuid,
+            OffsetDateTime testedAt,
+            OffsetDateTime activatedAt) {
     }
 
     record PhysicalSchemaRow(

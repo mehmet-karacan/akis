@@ -17,7 +17,11 @@ class OracleDiscoveryApiContractTest {
                 OracleDiscoveryController.DiscoveryView.class,
                 OracleDiscoveryController.TableView.class,
                 OracleDiscoveryController.ColumnView.class,
-                OracleDiscoveryController.ConstraintView.class);
+                OracleDiscoveryController.ConstraintView.class,
+                OracleConnectionLifecycleController.ActivateRequest.class,
+                OracleConnectionLifecycleController.LifecycleView.class,
+                OracleConnectionLifecycleController.TestAttemptView.class,
+                OracleConnectionLifecycleController.ProbeView.class);
 
         contracts.forEach(contract -> java.util.Arrays.stream(contract.getRecordComponents())
                 .forEach(component -> {

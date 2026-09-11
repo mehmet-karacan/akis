@@ -28,7 +28,32 @@ final class OracleDiscoveryModels {
             JsonNode policy,
             String secretProvider,
             String secretReferencePath,
-            String secretStatus) {
+            String secretStatus,
+            String lifecycleStatus) {
+
+        ConnectionProfile(
+                long projectId,
+                long connectionId,
+                UUID connectionUuid,
+                UUID connectionVersionUuid,
+                String databaseType,
+                String mode,
+                String jndiName,
+                String driverReference,
+                String host,
+                String serviceName,
+                String sid,
+                String tlsMode,
+                int port,
+                JsonNode policy,
+                String secretProvider,
+                String secretReferencePath,
+                String secretStatus) {
+            this(projectId, connectionId, connectionUuid, connectionVersionUuid,
+                    databaseType, mode, jndiName, driverReference, host, serviceName,
+                    sid, tlsMode, port, policy, secretProvider, secretReferencePath,
+                    secretStatus, "TESTED");
+        }
 
         ConnectionProfile(
                 long projectId,
@@ -49,7 +74,7 @@ final class OracleDiscoveryModels {
             this(projectId, connectionId, connectionUuid, connectionVersionUuid,
                     databaseType, "JDBC", null, driverReference, host, serviceName,
                     sid, tlsMode, port, policy, secretProvider,
-                    secretReferencePath, secretStatus);
+                    secretReferencePath, secretStatus, "TESTED");
         }
     }
 
@@ -74,7 +99,20 @@ final class OracleDiscoveryModels {
             int databaseMajorVersion,
             int databaseMinorVersion,
             String driverName,
-            String driverVersion) {
+            String driverVersion,
+            int targetIdentityVersion,
+            String targetFingerprint) {
+
+        ConnectionProbe(
+                String databaseProduct,
+                String databaseVersion,
+                int databaseMajorVersion,
+                int databaseMinorVersion,
+                String driverName,
+                String driverVersion) {
+            this(databaseProduct, databaseVersion, databaseMajorVersion, databaseMinorVersion,
+                    driverName, driverVersion, 0, null);
+        }
     }
 
     record ColumnMetadata(

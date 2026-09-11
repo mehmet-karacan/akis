@@ -156,7 +156,8 @@ class OracleDiscoveryServiceTest {
 
     private ConnectionProbe oracle19c() {
         return new ConnectionProbe(
-                "Oracle", "Oracle Database 19c", 19, 0, "Oracle JDBC", "23");
+                "Oracle", "Oracle Database 19c", 19, 0, "Oracle JDBC", "23",
+                1, "a".repeat(64));
     }
 
     private static final class StubRepository extends OracleDiscoveryRepository {
