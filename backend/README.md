@@ -99,6 +99,7 @@ Repository kökünde:
     .\mvnw.cmd -pl backend test
     .\backend\test-api.ps1
     .\backend\test-worker-lease.ps1
+    .\scripts\run-oracle-ledger-it.ps1
     .\scripts\run-backend.ps1
 
 `test-api.ps1` geçici ve yalıtılmış bir PostgreSQL veritabanı oluşturur; auth/RBAC,
@@ -112,15 +113,24 @@ veritabanını siler.
 yenilemesi ve stale generation reddini sınar; worker poller veya Oracle bağlantısı
 başlatmaz.
 
+`run-oracle-ledger-it.ps1`, gerçek değerleri yalnız Git dışındaki `.env`
+dosyasından alır. Hedef Oracle 19c üzerinde production JDBC ledger adaptörüyle
+fence/read, batch ve publish prepare-record-verify, rollback sonrası marker yokluğu
+ve stale guard/token reddini sınar. Test business/staging tablosuna dokunmaz;
+kalıcı marker bırakmaz ve kendine ait fence satırını temizler.
+
 ## Kapsam sınırı
 
-Faz 3A backend'i manuel run API'sini ve PostgreSQL V005 üzerindeki DB-time claim,
-heartbeat ve global hedef generation portlarını içerir. Her run publication
-`releaseHash` ile gerçek Scenario `planHash` değerlerini ayrı sabitler. Heartbeat
-reddi worker yetkisini koşulsuz kaybettirir; run lease ve target fence token'ları
-ayrı modellerdir.
+Faz 3B backend'i manuel run API'sini, PostgreSQL V005 üzerindeki DB-time claim,
+heartbeat ve global hedef generation portlarını ve Oracle target-local ledger
+JDBC adaptörünü içerir. Her run publication `releaseHash` ile gerçek Scenario
+`planHash` değerlerini ayrı sabitler. Heartbeat reddi worker yetkisini koşulsuz
+kaybettirir; run lease, PostgreSQL target fence ve Oracle ledger kanıtları ayrı
+modellerdir.
 
-Bu katman worker poller başlatmaz ve Oracle DML çalıştırmaz. Target-local Oracle
-kilit/batch/publish ledger nesneleri, fence doğrulayan write adapter'ı,
-reconciliation, retry/resume ve scheduler henüz ürün kodu değildir. Worker flag'i
-bu kapılar tamamlanana kadar açık değerde fail-closed kalır.
+Bu katman worker poller başlatmaz ve Oracle business/staging DML çalıştırmaz.
+Target-local Oracle package yalnız caller-owned transaction içinde çağrılır;
+adaptör commit veya rollback yapmaz. Runtime plan resolver, target identity
+canonicalization, kontrollü full-refresh writer, reconciliation, retry/resume ve
+scheduler henüz ürün kodu değildir. Worker flag'i bu kapılar ve crash testleri
+tamamlanana kadar açık değerde fail-closed kalır.

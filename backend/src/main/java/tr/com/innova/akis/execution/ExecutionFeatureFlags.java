@@ -16,7 +16,8 @@ final class ExecutionFeatureFlags {
         this.workerEnabled = workerEnabled;
         if (workerEnabled) {
             throw new IllegalStateException(
-                    "Execution worker cannot be enabled before target ledger and fencing exist.");
+                    "Execution worker cannot be enabled until controlled worker, crash recovery "
+                            + "and reconciliation gates are complete.");
         }
     }
 

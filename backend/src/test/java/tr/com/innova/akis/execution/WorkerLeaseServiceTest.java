@@ -71,6 +71,8 @@ class WorkerLeaseServiceTest {
         assertEquals(port.runToken.runUuid(), target.runUuid());
         assertEquals(port.runToken.generation(), target.runGeneration());
         assertEquals(9, target.targetGeneration());
+        assertEquals("c".repeat(64), target.canonicalTargetHash());
+        assertEquals(1, target.targetIdentityVersion());
     }
 
     @Test
@@ -117,7 +119,7 @@ class WorkerLeaseServiceTest {
                 RunLeaseToken token, String canonicalTargetHash, int identityVersion) {
             return new TargetFenceToken(
                     token.runUuid(), token.workerReference(), token.generation(),
-                    UUID.randomUUID(), 9);
+                    UUID.randomUUID(), 9, canonicalTargetHash, identityVersion);
         }
     }
 }

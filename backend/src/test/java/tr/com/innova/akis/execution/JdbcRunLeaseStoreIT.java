@@ -147,6 +147,8 @@ class JdbcRunLeaseStoreIT {
         assertEquals(claimed.token().runUuid(), target.runUuid());
         assertEquals(claimed.token().generation(), target.runGeneration());
         assertEquals(1, target.targetGeneration());
+        assertEquals(TARGET_HASH, target.canonicalTargetHash());
+        assertEquals(1, target.targetIdentityVersion());
 
         HeartbeatResult heartbeat = store.heartbeat(
                 claimed.token(), Duration.ofSeconds(60));

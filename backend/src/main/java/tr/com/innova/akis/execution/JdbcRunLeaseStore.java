@@ -112,7 +112,9 @@ public class JdbcRunLeaseStore implements RunLeasePort {
                         safeToken.runUuid(), safeToken.workerReference(),
                         safeToken.generation(),
                         rs.getObject("hedef_kaynagi_uuid", UUID.class),
-                        rs.getLong("hedef_nesil_no")))
+                        rs.getLong("hedef_nesil_no"),
+                        canonicalTargetHash,
+                        identityVersion))
                 .single();
     }
 

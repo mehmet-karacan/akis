@@ -32,7 +32,11 @@ class ExecutionApiContractTest {
 
     @Test
     void workerFlagFailsClosedUntilTargetFencingExists() {
-        assertThrows(IllegalStateException.class, () -> new ExecutionFeatureFlags(false, true));
+        IllegalStateException error = assertThrows(
+                IllegalStateException.class,
+                () -> new ExecutionFeatureFlags(false, true));
+        assertTrue(error.getMessage().contains("crash recovery"));
+        assertFalse(error.getMessage().contains("before target ledger"));
     }
 
     @Test

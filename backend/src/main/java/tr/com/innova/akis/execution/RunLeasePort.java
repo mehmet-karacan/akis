@@ -29,7 +29,9 @@ interface RunLeasePort {
             String workerReference,
             long runGeneration,
             UUID targetResourceUuid,
-            long targetGeneration) {
+            long targetGeneration,
+            String canonicalTargetHash,
+            int targetIdentityVersion) {
     }
 
     record ClaimedRun(
