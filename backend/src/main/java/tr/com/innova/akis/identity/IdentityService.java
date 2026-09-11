@@ -25,6 +25,7 @@ import tr.com.innova.akis.metadata.ApiException;
 public class IdentityService {
 
     private static final Pattern SIMPLE_EMAIL = Pattern.compile("^[^@\\s]+@[^@\\s]+$");
+    private static final String LOCAL_BASIC_PROVIDER = "LOCAL_BASIC";
 
     private final IdentityStore store;
     private final Clock clock;
@@ -159,6 +160,9 @@ public class IdentityService {
 
     private String issuer(String value) {
         String normalized = required(value, "OIDC issuer", 500);
+        if (LOCAL_BASIC_PROVIDER.equals(normalized)) {
+            return normalized;
+        }
         try {
             URI parsed = new URI(normalized);
             String scheme = parsed.getScheme() == null

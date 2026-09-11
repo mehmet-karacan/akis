@@ -21,6 +21,8 @@ import tools.jackson.databind.node.ObjectNode;
 
 import tr.com.innova.akis.execution.PilotRuntimePlanResolver;
 import tr.com.innova.akis.execution.PilotRuntimePlanException;
+import tr.com.innova.akis.execution.ProcedureRuntimePlanException;
+import tr.com.innova.akis.execution.ProcedureRuntimePlanResolver;
 import tr.com.innova.akis.metadata.ApiException;
 import tr.com.innova.akis.projectbundle.SecretValueSanitizer;
 import tr.com.innova.akis.publication.PublicationModels.ApprovalActor;
@@ -42,16 +44,19 @@ public class PublicationService {
     private final PublicationStore store;
     private final ObjectMapper objectMapper;
     private final PilotRuntimePlanResolver runtimePlanResolver;
+    private final ProcedureRuntimePlanResolver procedureRuntimePlanResolver;
     private final SecretValueSanitizer secretSanitizer;
 
     public PublicationService(
             PublicationStore store,
             ObjectMapper objectMapper,
             PilotRuntimePlanResolver runtimePlanResolver,
+            ProcedureRuntimePlanResolver procedureRuntimePlanResolver,
             SecretValueSanitizer secretSanitizer) {
         this.store = store;
         this.objectMapper = objectMapper;
         this.runtimePlanResolver = runtimePlanResolver;
+        this.procedureRuntimePlanResolver = procedureRuntimePlanResolver;
         this.secretSanitizer = secretSanitizer;
     }
 
@@ -74,7 +79,27 @@ public class PublicationService {
         }
 
         boolean pilotExecutable = runtimePlanResolver.isPilotCandidate(context.scenarioPlan());
-        ObjectNode unsignedManifest = unsignedManifest(context, bindings, pilotExecutable);
+        boolean procedureExecutable = !pilotExecutable
+                && procedureRuntimePlanResolver.isProcedureV2(context.scenarioPlan());
+        boolean taskApprovalRequired = false;
+        if (procedureExecutable) {
+            try {
+                taskApprovalRequired = procedureRuntimePlanResolver
+                        .requiresApprovalForPublication(context.scenarioPlan());
+            }
+            catch (ProcedureRuntimePlanException exception) {
+                throw procedurePlanRejected();
+            }
+        }
+        String runtimeCapability = pilotExecutable
+                ? PilotRuntimePlanResolver.PILOT_CAPABILITY
+                : procedureExecutable
+                ? ProcedureRuntimePlanResolver.CAPABILITY
+                : PilotRuntimePlanResolver.DEFINITION_ONLY_CAPABILITY;
+        boolean approvalRequired = HIGH_RISK.equals(context.environmentRisk())
+                || taskApprovalRequired;
+        ObjectNode unsignedManifest = unsignedManifest(
+                context, bindings, runtimeCapability, approvalRequired);
         if (pilotExecutable) {
             try {
                 String runtimePlanHash = runtimePlanResolver.compileHashForPublication(
@@ -88,12 +113,21 @@ public class PublicationService {
                         "Yayın, Oracle tablo kopyalama pilotunun güvenli çalışma sözleşmesine uymuyor.");
             }
         }
+        else if (procedureExecutable) {
+            try {
+                String runtimePlanHash = procedureRuntimePlanResolver.compileHashForPublication(
+                        context.planHash(), context.scenarioPlan(), unsignedManifest);
+                unsignedManifest.put("runtimePlanHash", runtimePlanHash);
+            }
+            catch (ProcedureRuntimePlanException exception) {
+                throw procedurePlanRejected();
+            }
+        }
         String releaseHash = sha256(canonicalize(unsignedManifest).toString());
         ObjectNode manifest = unsignedManifest.deepCopy();
         manifest.put("releaseHash", releaseHash);
         JsonNode canonicalManifest = canonicalize(manifest);
-        String status = HIGH_RISK.equals(context.environmentRisk())
-                ? "ONAY_BEKLIYOR" : "AKTIF";
+        String status = approvalRequired ? "ONAY_BEKLIYOR" : "AKTIF";
         String dependencySummary = "scenario=" + context.scenarioUuid()
                 + ";bindingCount=" + bindings.size()
                 + ";releaseHash=" + releaseHash;
@@ -131,10 +165,10 @@ public class PublicationService {
         String normalizedReason = normalizeReason(normalizedDecision, reason);
         PublicationRow publication = store.lockPublication(projectUuid, publicationUuid)
                 .orElseThrow(() -> notFound("Yayın bulunamadı."));
-        if (!HIGH_RISK.equals(publication.environmentRisk())) {
+        if (!approvalRequired(publication)) {
             throw conflict(
                     "APPROVAL_NOT_REQUIRED",
-                    "Yalnız yüksek riskli üretim ortamı yayınları onay akışına girer.");
+                    "Bu yayın onay akışına girmiyor.");
         }
 
         String expectedStatus = "GERI_CEK".equals(normalizedDecision)
@@ -215,7 +249,8 @@ public class PublicationService {
     private ObjectNode unsignedManifest(
             PublicationContext context,
             List<ResolvedBinding> bindings,
-            boolean pilotExecutable) {
+            String runtimeCapability,
+            boolean approvalRequired) {
         ObjectNode definition = objectMapper.createObjectNode();
         definition.put("contentHash", context.definitionContentHash());
         definition.put("definitionUuid", context.definitionUuid().toString());
@@ -257,17 +292,27 @@ public class PublicationService {
         }
 
         ObjectNode manifest = objectMapper.createObjectNode();
+        manifest.put("approvalRequired", approvalRequired);
         manifest.set("bindings", bindingNodes);
         manifest.set("definition", definition);
         manifest.set("environment", environment);
         manifest.put("manifestVersion", MANIFEST_VERSION);
-        manifest.put(
-                "runtimeCapability",
-                pilotExecutable
-                        ? PilotRuntimePlanResolver.PILOT_CAPABILITY
-                        : PilotRuntimePlanResolver.DEFINITION_ONLY_CAPABILITY);
+        manifest.put("runtimeCapability", runtimeCapability);
         manifest.set("scenario", scenario);
         return manifest;
+    }
+
+    private boolean approvalRequired(PublicationRow publication) {
+        JsonNode marker = publication.physicalManifest().get("approvalRequired");
+        return HIGH_RISK.equals(publication.environmentRisk())
+                || marker != null && marker.isBoolean() && marker.booleanValue();
+    }
+
+    private ApiException procedurePlanRejected() {
+        return new ApiException(
+                HttpStatus.UNPROCESSABLE_CONTENT,
+                "PROCEDURE_RUNTIME_PLAN_REJECTED",
+                "Yayın, Oracle Procedure çalışma sözleşmesine uymuyor.");
     }
 
     JsonNode canonicalize(JsonNode node) {

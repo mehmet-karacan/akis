@@ -50,6 +50,17 @@ class IdentityServiceTest {
     }
 
     @Test
+    void provisionsLocalDevelopmentPrincipalForAuditedActions() {
+        FakeStore store = new FakeStore();
+
+        UserRow created = service(store).createOidcUser(
+                "LOCAL_BASIC", "developer", "Local Developer", null);
+
+        assertEquals("LOCAL_BASIC", created.issuer());
+        assertEquals("developer", created.subject());
+    }
+
+    @Test
     void rejectsDuplicateOidcIdentityAndInvalidIssuer() {
         FakeStore store = new FakeStore();
         store.userByIdentity = Optional.of(store.user);

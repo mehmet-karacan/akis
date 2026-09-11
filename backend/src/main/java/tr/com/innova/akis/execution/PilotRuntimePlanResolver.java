@@ -294,7 +294,7 @@ public final class PilotRuntimePlanResolver {
                     "The pilot requires physical manifest version 2.");
         }
         Set<String> allowedFields = new HashSet<>(Set.of(
-                "bindings", "definition", "environment", "manifestVersion",
+                "approvalRequired", "bindings", "definition", "environment", "manifestVersion",
                 "runtimeCapability", "scenario"));
         if (signed) {
             allowedFields.add("releaseHash");

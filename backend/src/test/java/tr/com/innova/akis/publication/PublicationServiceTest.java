@@ -27,7 +27,9 @@ import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 import tr.com.innova.akis.execution.PilotRuntimePlanResolver;
+import tr.com.innova.akis.execution.ProcedureRuntimePlanResolver;
 import tr.com.innova.akis.metadata.ApiException;
+import tr.com.innova.akis.metadata.DefinitionContentValidator;
 import tr.com.innova.akis.projectbundle.SecretValueSanitizer;
 import tr.com.innova.akis.publication.PublicationModels.ApprovalActor;
 import tr.com.innova.akis.publication.PublicationModels.ApprovalResult;
@@ -236,6 +238,41 @@ class PublicationServiceTest {
     }
 
     @Test
+    void procedureV2PublishesAsPinnedOracleProcedurePlan() {
+        PublicationContext context = context(
+                "DUSUK", "PROCEDURE", 2, procedureDefinition());
+        FakeStore store = new FakeStore(context, procedureBindings());
+        PublicationService service = service(store);
+        PublicationRow publication = service
+                .create(PROJECT_UUID, SCENARIO_UUID, ENVIRONMENT_UUID).publication();
+
+        assertEquals(ProcedureRuntimePlanResolver.CAPABILITY,
+                publication.physicalManifest().path("runtimeCapability").stringValue());
+        assertEquals(64, publication.physicalManifest()
+                .path("runtimePlanHash").stringValue().length());
+        assertTrue(publication.physicalManifest().path("approvalRequired").booleanValue());
+        assertEquals("ONAY_BEKLIYOR", publication.status());
+        assertEquals("AKTIF", service.decide(
+                PROJECT_UUID, publication.uuid(), ACTOR, "ONAY", null)
+                .publication().status());
+    }
+
+    @Test
+    void invalidProcedureV2IsRejectedInsteadOfPublishedAsDefinitionOnly() {
+        ObjectNode invalid = procedureDefinition();
+        ((ObjectNode) invalid.get("tasks").get(1))
+                .put("command", "DELETE FROM TTBP.HAKEDIS_TIPI");
+        PublicationContext context = context("DUSUK", "PROCEDURE", 2, invalid);
+
+        ApiException error = assertThrows(ApiException.class, () -> service(new FakeStore(
+                context, procedureBindings()))
+                .create(PROJECT_UUID, SCENARIO_UUID, ENVIRONMENT_UUID));
+
+        assertEquals(HttpStatus.UNPROCESSABLE_CONTENT, error.status());
+        assertEquals("PROCEDURE_RUNTIME_PLAN_REJECTED", error.code());
+    }
+
+    @Test
     void unsupportedSchemaV2MappingShapesRemainDefinitionOnly() {
         ObjectNode append = mappingDefinition();
         ((ObjectNode) append.get("writeStrategy")).put("kind", "APPEND");
@@ -370,6 +407,8 @@ class PublicationServiceTest {
                 store,
                 objectMapper,
                 new PilotRuntimePlanResolver(objectMapper, secretSanitizer),
+                new ProcedureRuntimePlanResolver(
+                        objectMapper, secretSanitizer, new DefinitionContentValidator()),
                 secretSanitizer);
     }
 
@@ -382,6 +421,54 @@ class PublicationServiceTest {
                     "target":{"dataset":"TARGET","column":"ID"}}],
                  "writeStrategy":{"kind":"ATOMIC_DELETE_INSERT"}}
                 """);
+    }
+
+    private ObjectNode procedureDefinition() {
+        return (ObjectNode) objectMapper.readTree("""
+                {"tasks":[
+                  {"id":"TRUNCATE_TARGET","type":"SQL","connectionRole":"TARGET",
+                   "riskClass":"DESTRUCTIVE","requiresApproval":true,"onError":"STOP",
+                   "timeoutSeconds":60,"command":"TRUNCATE TABLE INNOVA_ODI.STG_HAKEDIS_TIPI"},
+                  {"id":"READ_SOURCE","type":"SQL","connectionRole":"SOURCE",
+                   "riskClass":"READ_ONLY","onError":"STOP","timeoutSeconds":300,
+                   "command":"SELECT ID FROM TTBP.HAKEDIS_TIPI",
+                   "output":{"kind":"ROWSET","maxRows":1000}},
+                  {"id":"INSERT_TARGET","type":"SQL","connectionRole":"TARGET",
+                   "riskClass":"DML","onError":"STOP","timeoutSeconds":300,
+                   "command":"INSERT INTO INNOVA_ODI.STG_HAKEDIS_TIPI (ID) VALUES (:ID)",
+                   "input":{"fromTask":"READ_SOURCE","mode":"BATCH","batchSize":250}},
+                   {"id":"GATHER_TARGET_STATS","type":"PLSQL","connectionRole":"TARGET",
+                    "riskClass":"DESTRUCTIVE","requiresApproval":true,"onError":"STOP",
+                   "timeoutSeconds":300,
+                   "command":"BEGIN DBMS_STATS.GATHER_TABLE_STATS('INNOVA_ODI','STG_HAKEDIS_TIPI'); END;"}
+                ]}
+                """);
+    }
+
+    private List<ResolvedBinding> procedureBindings() {
+        ResolvedBinding source = binding(
+                "READ_SOURCE", "KAYNAK", "TTBP", "HAKEDIS_TIPI");
+        ResolvedBinding target = binding(
+                "TRUNCATE_TARGET", "HEDEF", "INNOVA_ODI", "STG_HAKEDIS_TIPI");
+        return List.of(
+                source,
+                target,
+                copyBindingForNode(target, "INSERT_TARGET", 41),
+                copyBindingForNode(target, "GATHER_TARGET_STATS", 42));
+    }
+
+    private ResolvedBinding copyBindingForNode(
+            ResolvedBinding source, String nodeCode, long definitionBindingId) {
+        return new ResolvedBinding(
+                definitionBindingId, UUID.randomUUID(), nodeCode, source.role(),
+                source.dataObjectUuid(), source.dataObjectReference(), source.dataObjectType(),
+                source.environmentSchemaBindingId(), source.environmentSchemaBindingUuid(),
+                source.physicalSchemaId(), source.physicalSchemaUuid(),
+                source.physicalSchemaReference(), source.connectionVersionId(),
+                source.connectionVersionUuid(), source.databaseType(), source.targetSnapshotId(),
+                source.targetSnapshotUuid(), source.targetSnapshotFingerprint(),
+                source.bindingVersion(), source.dataObjectStatus(), source.modelStatus(),
+                source.logicalSchemaStatus(), source.connectionStatus());
     }
 
     private ObjectNode scenarioPlan(
