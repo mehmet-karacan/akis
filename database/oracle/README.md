@@ -75,7 +75,9 @@ değiştirildikten sonra marker trigger kontrollü olarak disable edilir, marker
 taşınır, trigger yeniden enable edilir ve `validate.sql` otomatik çalışır. DDL
 implicit commit sınırları nedeniyle hata sonrası otomatik downgrade yapılmaz;
 validate başarısızsa worker kapalı kalır ve DBA mevcut nesne/status/error
-görünümlerini inceleyerek aynı explicit upgrade'i tamamlar.
+görünümlerini inceleyerek V2 marker durumuna özel kontrollü repair veya yeni bir
+sürümlü migration uygular. V2 marker yazıldıktan sonra aynı V1 upgrade scripti
+yeniden çalıştırılmaz.
 
 Salt okunur kontrol ayrıca çalıştırılabilir:
 
