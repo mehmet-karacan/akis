@@ -566,7 +566,7 @@ commit;
 
     $snapshot = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/data-objects/$($tableObject.uuid)/schema-snapshots" @{
         physicalSchemaUuid = $physicalSchema.uuid
-        connectionVersionUuid = $connectionVersion.uuid
+        connectionVersionUuid = $v2JdbcVersion.uuid
         engineVersion = "Oracle Database 19c"
         discoveredAt = [DateTimeOffset]::UtcNow.ToString("o")
         propertyVersion = 1
@@ -613,7 +613,7 @@ commit;
     }
     $targetSnapshot = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/data-objects/$($targetTableObject.uuid)/schema-snapshots" @{
         physicalSchemaUuid = $physicalSchema.uuid
-        connectionVersionUuid = $connectionVersion.uuid
+        connectionVersionUuid = $v2JdbcVersion.uuid
         engineVersion = "Oracle Database 19c"
         discoveredAt = [DateTimeOffset]::UtcNow.ToString("o")
         propertyVersion = 1
@@ -659,9 +659,9 @@ commit;
         logicalSchemaUuid = $logicalSchema.uuid
         environmentUuid = $environment.uuid
         physicalSchemaUuid = $physicalSchema.uuid
-        connectionVersionUuid = $connectionVersion.uuid
+        connectionVersionUuid = $v2JdbcVersion.uuid
     }
-    if ($schemaBinding.connectionVersionUuid -ne $connectionVersion.uuid) {
+    if ($schemaBinding.connectionVersionUuid -ne $v2JdbcVersion.uuid) {
         throw "Schema binding did not pin the connection version."
     }
 
@@ -840,6 +840,43 @@ commit;
         throw "Deterministic idempotent scenario compilation failed."
     }
     $bindingPath = "/api/v1/projects/$($project.uuid)/definitions/$($mappingDefinition.uuid)/versions/$($mappingVersion.uuid)/data-bindings"
+    try {
+        Invoke-AkisJson POST $bindingPath @{
+            nodeCode = "source"
+            role = "KAYNAK"
+            dataObjectUuid = $tableObject.uuid
+            schemaSnapshotUuid = $snapshot.uuid
+        }
+        throw "An Oracle snapshot without server provenance was bound to a definition."
+    }
+    catch {
+        if ($_.Exception.Response.StatusCode.value__ -ne 404) {
+            throw
+        }
+    }
+    $snapshotEvidenceSql = @"
+insert into entegrasyon.sema_goruntusu_oracle_kaniti(
+    sema_goruntusu_id, proje_id, baglanti_id, baglanti_surumu_id,
+    baglanti_surumu_testi_uuid, hedef_kimlik_surumu,
+    hedef_parmak_izi, yakalama_sozlesmesi_surumu)
+select sg.id, p.id, b.id, bs.id, '$lifecycleTestUuid', 1,
+       '$lifecycleFingerprint', 1
+  from entegrasyon.proje p
+  join entegrasyon.baglanti b
+    on b.proje_id = p.id and b.uuid = '$($connection.uuid)'
+  join entegrasyon.baglanti_surumu bs
+    on bs.proje_id = p.id and bs.baglanti_id = b.id
+   and bs.uuid = '$($v2JdbcVersion.uuid)'
+  join entegrasyon.sema_goruntusu sg
+    on sg.proje_id = p.id and sg.baglanti_surumu_id = bs.id
+ where p.uuid = '$($project.uuid)'
+   and sg.uuid in ('$($snapshot.uuid)', '$($targetSnapshot.uuid)');
+"@
+    & $docker exec $container psql -v ON_ERROR_STOP=1 -U $databaseUser -d $testDatabase `
+        -c $snapshotEvidenceSql | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not seed isolated server snapshot evidence."
+    }
     $definitionBinding = Invoke-AkisJson POST $bindingPath @{
         nodeCode = "source"
         role = "KAYNAK"
@@ -873,7 +910,7 @@ commit;
         }
     }
     & $docker exec $container psql -v ON_ERROR_STOP=1 -U $databaseUser -d $testDatabase `
-        -c "update entegrasyon.ortam_sema_eslemesi set baglanti_surumu_id = (select id from entegrasyon.baglanti_surumu where uuid = '$($connectionVersion.uuid)') where uuid = '$($schemaBinding.uuid)'" | Out-Null
+        -c "update entegrasyon.ortam_sema_eslemesi set baglanti_surumu_id = (select id from entegrasyon.baglanti_surumu where uuid = '$($v2JdbcVersion.uuid)') where uuid = '$($schemaBinding.uuid)'" | Out-Null
     $publication = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/publications" @{
         scenarioUuid = $scenario.uuid
         environmentUuid = $environment.uuid

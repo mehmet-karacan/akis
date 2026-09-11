@@ -355,6 +355,73 @@ class JdbcPinnedSchemaSnapshotStoreIT {
                 .param("propertyVersion", body.propertyVersion())
                 .param("properties", body.properties().toString())
                 .param("uuid", snapshotUuid).query(Long.class).single();
+        UUID connectionTestUuid = UUID.randomUUID();
+        String targetFingerprint = "e".repeat(64);
+        jdbc.sql("""
+                        insert into entegrasyon.baglanti_surumu_testi(
+                            proje_id, baglanti_id, baglanti_surumu_id, uuid,
+                            deneme_no, sonuc_kodu, database_product,
+                            database_version, database_major, database_minor,
+                            driver_name, driver_version, hedef_kimlik_surumu,
+                            hedef_parmak_izi, baslama_zamani,
+                            tamamlanma_zamani, sure_ms)
+                        values (:projectId, :connectionId, :connectionVersionId,
+                                :testUuid, 1, 'PASSED', 'Oracle',
+                                'Oracle Database 19c', 19, 0, 'Oracle JDBC',
+                                'integration-test', 1, :targetFingerprint,
+                                current_timestamp, current_timestamp, 0)
+                        """)
+                .param("projectId", projectId)
+                .param("connectionId", connectionId)
+                .param("connectionVersionId", connectionVersionId)
+                .param("testUuid", connectionTestUuid)
+                .param("targetFingerprint", targetFingerprint)
+                .update();
+        jdbc.sql("""
+                        update entegrasyon.baglanti_surumu_yasam_dongusu
+                           set durum_kodu = 'TESTED', durum_surumu = 2,
+                               hedef_kimlik_surumu = 1,
+                               hedef_parmak_izi = :targetFingerprint,
+                               son_basarili_test_uuid = :testUuid,
+                               test_edilme_zamani = (
+                                   select tamamlanma_zamani
+                                     from entegrasyon.baglanti_surumu_testi
+                                    where uuid = :testUuid)
+                         where proje_id = :projectId
+                           and baglanti_surumu_id = :connectionVersionId
+                        """)
+                .param("targetFingerprint", targetFingerprint)
+                .param("testUuid", connectionTestUuid)
+                .param("projectId", projectId)
+                .param("connectionVersionId", connectionVersionId)
+                .update();
+        jdbc.sql("""
+                        update entegrasyon.baglanti_surumu_yasam_dongusu
+                           set durum_kodu = 'ACTIVE', durum_surumu = 3,
+                               aktiflestirilme_zamani = current_timestamp
+                         where proje_id = :projectId
+                           and baglanti_surumu_id = :connectionVersionId
+                        """)
+                .param("projectId", projectId)
+                .param("connectionVersionId", connectionVersionId)
+                .update();
+        jdbc.sql("""
+                        insert into entegrasyon.sema_goruntusu_oracle_kaniti(
+                            sema_goruntusu_id, proje_id, baglanti_id,
+                            baglanti_surumu_id, baglanti_surumu_testi_uuid,
+                            hedef_kimlik_surumu, hedef_parmak_izi,
+                            yakalama_sozlesmesi_surumu)
+                        values (:snapshotId, :projectId, :connectionId,
+                                :connectionVersionId, :testUuid, 1,
+                                :targetFingerprint, 1)
+                        """)
+                .param("snapshotId", snapshotId)
+                .param("projectId", projectId)
+                .param("connectionId", connectionId)
+                .param("connectionVersionId", connectionVersionId)
+                .param("testUuid", connectionTestUuid)
+                .param("targetFingerprint", targetFingerprint)
+                .update();
         Column column = body.columns().getFirst();
         jdbc.sql("""
                         insert into entegrasyon.kolon_goruntusu(

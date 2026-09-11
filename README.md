@@ -108,7 +108,8 @@ Güvenilir katalog şema görüntüsü istemci tarafından oluşturulmaz: V2 sna
 capture akışı Oracle dictionary metadata'sını sunucuda kanonikleştirir, immutable
 fingerprint üretir ve bağlantı testine bağlı provenance kanıtıyla birlikte kaydeder.
 V1 manuel snapshot endpoint'i yalnız geriye uyumluluk içindir ve bu provenance
-kanıtını üretmez.
+kanıtını üretmez; kanıtsız Oracle snapshot'ı yeni bir tanıma bağlanamaz ve runtime
+tarafından yüklenmez.
 
 Oracle target-local ledger kurulumu runtime migration veya CI/CD işi değildir.
 Kontrollü DBA kurulumu ve bağımsız doğrulama için:

@@ -82,9 +82,26 @@ public class JdbcDefinitionDataBindingStore implements DefinitionDataBindingStor
     public Optional<SchemaSnapshotRef> findSchemaSnapshot(
             long projectId, UUID schemaSnapshotUuid) {
         return jdbc.sql("""
-                        select id, uuid, veri_nesnesi_id
-                          from entegrasyon.sema_goruntusu
-                         where proje_id = :projectId and uuid = :uuid
+                        select sg.id, sg.uuid, sg.veri_nesnesi_id
+                          from entegrasyon.sema_goruntusu sg
+                          join entegrasyon.baglanti_surumu bs
+                            on bs.proje_id = sg.proje_id
+                           and bs.id = sg.baglanti_surumu_id
+                          join entegrasyon.baglanti b
+                            on b.proje_id = sg.proje_id
+                           and b.id = bs.baglanti_id
+                         where sg.proje_id = :projectId
+                           and sg.uuid = :uuid
+                           and (
+                               b.veritabani_turu <> 'ORACLE'
+                               or exists (
+                                   select 1
+                                     from entegrasyon.sema_goruntusu_oracle_kaniti ok
+                                    where ok.proje_id = sg.proje_id
+                                      and ok.sema_goruntusu_id = sg.id
+                                      and ok.baglanti_surumu_id = sg.baglanti_surumu_id
+                               )
+                           )
                         """)
                 .param("projectId", projectId)
                 .param("uuid", schemaSnapshotUuid)

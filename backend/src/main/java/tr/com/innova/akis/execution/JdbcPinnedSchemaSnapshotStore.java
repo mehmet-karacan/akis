@@ -68,6 +68,10 @@ public class JdbcPinnedSchemaSnapshotStore implements PinnedSchemaSnapshotPort {
                 on b.proje_id = yb.proje_id and b.id = bs.baglanti_id
               join entegrasyon.sema_goruntusu sg
                 on sg.proje_id = yb.proje_id and sg.id = yb.sema_goruntusu_id
+              join entegrasyon.sema_goruntusu_oracle_kaniti ok
+                on ok.proje_id = yb.proje_id
+               and ok.sema_goruntusu_id = sg.id
+               and ok.baglanti_surumu_id = bs.id
              where t.uuid = :definitionUuid
                and ts.uuid = :definitionVersionUuid
                and y.release_hash = :releaseHash

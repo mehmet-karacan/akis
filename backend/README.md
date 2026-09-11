@@ -106,7 +106,8 @@ Snapshot ile onu üreten başarılı bağlantı testi, hedef fingerprint'i ve ca
 sözleşmesi V020 provenance kaydında immutable tutulur. Aynı fiziksel şeklin tekrar
 yakalanması aynı snapshot UUID/fingerprint'ini döndürür.
 V1 manuel snapshot endpoint'i geriye uyumluluk için korunur; sunucu üretimli
-provenance kanıtı taşımaz ve yeni UI akışı tarafından kullanılmaz.
+provenance kanıtı taşımaz, yeni bir tanıma bağlanamaz, runtime tarafından yüklenmez
+ve yeni UI akışı tarafından kullanılmaz.
 
 Oracle bağlantı sürümleri `JDBC` veya `JNDI` modundadır. JDBC sürücüsü backend
 tarafından `oracle.jdbc.OracleDriver` olarak sabitlenir ve Service Name/SID
