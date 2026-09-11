@@ -3,6 +3,7 @@ package tr.com.innova.akis.execution;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
@@ -183,8 +185,41 @@ class JdbcRunLeaseStoreIT {
         ClaimedRun claimed = claim("lease-it-worker-complete");
         TargetFenceToken target = store.acquireTarget(claimed.token(), TARGET_HASH, 1);
 
-        assertTrue(transition("calistirma_calismaya_baslat", claimed.token(), target));
-        assertTrue(transition("calistirma_yayina_gec", claimed.token(), target));
+        assertTrue(startWork(claimed.token(), target));
+        assertThrows(DataAccessException.class, () -> jdbc.sql("""
+                        select entegrasyon.pilot_calistirma_asamasina_gec(
+                            :runUuid, :workerReference, :runGeneration,
+                            :targetUuid, :targetGeneration,
+                            'CALISIYOR', 'YAYINLANIYOR', 'PUBLISH_STARTED')
+                        """)
+                .param("runUuid", claimed.token().runUuid())
+                .param("workerReference", claimed.token().workerReference())
+                .param("runGeneration", claimed.token().generation())
+                .param("targetUuid", target.targetResourceUuid())
+                .param("targetGeneration", target.targetGeneration())
+                .query(Boolean.class)
+                .single());
+        assertTrue(startPublish(claimed.token(), target));
+        assertTrue(startPublish(claimed.token(), target));
+        assertFalse(startPublish(claimed.token(), target, "0".repeat(64)));
+        assertEquals(1, jdbc.sql("""
+                        select count(*) from entegrasyon.pilot_yayin_niyeti
+                         where calistirma_nesil_no = :runGeneration
+                           and hedef_nesil_no = :targetGeneration
+                           and runtime_plan_ozeti = :runtimePlanHash
+                           and yayin_anahtari_ozeti = :publishKeyHash
+                           and payload_ozeti = :payloadHash
+                        """)
+                .param("runGeneration", claimed.token().generation())
+                .param("targetGeneration", target.targetGeneration())
+                .param("runtimePlanHash", RUNTIME_PLAN_HASH)
+                .param("publishKeyHash", PUBLISH_KEY_HASH)
+                .param("payloadHash", PAYLOAD_HASH)
+                .query(Integer.class)
+                .single());
+        assertThrows(DataAccessException.class,
+                () -> complete(claimed.token(), target, "0".repeat(64)));
+        assertEquals("YAYINLANIYOR", runStatus(claimed.token().runUuid()));
         assertTrue(complete(claimed.token(), target, PAYLOAD_HASH));
 
         assertEquals("BASARILI", runStatus(claimed.token().runUuid()));
@@ -214,8 +249,8 @@ class JdbcRunLeaseStoreIT {
     void uncertainRunRequiresDedicatedReconciliationLeaseBeforeSafeRetry() {
         ClaimedRun claimed = claim("lease-it-worker-uncertain");
         TargetFenceToken target = store.acquireTarget(claimed.token(), TARGET_HASH, 1);
-        assertTrue(transition("calistirma_calismaya_baslat", claimed.token(), target));
-        assertTrue(transition("calistirma_yayina_gec", claimed.token(), target));
+        assertTrue(startWork(claimed.token(), target));
+        assertTrue(startPublish(claimed.token(), target));
 
         assertTrue(jdbc.sql("""
                         select entegrasyon.calistirma_sonucu_belirsiz_isaretle(
@@ -287,12 +322,8 @@ class JdbcRunLeaseStoreIT {
                 .orElseThrow();
     }
 
-    private boolean transition(String functionName, RunLeaseToken run, TargetFenceToken target) {
-        if (!functionName.equals("calistirma_calismaya_baslat")
-                && !functionName.equals("calistirma_yayina_gec")) {
-            throw new IllegalArgumentException("Unsupported test transition");
-        }
-        return jdbc.sql("select entegrasyon." + functionName + "("
+    private boolean startWork(RunLeaseToken run, TargetFenceToken target) {
+        return jdbc.sql("select entegrasyon.calistirma_calismaya_baslat("
                         + ":runUuid, :workerReference, :runGeneration, "
                         + ":targetUuid, :targetGeneration)")
                 .param("runUuid", run.runUuid())
@@ -300,6 +331,30 @@ class JdbcRunLeaseStoreIT {
                 .param("runGeneration", run.generation())
                 .param("targetUuid", target.targetResourceUuid())
                 .param("targetGeneration", target.targetGeneration())
+                .query(Boolean.class)
+                .single();
+    }
+
+    private boolean startPublish(RunLeaseToken run, TargetFenceToken target) {
+        return startPublish(run, target, PAYLOAD_HASH);
+    }
+
+    private boolean startPublish(
+            RunLeaseToken run, TargetFenceToken target, String payloadHash) {
+        return jdbc.sql("""
+                        select entegrasyon.calistirma_yayina_gec(
+                            :runUuid, :workerReference, :runGeneration,
+                            :targetUuid, :targetGeneration, :runtimePlanHash,
+                            :publishKeyHash, :payloadHash, 33, 1024)
+                        """)
+                .param("runUuid", run.runUuid())
+                .param("workerReference", run.workerReference())
+                .param("runGeneration", run.generation())
+                .param("targetUuid", target.targetResourceUuid())
+                .param("targetGeneration", target.targetGeneration())
+                .param("runtimePlanHash", RUNTIME_PLAN_HASH)
+                .param("publishKeyHash", PUBLISH_KEY_HASH)
+                .param("payloadHash", payloadHash)
                 .query(Boolean.class)
                 .single();
     }
