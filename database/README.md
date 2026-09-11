@@ -20,10 +20,13 @@ değer olayları, checkpoint, audit ve lineage aynı baseline içindedir.
     .\database\test-schema.ps1
 
 Test geçici bir veritabanı oluşturur; önce V003 legacy run kayıtlarını hazırlar,
-V004 yükseltmesini uygular ve son Flyway çalıştırmasının no-op olduğunu doğrular.
+V004 ve V005 yükseltmelerini uygular ve son Flyway çalıştırmasının no-op olduğunu doğrular.
 58 tabloyu, dokuz tanım türünü, 24 RBAC yetkisini, dört varsayılan proje rolünü,
-run durum makinesini,
-tenant FK'larını ve append-only negatif testlerini denetler.
+run durum makinesini, DB-time claim/heartbeat davranışını, hedef sahipliği ile
+fencing neslini, checkpoint kanıtını, tenant FK'larını ve append-only negatif
+testlerini denetler. PostgreSQL fonksiyonları Oracle veya başka bir ağa bağlanmaz;
+varsayılan heartbeat aralığı worker yapılandırmasında 10 saniye, varsayılan lease
+süresi ise fonksiyon parametresinde 60 saniyedir.
 Ardından geçici veritabanını siler; geliştirme veritabanına ve Oracle
 kaynak/hedeflerine dokunmaz.
 

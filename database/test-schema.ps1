@@ -31,6 +31,7 @@ if ([string]::IsNullOrWhiteSpace($container)) {
 
 $databaseUser = $settings["POSTGRES_USER"]
 $testDatabase = "akis_schema_test_" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+$cleanDatabase = $testDatabase + "_clean"
 
 try {
     & $docker exec $container createdb -U $databaseUser $testDatabase
@@ -210,7 +211,7 @@ BEGIN
         RAISE EXCEPTION 'A forbidden cleartext secret column exists';
     END IF;
 
-    IF (SELECT count(*) FROM public.flyway_schema_history WHERE success) <> 4 THEN
+    IF (SELECT count(*) FROM public.flyway_schema_history WHERE success) <> 5 THEN
         RAISE EXCEPTION 'Flyway replay was not a no-op';
     END IF;
 
@@ -230,6 +231,20 @@ BEGIN
          WHERE durum_kodu IN ('SAHIPLENILDI', 'SONUCU_BILINMIYOR')
     ) THEN
         RAISE EXCEPTION 'Legacy run states were not upgraded canonically';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+          FROM entegrasyon.calistirma c
+          JOIN entegrasyon.is_talebi it
+            ON it.proje_id = c.proje_id AND it.id = c.is_talebi_id
+          JOIN entegrasyon.yayin y
+            ON y.proje_id = it.proje_id AND y.id = it.yayin_id
+          JOIN entegrasyon.senaryo s ON s.id = y.senaryo_id
+         WHERE c.yayin_ozeti IS DISTINCT FROM y.release_hash
+            OR c.plan_ozeti IS DISTINCT FROM s.plan_ozeti
+    ) THEN
+        RAISE EXCEPTION 'Legacy run release and plan hashes were not separated correctly';
     END IF;
 
     IF (SELECT count(*) FROM entegrasyon.yetki) <> 24 THEN
@@ -271,6 +286,18 @@ BEGIN
                'ix_calistirma_adimi_run_sira', 'ix_calistirma_gorevi_adim_sira')
     ) <> 6 THEN
         RAISE EXCEPTION 'Run query indexes are incomplete';
+    END IF;
+
+    IF position('SKIP LOCKED' in upper(pg_get_functiondef(
+        'entegrasyon.calistirma_sahiplen(uuid,text,integer)'::regprocedure))) = 0
+       OR position('CLOCK_TIMESTAMP' in upper(pg_get_functiondef(
+        'entegrasyon.calistirma_sahiplen(uuid,text,integer)'::regprocedure))) = 0 THEN
+        RAISE EXCEPTION 'Run claim must use SKIP LOCKED and database time';
+    END IF;
+
+    IF position('CLOCK_TIMESTAMP' in upper(pg_get_functiondef(
+        'entegrasyon.calistirma_yasam_sinyali(uuid,text,bigint,integer)'::regprocedure))) = 0 THEN
+        RAISE EXCEPTION 'Heartbeat must use database time';
     END IF;
 
     IF NOT EXISTS (
@@ -463,9 +490,11 @@ SELECT y.proje_id, y.id, encode(sha256(convert_to('schema-test-request', 'UTF8')
   JOIN entegrasyon.proje p ON p.id = y.proje_id AND p.kod = 'P1';
 
 INSERT INTO entegrasyon.calistirma(
-    proje_id, is_talebi_id, deneme_no, plan_ozeti, baslatma_turu)
-SELECT i.proje_id, i.id, 1, encode(sha256(convert_to('schema-test-plan', 'UTF8')), 'hex'), 'ILK'
+    proje_id, is_talebi_id, deneme_no, yayin_ozeti, plan_ozeti, baslatma_turu)
+SELECT i.proje_id, i.id, 1, y.release_hash, s.plan_ozeti, 'ILK'
   FROM entegrasyon.is_talebi i
+  JOIN entegrasyon.yayin y ON y.proje_id = i.proje_id AND y.id = i.yayin_id
+  JOIN entegrasyon.senaryo s ON s.id = y.senaryo_id
   JOIN entegrasyon.proje p ON p.id = i.proje_id AND p.kod = 'P1';
 
 INSERT INTO entegrasyon.calistirma_durumu(
@@ -595,8 +624,331 @@ END $$;
         throw "Metadata schema assertions failed."
     }
 
-    Write-Output "Metadata schema test: PASS (58 tables, 9 definition types, 4 Flyway migrations, run and RBAC guards)"
+    $leaseSql = @'
+SET search_path TO entegrasyon, public;
+
+INSERT INTO worker_profili(kod, capability, ad)
+VALUES ('CLAIM_WORKER', '{}'::jsonb, 'Claim test worker');
+
+INSERT INTO is_talebi(
+    proje_id, yayin_id, istek_ozeti, is_turu, oncelik, parametre)
+SELECT p.id, NULL,
+       encode(sha256(convert_to('non-run-request', 'UTF8')), 'hex'),
+       'TEST', 100, '{}'::jsonb
+  FROM proje p WHERE p.kod = 'P1';
+
+INSERT INTO calistirma(
+    proje_id, is_talebi_id, deneme_no, yayin_ozeti, plan_ozeti, baslatma_turu)
+SELECT proje_id, id, 1, NULL,
+       encode(sha256(convert_to('non-run-plan', 'UTF8')), 'hex'), 'ILK'
+  FROM is_talebi
+ WHERE istek_ozeti = encode(sha256(convert_to('non-run-request', 'UTF8')), 'hex');
+
+INSERT INTO is_talebi(
+    proje_id, yayin_id, istek_ozeti, is_turu, oncelik, parametre)
+SELECT y.proje_id, y.id, request.digest, 'RUN', request.priority, '{}'::jsonb
+  FROM yayin y
+  JOIN proje p ON p.id = y.proje_id AND p.kod = 'P1'
+ CROSS JOIN (VALUES
+    (encode(sha256(convert_to('claim-run-a', 'UTF8')), 'hex'), 80),
+    (encode(sha256(convert_to('claim-run-b', 'UTF8')), 'hex'), 70)
+ ) AS request(digest, priority);
+
+DO $$
+BEGIN
+    BEGIN
+        INSERT INTO calistirma(
+            proje_id, is_talebi_id, deneme_no, yayin_ozeti, plan_ozeti, baslatma_turu)
+        SELECT it.proje_id, it.id, 1, NULL, s.plan_ozeti, 'ILK'
+          FROM is_talebi it
+          JOIN yayin y ON y.proje_id = it.proje_id AND y.id = it.yayin_id
+          JOIN senaryo s ON s.id = y.senaryo_id
+         WHERE it.istek_ozeti = encode(sha256(convert_to('claim-run-a', 'UTF8')), 'hex');
+        RAISE EXCEPTION 'RUN without release hash was accepted';
+    EXCEPTION WHEN raise_exception THEN
+        IF SQLERRM = 'RUN without release hash was accepted' THEN
+            RAISE;
+        END IF;
+    END;
+END $$;
+
+INSERT INTO calistirma(
+    proje_id, is_talebi_id, deneme_no, yayin_ozeti, plan_ozeti, baslatma_turu)
+SELECT it.proje_id, it.id, 1, y.release_hash, s.plan_ozeti, 'ILK'
+  FROM is_talebi it
+  JOIN yayin y ON y.proje_id = it.proje_id AND y.id = it.yayin_id
+  JOIN senaryo s ON s.id = y.senaryo_id
+ WHERE it.istek_ozeti IN (
+    encode(sha256(convert_to('claim-run-a', 'UTF8')), 'hex'),
+    encode(sha256(convert_to('claim-run-b', 'UTF8')), 'hex'));
+
+INSERT INTO calistirma_durumu(proje_id, calistirma_id, durum_kodu, son_olay_no)
+SELECT c.proje_id, c.id, 'BEKLIYOR', 1
+  FROM calistirma c
+  JOIN is_talebi it ON it.id = c.is_talebi_id
+ WHERE it.istek_ozeti IN (
+    encode(sha256(convert_to('non-run-request', 'UTF8')), 'hex'),
+    encode(sha256(convert_to('claim-run-a', 'UTF8')), 'hex'),
+    encode(sha256(convert_to('claim-run-b', 'UTF8')), 'hex'));
+
+INSERT INTO calistirma_olayi(
+    proje_id, calistirma_id, olay_no, tur_kodu, olay_zamani, veri)
+SELECT c.proje_id, c.id, 1, 'RUN_QUEUED', clock_timestamp(), '{}'::jsonb
+  FROM calistirma c
+  JOIN is_talebi it ON it.id = c.is_talebi_id
+ WHERE it.istek_ozeti IN (
+    encode(sha256(convert_to('non-run-request', 'UTF8')), 'hex'),
+    encode(sha256(convert_to('claim-run-a', 'UTF8')), 'hex'),
+    encode(sha256(convert_to('claim-run-b', 'UTF8')), 'hex'));
+
+CREATE TEMP TABLE first_claim AS
+SELECT * FROM calistirma_sahiplen(
+    (SELECT uuid FROM worker_profili WHERE kod = 'CLAIM_WORKER'),
+    'schema-worker-a', 60);
+
+DO $$
+DECLARE
+    v_run_uuid UUID;
+    v_generation BIGINT;
+    v_target_hash TEXT := encode(sha256(convert_to('oracle-target-identity', 'UTF8')), 'hex');
+BEGIN
+    SELECT calistirma_uuid, nesil_no INTO v_run_uuid, v_generation FROM first_claim;
+    IF v_run_uuid IS NULL OR v_generation <> 1 THEN
+        RAISE EXCEPTION 'RUN claim did not allocate generation one';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+          FROM calistirma c
+          JOIN is_talebi it ON it.id = c.is_talebi_id
+         WHERE c.uuid = v_run_uuid
+           AND it.istek_ozeti = encode(sha256(convert_to('claim-run-a', 'UTF8')), 'hex')
+    ) THEN
+        RAISE EXCEPTION 'Claim ignored RUN priority ordering';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+          FROM calistirma_durumu cd
+          JOIN calistirma c ON c.id = cd.calistirma_id
+          JOIN is_talebi it ON it.id = c.is_talebi_id
+         WHERE it.is_turu = 'TEST' AND cd.durum_kodu = 'BEKLIYOR'
+    ) THEN
+        RAISE EXCEPTION 'Non-RUN request was claimed by the execution worker';
+    END IF;
+
+    PERFORM * FROM hedef_kaynagi_sahiplen(
+        v_run_uuid, 'schema-worker-a', v_generation, v_target_hash, 1);
+
+    IF NOT calistirma_yasam_sinyali(
+        v_run_uuid, 'schema-worker-a', v_generation, 60) THEN
+        RAISE EXCEPTION 'Valid DB-time heartbeat was rejected';
+    END IF;
+
+    UPDATE hedef_kaynagi
+       SET kiralama_bitis_zamani = clock_timestamp() - interval '1 second',
+           guncellenme_zamani = clock_timestamp(),
+           versiyon_no = versiyon_no + 1
+     WHERE fiziksel_ozet = v_target_hash;
+
+    UPDATE calistirma_durumu cd
+       SET kiralama_bitis_zamani = clock_timestamp() - interval '1 second',
+           guncellenme_zamani = clock_timestamp(),
+           versiyon_no = cd.versiyon_no + 1
+      FROM calistirma c
+     WHERE c.id = cd.calistirma_id AND c.uuid = v_run_uuid;
+END $$;
+
+CREATE TEMP TABLE reaped_target AS
+SELECT * FROM suresi_dolan_hedefleri_askiya_al(10);
+
+DO $$
+BEGIN
+    IF (SELECT count(*) FROM reaped_target) <> 1
+       OR NOT EXISTS (
+           SELECT 1 FROM hedef_kaynagi
+            WHERE fiziksel_ozet = encode(sha256(convert_to('oracle-target-identity', 'UTF8')), 'hex')
+              AND durum_kodu = 'ASKIDA'
+              AND calistirma_id IS NULL
+              AND kiralama_bitis_zamani IS NULL
+       ) OR NOT EXISTS (
+           SELECT 1
+             FROM calistirma_durumu cd
+             JOIN calistirma c ON c.id = cd.calistirma_id
+            WHERE c.uuid = (SELECT calistirma_uuid FROM first_claim)
+              AND cd.durum_kodu = 'SONUC_BELIRSIZ'
+       ) THEN
+        RAISE EXCEPTION 'Expired target was not atomically suspended for reconciliation';
+    END IF;
+END $$;
+
+CREATE TEMP TABLE second_claim AS
+SELECT * FROM calistirma_sahiplen(
+    (SELECT uuid FROM worker_profili WHERE kod = 'CLAIM_WORKER'),
+    'schema-worker-b', 60);
+
+DO $$
+DECLARE
+    v_run_uuid UUID;
+    v_generation BIGINT;
+    v_target_hash TEXT := encode(sha256(convert_to('oracle-target-identity', 'UTF8')), 'hex');
+BEGIN
+    SELECT calistirma_uuid, nesil_no INTO v_run_uuid, v_generation FROM second_claim;
+    IF v_run_uuid IS NULL THEN
+        RAISE EXCEPTION 'Second RUN could not be claimed';
+    END IF;
+
+    BEGIN
+        PERFORM * FROM hedef_kaynagi_sahiplen(
+            v_run_uuid, 'schema-worker-b', v_generation, v_target_hash, 1);
+        RAISE EXCEPTION 'Expired target owner was directly preempted';
+    EXCEPTION WHEN raise_exception THEN
+        IF SQLERRM = 'Expired target owner was directly preempted' THEN
+            RAISE;
+        END IF;
+        IF position('askıdadır' in SQLERRM) = 0 THEN
+            RAISE;
+        END IF;
+    END;
+
+    BEGIN
+        UPDATE hedef_kaynagi hk
+           SET calistirma_id = c.id,
+               nesil_no = hk.nesil_no + 1,
+               kiralama_bitis_zamani = clock_timestamp() + interval '60 seconds',
+               guncellenme_zamani = clock_timestamp(),
+               versiyon_no = hk.versiyon_no + 1
+          FROM calistirma c
+         WHERE hk.fiziksel_ozet = v_target_hash AND c.uuid = v_run_uuid;
+        RAISE EXCEPTION 'Direct target owner transfer was accepted';
+    EXCEPTION WHEN raise_exception THEN
+        IF SQLERRM = 'Direct target owner transfer was accepted' THEN
+            RAISE;
+        END IF;
+    END;
+END $$;
+
+UPDATE calistirma_durumu cd
+   SET kiralama_bitis_zamani = clock_timestamp() - interval '1 second',
+       guncellenme_zamani = clock_timestamp(),
+       versiyon_no = cd.versiyon_no + 1
+  FROM calistirma c
+ WHERE c.id = cd.calistirma_id
+   AND c.uuid = (SELECT calistirma_uuid FROM second_claim);
+
+CREATE TEMP TABLE reaped_targetless_preparation AS
+SELECT * FROM suresi_dolan_hedefsiz_hazirliklari_sonlandir(10);
+
+DO $$
+BEGIN
+    IF (SELECT count(*) FROM reaped_targetless_preparation) <> 1
+       OR NOT EXISTS (
+           SELECT 1
+             FROM calistirma_durumu cd
+             JOIN calistirma c ON c.id = cd.calistirma_id
+            WHERE c.uuid = (SELECT calistirma_uuid FROM second_claim)
+              AND cd.durum_kodu = 'BASARISIZ'
+              AND cd.hedef_kaynagi_id IS NULL
+              AND cd.hedef_nesil_no IS NULL
+              AND cd.kiralama_bitis_zamani IS NULL
+              AND cd.bitis_zamani IS NOT NULL
+              AND cd.nesil_no = (SELECT nesil_no FROM second_claim)
+       ) OR NOT EXISTS (
+           SELECT 1
+             FROM calistirma_olayi co
+             JOIN calistirma c ON c.id = co.calistirma_id
+            WHERE c.uuid = (SELECT calistirma_uuid FROM second_claim)
+              AND co.tur_kodu = 'PREPARATION_LEASE_EXPIRED'
+              AND co.veri ->> 'requiresReconciliation' = 'false'
+       ) THEN
+        RAISE EXCEPTION 'Expired targetless preparation was not closed deterministically';
+    END IF;
+END $$;
+
+INSERT INTO calistirma_adimi(
+    proje_id, calistirma_id, adim_kodu, tur_kodu, sira_no, ad)
+SELECT c.proje_id, c.id, 'TRANSFER_1', 'MAPPING', 1, 'Transfer checkpoint step'
+  FROM calistirma c
+ WHERE c.uuid = (SELECT calistirma_uuid FROM first_claim);
+
+INSERT INTO kontrol_noktasi(
+    proje_id, calistirma_id, calistirma_adimi_id,
+    hedef_kaynagi_id, hedef_nesil_no,
+    kapsam_ozeti, bolum_kodu, sira_no, paket_anahtari,
+    hedef_defter_referansi, tur_kodu, dogrulama_zamani,
+    yayin_ozeti, plan_ozeti, payload_ozeti, imlec)
+SELECT c.proje_id, c.id, ca.id,
+       cd.hedef_kaynagi_id, cd.hedef_nesil_no,
+       encode(sha256(convert_to('checkpoint-scope', 'UTF8')), 'hex'),
+       'FULL', 1,
+       encode(sha256(convert_to('batch-key-1', 'UTF8')), 'hex'),
+       'ETL_YUKLEME_DEFTERI:BATCH_1', 'BATCH', clock_timestamp(),
+       c.yayin_ozeti, c.plan_ozeti,
+       encode(sha256(convert_to('payload-1', 'UTF8')), 'hex'),
+       jsonb_build_object('batch', 1)
+  FROM calistirma c
+  JOIN calistirma_durumu cd ON cd.calistirma_id = c.id
+  JOIN calistirma_adimi ca ON ca.calistirma_id = c.id
+ WHERE c.uuid = (SELECT calistirma_uuid FROM first_claim);
+
+DO $$
+BEGIN
+    BEGIN
+        UPDATE kontrol_noktasi SET imlec = jsonb_build_object('batch', 2)
+         WHERE hedef_defter_referansi = 'ETL_YUKLEME_DEFTERI:BATCH_1';
+        RAISE EXCEPTION 'Verified checkpoint update was accepted';
+    EXCEPTION WHEN raise_exception THEN
+        IF SQLERRM = 'Verified checkpoint update was accepted' THEN
+            RAISE;
+        END IF;
+    END;
+
+    BEGIN
+        DELETE FROM kontrol_noktasi
+         WHERE hedef_defter_referansi = 'ETL_YUKLEME_DEFTERI:BATCH_1';
+        RAISE EXCEPTION 'Verified checkpoint delete was accepted';
+    EXCEPTION WHEN raise_exception THEN
+        IF SQLERRM = 'Verified checkpoint delete was accepted' THEN
+            RAISE;
+        END IF;
+    END;
+END $$;
+'@
+
+    $leaseSql |
+        & $docker exec -i $container psql -v ON_ERROR_STOP=1 -1 -U $databaseUser -d $testDatabase
+    if ($LASTEXITCODE -ne 0) {
+        throw "Lease and fencing schema assertions failed."
+    }
+
+    & $docker exec $container createdb -U $databaseUser $cleanDatabase
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not create clean migration test database."
+    }
+
+    $env:SPRING_DATASOURCE_URL = "jdbc:postgresql://localhost:$($settings['POSTGRES_PORT'])/$cleanDatabase"
+    & $maven -q -pl backend spring-boot:run "-Dspring-boot.run.arguments=--spring.main.banner-mode=off"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Clean Flyway migration failed."
+    }
+
+    $cleanAssertion = @'
+DO $$
+BEGIN
+    IF (SELECT count(*) FROM public.flyway_schema_history WHERE success) <> 5 THEN
+        RAISE EXCEPTION 'Clean database did not apply all five migrations';
+    END IF;
+END $$;
+'@
+    $cleanAssertion |
+        & $docker exec -i $container psql -v ON_ERROR_STOP=1 -U $databaseUser -d $cleanDatabase | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Clean migration assertions failed."
+    }
+
+    Write-Output "Metadata schema test: PASS (58 tables, 9 definition types, 5 Flyway migrations, run, lease and RBAC guards)"
 }
 finally {
     & $docker exec $container dropdb --if-exists --force -U $databaseUser $testDatabase | Out-Null
+    & $docker exec $container dropdb --if-exists --force -U $databaseUser $cleanDatabase | Out-Null
 }
