@@ -30,6 +30,11 @@ süresi ise fonksiyon parametresinde 60 saniyedir.
 Ardından geçici veritabanını siler; geliştirme veritabanına ve Oracle
 kaynak/hedeflerine dokunmaz.
 
+Oracle 19c hedefinde kullanılacak target-local ledger/fencing DBA scriptleri,
+transaction sözleşmesi ve doğrulama adımları `database/oracle/README.md`
+belgesindedir. Bu scriptler otomatik migration/CI parçası değildir ve bağlantı
+bilgisi içermez.
+
 Testler geçtikten sonra baseline'ı `.env` içindeki yerel geliştirme PostgreSQL'ine
 Flyway ile uygulamak için:
 

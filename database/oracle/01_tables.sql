@@ -1,0 +1,177 @@
+DECLARE
+    PROCEDURE create_table_if_absent(
+        p_table_name IN VARCHAR2,
+        p_ddl IN VARCHAR2) IS
+        v_count NUMBER;
+    BEGIN
+        SELECT COUNT(*) INTO v_count
+          FROM USER_TABLES
+         WHERE TABLE_NAME = p_table_name;
+        IF v_count = 0 THEN
+            EXECUTE IMMEDIATE p_ddl;
+        END IF;
+    END;
+BEGIN
+    create_table_if_absent('ETL_KURULUM_SURUMU', q'~
+        CREATE TABLE ETL_KURULUM_SURUMU (
+            COMPONENT_CODE VARCHAR2(30 BYTE) NOT NULL,
+            SCHEMA_VERSION NUMBER(10,0) NOT NULL,
+            CONTRACT_HASH VARCHAR2(64 BYTE) NOT NULL,
+            INSTALLED_AT TIMESTAMP(6) WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL,
+            INSTALLED_BY VARCHAR2(128 BYTE) NOT NULL,
+            CONSTRAINT ETL_KS_PK PRIMARY KEY (COMPONENT_CODE),
+            CONSTRAINT ETL_KS_COMP_CK CHECK (COMPONENT_CODE = 'AKIS_LEDGER'),
+            CONSTRAINT ETL_KS_VER_CK CHECK (SCHEMA_VERSION > 0),
+            CONSTRAINT ETL_KS_HASH_CK CHECK (
+                LENGTH(CONTRACT_HASH) = 64 AND
+                REGEXP_LIKE(CONTRACT_HASH, '^[0-9a-f]{64}$', 'c'))
+        )~');
+
+    create_table_if_absent('ETL_YUKLEME_KILIDI', q'~
+        CREATE TABLE ETL_YUKLEME_KILIDI (
+            TARGET_KEY_HASH VARCHAR2(64 BYTE) NOT NULL,
+            FENCE_TOKEN NUMBER(19,0) NOT NULL,
+            OWNER_JOB_UUID VARCHAR2(36 BYTE) NOT NULL,
+            OWNER_RUN_UUID VARCHAR2(36 BYTE) NOT NULL,
+            OWNER_ATTEMPT_NO NUMBER(10,0) NOT NULL,
+            RELEASE_HASH VARCHAR2(64 BYTE) NOT NULL,
+            PLAN_HASH VARCHAR2(64 BYTE) NOT NULL,
+            UPDATED_AT TIMESTAMP(6) WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL,
+            CONSTRAINT ETL_YK_PK PRIMARY KEY (TARGET_KEY_HASH),
+            CONSTRAINT ETL_YK_TARGET_CK CHECK (
+                LENGTH(TARGET_KEY_HASH) = 64 AND
+                REGEXP_LIKE(TARGET_KEY_HASH, '^[0-9a-f]{64}$', 'c')),
+            CONSTRAINT ETL_YK_TOKEN_CK CHECK (
+                FENCE_TOKEN BETWEEN 1 AND 9223372036854775807),
+            CONSTRAINT ETL_YK_JOB_CK CHECK (
+                LENGTH(OWNER_JOB_UUID) = 36 AND
+                REGEXP_LIKE(OWNER_JOB_UUID,
+                    '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', 'c')),
+            CONSTRAINT ETL_YK_RUN_CK CHECK (
+                LENGTH(OWNER_RUN_UUID) = 36 AND
+                REGEXP_LIKE(OWNER_RUN_UUID,
+                    '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', 'c')),
+            CONSTRAINT ETL_YK_ATT_CK CHECK (OWNER_ATTEMPT_NO > 0),
+            CONSTRAINT ETL_YK_REL_CK CHECK (
+                LENGTH(RELEASE_HASH) = 64 AND
+                REGEXP_LIKE(RELEASE_HASH, '^[0-9a-f]{64}$', 'c')),
+            CONSTRAINT ETL_YK_PLAN_CK CHECK (
+                LENGTH(PLAN_HASH) = 64 AND
+                REGEXP_LIKE(PLAN_HASH, '^[0-9a-f]{64}$', 'c'))
+        )~');
+
+    create_table_if_absent('ETL_YUKLEME_DEFTERI', q'~
+        CREATE TABLE ETL_YUKLEME_DEFTERI (
+            TARGET_KEY_HASH VARCHAR2(64 BYTE) NOT NULL,
+            JOB_UUID VARCHAR2(36 BYTE) NOT NULL,
+            STEP_CODE VARCHAR2(128 BYTE) NOT NULL,
+            PARTITION_CODE VARCHAR2(128 BYTE) NOT NULL,
+            BATCH_KEY_HASH VARCHAR2(64 BYTE) NOT NULL,
+            BATCH_NO NUMBER(19,0) NOT NULL,
+            RUN_UUID VARCHAR2(36 BYTE) NOT NULL,
+            ATTEMPT_NO NUMBER(10,0) NOT NULL,
+            FENCE_TOKEN NUMBER(19,0) NOT NULL,
+            RELEASE_HASH VARCHAR2(64 BYTE) NOT NULL,
+            PLAN_HASH VARCHAR2(64 BYTE) NOT NULL,
+            PAYLOAD_HASH VARCHAR2(64 BYTE) NOT NULL,
+            ROW_COUNT NUMBER(19,0) NOT NULL,
+            BYTE_COUNT NUMBER(19,0) NOT NULL,
+            EVIDENCE_AT TIMESTAMP(6) WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL,
+            CONSTRAINT ETL_YD_PK PRIMARY KEY (
+                TARGET_KEY_HASH, JOB_UUID, STEP_CODE,
+                PARTITION_CODE, BATCH_KEY_HASH),
+            CONSTRAINT ETL_YD_BATCH_UQ UNIQUE (
+                TARGET_KEY_HASH, JOB_UUID, STEP_CODE,
+                PARTITION_CODE, BATCH_NO),
+            CONSTRAINT ETL_YD_TARGET_CK CHECK (
+                LENGTH(TARGET_KEY_HASH) = 64 AND
+                REGEXP_LIKE(TARGET_KEY_HASH, '^[0-9a-f]{64}$', 'c')),
+            CONSTRAINT ETL_YD_JOB_CK CHECK (
+                LENGTH(JOB_UUID) = 36 AND
+                REGEXP_LIKE(JOB_UUID,
+                    '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', 'c')),
+            CONSTRAINT ETL_YD_RUN_CK CHECK (
+                LENGTH(RUN_UUID) = 36 AND
+                REGEXP_LIKE(RUN_UUID,
+                    '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', 'c')),
+            CONSTRAINT ETL_YD_STEP_CK CHECK (
+                REGEXP_LIKE(STEP_CODE, '^[A-Za-z0-9_.:-]+$', 'c')),
+            CONSTRAINT ETL_YD_PART_CK CHECK (
+                REGEXP_LIKE(PARTITION_CODE, '^[A-Za-z0-9_.:-]+$', 'c')),
+            CONSTRAINT ETL_YD_BKEY_CK CHECK (
+                LENGTH(BATCH_KEY_HASH) = 64 AND
+                REGEXP_LIKE(BATCH_KEY_HASH, '^[0-9a-f]{64}$', 'c')),
+            CONSTRAINT ETL_YD_BATCHNO_CK CHECK (BATCH_NO >= 0),
+            CONSTRAINT ETL_YD_ATT_CK CHECK (ATTEMPT_NO > 0),
+            CONSTRAINT ETL_YD_TOKEN_CK CHECK (
+                FENCE_TOKEN BETWEEN 1 AND 9223372036854775807),
+            CONSTRAINT ETL_YD_REL_CK CHECK (
+                LENGTH(RELEASE_HASH) = 64 AND
+                REGEXP_LIKE(RELEASE_HASH, '^[0-9a-f]{64}$', 'c')),
+            CONSTRAINT ETL_YD_PLAN_CK CHECK (
+                LENGTH(PLAN_HASH) = 64 AND
+                REGEXP_LIKE(PLAN_HASH, '^[0-9a-f]{64}$', 'c')),
+            CONSTRAINT ETL_YD_PAY_CK CHECK (
+                LENGTH(PAYLOAD_HASH) = 64 AND
+                REGEXP_LIKE(PAYLOAD_HASH, '^[0-9a-f]{64}$', 'c')),
+            CONSTRAINT ETL_YD_ROWS_CK CHECK (ROW_COUNT >= 0),
+            CONSTRAINT ETL_YD_BYTES_CK CHECK (BYTE_COUNT >= 0)
+        )~');
+
+    create_table_if_absent('ETL_YAYIN_DEFTERI', q'~
+        CREATE TABLE ETL_YAYIN_DEFTERI (
+            TARGET_KEY_HASH VARCHAR2(64 BYTE) NOT NULL,
+            JOB_UUID VARCHAR2(36 BYTE) NOT NULL,
+            STEP_CODE VARCHAR2(128 BYTE) NOT NULL,
+            PUBLISH_KEY_HASH VARCHAR2(64 BYTE) NOT NULL,
+            RUN_UUID VARCHAR2(36 BYTE) NOT NULL,
+            ATTEMPT_NO NUMBER(10,0) NOT NULL,
+            FENCE_TOKEN NUMBER(19,0) NOT NULL,
+            RELEASE_HASH VARCHAR2(64 BYTE) NOT NULL,
+            PLAN_HASH VARCHAR2(64 BYTE) NOT NULL,
+            STAGE_HASH VARCHAR2(64 BYTE) NOT NULL,
+            STAGE_ROW_COUNT NUMBER(19,0) NOT NULL,
+            PUBLISHED_ROW_COUNT NUMBER(19,0) NOT NULL,
+            REJECTED_ROW_COUNT NUMBER(19,0) NOT NULL,
+            LOWER_WATERMARK VARCHAR2(1000 BYTE),
+            UPPER_WATERMARK VARCHAR2(1000 BYTE),
+            EVIDENCE_AT TIMESTAMP(6) WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL,
+            CONSTRAINT ETL_YYD_PK PRIMARY KEY (
+                TARGET_KEY_HASH, JOB_UUID, STEP_CODE, PUBLISH_KEY_HASH),
+            CONSTRAINT ETL_YYD_TARGET_CK CHECK (
+                LENGTH(TARGET_KEY_HASH) = 64 AND
+                REGEXP_LIKE(TARGET_KEY_HASH, '^[0-9a-f]{64}$', 'c')),
+            CONSTRAINT ETL_YYD_JOB_CK CHECK (
+                LENGTH(JOB_UUID) = 36 AND
+                REGEXP_LIKE(JOB_UUID,
+                    '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', 'c')),
+            CONSTRAINT ETL_YYD_RUN_CK CHECK (
+                LENGTH(RUN_UUID) = 36 AND
+                REGEXP_LIKE(RUN_UUID,
+                    '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', 'c')),
+            CONSTRAINT ETL_YYD_STEP_CK CHECK (
+                REGEXP_LIKE(STEP_CODE, '^[A-Za-z0-9_.:-]+$', 'c')),
+            CONSTRAINT ETL_YYD_PKEY_CK CHECK (
+                LENGTH(PUBLISH_KEY_HASH) = 64 AND
+                REGEXP_LIKE(PUBLISH_KEY_HASH, '^[0-9a-f]{64}$', 'c')),
+            CONSTRAINT ETL_YYD_ATT_CK CHECK (ATTEMPT_NO > 0),
+            CONSTRAINT ETL_YYD_TOKEN_CK CHECK (
+                FENCE_TOKEN BETWEEN 1 AND 9223372036854775807),
+            CONSTRAINT ETL_YYD_REL_CK CHECK (
+                LENGTH(RELEASE_HASH) = 64 AND
+                REGEXP_LIKE(RELEASE_HASH, '^[0-9a-f]{64}$', 'c')),
+            CONSTRAINT ETL_YYD_PLAN_CK CHECK (
+                LENGTH(PLAN_HASH) = 64 AND
+                REGEXP_LIKE(PLAN_HASH, '^[0-9a-f]{64}$', 'c')),
+            CONSTRAINT ETL_YYD_STAGE_CK CHECK (
+                LENGTH(STAGE_HASH) = 64 AND
+                REGEXP_LIKE(STAGE_HASH, '^[0-9a-f]{64}$', 'c')),
+            CONSTRAINT ETL_YYD_SROWS_CK CHECK (STAGE_ROW_COUNT >= 0),
+            CONSTRAINT ETL_YYD_PROWS_CK CHECK (PUBLISHED_ROW_COUNT >= 0),
+            CONSTRAINT ETL_YYD_RROWS_CK CHECK (REJECTED_ROW_COUNT >= 0),
+            CONSTRAINT ETL_YYD_WM_CK CHECK (
+                (LOWER_WATERMARK IS NULL AND UPPER_WATERMARK IS NULL) OR
+                (LOWER_WATERMARK IS NOT NULL AND UPPER_WATERMARK IS NOT NULL))
+        )~');
+END;
+/

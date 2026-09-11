@@ -5,10 +5,11 @@ bir veri entegrasyon platformudur. Metadata ve kontrol verisi PostgreSQL'de tutu
 taşınan iş verisi PostgreSQL üzerinden geçirilmez.
 
 Bu repository'de Faz 0 teknik spike, Faz 1 metadata veritabanı, backend domain/API,
-ilk uçtan uca tanım yönetimi UI kapıları, Faz 2 güvenli manuel run kontrol düzlemi
-ve Faz 3A PostgreSQL lease/fencing koordinasyon temeli tamamlanmıştır. Manuel istek
-yalnız kalıcı `BEKLIYOR` run üretir. Worker poller ve Oracle DML kapalıdır; ürün
-üretim kullanımı için hazır değildir.
+ilk uçtan uca tanım yönetimi UI kapıları, Faz 2 güvenli manuel run kontrol düzlemi,
+Faz 3A PostgreSQL lease/fencing koordinasyon temeli ve Oracle 19c target-local
+ledger/fencing kurulum paketi tamamlanmıştır. Manuel istek yalnız kalıcı
+`BEKLIYOR` run üretir. Worker poller ve Oracle business DML kapalıdır; ürün üretim
+kullanımı için hazır değildir.
 
 ## Teknoloji tabanı
 
@@ -83,6 +84,15 @@ erişilemiyorsa kurumsal VPN'in açılması gerektiğini açıkça bildirir. Pro
 ve hedefte yalnız bağlantı, sürüm ve current-user nesne sayısı sorguları çalıştırır;
 DDL veya DML yapmaz.
 
+Oracle target-local ledger kurulumu runtime migration veya CI/CD işi değildir.
+Kontrollü DBA kurulumu ve bağımsız doğrulama için:
+
+    .\scripts\invoke-oracle-ledger.ps1 -Mode Install
+    .\scripts\invoke-oracle-ledger.ps1 -Mode Validate
+
+Transaction protokolü, nesneler ve negatif test kapıları
+`database/oracle/README.md` belgesindedir.
+
 Container'ları durdurmak için:
 
     .\scripts\dev-down.ps1
@@ -109,8 +119,8 @@ GitHub Actions ve diğer CI/CD workflow'ları bu aşamada bilinçli olarak kapal
 3. Backend domain/API
 4. UI, uçtan uca tanım yönetimi ve portable JSON proje bundle'ı
 5. Kalıcı manuel run isteği, idempotency, izleme ve queued cancel
-6. PostgreSQL lease/fencing temeli (Faz 3A tamamlandı), target-local Oracle ledger
-   ve kontrollü Oracle worker
+6. PostgreSQL lease/fencing temeli ve target-local Oracle ledger (tamamlandı),
+   kontrollü Oracle worker ve crash/reconciliation testleri
 7. Retry/resume, scheduler ve production operasyonları
 
 Paket, Prosedür, Değişken, Sequence, Scenario ve Load Plan dahil tam kavram
