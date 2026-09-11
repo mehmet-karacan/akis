@@ -18,7 +18,9 @@ getirir.
   - Yalnız `BEKLIYOR` run iptal edilir.
   - Tekrarlanan iptal yeni olay üretmeden aynı sonucu döndürür.
 
-API iç numeric ID, secret veya fiziksel bağlantı uç noktası döndürmez.
+API iç numeric ID, secret veya fiziksel bağlantı uç noktası döndürmez. Run görünümü
+publication `releaseHash` ile immutable Scenario `planHash` değerini ayrı alanlarda
+döndürür; biri diğerinin yerine kullanılamaz.
 
 ## Yetkiler
 
@@ -43,11 +45,19 @@ Canonical durumlar:
 `SONUC_BELIRSIZ`, `MUTABAKAT`, `YENIDEN_DENENEBILIR`, `MUDAHALE_GEREKLI`,
 `BASARILI`, `BASARISIZ`, `IPTAL`.
 
-## Kapalı yürütme sınırı
+## Faz 3A sonrası kapalı yürütme sınırı
 
 - `AKIS_EXECUTION_ACCEPT_MANUAL_REQUESTS=false` varsayılandır; yazma uç noktaları
   `503 EXECUTION_REQUESTS_DISABLED` döndürür.
 - `AKIS_EXECUTION_WORKER_ENABLED=false` zorunlu güvenli varsayılandır.
-- Worker bayrağı açılırsa target-local ledger ve fencing olmadığı için uygulama
-  fail-closed başlatılmaz.
-- Oracle DML, dequeue/claim, retry/resume ve scheduler bu fazda yoktur.
+- PostgreSQL V005, kısa transaction içinde `SKIP LOCKED` claim, DB-time heartbeat,
+  monotonik run/target generation ve lease reaper fonksiyonlarını sağlar.
+- Backend bu fonksiyonlar için poller içermeyen lease/fence portlarını sağlar;
+  heartbeat reddi yeni iş başlatma yetkisini düşürür.
+- Worker bayrağı açılırsa target-local Oracle ledger ve write fencing olmadığı
+  için uygulama fail-closed başlatılmaz.
+- Oracle DML, otomatik polling, target-local ledger uygulaması, retry/resume ve
+  scheduler bu fazda yoktur.
+
+Hedef transaction ve kanıt sözleşmesi
+`TARGET_LEDGER_AND_FENCING_CONTRACT.md` belgesinde tanımlıdır.

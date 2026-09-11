@@ -3,6 +3,7 @@ package tr.com.innova.akis.execution;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
@@ -32,5 +33,24 @@ class ExecutionApiContractTest {
     @Test
     void workerFlagFailsClosedUntilTargetFencingExists() {
         assertThrows(IllegalStateException.class, () -> new ExecutionFeatureFlags(false, true));
+    }
+
+    @Test
+    void runViewNamesReleaseAndScenarioPlanHashesSeparately() {
+        assertNotNull(Arrays.stream(ExecutionController.RunView.class.getRecordComponents())
+                .filter(component -> component.getName().equals("releaseHash"))
+                .findFirst()
+                .orElse(null));
+        assertNotNull(Arrays.stream(ExecutionController.RunView.class.getRecordComponents())
+                .filter(component -> component.getName().equals("planHash"))
+                .findFirst()
+                .orElse(null));
+    }
+
+    @Test
+    void phaseThreeARegistersNoWorkerPollerType() {
+        assertThrows(
+                ClassNotFoundException.class,
+                () -> Class.forName("tr.com.innova.akis.execution.WorkerPoller"));
     }
 }

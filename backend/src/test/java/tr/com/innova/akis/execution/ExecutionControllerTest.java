@@ -91,7 +91,7 @@ class ExecutionControllerTest {
     private static RunRow run() {
         return new RunRow(
                 1, 2, 3, UUID.randomUUID(), RUN_UUID, PUBLICATION_UUID,
-                1, "ILK", "BEKLIYOR", "a".repeat(64), 1,
+                1, "ILK", "BEKLIYOR", "a".repeat(64), "b".repeat(64), 1,
                 OffsetDateTime.now(), null, null, null);
     }
 

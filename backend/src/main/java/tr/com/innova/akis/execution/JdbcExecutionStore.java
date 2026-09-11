@@ -70,11 +70,13 @@ public class JdbcExecutionStore implements ExecutionStore {
         return jdbc.sql("""
                         select p.id as project_id, y.id as publication_id,
                                y.uuid as publication_uuid, y.durum_kodu,
-                               o.risk_kodu, y.release_hash
+                               o.risk_kodu, y.release_hash, s.plan_ozeti,
+                               y.fiziksel_manifesto
                           from entegrasyon.yayin y
                           join entegrasyon.proje p on p.id = y.proje_id
                           join entegrasyon.ortam o
                             on o.proje_id = y.proje_id and o.id = y.ortam_id
+                          join entegrasyon.senaryo s on s.id = y.senaryo_id
                          where p.uuid = :projectUuid
                            and p.durum_kodu = 'AKTIF'
                            and y.uuid = :publicationUuid
@@ -86,7 +88,8 @@ public class JdbcExecutionStore implements ExecutionStore {
                         rs.getLong("project_id"), rs.getLong("publication_id"),
                         rs.getObject("publication_uuid", UUID.class),
                         rs.getString("durum_kodu"), rs.getString("risk_kodu"),
-                        rs.getString("release_hash")))
+                        rs.getString("release_hash"), rs.getString("plan_ozeti"),
+                        json(rs.getString("fiziksel_manifesto"))))
                 .optional();
     }
 
@@ -167,15 +170,16 @@ public class JdbcExecutionStore implements ExecutionStore {
                 .single();
         long runId = jdbc.sql("""
                         insert into entegrasyon.calistirma(
-                            proje_id, is_talebi_id, deneme_no, plan_ozeti,
+                            proje_id, is_talebi_id, deneme_no, yayin_ozeti, plan_ozeti,
                             baslatma_turu, uuid, olusturan_kullanici_id)
-                        values (:projectId, :jobRequestId, 1, :planHash,
+                        values (:projectId, :jobRequestId, 1, :releaseHash, :planHash,
                                 'ILK', :uuid, :actorId)
                         returning id
                         """)
                 .param("projectId", publication.projectId())
                 .param("jobRequestId", jobRequestId)
-                .param("planHash", publication.releaseHash())
+                .param("releaseHash", publication.releaseHash())
+                .param("planHash", publication.planHash())
                 .param("uuid", runUuid)
                 .param("actorId", actor.id())
                 .query(Long.class)
@@ -194,7 +198,8 @@ public class JdbcExecutionStore implements ExecutionStore {
                 .param("actorId", actor.id())
                 .update();
         ObjectNode eventData = objectMapper.createObjectNode();
-        eventData.put("planHash", publication.releaseHash());
+        eventData.put("planHash", publication.planHash());
+        eventData.put("releaseHash", publication.releaseHash());
         eventData.put("publicationUuid", publication.publicationUuid().toString());
         insertEvent(
                 publication.projectId(), runId, 1, "RUN_REQUESTED",
@@ -361,7 +366,7 @@ public class JdbcExecutionStore implements ExecutionStore {
                 select j.id as job_request_id, r.id as run_id, d.id as state_id,
                        j.uuid as job_request_uuid, r.uuid as run_uuid,
                        y.uuid as publication_uuid, r.deneme_no, r.baslatma_turu,
-                       d.durum_kodu, r.plan_ozeti, d.son_olay_no,
+                       d.durum_kodu, r.yayin_ozeti, r.plan_ozeti, d.son_olay_no,
                        r.olusturulma_zamani, d.baslama_zamani, d.bitis_zamani,
                        d.iptal_isteme_zamani
                   from entegrasyon.calistirma r
@@ -379,7 +384,8 @@ public class JdbcExecutionStore implements ExecutionStore {
                 rs.getObject("run_uuid", UUID.class),
                 rs.getObject("publication_uuid", UUID.class),
                 rs.getInt("deneme_no"), rs.getString("baslatma_turu"),
-                rs.getString("durum_kodu"), rs.getString("plan_ozeti"),
+                rs.getString("durum_kodu"), rs.getString("yayin_ozeti"),
+                rs.getString("plan_ozeti"),
                 rs.getLong("son_olay_no"),
                 rs.getObject("olusturulma_zamani", OffsetDateTime.class),
                 rs.getObject("baslama_zamani", OffsetDateTime.class),

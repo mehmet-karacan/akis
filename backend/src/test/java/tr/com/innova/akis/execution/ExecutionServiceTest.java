@@ -46,6 +46,8 @@ class ExecutionServiceTest {
         assertFalse(replay.created());
         assertEquals(first.run().runUuid(), replay.run().runUuid());
         assertEquals("BEKLIYOR", first.run().status());
+        assertEquals("a".repeat(64), first.run().releaseHash());
+        assertEquals("b".repeat(64), first.run().planHash());
         assertEquals(1, first.run().lastEventNumber());
         assertEquals(1, store.createdRuns);
         assertEquals(1, store.completedReservations);
@@ -198,7 +200,8 @@ class ExecutionServiceTest {
             return Optional.of(new PublicationContext(
                     10, PUBLICATION_UUID.equals(publicationUuid) ? 20 : 21,
                     publicationUuid, publicationStatus, environmentRisk,
-                    "a".repeat(64)));
+                    "a".repeat(64), "b".repeat(64),
+                    objectMapper.createObjectNode().put("manifestVersion", 1)));
         }
 
         @Override
@@ -237,7 +240,8 @@ class ExecutionServiceTest {
             createdRuns++;
             run = new RunRow(
                     30, 40, 50, jobRequestUuid, runUuid, publication.publicationUuid(),
-                    1, "ILK", "BEKLIYOR", publication.releaseHash(), 1,
+                    1, "ILK", "BEKLIYOR", publication.releaseHash(),
+                    publication.planHash(), 1,
                     OffsetDateTime.now(), null, null, null);
             return run;
         }
@@ -287,7 +291,8 @@ class ExecutionServiceTest {
             run = new RunRow(
                     source.jobRequestId(), source.runId(), source.stateId(),
                     source.jobRequestUuid(), source.runUuid(), source.publicationUuid(),
-                    source.attemptNumber(), source.startType(), "IPTAL", source.planHash(), 2,
+                    source.attemptNumber(), source.startType(), "IPTAL",
+                    source.releaseHash(), source.planHash(), 2,
                     source.createdAt(), source.startedAt(), OffsetDateTime.now(),
                     source.cancellationRequestedAt());
             return run;
@@ -297,7 +302,8 @@ class ExecutionServiceTest {
             return new RunRow(
                     source.jobRequestId(), source.runId(), source.stateId(),
                     source.jobRequestUuid(), source.runUuid(), source.publicationUuid(),
-                    source.attemptNumber(), source.startType(), status, source.planHash(),
+                    source.attemptNumber(), source.startType(), status,
+                    source.releaseHash(), source.planHash(),
                     source.lastEventNumber(), source.createdAt(), source.startedAt(),
                     source.finishedAt(), source.cancellationRequestedAt());
         }

@@ -530,6 +530,9 @@ try {
     $runEvents = Invoke-AkisJson GET "/api/v1/projects/$($project.uuid)/runs/$($run.runUuid)/events"
     if ($run.status -ne "BEKLIYOR" -or $sameRun.runUuid -ne $run.runUuid `
             -or $runs.Count -ne 1 -or $runDetail.runUuid -ne $run.runUuid `
+            -or $run.releaseHash -ne $publication.releaseHash `
+            -or $run.planHash -ne $scenario.planHash `
+            -or $run.releaseHash -eq $run.planHash `
             -or $runEvents.Count -ne 1 -or $runEvents[0].eventNumber -ne 1 `
             -or $run.PSObject.Properties.Name -contains "id") {
         throw "Queued idempotent manual run contract failed."

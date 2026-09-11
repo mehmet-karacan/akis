@@ -19,7 +19,9 @@ final class ExecutionModels {
             UUID publicationUuid,
             String publicationStatus,
             String environmentRisk,
-            String releaseHash) {
+            String releaseHash,
+            String planHash,
+            JsonNode physicalManifest) {
     }
 
     record IdempotencyReservation(
@@ -38,6 +40,7 @@ final class ExecutionModels {
             int attemptNumber,
             String startType,
             String status,
+            String releaseHash,
             String planHash,
             long lastEventNumber,
             OffsetDateTime createdAt,

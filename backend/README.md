@@ -81,8 +81,9 @@ Varsayılan güvenlik modu `fail-closed` olup health dışında API çağrılar�
 Yerel geliştirmede yalnız loopback adresinde HTTP Basic, kurumsal kullanımda issuer
 ve audience doğrulamalı OIDC resource server seçilir. Her endpoint merkezi sistem
 veya proje RBAC kontrolünden geçer. Varsayılan proje rolleri Proje Yöneticisi,
-Geliştirici ve İzleyici'dir. Mutating çağrılar correlation ID ve kullanıcı adıyla
-append-only audit olayı üretir; istek gövdesi veya secret değeri kaydedilmez.
+Geliştirici, Çalıştırıcı ve İzleyici'dir. Mutating çağrılar correlation ID ve
+kullanıcı adıyla append-only audit olayı üretir; istek gövdesi veya secret değeri
+kaydedilmez.
 
 Oracle 19c bağlantı testi ve metadata discovery salt okunur JDBC bağlantısı açar.
 Secret referansı `ENV` sağlayıcısında, değeri `username` ve `password` alanlarını
@@ -97,6 +98,7 @@ Repository kökünde:
     .\scripts\dev-up.ps1
     .\mvnw.cmd -pl backend test
     .\backend\test-api.ps1
+    .\backend\test-worker-lease.ps1
     .\scripts\run-backend.ps1
 
 `test-api.ps1` geçici ve yalıtılmış bir PostgreSQL veritabanı oluşturur; auth/RBAC,
@@ -105,8 +107,20 @@ optimistic lock, data binding, Scenario derleme ve context-pinned yayın akışl
 gerçek HTTP üzerinden sınar. Test sonunda uygulamayı durdurur ve geçici
 veritabanını siler.
 
+`test-worker-lease.ps1` ikinci bir geçici PostgreSQL veritabanında gerçek
+`JdbcRunLeaseStore` ile claim, target generation, DB-time heartbeat deadline
+yenilemesi ve stale generation reddini sınar; worker poller veya Oracle bağlantısı
+başlatmaz.
+
 ## Kapsam sınırı
 
-Bu teslimat backend domain/API kapısını tamamlar. Oracle DML, manuel run/worker,
-ledger, retry, fencing ve scheduler ürün kodu değildir; geliştirme sırasına göre UI
-kapısından sonra yalnız yayınlanmış planlar için ele alınır.
+Faz 3A backend'i manuel run API'sini ve PostgreSQL V005 üzerindeki DB-time claim,
+heartbeat ve global hedef generation portlarını içerir. Her run publication
+`releaseHash` ile gerçek Scenario `planHash` değerlerini ayrı sabitler. Heartbeat
+reddi worker yetkisini koşulsuz kaybettirir; run lease ve target fence token'ları
+ayrı modellerdir.
+
+Bu katman worker poller başlatmaz ve Oracle DML çalıştırmaz. Target-local Oracle
+kilit/batch/publish ledger nesneleri, fence doğrulayan write adapter'ı,
+reconciliation, retry/resume ve scheduler henüz ürün kodu değildir. Worker flag'i
+bu kapılar tamamlanana kadar açık değerde fail-closed kalır.

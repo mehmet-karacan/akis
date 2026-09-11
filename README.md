@@ -5,9 +5,10 @@ bir veri entegrasyon platformudur. Metadata ve kontrol verisi PostgreSQL'de tutu
 taşınan iş verisi PostgreSQL üzerinden geçirilmez.
 
 Bu repository'de Faz 0 teknik spike, Faz 1 metadata veritabanı, backend domain/API,
-ilk uçtan uca tanım yönetimi UI kapıları ve Faz 2 güvenli manuel run kontrol düzlemi
-tamamlanmıştır. Manuel istek yalnız kalıcı `BEKLIYOR` run üretir; Oracle DML/worker
-kapısı henüz başlamamıştır ve ürün üretim kullanımı için hazır değildir.
+ilk uçtan uca tanım yönetimi UI kapıları, Faz 2 güvenli manuel run kontrol düzlemi
+ve Faz 3A PostgreSQL lease/fencing koordinasyon temeli tamamlanmıştır. Manuel istek
+yalnız kalıcı `BEKLIYOR` run üretir. Worker poller ve Oracle DML kapalıdır; ürün
+üretim kullanımı için hazır değildir.
 
 ## Teknoloji tabanı
 
@@ -66,9 +67,11 @@ Sağlık uç noktası: http://localhost:8080/actuator/health
 
 Manuel run oluşturma varsayılan olarak kapalıdır. Yalnız kontrol düzlemi testi için
 `.env` içinde `AKIS_EXECUTION_ACCEPT_MANUAL_REQUESTS=true` yapılabilir. Worker
-bayrağı target ledger ve fencing tamamlanana kadar `false` kalmalıdır; uygulama
-`true` değerinde fail-closed açılmaz. Sözleşme:
-`docs/architecture/MANUAL_RUN_CONTROL_PLANE.md`.
+bayrağı target-local Oracle ledger kurulup crash/reconciliation kapıları geçilene
+kadar `false` kalmalıdır; uygulama `true` değerinde fail-closed açılmaz.
+PostgreSQL claim/heartbeat/target generation sözleşmeleri hazırdır fakat kendi
+başına veri taşımaz. Sözleşmeler: `docs/architecture/MANUAL_RUN_CONTROL_PLANE.md`
+ve `docs/architecture/TARGET_LEDGER_AND_FENCING_CONTRACT.md`.
 
 Oracle 19c bağlantı ve discovery probe'u için gerçek değerleri yalnız .env
 dosyasına girin ve çalıştırın:
@@ -106,7 +109,8 @@ GitHub Actions ve diğer CI/CD workflow'ları bu aşamada bilinçli olarak kapal
 3. Backend domain/API
 4. UI, uçtan uca tanım yönetimi ve portable JSON proje bundle'ı
 5. Kalıcı manuel run isteği, idempotency, izleme ve queued cancel
-6. Target ledger, lease/fencing ve Oracle worker
+6. PostgreSQL lease/fencing temeli (Faz 3A tamamlandı), target-local Oracle ledger
+   ve kontrollü Oracle worker
 7. Retry/resume, scheduler ve production operasyonları
 
 Paket, Prosedür, Değişken, Sequence, Scenario ve Load Plan dahil tam kavram

@@ -104,6 +104,7 @@ final class ExecutionController {
             int attemptNumber,
             String startType,
             String status,
+            String releaseHash,
             String planHash,
             OffsetDateTime createdAt,
             OffsetDateTime startedAt,
@@ -113,7 +114,8 @@ final class ExecutionController {
         static RunView from(RunRow row) {
             return new RunView(
                     row.jobRequestUuid(), row.runUuid(), row.publicationUuid(),
-                    row.attemptNumber(), row.startType(), row.status(), row.planHash(),
+                    row.attemptNumber(), row.startType(), row.status(), row.releaseHash(),
+                    row.planHash(),
                     row.createdAt(), row.startedAt(), row.finishedAt(),
                     row.cancellationRequestedAt());
         }
