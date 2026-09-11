@@ -21,7 +21,8 @@ import tr.com.innova.akis.metadata.DefinitionType;
 public class DefinitionDataBindingService {
 
     private static final Set<DefinitionType> SUPPORTED_TYPES = Set.of(
-            DefinitionType.MAPPING, DefinitionType.REUSABLE_MAPPING);
+            DefinitionType.MAPPING, DefinitionType.REUSABLE_MAPPING,
+            DefinitionType.PROCEDURE);
 
     private final DefinitionDataBindingStore store;
 
@@ -101,7 +102,7 @@ public class DefinitionDataBindingService {
     private void requireSupportedType(DefinitionVersionRef version) {
         if (!SUPPORTED_TYPES.contains(version.definitionType())) {
             throw validation(
-                    "Veri nesnesi bağı yalnızca Mapping veya Reusable Mapping tanımlarında kullanılabilir.");
+                    "Veri nesnesi bağı yalnızca Mapping, Reusable Mapping veya Procedure tanımlarında kullanılabilir.");
         }
     }
 

@@ -1,4 +1,4 @@
-import type { DefinitionType, MappingContent } from './types'
+import type { DefinitionType, MappingContent, ProcedureContent } from './types'
 
 export const DEFAULT_MAPPING: MappingContent = {
   datasets: [
@@ -14,6 +14,33 @@ export const DEFAULT_MAPPING: MappingContent = {
   writeStrategy: { kind: 'APPEND' },
 }
 
+export const DEFAULT_PROCEDURE: ProcedureContent = {
+  tasks: [
+    {
+      id: 'READ_SOURCE',
+      name: 'Read source rows',
+      type: 'SQL',
+      connectionRole: 'SOURCE',
+      riskClass: 'READ_ONLY',
+      command: 'SELECT ID FROM SOURCE_TABLE',
+      onError: 'STOP',
+      timeoutSeconds: 300,
+      output: { kind: 'ROWSET', maxRows: 10000 },
+    },
+    {
+      id: 'WRITE_TARGET',
+      name: 'Insert target rows',
+      type: 'SQL',
+      connectionRole: 'TARGET',
+      riskClass: 'DML',
+      command: 'INSERT INTO TARGET_TABLE (ID) VALUES (:ID)',
+      onError: 'STOP',
+      timeoutSeconds: 300,
+      input: { fromTask: 'READ_SOURCE', mode: 'BATCH', batchSize: 250 },
+    },
+  ],
+}
+
 const defaults: Record<DefinitionType, unknown> = {
   MAPPING: DEFAULT_MAPPING,
   REUSABLE_MAPPING: { inputs: [], outputs: [], nodes: [] },
@@ -22,17 +49,7 @@ const defaults: Record<DefinitionType, unknown> = {
     steps: [{ id: 'STEP_1', type: 'MAPPING' }],
     transitions: [],
   },
-  PROCEDURE: {
-    tasks: [
-      {
-        id: 'TASK_1',
-        type: 'SQL',
-        connectionRole: 'TARGET',
-        riskClass: 'READ_ONLY',
-        command: 'SELECT 1 FROM DUAL',
-      },
-    ],
-  },
+  PROCEDURE: DEFAULT_PROCEDURE,
   VARIABLE: {
     dataType: 'STRING',
     scope: 'PROJECT',
@@ -69,3 +86,7 @@ export function isMappingContent(value: unknown): value is MappingContent {
   )
 }
 
+export function isProcedureContent(value: unknown): value is ProcedureContent {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  return Array.isArray((value as Partial<ProcedureContent>).tasks)
+}

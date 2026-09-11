@@ -59,9 +59,22 @@ class DefinitionDataBindingServiceTest {
     }
 
     @Test
+    void allowsProcedureTaskBinding() {
+        FakeStore store = new FakeStore(DefinitionType.PROCEDURE);
+        DefinitionDataBindingService service = new DefinitionDataBindingService(store);
+
+        service.create(
+                PROJECT_UUID, DEFINITION_UUID, VERSION_UUID, "READ_SOURCE",
+                BindingRole.KAYNAK, DATA_OBJECT_UUID, SNAPSHOT_UUID);
+
+        assertEquals("READ_SOURCE", store.created.nodeCode());
+        assertEquals(BindingRole.KAYNAK, store.created.role());
+    }
+
+    @Test
     void rejectsDefinitionsWithoutDataNodes() {
         DefinitionDataBindingService service = new DefinitionDataBindingService(
-                new FakeStore(DefinitionType.PROCEDURE));
+                new FakeStore(DefinitionType.VARIABLE));
 
         ApiException error = assertThrows(ApiException.class, () -> service.create(
                 PROJECT_UUID, DEFINITION_UUID, VERSION_UUID, "NODE",

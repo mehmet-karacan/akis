@@ -24,6 +24,7 @@ public final class DefinitionContentValidator {
 
     private static final int MAX_GRAPH_NODES = 10_000;
     private static final int MAX_LOAD_PLAN_DEPTH = 100;
+    private static final int MAX_PROCEDURE_TASKS = 10_000;
 
     private static final Set<String> PACKAGE_STEP_TYPES = Set.of(
             "MAPPING", "PROCEDURE", "VARIABLE_DECLARE", "VARIABLE_REFRESH",
@@ -35,6 +36,7 @@ public final class DefinitionContentValidator {
     private static final Set<String> PROCEDURE_CONNECTION_ROLES = Set.of("SOURCE", "TARGET");
     private static final Set<String> PROCEDURE_RISK_CLASSES = Set.of(
             "READ_ONLY", "DML", "DDL", "DESTRUCTIVE");
+    private static final Set<String> PROCEDURE_ERROR_POLICIES = Set.of("STOP", "CONTINUE");
     private static final Set<String> DATASET_ROLES = Set.of("SOURCE", "TARGET");
     private static final Set<String> V1_WRITE_STRATEGIES = Set.of(
             "APPEND", "STAGED_REPLACE", "MERGE", "TRUNCATE_LOAD");
@@ -54,6 +56,8 @@ public final class DefinitionContentValidator {
             "(?is)^\\s*(CREATE|ALTER|COMMENT|GRANT|REVOKE)\\b");
     private static final Pattern DML = Pattern.compile(
             "(?is)^\\s*(INSERT|UPDATE|DELETE|MERGE)\\b");
+    private static final Pattern NAMED_BIND = Pattern.compile(
+            "(?<!:):[A-Za-z][A-Za-z0-9_$#]*");
 
     public DefinitionContentValidator() {
     }
@@ -66,8 +70,10 @@ public final class DefinitionContentValidator {
         if (schemaVersion != 1 && schemaVersion != 2) {
             fail("Desteklenmeyen tanım şema sürümü: " + schemaVersion);
         }
-        if (schemaVersion == 2 && type != DefinitionType.MAPPING) {
-            fail("Tanım şema sürümü 2 şu anda yalnız MAPPING için desteklenir.");
+        if (schemaVersion == 2
+                && type != DefinitionType.MAPPING
+                && type != DefinitionType.PROCEDURE) {
+            fail("Tanım şema sürümü 2 şu anda yalnız MAPPING ve PROCEDURE için desteklenir.");
         }
         requireObject(content, "Tanım içeriği");
         List<String> missing = type.requiredContentFields().stream()
@@ -80,7 +86,7 @@ public final class DefinitionContentValidator {
 
         switch (type) {
             case PACKAGE -> validatePackage(content);
-            case PROCEDURE -> validateProcedure(content);
+            case PROCEDURE -> validateProcedure(content, schemaVersion);
             case VARIABLE -> validateVariable(content);
             case SEQUENCE -> validateSequence(content);
             case MAPPING -> validateMapping(content, schemaVersion);
@@ -207,12 +213,16 @@ public final class DefinitionContentValidator {
         }
     }
 
-    private void validateProcedure(JsonNode content) {
+    private void validateProcedure(JsonNode content, int schemaVersion) {
         JsonNode tasks = requireArray(content, "tasks");
         if (tasks.isEmpty()) {
             fail("Prosedür en az bir görev içermelidir.");
         }
+        if (tasks.size() > MAX_PROCEDURE_TASKS) {
+            fail("Prosedür en fazla " + MAX_PROCEDURE_TASKS + " görev içerebilir.");
+        }
         Set<String> taskIds = new HashSet<>();
+        Set<String> rowsetTaskIds = new HashSet<>();
         for (int index = 0; index < tasks.size(); index++) {
             JsonNode task = tasks.get(index);
             String path = "tasks[" + index + "]";
@@ -221,8 +231,9 @@ public final class DefinitionContentValidator {
             if (!taskIds.add(id)) {
                 fail("Prosedür görev kimliği benzersiz olmalıdır: " + id);
             }
-            requireAllowed(task, "type", PROCEDURE_TASK_TYPES, path);
-            requireAllowed(task, "connectionRole", PROCEDURE_CONNECTION_ROLES, path);
+            String type = requireAllowed(task, "type", PROCEDURE_TASK_TYPES, path);
+            String connectionRole = requireAllowed(
+                    task, "connectionRole", PROCEDURE_CONNECTION_ROLES, path);
             String risk = requireAllowed(task, "riskClass", PROCEDURE_RISK_CLASSES, path);
             String command = requireText(task, "command", path);
             validateCommandRisk(path, command, risk);
@@ -234,6 +245,88 @@ public final class DefinitionContentValidator {
                     && !task.path("requiresApproval").booleanValue()) {
                 fail(path + " yüksek riskli komut için açık onay gerektirmelidir.");
             }
+            if (schemaVersion == 2) {
+                validateProcedureV2Task(
+                        task, path, id, type, connectionRole, risk, command,
+                        rowsetTaskIds);
+            }
+        }
+    }
+
+    private void validateProcedureV2Task(
+            JsonNode task,
+            String path,
+            String taskId,
+            String type,
+            String connectionRole,
+            String risk,
+            String command,
+            Set<String> rowsetTaskIds) {
+        JsonNode onError = task.get("onError");
+        if (onError != null && !onError.isNull()) {
+            requireAllowed(task, "onError", PROCEDURE_ERROR_POLICIES, path);
+        }
+        validateOptionalInteger(task, "timeoutSeconds", path, 1, 3_600);
+
+        JsonNode output = task.get("output");
+        JsonNode input = task.get("input");
+        boolean hasOutput = output != null && !output.isNull();
+        boolean hasInput = input != null && !input.isNull();
+        if (hasOutput && hasInput) {
+            fail(path + " aynı anda hem satır çıktısı üretip hem satır girdisi tüketemez.");
+        }
+        if (hasOutput) {
+            requireObject(output, path + ".output");
+            requireAllowed(output, "kind", Set.of("ROWSET"), path + ".output");
+            validateRequiredInteger(output, "maxRows", path + ".output", 1, 100_000);
+            String sql = stripLeadingSqlComments(command).stripLeading()
+                    .toUpperCase(Locale.ROOT);
+            if (!"SQL".equals(type) || !"SOURCE".equals(connectionRole)
+                    || !"READ_ONLY".equals(risk)
+                    || (!sql.startsWith("SELECT ") && !sql.startsWith("WITH "))
+                    || sql.contains(";")) {
+                fail(path + ".output yalnız tek bir SOURCE READ_ONLY SELECT/WITH SQL görevinde kullanılabilir.");
+            }
+            rowsetTaskIds.add(taskId);
+        }
+        if (hasInput) {
+            requireObject(input, path + ".input");
+            String fromTask = requireText(input, "fromTask", path + ".input");
+            requireAllowed(input, "mode", Set.of("BATCH"), path + ".input");
+            validateRequiredInteger(input, "batchSize", path + ".input", 1, 1_000);
+            String sql = stripLeadingSqlComments(command).stripLeading()
+                    .toUpperCase(Locale.ROOT);
+            if (!rowsetTaskIds.contains(fromTask)) {
+                fail(path + ".input.fromTask daha önce tanımlanmış bir ROWSET görevine referans vermelidir.");
+            }
+            if (!"SQL".equals(type) || !"TARGET".equals(connectionRole)
+                    || !"DML".equals(risk) || !sql.startsWith("INSERT ")
+                    || sql.contains(";") || !NAMED_BIND.matcher(command).find()) {
+                fail(path + ".input yalnız named bind kullanan tek bir TARGET DML INSERT SQL görevinde kullanılabilir.");
+            }
+        }
+    }
+
+    private void validateOptionalInteger(
+            JsonNode node, String field, String path, int minimum, int maximum) {
+        JsonNode value = node.get(field);
+        if (value == null || value.isNull()) {
+            return;
+        }
+        validateInteger(value, field, path, minimum, maximum);
+    }
+
+    private void validateRequiredInteger(
+            JsonNode node, String field, String path, int minimum, int maximum) {
+        validateInteger(node.get(field), field, path, minimum, maximum);
+    }
+
+    private void validateInteger(
+            JsonNode value, String field, String path, int minimum, int maximum) {
+        if (value == null || !value.isIntegralNumber()
+                || value.intValue() < minimum || value.intValue() > maximum) {
+            fail(path(path, field) + " " + minimum + "-" + maximum
+                    + " aralığında tam sayı olmalıdır.");
         }
     }
 

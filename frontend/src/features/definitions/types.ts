@@ -73,7 +73,8 @@ export interface Scenario {
   createdAt: string
 }
 
-export type BindingRole = 'SOURCE' | 'TARGET'
+export type BindingRole = 'KAYNAK' | 'HEDEF'
+export type DatasetRole = 'SOURCE' | 'TARGET'
 
 export interface DataBinding {
   uuid: string
@@ -88,7 +89,7 @@ export interface DataBinding {
 
 export interface MappingDataset {
   id: string
-  role: BindingRole
+  role: DatasetRole
   name?: string
   [key: string]: unknown
 }
@@ -111,6 +112,29 @@ export interface MappingContent {
     kind: 'APPEND' | 'STAGED_REPLACE' | 'MERGE' | 'TRUNCATE_LOAD' | 'ATOMIC_DELETE_INSERT'
     key?: string[]
   }
+  [key: string]: unknown
+}
+
+export type ProcedureTaskType = 'SQL' | 'PLSQL' | 'STORED_PROCEDURE'
+export type ProcedureConnectionRole = 'SOURCE' | 'TARGET'
+export type ProcedureRiskClass = 'READ_ONLY' | 'DML' | 'DDL' | 'DESTRUCTIVE'
+
+export interface ProcedureTask {
+  id: string
+  name?: string
+  type: ProcedureTaskType
+  connectionRole: ProcedureConnectionRole
+  riskClass: ProcedureRiskClass
+  command: string
+  requiresApproval?: boolean
+  onError?: 'STOP' | 'CONTINUE'
+  timeoutSeconds?: number
+  output?: { kind: 'ROWSET'; maxRows: number }
+  input?: { fromTask: string; mode: 'BATCH'; batchSize: number }
+}
+
+export interface ProcedureContent {
+  tasks: ProcedureTask[]
   [key: string]: unknown
 }
 

@@ -18,10 +18,11 @@ import {
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { ApiProblem } from '../../core/api/client'
 import { definitionsApi } from './api'
-import { createDefaultContent, isMappingContent } from './defaults'
+import { createDefaultContent, isMappingContent, isProcedureContent } from './defaults'
 import { definitionTypeKey, useDefinitionsI18n } from './i18n'
 import { JsonDraftEditor } from './JsonDraftEditor'
 import { MappingGrid } from './MappingGrid'
+import { ProcedureEditor } from './ProcedureEditor'
 import type {
   DataBinding,
   Definition,
@@ -44,7 +45,7 @@ type WorkspaceTab = 'draft' | 'versions' | 'bindings'
 type EditorMode = 'visual' | 'json'
 
 const executableTypes = new Set<DefinitionType>(['MAPPING', 'PACKAGE', 'PROCEDURE', 'LOAD_PLAN'])
-const bindingTypes = new Set<DefinitionType>(['MAPPING', 'REUSABLE_MAPPING'])
+const bindingTypes = new Set<DefinitionType>(['MAPPING', 'REUSABLE_MAPPING', 'PROCEDURE'])
 
 const fallbackTypes: DefinitionTypeDescriptor[] = DEFINITION_TYPES.map((code) => ({
   code,
@@ -141,7 +142,7 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
         definitionsApi.listVersions(projectUuid, selectedDefinition.uuid),
       ])
       setDraft(nextDraft)
-      setSchemaVersion(nextDraft?.schemaVersion ?? 1)
+      setSchemaVersion(nextDraft?.schemaVersion ?? (selectedDefinition.type === 'MAPPING' || selectedDefinition.type === 'PROCEDURE' ? 2 : 1))
       setContent(nextDraft?.content ?? createDefaultContent(selectedDefinition.type))
       setDirty(false)
       setJsonValid(true)
@@ -395,9 +396,9 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
                       {dirty && <span>{t('unsaved')}</span>}
                     </div>
                     <div className="definition-editor-actions">
-                      {selectedDefinition.type === 'MAPPING' && (
+                      {(selectedDefinition.type === 'MAPPING' || selectedDefinition.type === 'PROCEDURE') && (
                         <div className="definition-segmented" aria-label={t('draft')}>
-                          <button type="button" aria-pressed={editorMode === 'visual'} onClick={() => setEditorMode('visual')}>{t('visualEditor')}</button>
+                          <button type="button" aria-pressed={editorMode === 'visual'} onClick={() => setEditorMode('visual')}>{selectedDefinition.type === 'PROCEDURE' ? t('procedureEditor') : t('visualEditor')}</button>
                           <button type="button" aria-pressed={editorMode === 'json'} onClick={() => setEditorMode('json')}>{t('jsonEditor')}</button>
                         </div>
                       )}
@@ -413,6 +414,8 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
                   </div>
                   {selectedDefinition.type === 'MAPPING' && editorMode === 'visual' && isMappingContent(content) ? (
                     <MappingGrid value={content} onChange={updateContent} />
+                  ) : selectedDefinition.type === 'PROCEDURE' && editorMode === 'visual' && isProcedureContent(content) ? (
+                    <ProcedureEditor value={content} onChange={updateContent} />
                   ) : (
                     <JsonDraftEditor value={content} onChange={updateContent} onValidityChange={setJsonValid} />
                   )}
@@ -561,10 +564,10 @@ function BindingsPanel(props: BindingsPanelProps) {
   const { t } = useDefinitionsI18n()
   const [input, setInput] = useState<{
     nodeCode: string
-    role: 'SOURCE' | 'TARGET'
+    role: 'KAYNAK' | 'HEDEF'
     dataObjectUuid: string
     schemaSnapshotUuid: string
-  }>({ nodeCode: '', role: 'SOURCE', dataObjectUuid: '', schemaSnapshotUuid: '' })
+  }>({ nodeCode: '', role: 'KAYNAK', dataObjectUuid: '', schemaSnapshotUuid: '' })
   const [saving, setSaving] = useState(false)
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -573,7 +576,7 @@ function BindingsPanel(props: BindingsPanelProps) {
     try {
       const created = await definitionsApi.createBinding(props.projectUuid, props.definition.uuid, props.selectedVersion.uuid, input)
       props.onCreated(created)
-      setInput({ nodeCode: '', role: 'SOURCE', dataObjectUuid: '', schemaSnapshotUuid: '' })
+      setInput({ nodeCode: '', role: 'KAYNAK', dataObjectUuid: '', schemaSnapshotUuid: '' })
     } catch (error) {
       props.onError(errorMessage(error, t('requestError')))
     } finally {
@@ -588,13 +591,13 @@ function BindingsPanel(props: BindingsPanelProps) {
       </div>
       <form className="definition-binding-form" onSubmit={submit}>
         <label><span>{t('nodeCode')}</span><input required value={input.nodeCode} onChange={(event) => setInput({ ...input, nodeCode: event.target.value })} /></label>
-        <label><span>{t('role')}</span><select value={input.role} onChange={(event) => setInput({ ...input, role: event.target.value as 'SOURCE' | 'TARGET' })}><option value="SOURCE">SOURCE</option><option value="TARGET">TARGET</option></select></label>
+        <label><span>{t('role')}</span><select value={input.role} onChange={(event) => setInput({ ...input, role: event.target.value as 'KAYNAK' | 'HEDEF' })}><option value="KAYNAK">{t('source')}</option><option value="HEDEF">{t('target')}</option></select></label>
         <label><span>{t('dataObjectUuid')}</span><input required pattern="[0-9a-fA-F-]{36}" value={input.dataObjectUuid} onChange={(event) => setInput({ ...input, dataObjectUuid: event.target.value })} /></label>
         <label><span>{t('schemaSnapshotUuid')}</span><input required pattern="[0-9a-fA-F-]{36}" value={input.schemaSnapshotUuid} onChange={(event) => setInput({ ...input, schemaSnapshotUuid: event.target.value })} /></label>
         <button className="definition-button definition-button--primary" type="submit" disabled={!props.selectedVersion || saving}>{saving ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}{t('saveBinding')}</button>
       </form>
       {props.bindings.length === 0 ? <p className="definition-state">{t('noBindings')}</p> : (
-        <div className="definition-binding-list">{props.bindings.map((binding) => <article key={binding.uuid}><span className={`definition-role definition-role--${binding.role.toLowerCase()}`}>{binding.role}</span><strong>{binding.nodeCode}</strong><dl><div><dt>{t('dataObjectUuid')}</dt><dd><code>{binding.dataObjectUuid}</code></dd></div><div><dt>{t('schemaSnapshotUuid')}</dt><dd><code>{binding.schemaSnapshotUuid}</code></dd></div></dl></article>)}</div>
+        <div className="definition-binding-list">{props.bindings.map((binding) => <article key={binding.uuid}><span className={`definition-role definition-role--${binding.role === 'KAYNAK' ? 'source' : 'target'}`}>{binding.role === 'KAYNAK' ? t('source') : t('target')}</span><strong>{binding.nodeCode}</strong><dl><div><dt>{t('dataObjectUuid')}</dt><dd><code>{binding.dataObjectUuid}</code></dd></div><div><dt>{t('schemaSnapshotUuid')}</dt><dd><code>{binding.schemaSnapshotUuid}</code></dd></div></dl></article>)}</div>
       )}
     </section>
   )

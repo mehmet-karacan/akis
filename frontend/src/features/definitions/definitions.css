@@ -155,6 +155,30 @@
 .mapping-strategy h3 { margin-right: auto; align-self: center; }
 .mapping-strategy label { min-width: 14rem; }
 
+.procedure-editor { padding: .9rem; }
+.procedure-editor-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: .8rem; }
+.procedure-editor-heading h3 { margin: 0 0 .25rem; font-size: .95rem; }
+.procedure-editor-heading p { max-width: 48rem; margin: 0; color: var(--df-muted); font-size: .74rem; line-height: 1.5; }
+.procedure-task-list { display: grid; gap: .75rem; }
+.procedure-task { border: 1px solid var(--df-line); border-radius: .65rem; background: var(--df-bg); overflow: hidden; }
+.procedure-task > header { display: flex; align-items: center; gap: .65rem; padding: .65rem .75rem; border-bottom: 1px solid var(--df-line); background: var(--df-panel-muted); }
+.procedure-task > header > div:nth-child(2) { display: grid; gap: .12rem; min-width: 0; flex: 1; }
+.procedure-task > header strong { overflow: hidden; font-size: .82rem; text-overflow: ellipsis; white-space: nowrap; }
+.procedure-task > header small { color: var(--df-muted); font-size: .67rem; }
+.procedure-step-number { display: grid; place-items: center; width: 2rem; height: 2rem; flex: 0 0 auto; border-radius: .45rem; background: var(--df-accent-soft); color: var(--df-accent); font-family: "Cascadia Code", Consolas, monospace; font-size: .72rem; font-weight: 800; }
+.procedure-task-actions { display: flex; gap: .35rem; }
+.procedure-task-grid { display: grid; grid-template-columns: repeat(4, minmax(9rem, 1fr)); gap: .65rem; padding: .75rem; }
+.procedure-task-grid label, .procedure-command, .procedure-flow-options label { display: grid; gap: .3rem; }
+.procedure-task-grid label > span, .procedure-command > span, .procedure-flow-options label > span { color: var(--df-muted); font-size: .68rem; font-weight: 720; }
+.procedure-task-grid input, .procedure-task-grid select, .procedure-flow-options input, .procedure-flow-options select { width: 100%; }
+.procedure-command { padding: 0 .75rem .75rem; }
+.procedure-command textarea { width: 100%; min-height: 8rem; resize: vertical; font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace; font-size: .78rem; line-height: 1.5; }
+.procedure-flow-options { display: flex; align-items: end; gap: .8rem; padding: .65rem .75rem; border-top: 1px solid var(--df-line); background: var(--df-panel); }
+.procedure-flow-options > label:not(.procedure-checkbox) { min-width: 11rem; }
+.procedure-checkbox { display: flex !important; align-items: center; grid-template-columns: auto 1fr; align-self: center; gap: .45rem !important; }
+.procedure-checkbox input { width: auto; }
+.procedure-checkbox span { color: var(--df-text) !important; }
+
 .definition-version-layout { display: grid; grid-template-columns: minmax(18rem, 24rem) minmax(0, 1fr); min-height: 28rem; }
 .definition-version-column { border-right: 1px solid var(--df-line); }
 .definition-version-form { display: grid; gap: .55rem; padding: .75rem; border-bottom: 1px solid var(--df-line); background: var(--df-panel-muted); }
@@ -234,6 +258,8 @@
   .mapping-dataset { grid-template-columns: 5rem 1fr 2.35rem; }
   .mapping-dataset label:nth-of-type(2) { grid-column: 2 / 3; }
   .mapping-grid-toolbar, .mapping-strategy { align-items: stretch; flex-direction: column; }
+  .procedure-editor-heading, .procedure-flow-options { align-items: stretch; flex-direction: column; }
+  .procedure-task-grid { grid-template-columns: 1fr; }
   .definition-search--compact { min-width: 0; width: 100%; }
   .mapping-strategy h3 { margin: 0; }
   .mapping-strategy label { min-width: 0; }
@@ -245,4 +271,3 @@
   .definition-form-grid { grid-template-columns: 1fr; }
   .definition-form-grid--wide { grid-column: auto; }
 }
-

@@ -87,6 +87,56 @@ class DefinitionContentValidatorTest {
     }
 
     @Test
+    void acceptsOrderedProcedureV2WithMaintenanceAndCrossConnectionRowTransfer() {
+        assertDoesNotThrow(() -> validate(DefinitionType.PROCEDURE, 2, """
+                {"tasks":[
+                  {"id":"CLEAR_TARGET","type":"SQL","connectionRole":"TARGET",
+                   "riskClass":"DESTRUCTIVE","requiresApproval":true,"onError":"STOP",
+                   "command":"TRUNCATE TABLE INNOVA_ODI.STG_HAKEDIS_TIPI"},
+                  {"id":"READ_SOURCE","type":"SQL","connectionRole":"SOURCE",
+                   "riskClass":"READ_ONLY","onError":"STOP","timeoutSeconds":60,
+                   "command":"SELECT ID, ACIKLAMA FROM TTBP.HAKEDIS_TIPI",
+                   "output":{"kind":"ROWSET","maxRows":10000}},
+                  {"id":"WRITE_TARGET","type":"SQL","connectionRole":"TARGET",
+                   "riskClass":"DML","onError":"STOP",
+                   "command":"INSERT INTO INNOVA_ODI.STG_HAKEDIS_TIPI (ID, ACIKLAMA) VALUES (:ID, :ACIKLAMA)",
+                   "input":{"fromTask":"READ_SOURCE","mode":"BATCH","batchSize":250}},
+                  {"id":"GATHER_STATS","type":"PLSQL","connectionRole":"TARGET",
+                   "riskClass":"DDL","requiresApproval":true,"onError":"STOP",
+                   "command":"BEGIN DBMS_STATS.GATHER_TABLE_STATS('INNOVA_ODI','STG_HAKEDIS_TIPI'); END;"}
+                ]}
+                """));
+    }
+
+    @Test
+    void rejectsProcedureV2RowInputBeforeItsProducer() {
+        assertValidationContains(DefinitionType.PROCEDURE, 2, """
+                {"tasks":[
+                  {"id":"WRITE_TARGET","type":"SQL","connectionRole":"TARGET",
+                   "riskClass":"DML","command":"INSERT INTO T (ID) VALUES (:ID)",
+                   "input":{"fromTask":"READ_SOURCE","mode":"BATCH","batchSize":250}},
+                  {"id":"READ_SOURCE","type":"SQL","connectionRole":"SOURCE",
+                   "riskClass":"READ_ONLY","command":"SELECT ID FROM S",
+                   "output":{"kind":"ROWSET","maxRows":1000}}
+                ]}
+                """, "daha önce");
+    }
+
+    @Test
+    void rejectsProcedureV2RowInsertWithoutNamedBinds() {
+        assertValidationContains(DefinitionType.PROCEDURE, 2, """
+                {"tasks":[
+                  {"id":"READ_SOURCE","type":"SQL","connectionRole":"SOURCE",
+                   "riskClass":"READ_ONLY","command":"SELECT ID FROM S",
+                   "output":{"kind":"ROWSET","maxRows":1000}},
+                  {"id":"WRITE_TARGET","type":"SQL","connectionRole":"TARGET",
+                   "riskClass":"DML","command":"INSERT INTO T (ID) VALUES (1)",
+                   "input":{"fromTask":"READ_SOURCE","mode":"BATCH","batchSize":250}}
+                ]}
+                """, "named bind");
+    }
+
+    @Test
     void rejectsProcedureTaskOutsideAllowlist() {
         assertValidationContains(DefinitionType.PROCEDURE, """
                 {"tasks":[{"id":"shell","type":"OPERATING_SYSTEM","connectionRole":"SOURCE",
