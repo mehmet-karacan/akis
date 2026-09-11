@@ -237,6 +237,40 @@ public class JdbcPinnedSchemaSnapshotStore implements PinnedSchemaSnapshotPort {
                 loaded.projectUuid(), loaded.publicationUuid(), loaded.snapshot());
     }
 
+    @Transactional(readOnly = true)
+    PinnedProcedureTarget loadProcedureTarget(
+            ProcedureRuntimePlan plan,
+            ProcedureRuntimePlan.Task targetTask,
+            ProcedureRuntimePlan.TaskBinding binding,
+            String publicationStatus) {
+        if (plan == null || targetTask == null || binding == null
+                || targetTask.connectionRole() != ProcedureRuntimePlan.ConnectionRole.TARGET
+                || binding.role() != ProcedureRuntimePlan.ConnectionRole.TARGET
+                || !targetTask.id().equals(binding.taskId())
+                || !("AKTIF".equals(publicationStatus)
+                    || "ONAY_BEKLIYOR".equals(publicationStatus))) {
+            throw failure(Failure.INVALID_CONTRACT);
+        }
+        DatasetBinding adapted = ProcedureOracleBindingAdapter.target(binding);
+        PilotRuntimePlan adaptedPlan = new PilotRuntimePlan(
+                PilotRuntimePlan.CURRENT_VERSION,
+                plan.runtimePlanHash(),
+                plan.releaseHash(),
+                plan.scenarioPlanHash(),
+                plan.definitionUuid(),
+                plan.definitionVersionUuid(),
+                1,
+                null,
+                adapted,
+                List.of(),
+                PilotRuntimePlan.WriteStrategy.ATOMIC_DELETE_INSERT,
+                plan.canonicalPlan());
+        LoadedSnapshot loaded = loadBinding(
+                adaptedPlan, adapted, DatasetRole.TARGET, publicationStatus);
+        return new PinnedProcedureTarget(
+                loaded.projectUuid(), loaded.publicationUuid(), loaded.snapshot());
+    }
+
     private List<Column> loadColumns(long snapshotId) {
         return jdbc.sql("""
                         select kolon_referansi, uretici_tip_kodu, kanonik_tip_kodu,
@@ -388,6 +422,10 @@ public class JdbcPinnedSchemaSnapshotStore implements PinnedSchemaSnapshotPort {
     }
 
     record PinnedProcedureSource(
+            UUID projectUuid, UUID publicationUuid, PinnedSnapshot snapshot) {
+    }
+
+    record PinnedProcedureTarget(
             UUID projectUuid, UUID publicationUuid, PinnedSnapshot snapshot) {
     }
 }

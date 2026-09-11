@@ -11,6 +11,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import tr.com.innova.akis.execution.ProcedurePreflightContextPort.Context;
+import tr.com.innova.akis.execution.ProcedurePreflightContextPort.ConnectionEvidence;
 
 /** Loads the immutable publication inputs used by a source-only preflight. */
 @Repository
@@ -56,6 +57,32 @@ public class JdbcProcedurePreflightContextStore
                         rs.getString("plan_ozeti"),
                         json(rs.getString("plan")),
                         json(rs.getString("fiziksel_manifesto"))))
+                .optional();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<ConnectionEvidence> findConnectionEvidence(
+            UUID projectUuid, UUID connectionVersionUuid) {
+        return jdbc.sql("""
+                        select yd.hedef_kimlik_surumu,
+                               yd.hedef_parmak_izi
+                          from entegrasyon.baglanti_surumu_yasam_dongusu yd
+                          join entegrasyon.proje p on p.id = yd.proje_id
+                          join entegrasyon.baglanti_surumu bs
+                            on bs.proje_id = yd.proje_id
+                           and bs.id = yd.baglanti_surumu_id
+                         where p.uuid = :projectUuid
+                           and bs.uuid = :connectionVersionUuid
+                           and yd.durum_kodu = 'ACTIVE'
+                           and yd.hedef_kimlik_surumu = 1
+                           and yd.hedef_parmak_izi ~ '^[0-9a-f]{64}$'
+                        """)
+                .param("projectUuid", projectUuid)
+                .param("connectionVersionUuid", connectionVersionUuid)
+                .query((rs, rowNum) -> new ConnectionEvidence(
+                        rs.getInt("hedef_kimlik_surumu"),
+                        rs.getString("hedef_parmak_izi")))
                 .optional();
     }
 

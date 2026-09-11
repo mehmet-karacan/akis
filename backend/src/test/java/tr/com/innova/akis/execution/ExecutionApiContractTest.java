@@ -18,13 +18,24 @@ class ExecutionApiContractTest {
         for (Class<?> view : List.of(
                 ExecutionController.RunView.class,
                 ExecutionController.RunEventView.class,
-                ProcedureSourcePreflightService.Result.class)) {
+                ProcedureSourcePreflightService.Result.class,
+                ProcedureTargetPreflightService.Result.class)) {
             assertFalse(Arrays.stream(view.getRecordComponents())
                     .anyMatch(component -> component.getName().equalsIgnoreCase("id")
                             || component.getName().endsWith("Id")
                             && (component.getType() == long.class
                                 || component.getType() == Long.class)));
         }
+    }
+
+    @Test
+    void procedureTargetPreflightReturnsOnlyIdentityAndPrivilegeSummary() {
+        assertFalse(Arrays.stream(
+                        ProcedureTargetPreflightService.Result.class.getRecordComponents())
+                .anyMatch(component -> component.getName().equals("rows")
+                        || component.getName().equals("values")
+                        || component.getName().equals("credentials")
+                        || component.getName().equals("password")));
     }
 
     @Test
