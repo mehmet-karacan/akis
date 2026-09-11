@@ -27,6 +27,7 @@ Thumbs.db
 *.log
 logs/
 .data/
+.tmp/
 
 # CI/CD is intentionally disabled for the bootstrap phase.
 .github/workflows/
