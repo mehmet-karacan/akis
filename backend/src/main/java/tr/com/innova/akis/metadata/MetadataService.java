@@ -23,6 +23,7 @@ import tr.com.innova.akis.metadata.MetadataModels.DraftRow;
 import tr.com.innova.akis.metadata.MetadataModels.FolderRow;
 import tr.com.innova.akis.metadata.MetadataModels.ProjectRow;
 import tr.com.innova.akis.metadata.MetadataModels.VersionRow;
+import tr.com.innova.akis.projectbundle.SecretValueSanitizer;
 
 @Service
 public class MetadataService {
@@ -32,14 +33,17 @@ public class MetadataService {
     private final MetadataRepository repository;
     private final ObjectMapper objectMapper;
     private final DefinitionContentValidator contentValidator;
+    private final SecretValueSanitizer secretSanitizer;
 
     public MetadataService(
             MetadataRepository repository,
             ObjectMapper objectMapper,
-            DefinitionContentValidator contentValidator) {
+            DefinitionContentValidator contentValidator,
+            SecretValueSanitizer secretSanitizer) {
         this.repository = repository;
         this.objectMapper = objectMapper;
         this.contentValidator = contentValidator;
+        this.secretSanitizer = secretSanitizer;
     }
 
     List<DefinitionType> definitionTypes() {
@@ -209,6 +213,7 @@ public class MetadataService {
             throw validation("Şema sürümü sıfırdan büyük olmalıdır.");
         }
         requireObject(content);
+        rejectSecrets(content);
         var existing = repository.findDraft(definition.id());
         if (existing.isEmpty()) {
             if (expectedVersion != null && expectedVersion != 0) {
@@ -259,21 +264,24 @@ public class MetadataService {
         repository.lockDefinition(definition.id());
         DraftRow draft = repository.findDraft(definition.id())
                 .orElseThrow(() -> validation("Sürümlenecek taslak bulunamadı."));
+        rejectSecrets(draft.content());
         if (expectedDraftVersion == null || draft.version() != expectedDraftVersion) {
             throw new ApiException(
                     HttpStatus.PRECONDITION_FAILED,
                     "STALE_VERSION",
                     "Taslak sürümü istekle uyuşmuyor.");
         }
-        validateContent(definition.type(), draft.content());
+        contentValidator.validate(definition.type(), draft.schemaVersion(), draft.content());
         validateOwnership(definition, draft.content());
         JsonNode canonical = canonicalize(draft.content());
-        return repository.createVersion(
+        VersionRow version = repository.createVersion(
                 definition.id(),
                 draft.schemaVersion(),
                 sha256(canonical.toString()),
                 canonical,
                 trimToNull(description));
+        repository.activateDraftDefinition(definition.id());
+        return version;
     }
 
     List<VersionRow> listVersions(UUID projectUuid, UUID definitionUuid) {
@@ -321,6 +329,15 @@ public class MetadataService {
     private void requireObject(JsonNode content) {
         if (content == null || !content.isObject()) {
             throw validation("Tanım içeriği JSON nesnesi olmalıdır.");
+        }
+    }
+
+    private void rejectSecrets(JsonNode content) {
+        if (!secretSanitizer.sensitivePaths(content).isEmpty()) {
+            throw new ApiException(
+                    HttpStatus.UNPROCESSABLE_CONTENT,
+                    "SENSITIVE_VALUE_REJECTED",
+                    "Tanım JSON'u secret değer taşıyamaz; yalnız güvenli referans kullanın.");
         }
     }
 

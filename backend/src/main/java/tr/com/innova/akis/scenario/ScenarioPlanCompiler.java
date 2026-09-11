@@ -18,13 +18,14 @@ import tools.jackson.databind.node.ObjectNode;
 import tr.com.innova.akis.metadata.ApiException;
 import tr.com.innova.akis.metadata.DefinitionContentValidator;
 import tr.com.innova.akis.metadata.DefinitionType;
+import tr.com.innova.akis.projectbundle.SecretValueSanitizer;
 import tr.com.innova.akis.scenario.ScenarioModels.CompiledPlan;
 import tr.com.innova.akis.scenario.ScenarioModels.SourceVersion;
 
 @Component
 final class ScenarioPlanCompiler {
 
-    static final int PLAN_VERSION = 1;
+    static final int PLAN_VERSION = 2;
     private static final Set<DefinitionType> EXECUTABLE_TYPES = Set.of(
             DefinitionType.MAPPING,
             DefinitionType.PACKAGE,
@@ -33,12 +34,15 @@ final class ScenarioPlanCompiler {
 
     private final ObjectMapper objectMapper;
     private final DefinitionContentValidator definitionValidator;
+    private final SecretValueSanitizer secretSanitizer;
 
     ScenarioPlanCompiler(
             ObjectMapper objectMapper,
-            DefinitionContentValidator definitionValidator) {
+            DefinitionContentValidator definitionValidator,
+            SecretValueSanitizer secretSanitizer) {
         this.objectMapper = objectMapper;
         this.definitionValidator = definitionValidator;
+        this.secretSanitizer = secretSanitizer;
     }
 
     CompiledPlan compile(SourceVersion source) {
@@ -48,7 +52,11 @@ final class ScenarioPlanCompiler {
         if (source.content() == null || !source.content().isObject()) {
             throw validation("Tanım sürümü içeriği JSON nesnesi olmalıdır.");
         }
-        definitionValidator.validate(source.definitionType(), source.content());
+        if (!secretSanitizer.sensitivePaths(source.content()).isEmpty()) {
+            throw validation("Tanım içeriği secret değer taşıyamaz; yalnız güvenli referans kullanın.");
+        }
+        definitionValidator.validate(
+                source.definitionType(), source.schemaVersion(), source.content());
         for (String field : source.definitionType().requiredContentFields()) {
             if (!source.content().has(field) || source.content().get(field).isNull()) {
                 throw validation("Tanım sürümünde zorunlu alan eksik: " + field);

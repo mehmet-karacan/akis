@@ -327,6 +327,18 @@ public class MetadataRepository {
                 .single();
     }
 
+    void activateDraftDefinition(long definitionId) {
+        jdbc.sql("""
+                        update entegrasyon.tanim
+                           set durum_kodu = 'AKTIF',
+                               guncellenme_zamani = current_timestamp,
+                               versiyon_no = versiyon_no + 1
+                         where id = :id and durum_kodu = 'TASLAK'
+                        """)
+                .param("id", definitionId)
+                .update();
+    }
+
     List<VersionRow> listVersions(long definitionId) {
         return jdbc.sql("""
                         select uuid, surum_no, sema_surumu, icerik_ozeti,

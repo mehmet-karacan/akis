@@ -221,6 +221,10 @@ try {
     if ($connectionVersion.versionNumber -ne 1) {
         throw "First connection version number is invalid."
     }
+    $activeConnection = Invoke-AkisJson GET "/api/v1/projects/$($project.uuid)/connections/$($connection.uuid)"
+    if ($activeConnection.status -ne "AKTIF") {
+        throw "A valid first connection version did not activate its draft connection."
+    }
     if ($connectionVersion.PSObject.Properties.Name -contains "secretValue") {
         throw "Secret value leaked through the connection version API."
     }
@@ -251,6 +255,13 @@ try {
         type = "TABLO"
         name = "Source table"
     }
+    $targetTableObject = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/models/$($model.uuid)/data-objects" @{
+        submodelUuid = $submodel.uuid
+        code = "TARGET_TABLE"
+        objectReference = "TARGET_TABLE"
+        type = "TABLO"
+        name = "Target table"
+    }
     Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/models/$($model.uuid)/data-objects" @{
         code = "SOURCE_VIEW"
         objectReference = "SOURCE_VIEW"
@@ -266,8 +277,8 @@ try {
         name = "Controlled query"
     } | Out-Null
     $dataObjects = Invoke-AkisJson GET "/api/v1/projects/$($project.uuid)/models/$($model.uuid)/data-objects"
-    if ($dataObjects.Count -ne 3) {
-        throw "Expected 3 model data objects, found $($dataObjects.Count)."
+    if ($dataObjects.Count -ne 4) {
+        throw "Expected 4 model data objects, found $($dataObjects.Count)."
     }
 
     $snapshot = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/data-objects/$($tableObject.uuid)/schema-snapshots" @{
@@ -316,6 +327,27 @@ try {
     $snapshots = Invoke-AkisJson GET "/api/v1/projects/$($project.uuid)/data-objects/$($tableObject.uuid)/schema-snapshots"
     if ($snapshots.Count -ne 1 -or $snapshots[0].uuid -ne $snapshot.uuid) {
         throw "Schema snapshot list contract failed."
+    }
+    $targetSnapshot = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/data-objects/$($targetTableObject.uuid)/schema-snapshots" @{
+        physicalSchemaUuid = $physicalSchema.uuid
+        connectionVersionUuid = $connectionVersion.uuid
+        engineVersion = "Oracle Database 19c"
+        discoveredAt = [DateTimeOffset]::UtcNow.ToString("o")
+        propertyVersion = 1
+        properties = @{ source = "api-smoke" }
+        columns = @(
+            @{
+                reference = "ID"
+                producerType = "NUMBER(19)"
+                canonicalType = "INTEGER"
+                ordinal = 1
+                precision = 19
+                scale = 0
+                nullable = $false
+                name = "ID"
+            }
+        )
+        constraints = @()
     }
 
     try {
@@ -416,6 +448,22 @@ try {
         }
     }
 
+    try {
+        Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/connections/$($connection.uuid)/versions" @{
+            driverReference = "oracle.jdbc.OracleDriver"
+            host = "db-host.invalid"
+            serviceName = "SERVICE"
+            port = 1521
+            policy = @{ jdbcUrl = "jdbc:oracle:thin:user/must-not-be-stored@//db-host.invalid:1521/SERVICE" }
+        }
+        throw "Credential-bearing scalar connection policy was accepted."
+    }
+    catch {
+        if ($_.Exception.Response.StatusCode.value__ -ne 422) {
+            throw
+        }
+    }
+
     $contracts = @(
         @{ type = "MAPPING"; folder = $true; content = @{
             datasets = @(
@@ -428,7 +476,7 @@ try {
                     target = @{ dataset = "target"; column = "ID" }
                 }
             )
-            writeStrategy = @{ kind = "APPEND" }
+            writeStrategy = @{ kind = "ATOMIC_DELETE_INSERT" }
         } },
         @{ type = "REUSABLE_MAPPING"; folder = $true; content = @{ inputs = @(); outputs = @(); nodes = @() } },
         @{ type = "PACKAGE"; folder = $true; content = @{
@@ -471,7 +519,7 @@ try {
         $definition = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/definitions" $request
         $draft = Invoke-AkisJson PUT "/api/v1/projects/$($project.uuid)/definitions/$($definition.uuid)/draft" @{
             expectedVersion = 0
-            schemaVersion = 1
+            schemaVersion = if ($contract.type -eq "MAPPING") { 2 } else { 1 }
             content = $contract.content
         }
         $version = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/definitions/$($definition.uuid)/versions" @{
@@ -480,6 +528,10 @@ try {
         }
         if ($version.versionNumber -ne 1 -or $version.contentHash.Length -ne 64) {
             throw "Version contract failed for $($contract.type)."
+        }
+        $activeDefinition = Invoke-AkisJson GET "/api/v1/projects/$($project.uuid)/definitions/$($definition.uuid)"
+        if ($activeDefinition.status -ne "AKTIF") {
+            throw "A definition with an immutable version was not activated."
         }
         if ($contract.type -eq "MAPPING") {
             $mappingDefinition = $definition
@@ -501,10 +553,34 @@ try {
         dataObjectUuid = $tableObject.uuid
         schemaSnapshotUuid = $snapshot.uuid
     }
+    $targetDefinitionBinding = Invoke-AkisJson POST $bindingPath @{
+        nodeCode = "target"
+        role = "HEDEF"
+        dataObjectUuid = $targetTableObject.uuid
+        schemaSnapshotUuid = $targetSnapshot.uuid
+    }
     $definitionBindings = Invoke-AkisJson GET $bindingPath
-    if ($definitionBinding.schemaSnapshotUuid -ne $snapshot.uuid -or $definitionBindings.Count -ne 1) {
+    if ($definitionBinding.schemaSnapshotUuid -ne $snapshot.uuid `
+            -or $targetDefinitionBinding.schemaSnapshotUuid -ne $targetSnapshot.uuid `
+            -or $definitionBindings.Count -ne 2) {
         throw "Immutable definition data binding failed."
     }
+    & $docker exec $container psql -v ON_ERROR_STOP=1 -U $databaseUser -d $testDatabase `
+        -c "update entegrasyon.ortam_sema_eslemesi set baglanti_surumu_id = (select id from entegrasyon.baglanti_surumu where uuid = '$($otherVersion.uuid)') where uuid = '$($schemaBinding.uuid)'" | Out-Null
+    try {
+        Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/publications" @{
+            scenarioUuid = $scenario.uuid
+            environmentUuid = $environment.uuid
+        }
+        throw "Mismatched physical schema and connection version was published."
+    }
+    catch {
+        if ($_.Exception.Response.StatusCode.value__ -ne 422) {
+            throw
+        }
+    }
+    & $docker exec $container psql -v ON_ERROR_STOP=1 -U $databaseUser -d $testDatabase `
+        -c "update entegrasyon.ortam_sema_eslemesi set baglanti_surumu_id = (select id from entegrasyon.baglanti_surumu where uuid = '$($connectionVersion.uuid)') where uuid = '$($schemaBinding.uuid)'" | Out-Null
     $publication = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/publications" @{
         scenarioUuid = $scenario.uuid
         environmentUuid = $environment.uuid
@@ -699,10 +775,10 @@ try {
 }
 catch {
     if (Test-Path -LiteralPath $stdoutLog) {
-        Get-Content -LiteralPath $stdoutLog -Tail 60
+        Get-Content -LiteralPath $stdoutLog -Tail 200
     }
     if (Test-Path -LiteralPath $stderrLog) {
-        Get-Content -LiteralPath $stderrLog -Tail 60
+        Get-Content -LiteralPath $stderrLog -Tail 200
     }
     throw
 }

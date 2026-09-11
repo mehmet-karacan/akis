@@ -19,7 +19,10 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
+import tr.com.innova.akis.execution.PilotRuntimePlanResolver;
+import tr.com.innova.akis.execution.PilotRuntimePlanException;
 import tr.com.innova.akis.metadata.ApiException;
+import tr.com.innova.akis.projectbundle.SecretValueSanitizer;
 import tr.com.innova.akis.publication.PublicationModels.ApprovalActor;
 import tr.com.innova.akis.publication.PublicationModels.ApprovalResult;
 import tr.com.innova.akis.publication.PublicationModels.ApprovalRow;
@@ -32,16 +35,24 @@ import tr.com.innova.akis.publication.PublicationModels.ResolvedBinding;
 @Service
 public class PublicationService {
 
-    private static final int MANIFEST_VERSION = 1;
+    private static final int MANIFEST_VERSION = 2;
     private static final String HIGH_RISK = "URETIM";
     private static final Set<String> DECISIONS = Set.of("ONAY", "RED", "GERI_CEK");
 
     private final PublicationStore store;
     private final ObjectMapper objectMapper;
+    private final PilotRuntimePlanResolver runtimePlanResolver;
+    private final SecretValueSanitizer secretSanitizer;
 
-    public PublicationService(PublicationStore store, ObjectMapper objectMapper) {
+    public PublicationService(
+            PublicationStore store,
+            ObjectMapper objectMapper,
+            PilotRuntimePlanResolver runtimePlanResolver,
+            SecretValueSanitizer secretSanitizer) {
         this.store = store;
         this.objectMapper = objectMapper;
+        this.runtimePlanResolver = runtimePlanResolver;
+        this.secretSanitizer = secretSanitizer;
     }
 
     @Transactional
@@ -55,8 +66,28 @@ public class PublicationService {
                 .sorted(Comparator.comparing(ResolvedBinding::nodeCode))
                 .toList();
         validateResolvedBindings(bindings);
+        if (!secretSanitizer.sensitivePaths(context.environmentPolicy()).isEmpty()) {
+            throw new ApiException(
+                    HttpStatus.UNPROCESSABLE_CONTENT,
+                    "SENSITIVE_VALUE_REJECTED",
+                    "Ortam politikası secret değer taşıyamaz; yalnız güvenli referans kullanın.");
+        }
 
-        ObjectNode unsignedManifest = unsignedManifest(context, bindings);
+        boolean pilotExecutable = runtimePlanResolver.isPilotCandidate(context.scenarioPlan());
+        ObjectNode unsignedManifest = unsignedManifest(context, bindings, pilotExecutable);
+        if (pilotExecutable) {
+            try {
+                String runtimePlanHash = runtimePlanResolver.compileHashForPublication(
+                        context.planHash(), context.scenarioPlan(), unsignedManifest);
+                unsignedManifest.put("runtimePlanHash", runtimePlanHash);
+            }
+            catch (PilotRuntimePlanException exception) {
+                throw new ApiException(
+                        HttpStatus.UNPROCESSABLE_CONTENT,
+                        "PILOT_RUNTIME_PLAN_REJECTED",
+                        "Yayın, Oracle tablo kopyalama pilotunun güvenli çalışma sözleşmesine uymuyor.");
+            }
+        }
         String releaseHash = sha256(canonicalize(unsignedManifest).toString());
         ObjectNode manifest = unsignedManifest.deepCopy();
         manifest.put("releaseHash", releaseHash);
@@ -147,6 +178,30 @@ public class PublicationService {
                         "Tanım veri düğümü için aktif ortam şema eşlemesi yok: "
                                 + binding.nodeCode());
             }
+            if (!"AKTIF".equals(binding.dataObjectStatus())) {
+                throw new ApiException(
+                        HttpStatus.UNPROCESSABLE_CONTENT,
+                        "DATA_OBJECT_INACTIVE",
+                        "Yayın yalnız aktif veri nesnelerini kullanabilir.");
+            }
+            if (!"AKTIF".equals(binding.modelStatus())) {
+                throw new ApiException(
+                        HttpStatus.UNPROCESSABLE_CONTENT,
+                        "MODEL_INACTIVE",
+                        "Yayın yalnız aktif modelleri kullanabilir.");
+            }
+            if (!"AKTIF".equals(binding.logicalSchemaStatus())) {
+                throw new ApiException(
+                        HttpStatus.UNPROCESSABLE_CONTENT,
+                        "LOGICAL_SCHEMA_INACTIVE",
+                        "Yayın yalnız aktif mantıksal şemaları kullanabilir.");
+            }
+            if (!"AKTIF".equals(binding.connectionStatus())) {
+                throw new ApiException(
+                        HttpStatus.UNPROCESSABLE_CONTENT,
+                        "CONNECTION_INACTIVE",
+                        "Yayın yalnız aktif bağlantıları kullanabilir.");
+            }
             if (binding.targetSnapshotId() == null) {
                 throw new ApiException(
                         HttpStatus.UNPROCESSABLE_CONTENT,
@@ -158,10 +213,14 @@ public class PublicationService {
     }
 
     private ObjectNode unsignedManifest(
-            PublicationContext context, List<ResolvedBinding> bindings) {
+            PublicationContext context,
+            List<ResolvedBinding> bindings,
+            boolean pilotExecutable) {
         ObjectNode definition = objectMapper.createObjectNode();
+        definition.put("contentHash", context.definitionContentHash());
         definition.put("definitionUuid", context.definitionUuid().toString());
         definition.put("definitionVersionUuid", context.definitionVersionUuid().toString());
+        definition.put("schemaVersion", context.definitionSchemaVersion());
 
         ObjectNode scenario = objectMapper.createObjectNode();
         scenario.put("planHash", context.planHash());
@@ -179,7 +238,9 @@ public class PublicationService {
             ObjectNode node = objectMapper.createObjectNode();
             node.put("bindingVersion", binding.bindingVersion());
             node.put("connectionVersionUuid", binding.connectionVersionUuid().toString());
+            node.put("databaseType", binding.databaseType());
             node.put("dataObjectReference", binding.dataObjectReference());
+            node.put("dataObjectType", binding.dataObjectType());
             node.put("dataObjectUuid", binding.dataObjectUuid().toString());
             node.put("definitionDataObjectUuid", binding.definitionDataObjectUuid().toString());
             node.put("environmentSchemaBindingUuid",
@@ -187,6 +248,7 @@ public class PublicationService {
             node.put("nodeCode", binding.nodeCode());
             node.put("physicalIdentity", binding.physicalSchemaReference()
                     + "." + binding.dataObjectReference());
+            node.put("physicalSchemaReference", binding.physicalSchemaReference());
             node.put("physicalSchemaUuid", binding.physicalSchemaUuid().toString());
             node.put("role", binding.role());
             node.put("schemaSnapshotFingerprint", binding.targetSnapshotFingerprint());
@@ -199,6 +261,11 @@ public class PublicationService {
         manifest.set("definition", definition);
         manifest.set("environment", environment);
         manifest.put("manifestVersion", MANIFEST_VERSION);
+        manifest.put(
+                "runtimeCapability",
+                pilotExecutable
+                        ? PilotRuntimePlanResolver.PILOT_CAPABILITY
+                        : PilotRuntimePlanResolver.DEFINITION_ONLY_CAPABILITY);
         manifest.set("scenario", scenario);
         return manifest;
     }

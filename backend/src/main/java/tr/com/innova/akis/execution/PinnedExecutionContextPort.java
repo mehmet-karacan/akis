@@ -16,6 +16,7 @@ interface PinnedExecutionContextPort {
             int attemptNumber,
             String releaseHash,
             String planHash,
+            JsonNode scenarioPlan,
             JsonNode physicalManifest) {
     }
 }

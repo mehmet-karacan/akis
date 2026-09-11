@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 
 /** Defense in depth against credentials being smuggled inside definition JSON. */
 @Component
-class SecretValueSanitizer {
+public class SecretValueSanitizer {
 
     private static final Set<String> SENSITIVE_KEYS = Set.of(
             "password", "passwd", "secret", "secretvalue", "token", "accesstoken",
@@ -24,10 +24,11 @@ class SecretValueSanitizer {
             "(?is)(-----BEGIN(?: [A-Z]+)? PRIVATE KEY-----"
                     + "|\\bIDENTIFIED\\s+BY\\b"
                     + "|\\bCONN(?:ECT)?\\s+(?!/)[^\\s/]+/[^\\s@]+@"
+                    + "|\\bjdbc:oracle:thin:(?!@)[^:/\\s]+/[^@\\s]+@(?:/{2})?[^\\s]+"
                     + "|\\b[a-z][a-z0-9+.-]*://[^/\\s:@]+:[^@\\s/]+@"
                     + "|(?:^|[?&;\\s])(?:password|passwd|pwd|token|api[_-]?key|client[_-]?secret)\\s*[=:])");
 
-    List<String> sensitivePaths(JsonNode node) {
+    public List<String> sensitivePaths(JsonNode node) {
         List<String> paths = new ArrayList<>();
         collect(node, "$", paths, Collections.newSetFromMap(new IdentityHashMap<>()));
         return List.copyOf(paths);

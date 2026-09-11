@@ -2,6 +2,7 @@ package tr.com.innova.akis.metadata;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -16,12 +17,13 @@ import tools.jackson.databind.ObjectMapper;
 import tr.com.innova.akis.metadata.MetadataModels.DefinitionRow;
 import tr.com.innova.akis.metadata.MetadataModels.DraftRow;
 import tr.com.innova.akis.metadata.MetadataModels.ProjectRow;
+import tr.com.innova.akis.projectbundle.SecretValueSanitizer;
 
 class MetadataServiceTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final MetadataService service = new MetadataService(
-            null, objectMapper, new DefinitionContentValidator());
+            null, objectMapper, new DefinitionContentValidator(), new SecretValueSanitizer());
 
     @Test
     void validatesEveryDefinitionTypeContract() {
@@ -88,7 +90,8 @@ class MetadataServiceTest {
     void permitsIncompleteDraftButRejectsItAtImmutableVersionBoundary() {
         StubRepository repository = new StubRepository(objectMapper);
         MetadataService draftService = new MetadataService(
-                repository, objectMapper, new DefinitionContentValidator());
+                repository, objectMapper, new DefinitionContentValidator(),
+                new SecretValueSanitizer());
 
         DraftRow draft = assertDoesNotThrow(() -> draftService.saveDraft(
                 repository.projectUuid, repository.definitionUuid, 0L, 1, json("{}")));
@@ -97,6 +100,47 @@ class MetadataServiceTest {
         ApiException exception = assertThrows(ApiException.class, () -> draftService.createVersion(
                 repository.projectUuid, repository.definitionUuid, draft.version(), null));
         assertEquals("VALIDATION_FAILED", exception.code());
+    }
+
+    @Test
+    void rejectsSecretBeforeDirectDraftPersistence() {
+        StubRepository repository = new StubRepository(objectMapper);
+        MetadataService draftService = new MetadataService(
+                repository, objectMapper, new DefinitionContentValidator(),
+                new SecretValueSanitizer());
+        String secret = "should-not-persist";
+
+        ApiException exception = assertThrows(ApiException.class, () -> draftService.saveDraft(
+                repository.projectUuid,
+                repository.definitionUuid,
+                0L,
+                1,
+                json("{\"password\":\"" + secret + "\"}")));
+
+        assertEquals("SENSITIVE_VALUE_REJECTED", exception.code());
+        assertFalse(exception.getMessage().contains(secret));
+        assertEquals(null, repository.draft);
+    }
+
+    @Test
+    void rejectsOracleThinInlineCredentialsBeforeDirectDraftPersistence() {
+        StubRepository repository = new StubRepository(objectMapper);
+        MetadataService draftService = new MetadataService(
+                repository, objectMapper, new DefinitionContentValidator(),
+                new SecretValueSanitizer());
+        String secret = "inline-secret";
+
+        ApiException exception = assertThrows(ApiException.class, () -> draftService.saveDraft(
+                repository.projectUuid,
+                repository.definitionUuid,
+                0L,
+                1,
+                json("{\"jdbcUrl\":\"jdbc:oracle:thin:app/" + secret
+                        + "@//db:1521/service\"}")));
+
+        assertEquals("SENSITIVE_VALUE_REJECTED", exception.code());
+        assertFalse(exception.getMessage().contains(secret));
+        assertEquals(null, repository.draft);
     }
 
     private JsonNode json(String value) {

@@ -21,6 +21,7 @@ import tools.jackson.databind.ObjectMapper;
 import tr.com.innova.akis.metadata.ApiException;
 import tr.com.innova.akis.metadata.DefinitionContentValidator;
 import tr.com.innova.akis.metadata.DefinitionType;
+import tr.com.innova.akis.projectbundle.SecretValueSanitizer;
 import tr.com.innova.akis.scenario.ScenarioModels.CompileResult;
 import tr.com.innova.akis.scenario.ScenarioModels.CompiledPlan;
 import tr.com.innova.akis.scenario.ScenarioModels.ScenarioRow;
@@ -97,7 +98,8 @@ class ScenarioServiceTest {
     }
 
     private ScenarioPlanCompiler compiler() {
-        return new ScenarioPlanCompiler(objectMapper, new DefinitionContentValidator());
+        return new ScenarioPlanCompiler(
+                objectMapper, new DefinitionContentValidator(), new SecretValueSanitizer());
     }
 
     private static final class FakeStore implements ScenarioStore {

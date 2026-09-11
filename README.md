@@ -7,9 +7,14 @@ taşınan iş verisi PostgreSQL üzerinden geçirilmez.
 Bu repository'de Faz 0 teknik spike, Faz 1 metadata veritabanı, backend domain/API,
 ilk uçtan uca tanım yönetimi UI kapıları, Faz 2 güvenli manuel run kontrol düzlemi,
 Faz 3A PostgreSQL lease/fencing koordinasyon temeli, Oracle 19c target-local
-ledger/fencing kurulumu ve Faz 3B Oracle ledger JDBC adaptörü tamamlanmıştır.
-Manuel istek yalnız kalıcı `BEKLIYOR` run üretir. Worker poller ve Oracle business
-DML kapalıdır; ürün üretim kullanımı için hazır değildir.
+ledger/fencing kurulumu, Faz 3B Oracle ledger JDBC adaptörü ve Faz 3C kanonik
+Oracle hedef kimliği ile bounded typed pilot runtime planı tamamlanmıştır. Manuel
+istek yalnız kalıcı `BEKLIYOR` run üretir. Worker poller ve Oracle business DML
+kapalıdır; ürün üretim kullanımı için hazır değildir.
+
+Yayın manifesti yürütme yeteneğini açıkça taşır. Yalnız güvenli pilot şekline uyan
+Mapping V2 yayınları `ORACLE_TABLE_COPY_V1` ve onaylı `runtimePlanHash` alır;
+diğer geçerli tanım ve mapping sürümleri `DEFINITION_ONLY` olarak yayınlanabilir.
 
 ## Teknoloji tabanı
 

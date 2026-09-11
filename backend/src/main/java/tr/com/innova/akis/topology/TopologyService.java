@@ -13,6 +13,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import tr.com.innova.akis.metadata.ApiException;
+import tr.com.innova.akis.projectbundle.SecretValueSanitizer;
 import tr.com.innova.akis.topology.TopologyModels.ConnectionRow;
 import tr.com.innova.akis.topology.TopologyModels.ConnectionVersionRow;
 import tr.com.innova.akis.topology.TopologyModels.EnvironmentRow;
@@ -33,15 +34,17 @@ public class TopologyService {
     private static final Set<String> SECRET_ROLES = Set.of(
             "KIMLIK", "WALLET", "CLIENT_SERTIFIKA");
     private static final Set<String> RISKS = Set.of("DUSUK", "ORTA", "URETIM");
-    private static final Set<String> FORBIDDEN_POLICY_KEYS = Set.of(
-            "password", "parola", "sifre", "secret", "token", "credential", "privatekey");
-
     private final TopologyRepository repository;
     private final ObjectMapper objectMapper;
+    private final SecretValueSanitizer secretSanitizer;
 
-    public TopologyService(TopologyRepository repository, ObjectMapper objectMapper) {
+    public TopologyService(
+            TopologyRepository repository,
+            ObjectMapper objectMapper,
+            SecretValueSanitizer secretSanitizer) {
         this.repository = repository;
         this.objectMapper = objectMapper;
+        this.secretSanitizer = secretSanitizer;
     }
 
     @Transactional
@@ -109,6 +112,9 @@ public class TopologyService {
             String secretRole) {
         ProjectRef project = project(projectUuid);
         ConnectionRow connection = connection(project, connectionUuid);
+        if ("PASIF".equals(connection.status())) {
+            throw validation("Pasif bağlantıya yeni sürüm eklenemez.");
+        }
         validateEndpoint(connection.databaseType(), serviceName, sid, databaseName);
         if (port < 1 || port > 65535) {
             throw validation("Port 1-65535 aralığında olmalıdır.");
@@ -146,6 +152,7 @@ public class TopologyService {
             repository.bindSecret(
                     project.id(), version.id(), secret.id(), normalizedRole);
         }
+        repository.activateDraftConnection(connection.id());
         return version;
     }
 
@@ -281,21 +288,8 @@ public class TopologyService {
         if (!policy.isObject()) {
             throw validation("Policy JSON nesnesi olmalıdır.");
         }
-        rejectSecretKeys(policy);
-    }
-
-    private void rejectSecretKeys(JsonNode node) {
-        if (node.isObject()) {
-            node.properties().forEach(entry -> {
-                String normalized = entry.getKey().replace("_", "").toLowerCase(Locale.ROOT);
-                if (FORBIDDEN_POLICY_KEYS.stream().anyMatch(normalized::contains)) {
-                    throw validation("Policy içinde secret veya credential değeri tutulamaz.");
-                }
-                rejectSecretKeys(entry.getValue());
-            });
-        }
-        else if (node.isArray()) {
-            node.forEach(this::rejectSecretKeys);
+        if (!secretSanitizer.sensitivePaths(policy).isEmpty()) {
+            throw validation("Policy içinde secret veya credential değeri tutulamaz.");
         }
     }
 

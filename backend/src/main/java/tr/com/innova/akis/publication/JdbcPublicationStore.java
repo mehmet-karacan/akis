@@ -49,7 +49,10 @@ public class JdbcPublicationStore implements PublicationStore {
         return jdbc.sql("""
                         select p.id as project_id, s.id as scenario_id,
                                s.uuid as scenario_uuid, t.uuid as definition_uuid,
-                               v.uuid as definition_version_uuid, s.plan_ozeti,
+                               v.uuid as definition_version_uuid,
+                               v.sema_surumu as definition_schema_version,
+                               v.icerik_ozeti as definition_content_hash,
+                               s.plan_ozeti, s.plan as scenario_plan,
                                o.id as environment_id, o.uuid as environment_uuid,
                                o.kod as environment_code, o.risk_kodu,
                                o.politika_surumu, o.politika
@@ -60,6 +63,7 @@ public class JdbcPublicationStore implements PublicationStore {
                           join entegrasyon.ortam o on o.proje_id = p.id
                          where p.uuid = :projectUuid
                            and p.durum_kodu = 'AKTIF'
+                           and t.durum_kodu = 'AKTIF'
                            and s.uuid = :scenarioUuid
                            and o.uuid = :environmentUuid
                            and o.durum_kodu = 'AKTIF'
@@ -73,7 +77,10 @@ public class JdbcPublicationStore implements PublicationStore {
                         rs.getObject("scenario_uuid", UUID.class),
                         rs.getObject("definition_uuid", UUID.class),
                         rs.getObject("definition_version_uuid", UUID.class),
-                        rs.getString("plan_ozeti"), rs.getLong("environment_id"),
+                        rs.getInt("definition_schema_version"),
+                        rs.getString("definition_content_hash"),
+                        rs.getString("plan_ozeti"), json(rs.getString("scenario_plan")),
+                        rs.getLong("environment_id"),
                         rs.getObject("environment_uuid", UUID.class),
                         rs.getString("environment_code"), rs.getString("risk_kodu"),
                         rs.getInt("politika_surumu"), json(rs.getString("politika"))))
@@ -87,6 +94,10 @@ public class JdbcPublicationStore implements PublicationStore {
                                tvn.uuid as definition_data_object_uuid,
                                tvn.dugum_kodu, tvn.rol_kodu,
                                vn.uuid as data_object_uuid, vn.nesne_referansi,
+                               vn.tur_kodu as data_object_type,
+                               vn.durum_kodu as data_object_status,
+                               m.durum_kodu as model_status,
+                               ms.durum_kodu as logical_schema_status,
                                ose.id as environment_binding_id,
                                ose.uuid as environment_binding_uuid,
                                ose.versiyon_no as binding_version,
@@ -95,6 +106,8 @@ public class JdbcPublicationStore implements PublicationStore {
                                fs.sema_referansi,
                                bs.id as connection_version_id,
                                bs.uuid as connection_version_uuid,
+                               b.veritabani_turu as database_type,
+                               b.durum_kodu as connection_status,
                                target_snapshot.id as target_snapshot_id,
                                target_snapshot.uuid as target_snapshot_uuid,
                                target_snapshot.parmak_izi as target_snapshot_fingerprint
@@ -102,9 +115,12 @@ public class JdbcPublicationStore implements PublicationStore {
                           join entegrasyon.veri_nesnesi vn
                             on vn.proje_id = tvn.proje_id
                            and vn.id = tvn.veri_nesnesi_id
-                          join entegrasyon.model m
+                           join entegrasyon.model m
                             on m.proje_id = vn.proje_id
-                           and m.id = vn.model_id
+                            and m.id = vn.model_id
+                          join entegrasyon.mantiksal_sema ms
+                            on ms.proje_id = m.proje_id
+                           and ms.id = m.mantiksal_sema_id
                           left join entegrasyon.ortam_sema_eslemesi ose
                             on ose.proje_id = tvn.proje_id
                            and ose.mantiksal_sema_id = m.mantiksal_sema_id
@@ -117,6 +133,10 @@ public class JdbcPublicationStore implements PublicationStore {
                           left join entegrasyon.baglanti_surumu bs
                             on bs.proje_id = ose.proje_id
                            and bs.id = ose.baglanti_surumu_id
+                           left join entegrasyon.baglanti b
+                             on b.proje_id = bs.proje_id
+                            and b.id = bs.baglanti_id
+                            and b.id = fs.baglanti_id
                           left join lateral (
                               select sg.id, sg.uuid, sg.parmak_izi
                                 from entegrasyon.sema_goruntusu sg
@@ -386,17 +406,23 @@ public class JdbcPublicationStore implements PublicationStore {
                 rs.getObject("definition_data_object_uuid", UUID.class),
                 rs.getString("dugum_kodu"), rs.getString("rol_kodu"),
                 rs.getObject("data_object_uuid", UUID.class),
-                rs.getString("nesne_referansi"), environmentBindingId,
+                rs.getString("nesne_referansi"), rs.getString("data_object_type"),
+                environmentBindingId,
                 rs.getObject("environment_binding_uuid", UUID.class),
                 rs.getObject("physical_schema_id", Long.class),
                 rs.getObject("physical_schema_uuid", UUID.class),
                 rs.getString("sema_referansi"),
                 rs.getObject("connection_version_id", Long.class),
                 rs.getObject("connection_version_uuid", UUID.class),
+                rs.getString("database_type"),
                 rs.getObject("target_snapshot_id", Long.class),
                 rs.getObject("target_snapshot_uuid", UUID.class),
                 rs.getString("target_snapshot_fingerprint"),
-                bindingVersion == null ? 0 : bindingVersion);
+                bindingVersion == null ? 0 : bindingVersion,
+                rs.getString("data_object_status"),
+                rs.getString("model_status"),
+                rs.getString("logical_schema_status"),
+                rs.getString("connection_status"));
     }
 
     private PublicationRow mapPublication(ResultSet rs, int rowNum) throws SQLException {

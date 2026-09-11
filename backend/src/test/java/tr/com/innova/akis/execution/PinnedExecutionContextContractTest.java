@@ -20,6 +20,7 @@ class PinnedExecutionContextContractTest {
 
         assertTrue(names.contains("releaseHash"));
         assertTrue(names.contains("planHash"));
+        assertTrue(names.contains("scenarioPlan"));
         assertFalse(names.stream().anyMatch(name -> {
             String lower = name.toLowerCase(java.util.Locale.ROOT);
             return lower.contains("host") || lower.contains("password")

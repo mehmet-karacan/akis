@@ -21,7 +21,8 @@ Get-Content -LiteralPath $envFile |
 $required = @(
     "AKIS_ORACLE_TARGET_URL",
     "AKIS_ORACLE_TARGET_USERNAME",
-    "AKIS_ORACLE_TARGET_PASSWORD"
+    "AKIS_ORACLE_TARGET_PASSWORD",
+    "AKIS_ORACLE_TARGET_OWNER"
 )
 $missing = $required | Where-Object {
     -not $values.ContainsKey($_) -or [string]::IsNullOrWhiteSpace($values[$_])

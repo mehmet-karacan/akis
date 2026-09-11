@@ -488,7 +488,8 @@ public class ProjectBundleService {
             }
             if (safeShape && definition.type() != null) {
                 try {
-                    contentValidator.validate(definition.type(), version.content());
+                    contentValidator.validate(
+                            definition.type(), version.schemaVersion(), version.content());
                 }
                 catch (ApiException exception) {
                     issue(issues, base + ".content", "SEMANTIC_VALIDATION_FAILED",

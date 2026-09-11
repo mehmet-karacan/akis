@@ -3,11 +3,18 @@ package tr.com.innova.akis.publication;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.OffsetDateTime;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -15,8 +22,13 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 
+import tr.com.innova.akis.execution.PilotRuntimePlanResolver;
 import tr.com.innova.akis.metadata.ApiException;
+import tr.com.innova.akis.projectbundle.SecretValueSanitizer;
 import tr.com.innova.akis.publication.PublicationModels.ApprovalActor;
 import tr.com.innova.akis.publication.PublicationModels.ApprovalResult;
 import tr.com.innova.akis.publication.PublicationModels.ApprovalRow;
@@ -36,11 +48,12 @@ class PublicationServiceTest {
             44, UUID.randomUUID(), "Release Approver");
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final SecretValueSanitizer secretSanitizer = new SecretValueSanitizer();
 
     @Test
     void sameResolvedContextProducesOneIdempotentPublication() {
-        FakeStore store = new FakeStore(context("DUSUK"), List.of(binding()));
-        PublicationService service = new PublicationService(store, objectMapper);
+        FakeStore store = new FakeStore(context("DUSUK"), bindings());
+        PublicationService service = service(store);
 
         CreateResult first = service.create(PROJECT_UUID, SCENARIO_UUID, ENVIRONMENT_UUID);
         CreateResult second = service.create(PROJECT_UUID, SCENARIO_UUID, ENVIRONMENT_UUID);
@@ -54,12 +67,26 @@ class PublicationServiceTest {
         assertEquals(1, store.createCount);
         assertNotNull(first.publication().physicalManifest().get("definition"));
         assertNotNull(first.publication().physicalManifest().get("bindings"));
+        assertEquals(2, first.publication().physicalManifest().get("manifestVersion").intValue());
+        assertEquals("ORACLE", first.publication().physicalManifest()
+                .get("bindings").get(0).get("databaseType").stringValue());
+        assertEquals("TABLO", first.publication().physicalManifest()
+                .get("bindings").get(0).get("dataObjectType").stringValue());
+        assertEquals(64, first.publication().physicalManifest()
+                .get("definition").get("contentHash").stringValue().length());
+        assertEquals(2, first.publication().physicalManifest()
+                .get("definition").get("schemaVersion").intValue());
+        assertEquals(64, first.publication().physicalManifest()
+                .get("runtimePlanHash").stringValue().length());
+        assertEquals(PilotRuntimePlanResolver.PILOT_CAPABILITY,
+                first.publication().physicalManifest()
+                        .get("runtimeCapability").stringValue());
     }
 
     @Test
     void productionPublicationWaitsForApprovalAndApprovalActivatesIt() {
-        FakeStore store = new FakeStore(context("URETIM"), List.of(binding()));
-        PublicationService service = new PublicationService(store, objectMapper);
+        FakeStore store = new FakeStore(context("URETIM"), bindings());
+        PublicationService service = service(store);
 
         PublicationRow publication = service.create(
                 PROJECT_UUID, SCENARIO_UUID, ENVIRONMENT_UUID).publication();
@@ -82,13 +109,18 @@ class PublicationServiceTest {
         unresolved = new ResolvedBinding(
                 unresolved.definitionDataObjectId(), unresolved.definitionDataObjectUuid(),
                 unresolved.nodeCode(), unresolved.role(), unresolved.dataObjectUuid(),
-                unresolved.dataObjectReference(), unresolved.environmentSchemaBindingId(),
+                unresolved.dataObjectReference(), unresolved.dataObjectType(),
+                unresolved.environmentSchemaBindingId(),
                 unresolved.environmentSchemaBindingUuid(), unresolved.physicalSchemaId(),
                 unresolved.physicalSchemaUuid(), unresolved.physicalSchemaReference(),
                 unresolved.connectionVersionId(), unresolved.connectionVersionUuid(),
-                null, null, null, unresolved.bindingVersion());
-        PublicationService service = new PublicationService(
-                new FakeStore(context("DUSUK"), List.of(unresolved)), objectMapper);
+                unresolved.databaseType(),
+                null, null, null, unresolved.bindingVersion(),
+                unresolved.dataObjectStatus(), unresolved.modelStatus(),
+                unresolved.logicalSchemaStatus(),
+                unresolved.connectionStatus());
+        PublicationService service = service(new FakeStore(
+                context("DUSUK"), List.of(sourceBinding(), unresolved)));
 
         ApiException error = assertThrows(ApiException.class, () -> service.create(
                 PROJECT_UUID, SCENARIO_UUID, ENVIRONMENT_UUID));
@@ -99,8 +131,8 @@ class PublicationServiceTest {
 
     @Test
     void rejectsApprovalForLowRiskEnvironment() {
-        FakeStore store = new FakeStore(context("DUSUK"), List.of(binding()));
-        PublicationService service = new PublicationService(store, objectMapper);
+        FakeStore store = new FakeStore(context("DUSUK"), bindings());
+        PublicationService service = service(store);
         PublicationRow publication = service.create(
                 PROJECT_UUID, SCENARIO_UUID, ENVIRONMENT_UUID).publication();
 
@@ -109,6 +141,138 @@ class PublicationServiceTest {
 
         assertEquals(HttpStatus.CONFLICT, error.status());
         assertEquals("APPROVAL_NOT_REQUIRED", error.code());
+    }
+
+    @Test
+    void bindingEvidenceChangesBothRuntimeAndReleaseHashes() {
+        PublicationContext context = context("DUSUK");
+        PublicationRow first = service(new FakeStore(context, bindings()))
+                .create(PROJECT_UUID, SCENARIO_UUID, ENVIRONMENT_UUID).publication();
+        ResolvedBinding changedTarget = binding(
+                "TARGET", "HEDEF", "INNOVA_ODI", "STG_HAKEDIS_TIPI",
+                "c".repeat(64));
+        PublicationRow changed = service(new FakeStore(
+                context, List.of(sourceBinding(), changedTarget)))
+                .create(PROJECT_UUID, SCENARIO_UUID, ENVIRONMENT_UUID).publication();
+
+        assertNotEquals(
+                first.physicalManifest().path("runtimePlanHash").stringValue(),
+                changed.physicalManifest().path("runtimePlanHash").stringValue());
+        assertNotEquals(first.releaseHash(), changed.releaseHash());
+    }
+
+    @Test
+    void rejectsLegacySecretBearingEnvironmentPolicy() {
+        PublicationContext safe = context("DUSUK");
+        PublicationContext unsafe = new PublicationContext(
+                safe.projectId(), safe.scenarioId(), safe.scenarioUuid(),
+                safe.definitionUuid(), safe.definitionVersionUuid(),
+                safe.definitionSchemaVersion(), safe.definitionContentHash(),
+                safe.planHash(), safe.scenarioPlan(), safe.environmentId(),
+                safe.environmentUuid(), safe.environmentCode(), safe.environmentRisk(),
+                safe.environmentPolicyVersion(),
+                objectMapper.createObjectNode().put("password", "legacy-value"));
+
+        ApiException error = assertThrows(
+                ApiException.class,
+                () -> service(new FakeStore(unsafe, bindings()))
+                        .create(PROJECT_UUID, SCENARIO_UUID, ENVIRONMENT_UUID));
+
+        assertEquals("SENSITIVE_VALUE_REJECTED", error.code());
+    }
+
+    @Test
+    void rejectsLegacyOracleThinCredentialsBeforeManifestCreation() {
+        PublicationContext safe = context("DUSUK");
+        String secret = "inline-secret";
+        PublicationContext unsafe = new PublicationContext(
+                safe.projectId(), safe.scenarioId(), safe.scenarioUuid(),
+                safe.definitionUuid(), safe.definitionVersionUuid(),
+                safe.definitionSchemaVersion(), safe.definitionContentHash(),
+                safe.planHash(), safe.scenarioPlan(), safe.environmentId(),
+                safe.environmentUuid(), safe.environmentCode(), safe.environmentRisk(),
+                safe.environmentPolicyVersion(), objectMapper.createObjectNode().put(
+                        "jdbcUrl", "jdbc:oracle:thin:app/" + secret
+                                + "@//db:1521/service"));
+        FakeStore store = new FakeStore(unsafe, bindings());
+
+        ApiException error = assertThrows(
+                ApiException.class,
+                () -> service(store).create(PROJECT_UUID, SCENARIO_UUID, ENVIRONMENT_UUID));
+
+        assertEquals("SENSITIVE_VALUE_REJECTED", error.code());
+        assertFalse(error.getMessage().contains(secret));
+        assertEquals(null, store.publication);
+    }
+
+    @Test
+    void schemaV1MappingRemainsPublishableAsDefinitionOnly() {
+        ObjectNode definition = mappingDefinition();
+        ((ObjectNode) definition.get("writeStrategy")).put("kind", "APPEND");
+        PublicationContext context = context("DUSUK", "MAPPING", 1, definition);
+
+        PublicationRow publication = service(new FakeStore(context, bindings()))
+                .create(PROJECT_UUID, SCENARIO_UUID, ENVIRONMENT_UUID).publication();
+
+        assertEquals(PilotRuntimePlanResolver.DEFINITION_ONLY_CAPABILITY,
+                publication.physicalManifest().get("runtimeCapability").stringValue());
+        assertFalse(publication.physicalManifest().has("runtimePlanHash"));
+    }
+
+    @Test
+    void nonMappingScenarioRemainsPublishableAsDefinitionOnly() {
+        ObjectNode definition = (ObjectNode) objectMapper.readTree("""
+                {"tasks":[{"id":"READ","type":"SQL","connectionRole":"SOURCE",
+                  "riskClass":"READ_ONLY","command":"SELECT 1 FROM DUAL"}]}
+                """);
+        PublicationContext context = context("DUSUK", "PROCEDURE", 1, definition);
+
+        PublicationRow publication = service(new FakeStore(context, List.of()))
+                .create(PROJECT_UUID, SCENARIO_UUID, ENVIRONMENT_UUID).publication();
+
+        assertEquals(PilotRuntimePlanResolver.DEFINITION_ONLY_CAPABILITY,
+                publication.physicalManifest().get("runtimeCapability").stringValue());
+        assertFalse(publication.physicalManifest().has("runtimePlanHash"));
+    }
+
+    @Test
+    void unsupportedSchemaV2MappingShapesRemainDefinitionOnly() {
+        ObjectNode append = mappingDefinition();
+        ((ObjectNode) append.get("writeStrategy")).put("kind", "APPEND");
+        PublicationRow appendPublication = service(new FakeStore(
+                context("DUSUK", "MAPPING", 2, append), bindings()))
+                .create(PROJECT_UUID, SCENARIO_UUID, ENVIRONMENT_UUID).publication();
+
+        ObjectNode expression = (ObjectNode) objectMapper.readTree("""
+                {"datasets":[{"id":"SOURCE","role":"SOURCE"},
+                             {"id":"LOOKUP","role":"SOURCE"},
+                             {"id":"TARGET","role":"TARGET"}],
+                 "columnMappings":[
+                   {"expression":{"kind":"LITERAL","value":1},
+                    "target":{"dataset":"TARGET","column":"ID"}}],
+                 "writeStrategy":{"kind":"ATOMIC_DELETE_INSERT"}}
+                """);
+        PublicationRow expressionPublication = service(new FakeStore(
+                context("DUSUK", "MAPPING", 2, expression), bindings()))
+                .create(PROJECT_UUID, SCENARIO_UUID, ENVIRONMENT_UUID).publication();
+
+        assertEquals(PilotRuntimePlanResolver.DEFINITION_ONLY_CAPABILITY,
+                appendPublication.physicalManifest()
+                        .get("runtimeCapability").stringValue());
+        assertEquals(PilotRuntimePlanResolver.DEFINITION_ONLY_CAPABILITY,
+                expressionPublication.physicalManifest()
+                        .get("runtimeCapability").stringValue());
+        assertFalse(appendPublication.physicalManifest().has("runtimePlanHash"));
+        assertFalse(expressionPublication.physicalManifest().has("runtimePlanHash"));
+    }
+
+    @Test
+    void rejectsInactiveResourcesBeforeSigningPublication() {
+        assertInactiveBindingRejected(
+                "PASIF", "AKTIF", "AKTIF", "AKTIF", "DATA_OBJECT_INACTIVE");
+        assertInactiveBindingRejected("AKTIF", "ARSIV", "AKTIF", "AKTIF", "MODEL_INACTIVE");
+        assertInactiveBindingRejected("AKTIF", "AKTIF", "PASIF", "AKTIF", "LOGICAL_SCHEMA_INACTIVE");
+        assertInactiveBindingRejected("AKTIF", "AKTIF", "AKTIF", "PASIF", "CONNECTION_INACTIVE");
     }
 
     @Test
@@ -125,18 +289,151 @@ class PublicationServiceTest {
     }
 
     private PublicationContext context(String risk) {
+        return context(risk, "MAPPING", 2, mappingDefinition());
+    }
+
+    private PublicationContext context(
+            String risk, String definitionType, int schemaVersion, ObjectNode definition) {
+        UUID definitionUuid = UUID.randomUUID();
+        UUID definitionVersionUuid = UUID.randomUUID();
+        String contentHash = sha256(canonicalize(definition).toString());
+        ObjectNode scenarioPlan = scenarioPlan(
+                definitionUuid, definitionVersionUuid, contentHash,
+                definitionType, schemaVersion, definition);
+        String planHash = sha256(canonicalize(scenarioPlan).toString());
         return new PublicationContext(
-                10, 20, SCENARIO_UUID, UUID.randomUUID(), UUID.randomUUID(),
-                "a".repeat(64), 30, ENVIRONMENT_UUID, "TEST", risk, 1,
+                10, 20, SCENARIO_UUID, definitionUuid, definitionVersionUuid,
+                schemaVersion, contentHash, planHash, scenarioPlan,
+                30, ENVIRONMENT_UUID, "TEST", risk, 1,
                 objectMapper.createObjectNode().put("approvalCount", 1));
     }
 
     private ResolvedBinding binding() {
+        return binding("TARGET", "HEDEF", "INNOVA_ODI", "STG_HAKEDIS_TIPI");
+    }
+
+    private ResolvedBinding sourceBinding() {
+        return binding("SOURCE", "KAYNAK", "TTBP", "HAKEDIS_TIPI");
+    }
+
+    private List<ResolvedBinding> bindings() {
+        return List.of(sourceBinding(), binding());
+    }
+
+    private ResolvedBinding binding(
+            String nodeCode, String role, String schema, String object) {
+        return binding(nodeCode, role, schema, object, "b".repeat(64));
+    }
+
+    private ResolvedBinding binding(
+            String nodeCode,
+            String role,
+            String schema,
+            String object,
+            String fingerprint) {
         return new ResolvedBinding(
-                40, UUID.randomUUID(), "TARGET", "HEDEF", UUID.randomUUID(),
-                "STG_HAKEDIS_TIPI", 50L, UUID.randomUUID(), 60L, UUID.randomUUID(),
-                "INNOVA_ODI", 70L, UUID.randomUUID(), 80L, UUID.randomUUID(),
-                "b".repeat(64), 2);
+                40, UUID.randomUUID(), nodeCode, role, UUID.randomUUID(),
+                object, "TABLO", 50L, UUID.randomUUID(), 60L, UUID.randomUUID(),
+                schema, 70L, UUID.randomUUID(), "ORACLE", 80L,
+                UUID.randomUUID(), fingerprint, 2,
+                "AKTIF", "AKTIF", "AKTIF", "AKTIF");
+    }
+
+    private void assertInactiveBindingRejected(
+            String dataObjectStatus,
+            String modelStatus,
+            String logicalSchemaStatus,
+            String connectionStatus,
+            String expectedCode) {
+        ResolvedBinding active = sourceBinding();
+        ResolvedBinding inactive = new ResolvedBinding(
+                active.definitionDataObjectId(), active.definitionDataObjectUuid(),
+                active.nodeCode(), active.role(), active.dataObjectUuid(),
+                active.dataObjectReference(), active.dataObjectType(),
+                active.environmentSchemaBindingId(), active.environmentSchemaBindingUuid(),
+                active.physicalSchemaId(), active.physicalSchemaUuid(),
+                active.physicalSchemaReference(), active.connectionVersionId(),
+                active.connectionVersionUuid(), active.databaseType(),
+                active.targetSnapshotId(), active.targetSnapshotUuid(),
+                active.targetSnapshotFingerprint(), active.bindingVersion(),
+                dataObjectStatus, modelStatus, logicalSchemaStatus, connectionStatus);
+
+        ApiException error = assertThrows(ApiException.class, () -> service(new FakeStore(
+                context("DUSUK"), List.of(inactive, binding())))
+                .create(PROJECT_UUID, SCENARIO_UUID, ENVIRONMENT_UUID));
+
+        assertEquals(expectedCode, error.code());
+    }
+
+    private PublicationService service(PublicationStore store) {
+        return new PublicationService(
+                store,
+                objectMapper,
+                new PilotRuntimePlanResolver(objectMapper, secretSanitizer),
+                secretSanitizer);
+    }
+
+    private ObjectNode mappingDefinition() {
+        return (ObjectNode) objectMapper.readTree("""
+                {"datasets":[{"id":"SOURCE","role":"SOURCE"},
+                             {"id":"TARGET","role":"TARGET"}],
+                 "columnMappings":[
+                   {"source":{"dataset":"SOURCE","column":"ID"},
+                    "target":{"dataset":"TARGET","column":"ID"}}],
+                 "writeStrategy":{"kind":"ATOMIC_DELETE_INSERT"}}
+                """);
+    }
+
+    private ObjectNode scenarioPlan(
+            UUID definitionUuid,
+            UUID definitionVersionUuid,
+            String contentHash,
+            String definitionType,
+            int schemaVersion,
+            ObjectNode definition) {
+        ObjectNode source = objectMapper.createObjectNode();
+        source.put("contentHash", contentHash);
+        source.put("definitionType", definitionType);
+        source.put("definitionUuid", definitionUuid.toString());
+        source.put("definitionVersion", 1);
+        source.put("definitionVersionUuid", definitionVersionUuid.toString());
+        source.put("schemaVersion", schemaVersion);
+        ObjectNode executable = objectMapper.createObjectNode();
+        executable.set("definition", definition.deepCopy());
+        executable.put("kind", definitionType);
+        ObjectNode plan = objectMapper.createObjectNode();
+        plan.put("compiler", "AKIS");
+        plan.put("compilerVersion", 2);
+        plan.set("executable", executable);
+        plan.set("source", source);
+        return plan;
+    }
+
+    private JsonNode canonicalize(JsonNode node) {
+        if (node.isObject()) {
+            ObjectNode canonical = objectMapper.createObjectNode();
+            List<String> names = new ArrayList<>();
+            names.addAll(node.propertyNames());
+            names.sort(Comparator.naturalOrder());
+            names.forEach(name -> canonical.set(name, canonicalize(node.get(name))));
+            return canonical;
+        }
+        if (node.isArray()) {
+            ArrayNode canonical = objectMapper.createArrayNode();
+            node.forEach(value -> canonical.add(canonicalize(value)));
+            return canonical;
+        }
+        return node.deepCopy();
+    }
+
+    private String sha256(String value) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8)));
+        }
+        catch (NoSuchAlgorithmException exception) {
+            throw new AssertionError(exception);
+        }
     }
 
     private final class FakeStore implements PublicationStore {

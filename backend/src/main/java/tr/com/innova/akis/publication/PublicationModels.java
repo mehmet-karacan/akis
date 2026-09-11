@@ -17,7 +17,10 @@ final class PublicationModels {
             UUID scenarioUuid,
             UUID definitionUuid,
             UUID definitionVersionUuid,
+            int definitionSchemaVersion,
+            String definitionContentHash,
             String planHash,
+            JsonNode scenarioPlan,
             long environmentId,
             UUID environmentUuid,
             String environmentCode,
@@ -33,6 +36,7 @@ final class PublicationModels {
             String role,
             UUID dataObjectUuid,
             String dataObjectReference,
+            String dataObjectType,
             Long environmentSchemaBindingId,
             UUID environmentSchemaBindingUuid,
             Long physicalSchemaId,
@@ -40,10 +44,15 @@ final class PublicationModels {
             String physicalSchemaReference,
             Long connectionVersionId,
             UUID connectionVersionUuid,
+            String databaseType,
             Long targetSnapshotId,
             UUID targetSnapshotUuid,
             String targetSnapshotFingerprint,
-            long bindingVersion) {
+            long bindingVersion,
+            String dataObjectStatus,
+            String modelStatus,
+            String logicalSchemaStatus,
+            String connectionStatus) {
     }
 
     record PublicationDraft(

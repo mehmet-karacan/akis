@@ -57,6 +57,27 @@ class ProjectBundleServiceTest {
     }
 
     @Test
+    void mappingSchemaVersionTwoRoundTripsThroughBundleValidation() {
+        StubRepository repository = new StubRepository(objectMapper);
+        ProjectBundleService service = service(repository);
+        JsonNode content = json("""
+                {"columnMappings":[{"source":{"column":"ID","dataset":"SOURCE_1"},
+                "target":{"column":"ID","dataset":"TARGET_1"}}],
+                "datasets":[{"id":"SOURCE_1","role":"SOURCE"},{"id":"TARGET_1","role":"TARGET"}],
+                "writeStrategy":{"kind":"ATOMIC_DELETE_INSERT"}}
+                """);
+        VersionEntry version = new VersionEntry(
+                1, 2, hash(content.toString()), content, "Pilot", OffsetDateTime.now());
+        ProjectBundle bundle = bundleWithDefinition(service, new DefinitionEntry(
+                DefinitionType.MAPPING, "PILOT_MAPPING", "ROOT/CHILD", "AKTIF",
+                "Pilot mapping", null, null, List.of(version)));
+
+        assertTrue(service.validate(bundle).valid());
+        assertTrue(service.importBundle(bundle, ConflictPolicy.FAIL, true).dryRun());
+        assertEquals(0, repository.writeCount);
+    }
+
+    @Test
     void importsFoldersByStablePathAndDefinitionsByTypeAndCode() {
         StubRepository repository = new StubRepository(objectMapper);
         ProjectBundleService service = service(repository);
@@ -242,6 +263,16 @@ class ProjectBundleServiceTest {
 
         assertEquals(List.of("$.command"), sanitizer.sensitivePaths(
                 json("{\"command\":\"CONNECT app/Sup3rSecret@DB\"}")));
+    }
+
+    @Test
+    void rejectsOracleThinInlineCredentialsForServiceAndSidSyntax() {
+        SecretValueSanitizer sanitizer = new SecretValueSanitizer();
+
+        assertEquals(List.of("$.jdbcUrl"), sanitizer.sensitivePaths(json(
+                "{\"jdbcUrl\":\"jdbc:oracle:thin:app/Sup3rSecret@//db:1521/service\"}")));
+        assertEquals(List.of("$.endpoint"), sanitizer.sensitivePaths(json(
+                "{\"endpoint\":\"jdbc:oracle:thin:app/Sup3rSecret@db:1521:SID\"}")));
     }
 
     private ProjectBundleService service(StubRepository repository) {

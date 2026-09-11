@@ -12,6 +12,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.util.HexFormat;
+import java.util.Locale;
 import java.util.Properties;
 import java.util.UUID;
 
@@ -32,6 +33,38 @@ class OracleTargetLedgerIT {
     private static final String URL_ENV = "AKIS_ORACLE_TARGET_URL";
     private static final String USER_ENV = "AKIS_ORACLE_TARGET_USERNAME";
     private static final String PASSWORD_ENV = "AKIS_ORACLE_TARGET_PASSWORD";
+    private static final String OWNER_ENV = "AKIS_ORACLE_TARGET_OWNER";
+
+    @Test
+    void realOracleTargetIdentityUsesVerifiedDatabaseContainerAndPilotTable() throws Exception {
+        String url = environment(URL_ENV);
+        String username = environment(USER_ENV);
+        String password = environment(PASSWORD_ENV);
+        String owner = environment(OWNER_ENV);
+        Assumptions.assumeTrue(
+                url != null && username != null && password != null && owner != null,
+                "Oracle target identity integration environment is not configured.");
+
+        Class.forName("oracle.jdbc.OracleDriver");
+        Properties properties = connectionProperties(username, password);
+        try (Connection connection = DriverManager.getConnection(url, properties)) {
+            var identity = new JdbcOracleTargetIdentityReader().read(
+                    connection,
+                    owner.trim().toUpperCase(Locale.ROOT),
+                    "TABLE",
+                    "STG_HAKEDIS_TIPI");
+
+            assertEquals(1, identity.targetIdentityVersion());
+            assertEquals(owner.trim().toUpperCase(Locale.ROOT), identity.owner());
+            assertEquals("STG_HAKEDIS_TIPI", identity.objectName());
+            assertEquals(64, identity.canonicalTargetHash().length());
+            assertFalse(identity.databaseUniqueName().isBlank());
+            assertFalse(identity.containerName().isBlank());
+        }
+        finally {
+            properties.clear();
+        }
+    }
 
     @Test
     void realOracleFenceBatchEvidenceAndRollbackGuardsFailClosed() throws Exception {
@@ -43,11 +76,7 @@ class OracleTargetLedgerIT {
                 "Oracle ledger integration environment is not configured.");
 
         Class.forName("oracle.jdbc.OracleDriver");
-        Properties properties = new Properties();
-        properties.setProperty("user", username);
-        properties.setProperty("password", password);
-        properties.setProperty("oracle.net.CONNECT_TIMEOUT", "10000");
-        properties.setProperty("oracle.jdbc.ReadTimeout", "30000");
+        Properties properties = connectionProperties(username, password);
         try (Connection writer = DriverManager.getConnection(url, properties);
                 Connection reconciliationConnection =
                         DriverManager.getConnection(url, properties)) {
@@ -155,5 +184,14 @@ class OracleTargetLedgerIT {
     private String environment(String name) {
         String value = System.getenv(name);
         return value == null || value.isBlank() ? null : value;
+    }
+
+    private Properties connectionProperties(String username, String password) {
+        Properties properties = new Properties();
+        properties.setProperty("user", username);
+        properties.setProperty("password", password);
+        properties.setProperty("oracle.net.CONNECT_TIMEOUT", "10000");
+        properties.setProperty("oracle.jdbc.ReadTimeout", "30000");
+        return properties;
     }
 }

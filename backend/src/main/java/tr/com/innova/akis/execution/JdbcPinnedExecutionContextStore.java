@@ -33,6 +33,7 @@ public class JdbcPinnedExecutionContextStore implements PinnedExecutionContextPo
                                c.deneme_no,
                                c.yayin_ozeti,
                                c.plan_ozeti,
+                               s.plan as scenario_plan,
                                y.fiziksel_manifesto
                           from entegrasyon.calistirma c
                           join entegrasyon.is_talebi it
@@ -52,6 +53,7 @@ public class JdbcPinnedExecutionContextStore implements PinnedExecutionContextPo
                         rs.getInt("deneme_no"),
                         rs.getString("yayin_ozeti"),
                         rs.getString("plan_ozeti"),
+                        json(rs.getString("scenario_plan")),
                         json(rs.getString("fiziksel_manifesto"))))
                 .optional();
     }
@@ -62,7 +64,7 @@ public class JdbcPinnedExecutionContextStore implements PinnedExecutionContextPo
         }
         catch (JacksonException exception) {
             throw new IllegalStateException(
-                    "Stored pinned execution manifest could not be read.", exception);
+                    "Stored pinned execution JSON could not be read.", exception);
         }
     }
 }

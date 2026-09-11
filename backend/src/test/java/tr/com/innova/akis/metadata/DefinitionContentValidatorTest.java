@@ -121,6 +121,29 @@ class DefinitionContentValidatorTest {
     }
 
     @Test
+    void acceptsExplicitAtomicDeleteInsertStrategy() {
+        assertDoesNotThrow(() -> validate(DefinitionType.MAPPING, 2,
+                validMapping().replace(
+                        "\"MERGE\",\"key\":[\"ID\"],\"deleteMissing\":false",
+                        "\"ATOMIC_DELETE_INSERT\"")));
+        assertValidationContains(
+                DefinitionType.MAPPING, 1,
+                validMapping().replace(
+                        "\"MERGE\",\"key\":[\"ID\"],\"deleteMissing\":false",
+                        "\"ATOMIC_DELETE_INSERT\""),
+                "desteklenmeyen");
+    }
+
+    @Test
+    void rejectsSchemaVersionTwoForNonMappingDefinitions() {
+        assertValidationContains(
+                DefinitionType.SEQUENCE,
+                2,
+                "{\"implementation\":\"REPOSITORY\",\"start\":1,\"increment\":1,\"cycle\":false}",
+                "yalnız MAPPING");
+    }
+
+    @Test
     void rejectsDuplicateDatasetIdsAndUnsupportedRoles() {
         assertValidationContains(DefinitionType.MAPPING, """
                 {"datasets":[{"id":"same","role":"SOURCE"},{"id":"same","role":"TARGET"}],
@@ -206,14 +229,23 @@ class DefinitionContentValidatorTest {
     }
 
     private void assertValidationContains(DefinitionType type, String content, String messagePart) {
+        assertValidationContains(type, 1, content, messagePart);
+    }
+
+    private void assertValidationContains(
+            DefinitionType type, int schemaVersion, String content, String messagePart) {
         ApiException exception = assertThrows(
-                ApiException.class, () -> validate(type, content));
+                ApiException.class, () -> validate(type, schemaVersion, content));
         assertEquals("VALIDATION_FAILED", exception.code());
         assertTrue(exception.getMessage().contains(messagePart), exception.getMessage());
     }
 
     private void validate(DefinitionType type, String content) {
-        validator.validate(type, json(content));
+        validate(type, 1, content);
+    }
+
+    private void validate(DefinitionType type, int schemaVersion, String content) {
+        validator.validate(type, schemaVersion, json(content));
     }
 
     private JsonNode json(String value) {

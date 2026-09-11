@@ -149,7 +149,7 @@ class JdbcOracleTargetLedgerAdapterTest {
                 RUN_UUID, "worker-1", 3, UUID.randomUUID(), 7, TARGET_HASH, 1);
         PinnedExecutionContext pinned = new PinnedExecutionContext(
                 JOB_UUID, RUN_UUID, UUID.randomUUID(), 1,
-                RELEASE_HASH, PLAN_HASH, null);
+                RELEASE_HASH, PLAN_HASH, null, null);
 
         TargetLedgerContext combined = TargetLedgerContext.from(target, pinned);
 

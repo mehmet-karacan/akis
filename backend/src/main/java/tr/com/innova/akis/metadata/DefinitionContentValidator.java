@@ -36,8 +36,11 @@ public final class DefinitionContentValidator {
     private static final Set<String> PROCEDURE_RISK_CLASSES = Set.of(
             "READ_ONLY", "DML", "DDL", "DESTRUCTIVE");
     private static final Set<String> DATASET_ROLES = Set.of("SOURCE", "TARGET");
-    private static final Set<String> WRITE_STRATEGIES = Set.of(
+    private static final Set<String> V1_WRITE_STRATEGIES = Set.of(
             "APPEND", "STAGED_REPLACE", "MERGE", "TRUNCATE_LOAD");
+    private static final Set<String> V2_WRITE_STRATEGIES = Set.of(
+            "APPEND", "STAGED_REPLACE", "MERGE", "TRUNCATE_LOAD",
+            "ATOMIC_DELETE_INSERT");
     private static final Set<String> LOAD_PLAN_STEP_TYPES = Set.of(
             "SCENARIO", "SERIAL", "PARALLEL", "CASE");
     private static final Set<String> RESTART_POLICIES = Set.of(
@@ -56,6 +59,16 @@ public final class DefinitionContentValidator {
     }
 
     public void validate(DefinitionType type, JsonNode content) {
+        validate(type, 1, content);
+    }
+
+    public void validate(DefinitionType type, int schemaVersion, JsonNode content) {
+        if (schemaVersion != 1 && schemaVersion != 2) {
+            fail("Desteklenmeyen tanım şema sürümü: " + schemaVersion);
+        }
+        if (schemaVersion == 2 && type != DefinitionType.MAPPING) {
+            fail("Tanım şema sürümü 2 şu anda yalnız MAPPING için desteklenir.");
+        }
         requireObject(content, "Tanım içeriği");
         List<String> missing = type.requiredContentFields().stream()
                 .filter(field -> content.get(field) == null || content.get(field).isNull())
@@ -70,7 +83,7 @@ public final class DefinitionContentValidator {
             case PROCEDURE -> validateProcedure(content);
             case VARIABLE -> validateVariable(content);
             case SEQUENCE -> validateSequence(content);
-            case MAPPING -> validateMapping(content);
+            case MAPPING -> validateMapping(content, schemaVersion);
             case REUSABLE_MAPPING -> {
                 requireArray(content, "inputs");
                 requireArray(content, "outputs");
@@ -258,7 +271,7 @@ public final class DefinitionContentValidator {
         }
     }
 
-    private void validateMapping(JsonNode content) {
+    private void validateMapping(JsonNode content, int schemaVersion) {
         JsonNode datasets = requireArray(content, "datasets");
         JsonNode columnMappings = requireArray(content, "columnMappings");
         JsonNode writeStrategy = content.path("writeStrategy");
@@ -323,7 +336,10 @@ public final class DefinitionContentValidator {
             }
         }
 
-        String strategy = requireAllowed(writeStrategy, "kind", WRITE_STRATEGIES, "writeStrategy");
+        Set<String> writeStrategies = schemaVersion == 2
+                ? V2_WRITE_STRATEGIES : V1_WRITE_STRATEGIES;
+        String strategy = requireAllowed(
+                writeStrategy, "kind", writeStrategies, "writeStrategy");
         if ("MERGE".equals(strategy)) {
             JsonNode key = requireArray(writeStrategy, "key", "writeStrategy");
             if (key.isEmpty()) {

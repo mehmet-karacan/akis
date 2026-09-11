@@ -116,21 +116,30 @@ başlatmaz.
 `run-oracle-ledger-it.ps1`, gerçek değerleri yalnız Git dışındaki `.env`
 dosyasından alır. Hedef Oracle 19c üzerinde production JDBC ledger adaptörüyle
 fence/read, batch ve publish prepare-record-verify, rollback sonrası marker yokluğu
-ve stale guard/token reddini sınar. Test business/staging tablosuna dokunmaz;
-kalıcı marker bırakmaz ve kendine ait fence satırını temizler.
+ve stale guard/token reddini sınar. Ayrıca gerçek DB unique name/container ve pilot
+hedef tablo metadata'sından kanonik target identity üretir. Test business/staging
+tablosuna DML yapmaz; kalıcı marker bırakmaz ve kendine ait fence satırını temizler.
 
 ## Kapsam sınırı
 
-Faz 3B backend'i manuel run API'sini, PostgreSQL V005 üzerindeki DB-time claim,
-heartbeat ve global hedef generation portlarını ve Oracle target-local ledger
-JDBC adaptörünü içerir. Her run publication `releaseHash` ile gerçek Scenario
-`planHash` değerlerini ayrı sabitler. Heartbeat reddi worker yetkisini koşulsuz
-kaybettirir; run lease, PostgreSQL target fence ve Oracle ledger kanıtları ayrı
-modellerdir.
+Faz 3C backend'i manuel run API'sini, PostgreSQL V005 üzerindeki DB-time claim,
+heartbeat ve global hedef generation portlarını, Oracle target-local ledger JDBC
+adaptörünü, kanonik Oracle target identity V1'i ve typed pilot runtime plan V1'i
+içerir. Mapping schema V1 dondurulmuştur; `ATOMIC_DELETE_INSERT` yalnız schema V2
+ile kabul edilir. Manifest V2 ve Scenario plan V2 hash zinciri worker'a verilmeden
+önce yeniden doğrulanır. Heartbeat reddi worker yetkisini koşulsuz kaybettirir;
+run lease, PostgreSQL target fence ve Oracle ledger kanıtları ayrı modellerdir.
+Yalnız tam pilot sözleşmesine uyan Mapping V2 yayınları
+`ORACLE_TABLE_COPY_V1` capability ve `runtimePlanHash` taşır. Schema V1,
+Package, Procedure, Load Plan ve pilot dışı geçerli Mapping V2 tanımları geriye
+dönük yayınlanabilir; manifestte `DEFINITION_ONLY` olarak işaretlenir ve pilot
+worker tarafından yürütülemez.
 
 Bu katman worker poller başlatmaz ve Oracle business/staging DML çalıştırmaz.
 Target-local Oracle package yalnız caller-owned transaction içinde çağrılır;
-adaptör commit veya rollback yapmaz. Runtime plan resolver, target identity
-canonicalization, kontrollü full-refresh writer, reconciliation, retry/resume ve
-scheduler henüz ürün kodu değildir. Worker flag'i bu kapılar ve crash testleri
-tamamlanana kadar açık değerde fail-closed kalır.
+adaptör commit veya rollback yapmaz. Pilot runtime plan yalnız iki Oracle tablo,
+doğrudan kolon eşlemesi, en fazla 1000 kaynak satır ve atomik delete/insert
+stratejisini kabul eder. Kontrollü full-refresh writer, canlı schema fingerprint
+preflight, PostgreSQL completion/checkpoint, reconciliation orchestration,
+retry/resume ve scheduler henüz ürün kodu değildir. Worker flag'i bu kapılar ve
+crash testleri tamamlanana kadar açık değerde fail-closed kalır.

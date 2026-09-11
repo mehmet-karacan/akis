@@ -130,6 +130,18 @@ public class TopologyRepository {
                 .single();
     }
 
+    void activateDraftConnection(long connectionId) {
+        jdbc.sql("""
+                        update entegrasyon.baglanti
+                           set durum_kodu = 'AKTIF',
+                               guncellenme_zamani = current_timestamp,
+                               versiyon_no = versiyon_no + 1
+                         where id = :id and durum_kodu = 'TASLAK'
+                        """)
+                .param("id", connectionId)
+                .update();
+    }
+
     int nextConnectionVersion(long connectionId) {
         return jdbc.sql("""
                         select coalesce(max(surum_no), 0) + 1
