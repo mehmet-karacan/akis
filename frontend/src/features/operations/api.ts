@@ -8,6 +8,7 @@ import type {
   Publication,
   ProcedureSourcePreflight,
   ProcedureTargetPreflight,
+  ProcedurePilotVerification,
 } from './types'
 
 const projectPath = (projectUuid: string) =>
@@ -48,6 +49,12 @@ export const operationsApi = {
   preflightProcedureTarget(projectUuid: string, publicationUuid: string) {
     return apiRequest<ProcedureTargetPreflight>(
       `${projectPath(projectUuid)}/procedure-preflights/target`,
+      { method: 'POST', ...jsonBody({ publicationUuid }) },
+    )
+  },
+  verifyProcedurePilot(projectUuid: string, publicationUuid: string) {
+    return apiRequest<ProcedurePilotVerification>(
+      `${projectPath(projectUuid)}/procedure-verifications`,
       { method: 'POST', ...jsonBody({ publicationUuid }) },
     )
   },

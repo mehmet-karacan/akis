@@ -95,6 +95,11 @@ const en = {
   passed: 'Passed',
   failed: 'Failed',
   openRuns: 'Open runs',
+  acceptanceEvidence: 'Pilot acceptance evidence',
+  compareSourceTarget: 'Compare SKY and GPU',
+  sourceRows: 'SKY rows',
+  targetRows: 'GPU rows',
+  payloadMatch: 'Canonical payload match',
 } as const
 
 const tr: Record<keyof typeof en, string> = {
@@ -192,6 +197,11 @@ const tr: Record<keyof typeof en, string> = {
   passed: 'Başarılı',
   failed: 'Başarısız',
   openRuns: 'Çalıştırmaları aç',
+  acceptanceEvidence: 'Pilot kabul kanıtı',
+  compareSourceTarget: 'SKY ve GPU verisini karşılaştır',
+  sourceRows: 'SKY satırı',
+  targetRows: 'GPU satırı',
+  payloadMatch: 'Kanonik veri eşleşmesi',
 }
 
 export type OperationsMessageKey = keyof typeof en

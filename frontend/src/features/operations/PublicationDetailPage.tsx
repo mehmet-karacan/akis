@@ -1,11 +1,11 @@
-import { ArrowLeft, CheckCircle2, Database, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Database, Scale, ShieldCheck } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { operationsApi } from './api'
 import { CopyValue, ErrorState, Field, LoadingState, PageHeader, Panel, StatusBadge } from './OperationsUi'
 import { useOperationsI18n } from './i18n'
 import type { ApprovalDecision } from './types'
-import type { ProcedureSourcePreflight, ProcedureTargetPreflight } from './types'
+import type { ProcedurePilotVerification, ProcedureSourcePreflight, ProcedureTargetPreflight } from './types'
 import { apiErrorMessage, formatDate, redactSensitiveValues } from './utils'
 import { useRemoteData } from './useRemoteData'
 
@@ -23,7 +23,8 @@ export function PublicationDetailPage() {
   const [successActor, setSuccessActor] = useState('')
   const [sourcePreflight, setSourcePreflight] = useState<ProcedureSourcePreflight | null>(null)
   const [targetPreflight, setTargetPreflight] = useState<ProcedureTargetPreflight | null>(null)
-  const [preflightBusy, setPreflightBusy] = useState<'source' | 'target' | null>(null)
+  const [verification, setVerification] = useState<ProcedurePilotVerification | null>(null)
+  const [preflightBusy, setPreflightBusy] = useState<'source' | 'target' | 'verification' | null>(null)
   const [preflightError, setPreflightError] = useState('')
   const publication = remote.data
   const canApprove = publication?.environmentRisk === 'URETIM' && publication.status === 'ONAY_BEKLIYOR'
@@ -51,6 +52,18 @@ export function PublicationDetailPage() {
       setSubmitError(apiErrorMessage(error, t('requestFailed')))
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const verifyPilot = async () => {
+    setPreflightBusy('verification')
+    setPreflightError('')
+    try {
+      setVerification(await operationsApi.verifyProcedurePilot(projectUuid, publicationUuid))
+    } catch (error) {
+      setPreflightError(apiErrorMessage(error, t('requestFailed')))
+    } finally {
+      setPreflightBusy(null)
     }
   }
 
@@ -169,6 +182,22 @@ export function PublicationDetailPage() {
                 </button>
               </section>
             </div>
+            {publication.status === 'AKTIF' ? (
+              <section className="ops-preflight-card ops-preflight-acceptance">
+                <header><Scale aria-hidden="true" /><strong>{t('acceptanceEvidence')}</strong><StatusBadge value={verification?.matches ? t('verified') : t('notVerified')} /></header>
+                {verification ? (
+                  <dl className="ops-kv">
+                    <dt>{t('sourceRows')}</dt><dd>{verification.sourceRowCount}</dd>
+                    <dt>{t('targetRows')}</dt><dd>{verification.targetRowCount}</dd>
+                    <dt>{t('payloadMatch')}</dt><dd>{verification.matches ? t('passed') : t('failed')}</dd>
+                    <dt>{t('duration')}</dt><dd>{verification.durationMs} ms</dd>
+                  </dl>
+                ) : <p className="ops-muted">{t('notVerified')}</p>}
+                <button className="ops-button" type="button" disabled={preflightBusy !== null} onClick={() => void verifyPilot()}>
+                  <Scale aria-hidden="true" /> {preflightBusy === 'verification' ? t('verifying') : t('compareSourceTarget')}
+                </button>
+              </section>
+            ) : null}
             {publication.status === 'AKTIF' ? <Link className="ops-button ops-runs-link" to={`/projects/${encodeURIComponent(projectUuid)}/runs`}>{t('openRuns')}</Link> : null}
           </Panel>
 

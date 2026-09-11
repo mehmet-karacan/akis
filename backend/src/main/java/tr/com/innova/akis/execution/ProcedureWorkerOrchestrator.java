@@ -127,11 +127,6 @@ final class ProcedureWorkerOrchestrator {
         try {
             target = gate.execute(run -> leases.acquireTarget(run,
                     identity.canonicalTargetHash(), identity.targetIdentityVersion()));
-            var preflight = gate.execute(run -> transitions.completePreflight(
-                    new ActiveExecutionToken(run, target)));
-            if (preflight == null || preflight.outcome() != MutationOutcome.ACCEPTED) {
-                return new StoppedFailClosed("PREFLIGHT_TRANSITION_REJECTED");
-            }
         }
         catch (RuntimeException exception) {
             return new StoppedFailClosed("TARGET_FENCE_UNCONFIRMED");

@@ -4,8 +4,8 @@ Status date: 2026-09-11
 
 ## Current completion estimate
 
-- Controlled Oracle MVP: **approximately 88% complete / 12% remaining**.
-- Broad ODI-like enterprise platform: **approximately 37% complete / 63% remaining**.
+- Controlled Oracle MVP first vertical slice: **complete**.
+- Broad ODI-like enterprise platform: **approximately 38% complete / 62% remaining**.
 
 The MVP estimate means one governed Oracle-to-Oracle procedure can be designed,
 versioned, bound, approved, executed manually, observed and reconciled. The broader
@@ -65,17 +65,23 @@ multi-engine support, deployment automation and production operations.
 - Read-only target preflight: passed against live GPU (`CDB19C / CT_GPU_TESTDB`)
   for `INNOVA_ODI.STG_HAKEDIS_TIPI`; ownership, TRUNCATE, INSERT and DBMS_STATS
   evidence passed with `sourceSessionOpened=false`.
-- No business-table DDL or DML has been executed by Akış yet.
+- Publication approved and activated after both read-only preflights.
+- Accepted pilot run: `7d213ae5-b6d3-44a7-b348-b708ebb37776`.
+- Durable task results: TRUNCATE succeeded, SKY read 33 rows, GPU batch INSERT
+  wrote 33 rows, DBMS_STATS succeeded, and the run ended `BASARILI`.
+- Post-run canonical comparison: SKY 33 rows, GPU 33 rows, with identical
+  payload hash `15a3fb9db987b0b5ed87c6404c1ecd33d9c33ff022989426bc53de9df546d53d`.
+- An earlier guarded attempt exposed a control-plane ordering defect before any
+  Procedure step began and was closed by the safe lease reaper. A second attempt
+  truncated the staging table but rejected an inconsistent rowset byte receipt
+  before INSERT; the canonical receipt was corrected and the accepted run restored
+  and verified the target data.
 
-## Remaining work for the controlled Oracle MVP
+## Controlled Oracle MVP acceptance
 
-1. Execute the controlled HAKEDIS_TIPI pilot: explicitly approve the pending
-   publication, enable manual requests/runtime/worker locally, submit one run,
-   and observe its durable step timeline. This is the first authorized DDL/DML.
-2. Verify source/target row counts and deterministic business-data evidence,
-   then document operator acceptance or invoke the manual intervention path.
-3. Add execution-wide user cancellation after claim and richer reconciliation
-   actions; queued cancellation and fail-closed lease recovery already exist.
+The first governed Oracle-to-Oracle Procedure has been designed, versioned,
+bound, approved, executed, observed and verified through Akış. Runtime and worker
+flags remain local-only deployment controls; CI/CD remains disabled.
 
 ## Work after the first pilot
 

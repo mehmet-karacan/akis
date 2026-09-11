@@ -38,6 +38,7 @@
 .ops-preflight-card > header > svg { width: 1.05rem; color: var(--color-accent, var(--accent, #147d75)); }
 .ops-preflight-card > header .ops-status { margin-left: auto; }
 .ops-preflight-card .ops-button { width: max-content; }
+.ops-preflight-acceptance { grid-column: 1 / -1; margin-top: 1rem; }
 .ops-runs-link { margin-top: 1rem; width: max-content; }
 .ops-form { display: grid; gap: 1rem; }
 .ops-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }

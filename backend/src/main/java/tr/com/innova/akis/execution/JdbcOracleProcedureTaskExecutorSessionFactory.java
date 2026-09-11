@@ -123,7 +123,7 @@ final class JdbcOracleProcedureTaskExecutorSessionFactory
                                 new Cell(valueType(cell.type()), cell.canonicalValue())).toList())
                                 .toList());
                 handles.put(stored.uuid(), stored);
-                return new Succeeded(batch.rows().size(), batch.byteCount(),
+                return new Succeeded(stored.rowCount(), stored.byteCount(),
                         new RowsetHandle(stored.uuid(), plan.runtimePlanHash(),
                                 command.task().id(), stored.rowCount(), stored.byteCount()));
             }

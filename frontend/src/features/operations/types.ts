@@ -67,6 +67,18 @@ export interface ProcedureTargetPreflight {
   sourceSessionOpened: boolean
 }
 
+export interface ProcedurePilotVerification {
+  publicationUuid: string
+  sourceRowCount: number
+  targetRowCount: number
+  sourcePayloadHash: string
+  targetPayloadHash: string
+  matches: boolean
+  sourceReadOnly: boolean
+  targetReadOnly: boolean
+  durationMs: number
+}
+
 export interface IdentityUser {
   uuid: string
   issuer: string
