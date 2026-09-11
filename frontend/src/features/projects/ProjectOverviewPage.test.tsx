@@ -1,33 +1,34 @@
-import { describe, expect, it } from 'vitest'
-import type { RunRecord } from '../execution/types'
-import { summarizeRuns } from './ProjectOverviewPage'
+import { render, screen } from '@testing-library/react'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import i18n from '../../core/i18n'
+import { ProjectOverviewPage } from './ProjectOverviewPage'
 
-const run = (status: string, suffix: string): RunRecord => ({
-  jobRequestUuid: `job-${suffix}`,
-  runUuid: `run-${suffix}`,
-  publicationUuid: `publication-${suffix}`,
-  attemptNumber: 1,
-  startType: 'MANUEL',
-  status,
-  releaseHash: `release-${suffix}`,
-  planHash: `plan-${suffix}`,
-  createdAt: '2026-09-11T10:00:00Z',
-  startedAt: null,
-  finishedAt: null,
-  cancellationRequestedAt: null,
-})
+vi.mock('./projectsApi', () => ({
+  getProject: vi.fn().mockResolvedValue({
+    uuid: 'project-1',
+    code: 'AKIS',
+    name: 'Akış',
+    description: 'Integration project',
+    status: 'AKTIF',
+    version: 1,
+  }),
+}))
 
-describe('project operational summary', () => {
-  it('groups active, successful and attention-required runs', () => {
-    const result = summarizeRuns([
-      run('CALISIYOR', '1'),
-      run('BEKLIYOR', '2'),
-      run('BASARILI', '3'),
-      run('BASARISIZ', '4'),
-      run('MUDAHALE_GEREKLI', '5'),
-      run('IPTAL', '6'),
-    ])
+describe('ProjectOverviewPage', () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage('en')
+  })
 
-    expect(result).toEqual({ running: 2, succeeded: 1, attention: 2, total: 6 })
+  it('renders a calm project entry without operational metrics or export actions', async () => {
+    render(<MemoryRouter initialEntries={['/projects/project-1']}>
+      <Routes><Route path="/projects/:projectUuid" element={<ProjectOverviewPage />} /></Routes>
+    </MemoryRouter>)
+
+    expect(await screen.findByRole('heading', { name: 'Akış' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Development' })).toHaveAttribute('href', '/projects/project-1/development')
+    expect(screen.getByRole('link', { name: 'Connections' })).toHaveAttribute('href', '/projects/project-1/connections')
+    expect(screen.queryByText('Recent activity')).not.toBeInTheDocument()
+    expect(screen.queryByText('Export project')).not.toBeInTheDocument()
   })
 })

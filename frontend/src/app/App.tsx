@@ -44,11 +44,14 @@ export function App() {
         <Route path="/projects/:projectUuid/topology" element={<TopologyPage />} />
         <Route path="/projects/:projectUuid/models" element={<TopologyPage initialTab="catalog" />} />
         <Route path="/projects/:projectUuid/definitions" element={<DefinitionsRoute />} />
+        <Route path="/projects/:projectUuid/development" element={<DefinitionsRoute />} />
         <Route path="/projects/:projectUuid/publications" element={<PublicationsPage />} />
         <Route path="/projects/:projectUuid/publications/:publicationUuid" element={<PublicationDetailPage />} />
         <Route path="/projects/:projectUuid/runs" element={<RunsPage />} />
+        <Route path="/projects/:projectUuid/operations" element={<RunsPage />} />
         <Route path="/projects/:projectUuid/runs/:runUuid" element={<RunDetailPage />} />
         <Route path="/projects/:projectUuid/team" element={<MembershipsPage />} />
+        <Route path="/projects/:projectUuid/connections" element={<TopologyPage />} />
         <Route path="/identity/users" element={<IdentityUsersPage />} />
       </Route>
       <Route path="*" element={<Navigate to={username ? '/projects' : '/login'} replace />} />

@@ -1,7 +1,6 @@
 import {
-  Blocks, Boxes, Braces, ChevronDown, CircleUserRound, DatabaseZap,
-  FileCheck2, FolderKanban, Gauge, Languages, LogOut, Moon, Network,
-  PanelLeftClose, PanelLeftOpen, Sun, UsersRound,
+  Braces, ChevronDown, CircleUserRound, DatabaseZap, FolderKanban, Gauge,
+  Languages, LogOut, Moon, Network, PanelLeftClose, PanelLeftOpen, Sun,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -12,32 +11,9 @@ import { useTheme, type ThemeMode } from '../core/theme/ThemeContext'
 import type { Project } from '../features/projects/projectsApi'
 
 const projectNavigation = [
-  {
-    key: 'nav.group.project',
-    items: [{ path: '', key: 'nav.overview', icon: Blocks, mobile: true }],
-  },
-  {
-    key: 'nav.group.configure',
-    items: [
-      { path: '/topology', key: 'nav.topology', icon: Network, mobile: true },
-      { path: '/models', key: 'nav.models', icon: Boxes },
-    ],
-  },
-  {
-    key: 'nav.group.design',
-    items: [{ path: '/definitions', key: 'nav.definitions', icon: Braces, mobile: true }],
-  },
-  {
-    key: 'nav.group.operate',
-    items: [
-      { path: '/publications', key: 'nav.publications', icon: FileCheck2 },
-      { path: '/runs', key: 'nav.runs', icon: Gauge, mobile: true },
-    ],
-  },
-  {
-    key: 'nav.group.administration',
-    items: [{ path: '/team', key: 'nav.team', icon: UsersRound }],
-  },
+  { path: '/development', key: 'nav.development', icon: Braces },
+  { path: '/operations', key: 'nav.operations', icon: Gauge },
+  { path: '/connections', key: 'nav.connections', icon: Network },
 ]
 
 export function AppShell() {
@@ -78,21 +54,15 @@ export function AppShell() {
           {projectUuid && (
             <div className="nav-section">
               {!collapsed && <p className="nav-label nav-project-label">{project?.code ?? t('nav.project')}</p>}
-              {projectNavigation.map((group) => (
-                <div className="nav-group" key={group.key}>
-                  {!collapsed && <p className="nav-group-label">{t(group.key)}</p>}
-                  {group.items.map(({ path, key, icon: Icon, mobile }) => (
-                    <NavLink
-                      key={key}
-                      end={!path}
-                      title={collapsed ? t(key) : undefined}
-                      to={`/projects/${projectUuid}${path}`}
-                      className={({ isActive }) => `nav-item ${mobile ? 'mobile-primary' : ''} ${isActive ? 'active' : ''}`}
-                    >
-                      <Icon size={18} /><span>{t(key)}</span>
-                    </NavLink>
-                  ))}
-                </div>
+              {projectNavigation.map(({ path, key, icon: Icon }) => (
+                <NavLink
+                  key={key}
+                  title={collapsed ? t(key) : undefined}
+                  to={`/projects/${projectUuid}${path}`}
+                  className={({ isActive }) => `nav-item mobile-primary ${isActive ? 'active' : ''}`}
+                >
+                  <Icon size={18} /><span>{t(key)}</span>
+                </NavLink>
               ))}
             </div>
           )}
@@ -109,7 +79,7 @@ export function AppShell() {
 
       <div className="shell-content">
         <header className="topbar">
-          <button className="project-switcher" onClick={() => navigate('/projects')}>
+          <button className="project-switcher" onClick={() => navigate(projectUuid ? `/projects/${projectUuid}` : '/projects')}>
             <span className="project-dot" />
             <span><small>{t('nav.workspace')}</small><strong>{project?.name ?? t('header.noProject')}</strong></span>
             <ChevronDown size={16} />

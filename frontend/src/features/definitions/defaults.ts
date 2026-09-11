@@ -25,7 +25,7 @@ export const DEFAULT_PROCEDURE: ProcedureContent = {
       command: 'SELECT ID FROM SOURCE_TABLE',
       onError: 'STOP',
       timeoutSeconds: 300,
-      output: { kind: 'ROWSET', maxRows: 10000 },
+      output: { kind: 'ROWSET', maxRows: 1000 },
     },
     {
       id: 'WRITE_TARGET',

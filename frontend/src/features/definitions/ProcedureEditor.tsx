@@ -1,4 +1,5 @@
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
+import { useState } from 'react'
 import { useDefinitionsI18n } from './i18n'
 import type {
   ProcedureConnectionRole,
@@ -46,6 +47,7 @@ function normalizeTasks(tasks: ProcedureTask[]): ProcedureTask[] {
 
 export function ProcedureEditor({ value, onChange }: ProcedureEditorProps) {
   const { t } = useDefinitionsI18n()
+  const [reorderError, setReorderError] = useState('')
   const replaceTasks = (tasks: ProcedureTask[]) => onChange({ ...value, tasks: normalizeTasks(tasks) })
   const update = (index: number, task: ProcedureTask) => {
     const previousId = value.tasks[index]?.id
@@ -59,11 +61,29 @@ export function ProcedureEditor({ value, onChange }: ProcedureEditorProps) {
     replaceTasks(tasks)
   }
   const move = (index: number, offset: number) => {
-    const target = index + offset
-    if (target < 0 || target >= value.tasks.length) return
     const tasks = [...value.tasks]
-    ;[tasks[index], tasks[target]] = [tasks[target]!, tasks[index]!]
-    replaceTasks(tasks)
+    const selected = tasks[index]
+    if (!selected) return
+    const units: ProcedureTask[][] = []
+    for (let position = 0; position < tasks.length; position += 1) {
+      const current = tasks[position]!
+      const next = tasks[position + 1]
+      if (current.output?.kind === 'ROWSET' && next?.input?.fromTask === current.id) {
+        units.push([current, next])
+        position += 1
+      } else {
+        units.push([current])
+      }
+    }
+    const unitIndex = units.findIndex((unit) => unit.includes(selected))
+    const targetUnitIndex = unitIndex + offset
+    if (unitIndex < 0 || targetUnitIndex < 0 || targetUnitIndex >= units.length) {
+      setReorderError(units[unitIndex]?.length === 2 ? t('procedurePairMoveBlocked') : '')
+      return
+    }
+    ;[units[unitIndex], units[targetUnitIndex]] = [units[targetUnitIndex]!, units[unitIndex]!]
+    setReorderError('')
+    replaceTasks(units.flat())
   }
 
   return (
@@ -75,6 +95,8 @@ export function ProcedureEditor({ value, onChange }: ProcedureEditorProps) {
           <button className="definition-button definition-button--quiet" type="button" onClick={() => replaceTasks([...value.tasks, nextTask('TARGET', value.tasks)])}><Plus size={15} />{t('addTargetStep')}</button>
         </div>
       </header>
+      <p className="procedure-runtime-profile">{t('procedureRuntimeProfile')}</p>
+      {reorderError && <p className="procedure-reorder-error" role="alert">{reorderError}</p>}
       <div className="procedure-task-list">
         {value.tasks.map((task, index) => {
           const rowsetTasks = value.tasks.slice(0, index).filter((candidate) => candidate.output?.kind === 'ROWSET')
@@ -97,13 +119,13 @@ export function ProcedureEditor({ value, onChange }: ProcedureEditorProps) {
                 <label><span>{t('connectionRole')}</span><select value={task.connectionRole} onChange={(event) => update(index, { ...task, connectionRole: event.target.value as ProcedureConnectionRole })}><option>SOURCE</option><option>TARGET</option></select></label>
                 <label><span>{t('riskClass')}</span><select value={task.riskClass} onChange={(event) => update(index, { ...task, riskClass: event.target.value as ProcedureRiskClass, requiresApproval: undefined })}><option>READ_ONLY</option><option>DML</option><option>DDL</option><option>DESTRUCTIVE</option></select></label>
                 <label><span>{t('onError')}</span><select value={task.onError ?? 'STOP'} onChange={(event) => update(index, { ...task, onError: event.target.value as 'STOP' | 'CONTINUE' })}><option>STOP</option><option>CONTINUE</option></select></label>
-                <label><span>{t('timeoutSeconds')}</span><input type="number" min="1" max="3600" value={task.timeoutSeconds ?? 300} onChange={(event) => update(index, { ...task, timeoutSeconds: Number(event.target.value) })} /></label>
+                <label><span>{t('timeoutSeconds')}</span><input type="number" min="1" max="300" value={task.timeoutSeconds ?? 300} onChange={(event) => update(index, { ...task, timeoutSeconds: Number(event.target.value) })} /></label>
                 {highRisk && <label className="procedure-checkbox"><input type="checkbox" checked={task.requiresApproval === true} onChange={(event) => update(index, { ...task, requiresApproval: event.target.checked })} /><span>{t('requiresApproval')}</span></label>}
               </div>
               <label className="procedure-command"><span>{t('sqlCommand')}</span><textarea spellCheck={false} value={task.command} onChange={(event) => update(index, { ...task, command: event.target.value })} /></label>
               <div className="procedure-flow-options">
-                <label className="procedure-checkbox"><input type="checkbox" checked={task.output?.kind === 'ROWSET'} disabled={task.connectionRole !== 'SOURCE' || task.type !== 'SQL' || task.riskClass !== 'READ_ONLY'} onChange={(event) => update(index, { ...task, output: event.target.checked ? { kind: 'ROWSET', maxRows: 10000 } : undefined })} /><span>{t('captureRows')}</span></label>
-                {task.output && <label><span>{t('maxRows')}</span><input type="number" min="1" max="100000" value={task.output.maxRows} onChange={(event) => update(index, { ...task, output: { kind: 'ROWSET', maxRows: Number(event.target.value) } })} /></label>}
+                <label className="procedure-checkbox"><input type="checkbox" checked={task.output?.kind === 'ROWSET'} disabled={task.connectionRole !== 'SOURCE' || task.type !== 'SQL' || task.riskClass !== 'READ_ONLY'} onChange={(event) => update(index, { ...task, output: event.target.checked ? { kind: 'ROWSET', maxRows: 1000 } : undefined })} /><span>{t('captureRows')}</span></label>
+                {task.output && <label><span>{t('maxRows')}</span><input type="number" min="1" max="1000" value={task.output.maxRows} onChange={(event) => update(index, { ...task, output: { kind: 'ROWSET', maxRows: Number(event.target.value) } })} /></label>}
                 <label className="procedure-checkbox"><input type="checkbox" checked={!!task.input} disabled={task.connectionRole !== 'TARGET' || task.type !== 'SQL' || task.riskClass !== 'DML' || rowsetTasks.length === 0} onChange={(event) => update(index, { ...task, input: event.target.checked ? { fromTask: rowsetTasks[0]!.id, mode: 'BATCH', batchSize: 250 } : undefined })} /><span>{t('consumeRows')}</span></label>
                 {task.input && <><label><span>{t('fromTask')}</span><select value={task.input.fromTask} onChange={(event) => update(index, { ...task, input: { ...task.input!, fromTask: event.target.value } })}>{rowsetTasks.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.id}</option>)}</select></label><label><span>{t('batchSize')}</span><input type="number" min="1" max="1000" value={task.input.batchSize} onChange={(event) => update(index, { ...task, input: { ...task.input!, batchSize: Number(event.target.value) } })} /></label></>}
               </div>
