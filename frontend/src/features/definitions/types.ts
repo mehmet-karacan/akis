@@ -108,7 +108,7 @@ export interface MappingContent {
   datasets: MappingDataset[]
   columnMappings: ColumnMapping[]
   writeStrategy: {
-    kind: 'APPEND' | 'STAGED_REPLACE' | 'MERGE' | 'TRUNCATE_LOAD'
+    kind: 'APPEND' | 'STAGED_REPLACE' | 'MERGE' | 'TRUNCATE_LOAD' | 'ATOMIC_DELETE_INSERT'
     key?: string[]
   }
   [key: string]: unknown
@@ -121,4 +121,3 @@ export interface NewDefinitionInput {
   name: string
   description: string
 }
-

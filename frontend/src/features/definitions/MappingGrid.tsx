@@ -361,6 +361,7 @@ export function MappingGrid({ value, onChange }: MappingGridProps) {
             <option value="STAGED_REPLACE">STAGED_REPLACE</option>
             <option value="MERGE">MERGE</option>
             <option value="TRUNCATE_LOAD">TRUNCATE_LOAD</option>
+            <option value="ATOMIC_DELETE_INSERT">ATOMIC_DELETE_INSERT</option>
           </select>
         </label>
         {value.writeStrategy.kind === 'MERGE' && (
