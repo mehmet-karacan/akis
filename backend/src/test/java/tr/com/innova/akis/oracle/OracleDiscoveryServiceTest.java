@@ -19,8 +19,11 @@ import tr.com.innova.akis.metadata.ApiException;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.ConnectionProbe;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.ConnectionProfile;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.Credentials;
+import tr.com.innova.akis.oracle.OracleDiscoveryModels.DataObjectCaptureProfile;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.DiscoveryResult;
+import tr.com.innova.akis.oracle.OracleDiscoveryModels.GovernedSnapshotCapture;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.PhysicalSchemaProfile;
+import tr.com.innova.akis.oracle.OracleDiscoveryModels.SnapshotCapture;
 
 class OracleDiscoveryServiceTest {
 
@@ -109,6 +112,39 @@ class OracleDiscoveryServiceTest {
     }
 
     @Test
+    void discoveryRequiresAnActiveConnectionVersion() {
+        ConnectionProfile active = OracleDiscoveryTestFixtures.profile(
+                7L, "ENV", ENVIRONMENT_NAME, "AKTIF");
+        ConnectionProfile tested = new ConnectionProfile(
+                active.projectId(), active.connectionId(), active.connectionUuid(),
+                active.connectionVersionUuid(), active.databaseType(), active.mode(),
+                active.jndiName(), active.driverReference(), active.host(),
+                active.serviceName(), active.sid(), active.tlsMode(), active.port(),
+                active.policy(), active.secretProvider(), active.secretReferencePath(),
+                active.secretStatus(), "TESTED", active.targetIdentityVersion(),
+                active.targetFingerprint());
+        StubRepository repository = new StubRepository(
+                tested,
+                new PhysicalSchemaProfile(
+                        OracleDiscoveryTestFixtures.PHYSICAL_SCHEMA_UUID,
+                        7L, "APP_OWNER", "AKTIF"));
+        CapturingGateway gateway = new CapturingGateway();
+
+        ApiException error = assertThrows(
+                ApiException.class,
+                () -> service(repository, gateway).discover(
+                        OracleDiscoveryTestFixtures.PROJECT_UUID,
+                        OracleDiscoveryTestFixtures.CONNECTION_UUID,
+                        OracleDiscoveryTestFixtures.VERSION_UUID,
+                        OracleDiscoveryTestFixtures.PHYSICAL_SCHEMA_UUID,
+                        null,
+                        100));
+
+        assertEquals("CONNECTION_VERSION_NOT_ACTIVE", error.code());
+        assertEquals(0, gateway.discoveryCalls);
+    }
+
+    @Test
     void discoveryNormalizesOracleIdentifiersAndUsesOnlyMetadataGateway() {
         StubRepository repository = repository(7L);
         CapturingGateway gateway = new CapturingGateway();
@@ -128,6 +164,30 @@ class OracleDiscoveryServiceTest {
         assertEquals("APP_OWNER", gateway.owner);
         assertEquals("HAKEDIS_TIPI", gateway.tableName);
         assertEquals(50, gateway.limit);
+        assertArrayEquals(new char[PASSWORD.length()], gateway.passwordReference);
+    }
+
+    @Test
+    void governedSnapshotCaptureDerivesTheTableFromTheBoundCatalogObject() {
+        StubRepository repository = repository(7L);
+        CapturingGateway gateway = new CapturingGateway();
+        gateway.capture = new SnapshotCapture(
+                OffsetDateTime.now(ZoneOffset.UTC),
+                new OracleSchemaSnapshotCodecV1.SnapshotDefinition(
+                        "ORACLE_19C", 1, new ObjectMapper().createObjectNode(),
+                        List.of(), List.of()));
+
+        GovernedSnapshotCapture result = service(repository, gateway).captureSchemaSnapshot(
+                OracleDiscoveryTestFixtures.PROJECT_UUID,
+                OracleDiscoveryTestFixtures.CONNECTION_UUID,
+                OracleDiscoveryTestFixtures.VERSION_UUID,
+                OracleDiscoveryTestFixtures.PHYSICAL_SCHEMA_UUID,
+                UUID.randomUUID());
+
+        assertEquals("APP_OWNER", gateway.owner);
+        assertEquals("HAKEDIS_TIPI", gateway.tableName);
+        assertEquals(1, gateway.captureCalls);
+        assertEquals(1, result.targetIdentityVersion());
         assertArrayEquals(new char[PASSWORD.length()], gateway.passwordReference);
     }
 
@@ -163,6 +223,7 @@ class OracleDiscoveryServiceTest {
     private static final class StubRepository extends OracleDiscoveryRepository {
         private final ConnectionProfile profile;
         private final PhysicalSchemaProfile physicalSchema;
+        private final DataObjectCaptureProfile dataObject;
 
         private StubRepository(
                 ConnectionProfile profile,
@@ -170,6 +231,8 @@ class OracleDiscoveryServiceTest {
             super(null, null);
             this.profile = profile;
             this.physicalSchema = physicalSchema;
+            this.dataObject = new DataObjectCaptureProfile(
+                    UUID.randomUUID(), "hakedis_tipi", "TABLO", "AKTIF");
         }
 
         @Override
@@ -186,6 +249,15 @@ class OracleDiscoveryServiceTest {
                 UUID physicalSchemaUuid) {
             return Optional.of(physicalSchema);
         }
+
+        @Override
+        Optional<DataObjectCaptureProfile> findDataObjectCaptureProfile(
+                long projectId,
+                UUID dataObjectUuid,
+                UUID physicalSchemaUuid,
+                UUID connectionVersionUuid) {
+            return Optional.of(dataObject);
+        }
     }
 
     private static final class CapturingGateway implements OracleMetadataGateway {
@@ -196,6 +268,8 @@ class OracleDiscoveryServiceTest {
         private String owner;
         private String tableName;
         private int limit;
+        private int captureCalls;
+        private SnapshotCapture capture;
 
         @Override
         public ConnectionProbe test(ConnectionProfile profile, Credentials credentials) {
@@ -216,6 +290,19 @@ class OracleDiscoveryServiceTest {
             this.tableName = tableName;
             this.limit = limit;
             return discovery;
+        }
+
+        @Override
+        public SnapshotCapture captureSnapshot(
+                ConnectionProfile profile,
+                Credentials credentials,
+                String owner,
+                String tableName) {
+            captureCalls++;
+            passwordReference = credentials.password();
+            this.owner = owner;
+            this.tableName = tableName;
+            return capture;
         }
     }
 }

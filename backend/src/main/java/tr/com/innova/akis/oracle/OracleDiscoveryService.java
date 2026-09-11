@@ -12,8 +12,11 @@ import tr.com.innova.akis.metadata.ApiException;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.ConnectionProbe;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.ConnectionProfile;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.Credentials;
+import tr.com.innova.akis.oracle.OracleDiscoveryModels.DataObjectCaptureProfile;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.DiscoveryResult;
+import tr.com.innova.akis.oracle.OracleDiscoveryModels.GovernedSnapshotCapture;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.PhysicalSchemaProfile;
+import tr.com.innova.akis.oracle.OracleDiscoveryModels.SnapshotCapture;
 
 @Service
 public class OracleDiscoveryService {
@@ -61,21 +64,8 @@ public class OracleDiscoveryService {
             String tableName,
             int limit) {
         ConnectionProfile profile = profile(projectUuid, connectionUuid, connectionVersionUuid);
-        if ("DRAFT".equals(profile.lifecycleStatus())) {
-            throw new ApiException(
-                    HttpStatus.CONFLICT,
-                    "CONNECTION_VERSION_NOT_TESTED",
-                    "Oracle metadata keşfinden önce bağlantı sürümü başarıyla test edilmelidir.");
-        }
-        PhysicalSchemaProfile physicalSchema = repository.findPhysicalSchema(
-                        profile.projectId(), physicalSchemaUuid)
-                .orElseThrow(() -> notFound("Fiziksel şema bulunamadı."));
-        if (physicalSchema.connectionId() != profile.connectionId()) {
-            throw validation("Fiziksel şema ve bağlantı sürümü aynı bağlantıya ait olmalıdır.");
-        }
-        if (!"AKTIF".equals(physicalSchema.status())) {
-            throw validation("Fiziksel şema aktif olmalıdır.");
-        }
+        requireActive(profile);
+        PhysicalSchemaProfile physicalSchema = physicalSchema(profile, physicalSchemaUuid);
         if (limit < 1 || limit > 200) {
             throw validation("Keşif tablo limiti 1-200 aralığında olmalıdır.");
         }
@@ -86,6 +76,69 @@ public class OracleDiscoveryService {
         try (Credentials credentials = credentials(profile)) {
             return gateway.discover(profile, credentials, owner, normalizedTableName, limit);
         }
+    }
+
+    GovernedSnapshotCapture captureSchemaSnapshot(
+            UUID projectUuid,
+            UUID connectionUuid,
+            UUID connectionVersionUuid,
+            UUID physicalSchemaUuid,
+            UUID dataObjectUuid) {
+        ConnectionProfile profile = profile(projectUuid, connectionUuid, connectionVersionUuid);
+        requireActive(profile);
+        PhysicalSchemaProfile physicalSchema = physicalSchema(profile, physicalSchemaUuid);
+        DataObjectCaptureProfile dataObject = repository.findDataObjectCaptureProfile(
+                        profile.projectId(), dataObjectUuid,
+                        physicalSchemaUuid, connectionVersionUuid)
+                .orElseThrow(() -> validation(
+                        "Veri nesnesi aktif fiziksel şema bağıyla eşleşmiyor."));
+        if (!"AKTIF".equals(dataObject.status()) || !"TABLO".equals(dataObject.objectType())) {
+            throw validation("Oracle snapshot yalnız aktif tablo veri nesnesi için alınabilir.");
+        }
+        String tableName = identifier(dataObject.objectReference(), "Veri nesnesi referansı");
+        if (profile.latestSuccessfulTestUuid() == null
+                || profile.targetIdentityVersion() == null
+                || profile.targetFingerprint() == null) {
+            throw new ApiException(
+                    HttpStatus.CONFLICT,
+                    "CONNECTION_VERSION_EVIDENCE_MISSING",
+                    "Aktif Oracle bağlantı sürümünün test kanıtı eksik.");
+        }
+        SnapshotCapture capture;
+        try (Credentials credentials = credentials(profile)) {
+            capture = gateway.captureSnapshot(
+                    profile, credentials,
+                    identifier(physicalSchema.schemaReference(), "Fiziksel şema referansı"),
+                    tableName);
+        }
+        return new GovernedSnapshotCapture(
+                projectUuid, connectionUuid, connectionVersionUuid,
+                physicalSchemaUuid, dataObjectUuid, profile.lifecycleStateVersion(),
+                profile.latestSuccessfulTestUuid(), profile.targetIdentityVersion(),
+                profile.targetFingerprint(), capture);
+    }
+
+    private void requireActive(ConnectionProfile profile) {
+        if (!"ACTIVE".equals(profile.lifecycleStatus())) {
+            throw new ApiException(
+                    HttpStatus.CONFLICT,
+                    "CONNECTION_VERSION_NOT_ACTIVE",
+                    "Oracle metadata keşfinden önce bağlantı sürümü test edilip aktifleştirilmelidir.");
+        }
+    }
+
+    private PhysicalSchemaProfile physicalSchema(
+            ConnectionProfile profile, UUID physicalSchemaUuid) {
+        PhysicalSchemaProfile physicalSchema = repository.findPhysicalSchema(
+                        profile.projectId(), physicalSchemaUuid)
+                .orElseThrow(() -> notFound("Fiziksel şema bulunamadı."));
+        if (physicalSchema.connectionId() != profile.connectionId()) {
+            throw validation("Fiziksel şema ve bağlantı sürümü aynı bağlantıya ait olmalıdır.");
+        }
+        if (!"AKTIF".equals(physicalSchema.status())) {
+            throw validation("Fiziksel şema aktif olmalıdır.");
+        }
+        return physicalSchema;
     }
 
     private ConnectionProfile profile(

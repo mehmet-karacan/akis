@@ -205,6 +205,41 @@ export interface DiscoveryResult {
   tables: DiscoveryTable[]
 }
 
+export interface SchemaSnapshotColumn {
+  reference: string
+  producerType: string
+  canonicalType: string
+  ordinal: number
+  precision?: number | null
+  scale?: number | null
+  length?: number | null
+  timePrecision?: number | null
+  nullable: boolean
+}
+
+export interface SchemaSnapshotConstraint {
+  externalReference: string
+  type: string
+  enabled: boolean
+  name: string
+  columnReferences: string[]
+}
+
+export interface SchemaSnapshot {
+  uuid: string
+  dataObjectUuid: string
+  physicalSchemaUuid: string
+  connectionVersionUuid: string
+  fingerprint: string
+  engineVersion: string
+  discoveredAt: string
+  createdAt: string
+  columns: SchemaSnapshotColumn[]
+  constraints: SchemaSnapshotConstraint[]
+  serverProduced: true
+  reused?: boolean
+}
+
 type JsonRecord = Record<string, unknown>
 
 const base = (projectUuid: string) => `/api/v1/projects/${encodeURIComponent(projectUuid)}`
@@ -251,4 +286,11 @@ export const topologyApi = {
   listDataObjects: (projectUuid: string, modelUuid: string) => get<DataObject[]>(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}/data-objects`),
   createDataObject: (projectUuid: string, modelUuid: string, body: JsonRecord) => post<DataObject>(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}/data-objects`, body),
   discoverOracle: (projectUuid: string, connectionUuid: string, versionUuid: string, physicalSchemaUuid: string, body: JsonRecord) => post<DiscoveryResult>(`${base(projectUuid)}/connections/${encodeURIComponent(connectionUuid)}/versions/${encodeURIComponent(versionUuid)}/physical-schemas/${encodeURIComponent(physicalSchemaUuid)}/discover`, body),
+  captureOracleSchemaSnapshot: (
+    projectUuid: string,
+    connectionUuid: string,
+    versionUuid: string,
+    physicalSchemaUuid: string,
+    dataObjectUuid: string,
+  ) => post<SchemaSnapshot>(`${connectionVersionV2(projectUuid, connectionUuid, versionUuid)}/physical-schemas/${encodeURIComponent(physicalSchemaUuid)}/data-objects/${encodeURIComponent(dataObjectUuid)}/schema-snapshots:discover`),
 }

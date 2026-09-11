@@ -29,7 +29,39 @@ final class OracleDiscoveryModels {
             String secretProvider,
             String secretReferencePath,
             String secretStatus,
-            String lifecycleStatus) {
+            String lifecycleStatus,
+            long lifecycleStateVersion,
+            UUID latestSuccessfulTestUuid,
+            Integer targetIdentityVersion,
+            String targetFingerprint) {
+
+        ConnectionProfile(
+                long projectId,
+                long connectionId,
+                UUID connectionUuid,
+                UUID connectionVersionUuid,
+                String databaseType,
+                String mode,
+                String jndiName,
+                String driverReference,
+                String host,
+                String serviceName,
+                String sid,
+                String tlsMode,
+                int port,
+                JsonNode policy,
+                String secretProvider,
+                String secretReferencePath,
+                String secretStatus,
+                String lifecycleStatus,
+                Integer targetIdentityVersion,
+                String targetFingerprint) {
+            this(projectId, connectionId, connectionUuid, connectionVersionUuid,
+                    databaseType, mode, jndiName, driverReference, host, serviceName,
+                    sid, tlsMode, port, policy, secretProvider, secretReferencePath,
+                    secretStatus, lifecycleStatus, 1L, new UUID(0L, 0L),
+                    targetIdentityVersion, targetFingerprint);
+        }
 
         ConnectionProfile(
                 long projectId,
@@ -52,7 +84,9 @@ final class OracleDiscoveryModels {
             this(projectId, connectionId, connectionUuid, connectionVersionUuid,
                     databaseType, mode, jndiName, driverReference, host, serviceName,
                     sid, tlsMode, port, policy, secretProvider, secretReferencePath,
-                    secretStatus, "TESTED");
+                    secretStatus, "ACTIVE", 1L, new UUID(0L, 0L),
+                    OracleDatabaseIdentityFingerprintV1.IDENTITY_VERSION,
+                    "0000000000000000000000000000000000000000000000000000000000000000");
         }
 
         ConnectionProfile(
@@ -74,7 +108,9 @@ final class OracleDiscoveryModels {
             this(projectId, connectionId, connectionUuid, connectionVersionUuid,
                     databaseType, "JDBC", null, driverReference, host, serviceName,
                     sid, tlsMode, port, policy, secretProvider,
-                    secretReferencePath, secretStatus, "TESTED");
+                    secretReferencePath, secretStatus, "ACTIVE", 1L, new UUID(0L, 0L),
+                    OracleDatabaseIdentityFingerprintV1.IDENTITY_VERSION,
+                    "0000000000000000000000000000000000000000000000000000000000000000");
         }
     }
 
@@ -82,6 +118,13 @@ final class OracleDiscoveryModels {
             UUID uuid,
             long connectionId,
             String schemaReference,
+            String status) {
+    }
+
+    record DataObjectCaptureProfile(
+            UUID uuid,
+            String objectReference,
+            String objectType,
             String status) {
     }
 
@@ -147,5 +190,23 @@ final class OracleDiscoveryModels {
             OffsetDateTime discoveredAt,
             boolean truncated,
             List<TableMetadata> tables) {
+    }
+
+    record SnapshotCapture(
+            OffsetDateTime capturedAt,
+            OracleSchemaSnapshotCodecV1.SnapshotDefinition definition) {
+    }
+
+    record GovernedSnapshotCapture(
+            UUID projectUuid,
+            UUID connectionUuid,
+            UUID connectionVersionUuid,
+            UUID physicalSchemaUuid,
+            UUID dataObjectUuid,
+            long lifecycleStateVersion,
+            UUID successfulTestUuid,
+            int targetIdentityVersion,
+            String targetFingerprint,
+            SnapshotCapture capture) {
     }
 }

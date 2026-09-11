@@ -100,6 +100,16 @@ erişilemiyorsa kurumsal VPN'in açılması gerektiğini açıkça bildirir. Pro
 ve hedefte yalnız bağlantı, sürüm ve current-user nesne sayısı sorguları çalıştırır;
 DDL veya DML yapmaz.
 
+Uygulama içindeki Oracle bağlantı sürümleri `DRAFT → TESTED → ACTIVE` yaşam
+döngüsünden geçer. Her test append-only kanıt olarak saklanır; başarılı testte
+`DB_UNIQUE_NAME + CON_NAME` hedef kimliği sabitlenir. Discovery yalnız `ACTIVE`
+sürümlerde çalışır ve aynı Oracle oturumunda hedef kimliğini yeniden doğrular.
+Güvenilir katalog şema görüntüsü istemci tarafından oluşturulmaz: V2 snapshot
+capture akışı Oracle dictionary metadata'sını sunucuda kanonikleştirir, immutable
+fingerprint üretir ve bağlantı testine bağlı provenance kanıtıyla birlikte kaydeder.
+V1 manuel snapshot endpoint'i yalnız geriye uyumluluk içindir ve bu provenance
+kanıtını üretmez.
+
 Oracle target-local ledger kurulumu runtime migration veya CI/CD işi değildir.
 Kontrollü DBA kurulumu ve bağımsız doğrulama için:
 

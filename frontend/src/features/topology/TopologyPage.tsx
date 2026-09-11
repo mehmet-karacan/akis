@@ -22,6 +22,7 @@ import {
 } from './api'
 import { getTopologyCopy, type CopyKey } from './copy'
 import { ConnectionVersionLifecyclePanel, lifecycleLabel } from './ConnectionVersionLifecyclePanel'
+import { DiscoverySnapshotPanel } from './DiscoverySnapshotPanel'
 import { OracleConnectionVersionForm } from './OracleConnectionVersionForm'
 import './topology.css'
 
@@ -199,6 +200,12 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
   const selectedVersion = versions.find((item) => item.uuid === selectedVersionUuid)
   const executableVersions = versions.filter((item) => item.mode === 'JDBC')
   const connectionPhysicalSchemas = resources.physicalSchemas.filter((item) => item.connectionUuid === selectedConnectionUuid)
+  const discoveryVersion = discoveryResult
+    ? versions.find((item) => item.uuid === discoveryResult.connectionVersionUuid)
+    : undefined
+  const discoveryPhysicalSchema = discoveryResult
+    ? resources.physicalSchemas.find((item) => item.uuid === discoveryResult.physicalSchemaUuid)
+    : undefined
   const selectedModel = resources.models.find((item) => item.uuid === selectedModelUuid)
   const refreshConnectionVersions = async (focusUuid = selectedVersionUuid) => {
     if (!selectedConnectionUuid) return undefined
@@ -343,7 +350,29 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
                   <button className="topology-button" disabled={!selectedVersionUuid || !selectedPhysicalUuid || busy === 'discover'}><Search />{busy === 'discover' ? tr('discovering') : tr('discover')}</button>
                 </form>
                 {(!selectedVersionUuid || !selectedPhysicalUuid) && <p className="topology-hint">{tr('chooseDiscovery')}</p>}
-                {discoveryResult && <div className="topology-discovery-results"><header><div><strong>{tr('discoveryResults')}</strong><span>{discoveryResult.owner} · {discoveryResult.tables.length} {tr('tables')}</span></div>{discoveryResult.truncated && <Status value={tr('truncated')} />}</header>{discoveryResult.tables.length === 0 ? <Empty>{tr('emptyDiscovery')}</Empty> : discoveryResult.tables.map((table) => <details key={`${table.owner}.${table.name}`}><summary><TableProperties /><strong>{table.name}</strong><span>{table.type}</span><b>{table.columns.length}</b></summary><div className="topology-table-wrap"><table><thead><tr><th>{tr('name')}</th><th>{tr('type')}</th><th>Nullable</th><th>Position</th></tr></thead><tbody>{table.columns.map((column) => <tr key={column.name}><td>{column.name}</td><td><code>{column.producerType}</code></td><td>{column.nullable ? 'Yes' : 'No'}</td><td>{column.ordinal}</td></tr>)}</tbody></table></div></details>)}</div>}
+                {discoveryResult && <div className="topology-discovery-results">
+                  <header><div><strong>{tr('discoveryResults')}</strong><span>{discoveryResult.owner} · {discoveryResult.tables.length} {tr('tables')}</span></div>{discoveryResult.truncated && <Status value={tr('truncated')} />}</header>
+                  {discoveryResult.tables.length === 0 ? <Empty>{tr('emptyDiscovery')}</Empty> : discoveryResult.tables.map((table) => <details key={`${table.owner}.${table.name}`}>
+                    <summary><TableProperties /><strong>{table.name}</strong><span>{table.type}</span><b>{table.columns.length}</b></summary>
+                    <div className="topology-table-wrap"><table><thead><tr><th>{tr('name')}</th><th>{tr('type')}</th><th>{tr('nullable')}</th><th>{tr('position')}</th></tr></thead><tbody>{table.columns.map((column) => <tr key={column.name}><td>{column.name}</td><td><code>{column.producerType}</code></td><td>{column.nullable ? tr('yes') : tr('no')}</td><td>{column.ordinal}</td></tr>)}</tbody></table></div>
+                    {table.type === 'TABLE' && selectedConnection && discoveryVersion && discoveryPhysicalSchema && <DiscoverySnapshotPanel
+                      projectUuid={projectUuid}
+                      connectionUuid={selectedConnection.uuid}
+                      connectionLabel={selectedConnection.name}
+                      connectionVersionUuid={discoveryVersion.uuid}
+                      connectionVersionLabel={`v${discoveryVersion.versionNumber} · ${connectionVersionSummary(discoveryVersion)}`}
+                      physicalSchemaUuid={discoveryPhysicalSchema.uuid}
+                      physicalSchemaLabel={`${discoveryPhysicalSchema.name} · ${discoveryPhysicalSchema.schemaReference}`}
+                      discovery={discoveryResult}
+                      table={table}
+                      models={resources.models}
+                      bindings={resources.bindings}
+                      preferredModelUuid={selectedModelUuid}
+                      copy={c}
+                      locale={locale}
+                    />}
+                  </details>)}
+                </div>}
               </section>
             </div>
           )}

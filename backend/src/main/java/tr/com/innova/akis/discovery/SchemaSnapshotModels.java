@@ -6,24 +6,24 @@ import java.util.UUID;
 
 import tools.jackson.databind.JsonNode;
 
-final class SchemaSnapshotModels {
+public final class SchemaSnapshotModels {
 
     private SchemaSnapshotModels() {
     }
 
-    record ProjectRef(long id) {
+    public record ProjectRef(long id) {
     }
 
-    record DataObjectRef(long id, UUID uuid) {
+    public record DataObjectRef(long id, UUID uuid) {
     }
 
-    record PhysicalSchemaRef(long id, UUID uuid, long connectionId) {
+    public record PhysicalSchemaRef(long id, UUID uuid, long connectionId) {
     }
 
-    record ConnectionVersionRef(long id, UUID uuid, long connectionId) {
+    public record ConnectionVersionRef(long id, UUID uuid, long connectionId) {
     }
 
-    record ColumnInput(
+    public record ColumnInput(
             String reference,
             String producerType,
             String canonicalType,
@@ -37,7 +37,7 @@ final class SchemaSnapshotModels {
             String name) {
     }
 
-    record ConstraintInput(
+    public record ConstraintInput(
             String externalReference,
             String type,
             boolean enabled,
@@ -47,7 +47,7 @@ final class SchemaSnapshotModels {
             List<String> columnReferences) {
     }
 
-    record CreateSnapshot(
+    public record CreateSnapshot(
             long projectId,
             long dataObjectId,
             UUID dataObjectUuid,
@@ -65,7 +65,7 @@ final class SchemaSnapshotModels {
             List<ConstraintInput> constraints) {
     }
 
-    record ColumnRow(
+    public record ColumnRow(
             UUID uuid,
             String reference,
             String producerType,
@@ -80,7 +80,7 @@ final class SchemaSnapshotModels {
             String name) {
     }
 
-    record ConstraintRow(
+    public record ConstraintRow(
             UUID uuid,
             String externalReference,
             String type,
@@ -91,7 +91,7 @@ final class SchemaSnapshotModels {
             List<String> columnReferences) {
     }
 
-    record SnapshotRow(
+    public record SnapshotRow(
             long id,
             UUID uuid,
             UUID dataObjectUuid,

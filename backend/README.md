@@ -92,6 +92,22 @@ taşıyan yerel JSON ortam değişkenine işaret eder. Değer metadata veritaban
 yanıta veya loga yazılmaz. Discovery yalnız tablo/view, kolon, PK/UK/FK metadata'sı
 okur; DDL veya DML çalıştırmaz.
 
+Bağlantı sürümü önce `DRAFT`, başarılı testten sonra `TESTED`, açık kullanıcı
+onayından sonra `ACTIVE` olur. Test journalı append-only'dir. Başarılı test,
+`DB_UNIQUE_NAME + CON_NAME` üzerinden sürümlü bir hedef fingerprint'i sabitler;
+discovery yalnız `ACTIVE` sürümde ve aynı Oracle oturumunda bu kimliği yeniden
+doğruladıktan sonra çalışır.
+
+Güvenilir katalog snapshot'ı için V2 `schema-snapshots:discover` endpoint'i tablo
+adını ve kolon tiplerini istemciden kabul etmez. Aktif mantıksal/fiziksel şema
+bağından katalog nesnesini çözer; Oracle dictionary'den NUMBER, VARCHAR2,
+TIMESTAMP ve PK/UK/FK/CHECK metadata'sını deterministik olarak kanonikleştirir.
+Snapshot ile onu üreten başarılı bağlantı testi, hedef fingerprint'i ve capture
+sözleşmesi V020 provenance kaydında immutable tutulur. Aynı fiziksel şeklin tekrar
+yakalanması aynı snapshot UUID/fingerprint'ini döndürür.
+V1 manuel snapshot endpoint'i geriye uyumluluk için korunur; sunucu üretimli
+provenance kanıtı taşımaz ve yeni UI akışı tarafından kullanılmaz.
+
 Oracle bağlantı sürümleri `JDBC` veya `JNDI` modundadır. JDBC sürücüsü backend
 tarafından `oracle.jdbc.OracleDriver` olarak sabitlenir ve Service Name/SID
 alanlarından tam biri kullanılır. JNDI yalnız yerel `java:comp/env/jdbc/...`

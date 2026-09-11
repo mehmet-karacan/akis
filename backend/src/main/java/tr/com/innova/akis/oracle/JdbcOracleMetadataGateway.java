@@ -1,5 +1,7 @@
 package tr.com.innova.akis.oracle;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.DriverManager;
@@ -8,6 +10,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -20,8 +23,11 @@ import javax.naming.InitialContext;
 import javax.naming.NamingException;
 import javax.sql.DataSource;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.ObjectMapper;
 
 import tr.com.innova.akis.metadata.ApiException;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.ColumnMetadata;
@@ -31,9 +37,13 @@ import tr.com.innova.akis.oracle.OracleDiscoveryModels.ConstraintMetadata;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.Credentials;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.DiscoveryResult;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.TableMetadata;
+import tr.com.innova.akis.oracle.OracleDiscoveryModels.SnapshotCapture;
 
 @Component
 final class JdbcOracleMetadataGateway implements OracleMetadataGateway {
+
+    private static final Logger LOGGER =
+            LoggerFactory.getLogger(JdbcOracleMetadataGateway.class);
 
     private static final int DEFAULT_CONNECT_TIMEOUT_MS = 10_000;
     private static final int DEFAULT_READ_TIMEOUT_MS = 30_000;
@@ -45,6 +55,11 @@ final class JdbcOracleMetadataGateway implements OracleMetadataGateway {
 
     private final OracleDatabaseIdentityFingerprintV1 identityFingerprint =
             new OracleDatabaseIdentityFingerprintV1();
+    private final OracleSchemaDictionaryReader schemaDictionaryReader;
+
+    JdbcOracleMetadataGateway(ObjectMapper objectMapper) {
+        this.schemaDictionaryReader = new OracleSchemaDictionaryReader(objectMapper);
+    }
 
     @Override
     public ConnectionProbe test(ConnectionProfile profile, Credentials credentials) {
@@ -101,6 +116,7 @@ final class JdbcOracleMetadataGateway implements OracleMetadataGateway {
         try (Connection connection = open(profile, credentials)) {
             DatabaseMetaData metadata = connection.getMetaData();
             ensureOracle19c(metadata);
+            verifyPinnedTargetIdentity(profile, readDatabaseIdentity(connection));
             List<TableMetadata> tables = new ArrayList<>();
             boolean truncated = false;
             String pattern = tableName == null ? "%" : tableName;
@@ -129,7 +145,58 @@ final class JdbcOracleMetadataGateway implements OracleMetadataGateway {
                     List.copyOf(tables));
         }
         catch (SQLException exception) {
+            LOGGER.warn(
+                    "Oracle metadata discovery failed (vendorCode={}, sqlState={}).",
+                    exception.getErrorCode(), exception.getSQLState());
             throw discoveryFailed();
+        }
+    }
+
+    @Override
+    public SnapshotCapture captureSnapshot(
+            ConnectionProfile profile,
+            Credentials credentials,
+            String owner,
+            String tableName) {
+        try (Connection connection = open(profile, credentials)) {
+            DatabaseMetaData metadata = connection.getMetaData();
+            ensureOracle19c(metadata);
+            verifyPinnedTargetIdentity(profile, readDatabaseIdentity(connection));
+            return new SnapshotCapture(
+                    OffsetDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.MICROS),
+                    schemaDictionaryReader.read(connection, owner, tableName));
+        }
+        catch (OracleSchemaSnapshotCodecException exception) {
+            LOGGER.warn("Oracle schema codec rejected dictionary metadata: {}", exception.getMessage());
+            throw new ApiException(
+                    HttpStatus.UNPROCESSABLE_CONTENT,
+                    "ORACLE_SCHEMA_UNSUPPORTED",
+                    "Oracle tablo şeması güvenli snapshot sözleşmesiyle uyumlu değil.");
+        }
+        catch (SQLException exception) {
+            LOGGER.warn(
+                    "Oracle schema capture failed (vendorCode={}, sqlState={}).",
+                    exception.getErrorCode(), exception.getSQLState());
+            throw discoveryFailed();
+        }
+    }
+
+    void verifyPinnedTargetIdentity(
+            ConnectionProfile profile,
+            OracleDatabaseIdentityFingerprintV1.CanonicalDatabaseIdentity actual) {
+        String expectedFingerprint = profile.targetFingerprint();
+        boolean validContract = profile.targetIdentityVersion() != null
+                && profile.targetIdentityVersion() == actual.identityVersion()
+                && expectedFingerprint != null
+                && expectedFingerprint.matches("[0-9a-f]{64}");
+        boolean sameTarget = validContract && MessageDigest.isEqual(
+                expectedFingerprint.getBytes(StandardCharsets.US_ASCII),
+                actual.fingerprint().getBytes(StandardCharsets.US_ASCII));
+        if (!sameTarget) {
+            throw new ApiException(
+                    HttpStatus.CONFLICT,
+                    "ORACLE_TARGET_IDENTITY_MISMATCH",
+                    "Oracle metadata hedef kimliği aktif bağlantı kanıtıyla eşleşmiyor.");
         }
     }
 

@@ -73,6 +73,23 @@ describe('topology API contracts', () => {
     expect(JSON.parse(String(init.body))).toEqual({ tableName: 'CUSTOMER', limit: 25 })
   })
 
+  it('captures a server-produced schema snapshot without sending client metadata', async () => {
+    const fetchMock = mockResponse({ uuid: 'snapshot', serverProduced: true })
+
+    await topologyApi.captureOracleSchemaSnapshot(
+      'project id',
+      'connection/id',
+      'version id',
+      'physical schema',
+      'data/object',
+    )
+
+    const [path, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(path).toBe('/api/v2/projects/project%20id/connections/connection%2Fid/versions/version%20id/physical-schemas/physical%20schema/data-objects/data%2Fobject/schema-snapshots:discover')
+    expect(init.method).toBe('POST')
+    expect(init.body).toBeUndefined()
+  })
+
   it('defaults module labels to English and switches to Turkish explicitly', () => {
     expect(getTopologyCopy('de').connections).toBe('Connections')
     expect(getTopologyCopy('tr-TR').connections).toBe('Bağlantılar')

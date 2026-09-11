@@ -95,7 +95,7 @@ public class JdbcSchemaSnapshotStore implements SchemaSnapshotStore {
 
     @Override
     public SnapshotRow create(CreateSnapshot snapshot) {
-        long snapshotId = jdbc.sql("""
+        Optional<Long> insertedSnapshotId = jdbc.sql("""
                         insert into entegrasyon.sema_goruntusu(
                             proje_id, veri_nesnesi_id, fiziksel_sema_id,
                             baglanti_surumu_id, uuid, parmak_izi, motor_surumu,
@@ -103,6 +103,8 @@ public class JdbcSchemaSnapshotStore implements SchemaSnapshotStore {
                         values (:projectId, :dataObjectId, :physicalSchemaId,
                                 :connectionVersionId, :uuid, :fingerprint, :engineVersion,
                                 :discoveredAt, :propertyVersion, cast(:properties as jsonb))
+                        on conflict (veri_nesnesi_id, fiziksel_sema_id,
+                                     baglanti_surumu_id, parmak_izi) do nothing
                         returning id
                         """)
                 .param("projectId", snapshot.projectId())
@@ -116,7 +118,26 @@ public class JdbcSchemaSnapshotStore implements SchemaSnapshotStore {
                 .param("propertyVersion", snapshot.propertyVersion())
                 .param("properties", snapshot.properties().toString())
                 .query(Long.class)
-                .single();
+                .optional();
+
+        if (insertedSnapshotId.isEmpty()) {
+            UUID existingUuid = jdbc.sql("""
+                            select uuid
+                              from entegrasyon.sema_goruntusu
+                             where veri_nesnesi_id = :dataObjectId
+                               and fiziksel_sema_id = :physicalSchemaId
+                               and baglanti_surumu_id = :connectionVersionId
+                               and parmak_izi = :fingerprint
+                            """)
+                    .param("dataObjectId", snapshot.dataObjectId())
+                    .param("physicalSchemaId", snapshot.physicalSchemaId())
+                    .param("connectionVersionId", snapshot.connectionVersionId())
+                    .param("fingerprint", snapshot.fingerprint())
+                    .query(UUID.class)
+                    .single();
+            return find(snapshot.projectId(), existingUuid).orElseThrow();
+        }
+        long snapshotId = insertedSnapshotId.orElseThrow();
 
         Map<String, Long> columnIds = new LinkedHashMap<>();
         for (ColumnInput column : snapshot.columns()) {
