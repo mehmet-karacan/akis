@@ -49,12 +49,33 @@ kurulum bir worker data transaction'ının parçası değildir ve worker kapalı
 ayrı DBA değişiklik sürecinde uygulanır. `install.sql` hata halinde SQL*Plus'ı
 başarısız kodla sonlandırır.
 
-Tamamlanmış aynı V1 sözleşmesi tekrar çalıştırılabilir. Sürüm işareti olmadan
+Tamamlanmış aynı V2 sözleşmesi tekrar çalıştırılabilir. Sürüm işareti olmadan
 mevcut yönetilen nesne, eksik nesne veya farklı contract hash görülürse script
 otomatik onarım/upgrade yapmaz. DBA nesneleri ve veriyi inceleyip ayrı, sürümlü
 migration hazırlamalıdır. Scriptin ortasında DDL hatası oluşursa implicit commit
 nedeniyle bazı nesneler kalabilir; sürüm işareti yazılmadan tekrar çalıştırma
 bilinçli olarak durur.
+
+Kurulu exact V1 sözleşmesi `install.sql` ile sessizce değiştirilmez. Worker ve
+scheduler kapalıyken, target owner ile önce açık upgrade çalıştırılır:
+
+```sql
+@upgrade-v001-to-v002.sql
+```
+
+Repository kökünden aynı upgrade `.env` tabanlı runner ile çalıştırılabilir:
+
+```powershell
+.\scripts\invoke-oracle-ledger.ps1 -Mode UpgradeV1ToV2
+```
+
+Upgrade yalnız bilinen V1 contract hash'ini, dört tabloyu, valid definer-rights
+package'i ve üç enabled/valid immutable trigger'ı görünce ilerler. Package V2 ile
+değiştirildikten sonra marker trigger kontrollü olarak disable edilir, marker V2'ye
+taşınır, trigger yeniden enable edilir ve `validate.sql` otomatik çalışır. DDL
+implicit commit sınırları nedeniyle hata sonrası otomatik downgrade yapılmaz;
+validate başarısızsa worker kapalı kalır ve DBA mevcut nesne/status/error
+görünümlerini inceleyerek aynı explicit upgrade'i tamamlar.
 
 Salt okunur kontrol ayrıca çalıştırılabilir:
 
@@ -62,10 +83,10 @@ Salt okunur kontrol ayrıca çalıştırılabilir:
 @validate.sql
 ```
 
-`negative-test.sql` fence, stale token, idempotent replay, çelişen payload,
-negatif sayaç ve append-only trigger'ları sınar. Yalnız disposable/test owner'da
-DBA onayıyla çalıştırılmalıdır. Test business/staging DML yapmaz ve başarılı
-sonunda kendi kontrol verisini temizler.
+`negative-test.sql` temiz transaction başlangıcı, fence/stale token, rollback
+sonrası eski guard reddi, çelişen batch/publish kanıtı ve append-only trigger'ları
+sınar. Yalnız disposable/test owner'da DBA onayıyla çalıştırılmalıdır. Test
+business/staging DML yapmaz ve başarılı sonunda kendi kontrol verisini temizler.
 
 ```powershell
 .\scripts\invoke-oracle-ledger.ps1 -Mode NegativeTest
@@ -97,6 +118,13 @@ Fence yükseltme ayrı ve business DML içermeyen kısa transaction'dır:
 2. Çağrı başarılıysa caller commit eder. Belirsiz commit yanıtında kör devam
    edilmez; `READ_FENCE` ile kilit sahibi/token/hash kanıtı okunup mutabakat
    yapılır.
+
+V2'de `ACQUIRE_FENCE`, public `LOCK_FENCE`, `PREPARE_BATCH` ve
+`PREPARE_PUBLISH` çağrıları connection üzerinde önceden açılmış bir Oracle local
+transaction varsa `-20026` ile reddedilir. Kontrol package-private ve
+`AUTHID DEFINER` sınırındadır; runtime hesabına doğrudan `DBMS_TRANSACTION`
+yetkisi verilmesi gerekmez. Caller, acquire commit'i sonrası data transaction'ını
+temiz bir sınırdan başlatmalıdır.
 
 Her batch transaction'ında aynı fiziksel connection/session kullanılır:
 

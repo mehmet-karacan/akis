@@ -3,9 +3,9 @@
 
 DECLARE
     c_component CONSTANT VARCHAR2(30) := 'AKIS_LEDGER';
-    c_version   CONSTANT NUMBER := 1;
+    c_version   CONSTANT NUMBER := 2;
     c_hash      CONSTANT VARCHAR2(64) :=
-        '6fce5297df31bd700711a62af2e37a5305fdfb573f0828db83aa4e407f401c9c';
+        '05229dc78ea243a2904f4e170dc814d7852fb786cd44732fb71f7819ada3a68a';
     v_marker_tables NUMBER;
     v_managed_objects NUMBER;
     v_matching_markers NUMBER;

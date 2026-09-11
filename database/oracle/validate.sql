@@ -5,7 +5,7 @@ SET DEFINE OFF
 
 DECLARE
     C_HASH CONSTANT VARCHAR2(64) :=
-        '6fce5297df31bd700711a62af2e37a5305fdfb573f0828db83aa4e407f401c9c';
+        '05229dc78ea243a2904f4e170dc814d7852fb786cd44732fb71f7819ada3a68a';
     V_COUNT NUMBER;
 
     PROCEDURE ASSERT_COUNT(
@@ -78,7 +78,7 @@ BEGIN
     SELECT COUNT(*) INTO V_COUNT
       FROM ETL_KURULUM_SURUMU
      WHERE COMPONENT_CODE = 'AKIS_LEDGER'
-       AND SCHEMA_VERSION = 1
+       AND SCHEMA_VERSION = 2
        AND CONTRACT_HASH = C_HASH;
     ASSERT_COUNT(V_COUNT, 1, 'version marker mismatch');
 
@@ -208,6 +208,38 @@ BEGIN
        AND OBJECT_TYPE IN ('PACKAGE', 'PACKAGE BODY')
        AND STATUS = 'VALID';
     ASSERT_COUNT(V_COUNT, 2, 'package compilation failed');
+
+    SELECT COUNT(*) INTO V_COUNT
+      FROM USER_ERRORS
+     WHERE NAME = 'ETL_KANIT_PKG'
+       AND TYPE IN ('PACKAGE', 'PACKAGE BODY');
+    ASSERT_COUNT(V_COUNT, 0, 'package compiler error scan failed');
+
+    SELECT COUNT(*) INTO V_COUNT
+      FROM USER_SOURCE
+     WHERE NAME = 'ETL_KANIT_PKG'
+       AND TYPE = 'PACKAGE BODY'
+       AND REGEXP_LIKE(TEXT, 'RAISE_APPLICATION_ERROR[[:space:]]*\(', 'i')
+       AND LINE BETWEEN (
+           SELECT MIN(LINE) FROM USER_SOURCE
+            WHERE NAME = 'ETL_KANIT_PKG' AND TYPE = 'PACKAGE BODY'
+              AND REGEXP_LIKE(TEXT, 'PROCEDURE ASSERT_CLEAN_TRANSACTION', 'i'))
+                    AND (
+           SELECT MIN(LINE) FROM USER_SOURCE
+            WHERE NAME = 'ETL_KANIT_PKG' AND TYPE = 'PACKAGE BODY'
+              AND LINE > (
+                  SELECT MIN(LINE) FROM USER_SOURCE
+                   WHERE NAME = 'ETL_KANIT_PKG' AND TYPE = 'PACKAGE BODY'
+                     AND REGEXP_LIKE(TEXT, 'PROCEDURE ASSERT_CLEAN_TRANSACTION', 'i'))
+              AND REGEXP_LIKE(TEXT, '^[[:space:]]*END;', 'i'));
+    ASSERT_COUNT(V_COUNT, 1, 'clean transaction guard implementation mismatch');
+
+    SELECT COUNT(*) INTO V_COUNT
+      FROM USER_SOURCE
+     WHERE NAME = 'ETL_KANIT_PKG'
+       AND TYPE = 'PACKAGE BODY'
+       AND REGEXP_LIKE(TEXT, '^[[:space:]]*ASSERT_CLEAN_TRANSACTION;[[:space:]]*$', 'i');
+    ASSERT_COUNT(V_COUNT, 4, 'clean transaction entry-point coverage mismatch');
 
     SELECT COUNT(*) INTO V_COUNT
       FROM USER_SOURCE

@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet("Validate", "Install", "NegativeTest")]
+    [ValidateSet("Validate", "Install", "UpgradeV1ToV2", "NegativeTest")]
     [string]$Mode = "Validate"
 )
 
@@ -71,6 +71,7 @@ if (-not $sqlcl) {
 
 $scriptName = switch ($Mode) {
     "Install" { "install.sql" }
+    "UpgradeV1ToV2" { "upgrade-v001-to-v002.sql" }
     "NegativeTest" { "negative-test.sql" }
     default { "validate.sql" }
 }

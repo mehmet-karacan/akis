@@ -25,3 +25,6 @@ PROMPT Validating installed contract
 
 PROMPT AKIS Oracle ledger installation completed
 
+-- A completed V2 installation may be rerun. V1 must first use the explicit
+-- upgrade-v001-to-v002.sql path; incomplete, newer or colliding installations
+-- are deliberately not repaired in place.

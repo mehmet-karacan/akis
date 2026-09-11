@@ -227,6 +227,20 @@ CREATE OR REPLACE PACKAGE BODY ETL_KANIT_PKG AS
         END IF;
     END;
 
+    -- V2 entry-point guard. Fence acquisition and every new write/publish
+    -- transaction must start on a connection with no pre-existing Oracle local
+    -- transaction. This is private so a runtime account still needs only EXECUTE
+    -- on ETL_KANIT_PKG.
+    PROCEDURE ASSERT_CLEAN_TRANSACTION IS
+        V_TX_ID VARCHAR2(128) := DBMS_TRANSACTION.LOCAL_TRANSACTION_ID(FALSE);
+    BEGIN
+        IF V_TX_ID IS NOT NULL THEN
+            RAISE_APPLICATION_ERROR(
+                -20026,
+                'operation requires a clean Oracle transaction boundary');
+        END IF;
+    END;
+
     PROCEDURE ASSERT_OWNER(
         P_TARGET_KEY_HASH IN VARCHAR2,
         P_FENCE_TOKEN IN NUMBER,
@@ -367,6 +381,7 @@ CREATE OR REPLACE PACKAGE BODY ETL_KANIT_PKG AS
         V_RELEASE VARCHAR2(64);
         V_PLAN VARCHAR2(64);
     BEGIN
+        ASSERT_CLEAN_TRANSACTION;
         ASSERT_OWNER(
             P_TARGET_KEY_HASH, P_FENCE_TOKEN, P_JOB_UUID, P_RUN_UUID,
             P_ATTEMPT_NO, P_RELEASE_HASH, P_PLAN_HASH);
@@ -431,6 +446,7 @@ CREATE OR REPLACE PACKAGE BODY ETL_KANIT_PKG AS
         P_RELEASE_HASH IN VARCHAR2,
         P_PLAN_HASH IN VARCHAR2) IS
     BEGIN
+        ASSERT_CLEAN_TRANSACTION;
         LOCK_AND_VERIFY_FENCE(
             P_TARGET_KEY_HASH, P_FENCE_TOKEN, P_JOB_UUID, P_RUN_UUID,
             P_ATTEMPT_NO, P_RELEASE_HASH, P_PLAN_HASH);
@@ -522,6 +538,7 @@ CREATE OR REPLACE PACKAGE BODY ETL_KANIT_PKG AS
         V_BYTES NUMBER;
         V_BATCH_NO_COLLISION NUMBER;
     BEGIN
+        ASSERT_CLEAN_TRANSACTION;
         O_TX_GUARD := NULL;
         O_ALREADY_RECORDED := 0;
         CLEAR_STALE_GUARDS;
@@ -767,6 +784,7 @@ CREATE OR REPLACE PACKAGE BODY ETL_KANIT_PKG AS
         V_LOWER VARCHAR2(1000);
         V_UPPER VARCHAR2(1000);
     BEGIN
+        ASSERT_CLEAN_TRANSACTION;
         O_TX_GUARD := NULL;
         O_ALREADY_RECORDED := 0;
         CLEAR_STALE_GUARDS;

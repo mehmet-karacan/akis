@@ -1,0 +1,164 @@
+-- Explicit AKIS Oracle ledger V1 -> V2 upgrade.
+-- Run only as the target control-object owner with workers stopped.
+-- Oracle DDL has implicit commit boundaries; this is not a worker transaction.
+
+WHENEVER OSERROR EXIT FAILURE
+WHENEVER SQLERROR EXIT SQL.SQLCODE ROLLBACK
+SET DEFINE OFF
+SET SERVEROUTPUT ON
+SET VERIFY OFF
+
+PROMPT Validating exact AKIS Oracle ledger V1 source contract
+
+DECLARE
+    C_V1_HASH CONSTANT VARCHAR2(64) :=
+        '6fce5297df31bd700711a62af2e37a5305fdfb573f0828db83aa4e407f401c9c';
+    V_COUNT NUMBER;
+BEGIN
+    IF DBMS_DB_VERSION.VERSION <> 19 THEN
+        RAISE_APPLICATION_ERROR(-20069, 'This upgrade requires Oracle Database 19c');
+    END IF;
+    IF DBMS_TRANSACTION.LOCAL_TRANSACTION_ID(FALSE) IS NOT NULL THEN
+        RAISE_APPLICATION_ERROR(-20026, 'upgrade requires a clean Oracle transaction boundary');
+    END IF;
+
+    SELECT COUNT(*) INTO V_COUNT
+      FROM ETL_KURULUM_SURUMU
+     WHERE COMPONENT_CODE = 'AKIS_LEDGER'
+       AND SCHEMA_VERSION = 1
+       AND CONTRACT_HASH = C_V1_HASH;
+    IF V_COUNT <> 1 THEN
+        RAISE_APPLICATION_ERROR(-20072, 'exact AKIS ledger V1 marker was not found');
+    END IF;
+
+    SELECT COUNT(*) INTO V_COUNT
+      FROM USER_TABLES
+     WHERE TABLE_NAME IN (
+               'ETL_KURULUM_SURUMU', 'ETL_YUKLEME_KILIDI',
+               'ETL_YUKLEME_DEFTERI', 'ETL_YAYIN_DEFTERI');
+    IF V_COUNT <> 4 THEN
+        RAISE_APPLICATION_ERROR(-20073, 'V1 managed table set is incomplete');
+    END IF;
+
+    SELECT COUNT(*) INTO V_COUNT
+      FROM USER_OBJECTS
+     WHERE OBJECT_NAME = 'ETL_KANIT_PKG'
+       AND OBJECT_TYPE IN ('PACKAGE', 'PACKAGE BODY')
+       AND STATUS = 'VALID';
+    IF V_COUNT <> 2 THEN
+        RAISE_APPLICATION_ERROR(-20074, 'V1 package is missing or invalid');
+    END IF;
+
+    SELECT COUNT(*) INTO V_COUNT
+      FROM USER_PROCEDURES
+     WHERE OBJECT_NAME = 'ETL_KANIT_PKG'
+       AND PROCEDURE_NAME IN (
+           'ACQUIRE_FENCE', 'LOCK_FENCE', 'READ_FENCE',
+           'PREPARE_BATCH', 'RECORD_BATCH', 'VERIFY_BATCH',
+           'PREPARE_PUBLISH', 'RECORD_PUBLISH', 'VERIFY_PUBLISH');
+    IF V_COUNT <> 9 THEN
+        RAISE_APPLICATION_ERROR(-20075, 'V1 package API differs from the marked contract');
+    END IF;
+
+    SELECT COUNT(*) INTO V_COUNT
+      FROM USER_PROCEDURES
+     WHERE OBJECT_NAME = 'ETL_KANIT_PKG'
+       AND PROCEDURE_NAME IS NULL
+       AND AUTHID = 'DEFINER';
+    IF V_COUNT <> 1 THEN
+        RAISE_APPLICATION_ERROR(-20077, 'V1 package is not a definer-rights boundary');
+    END IF;
+
+    SELECT COUNT(*) INTO V_COUNT
+      FROM USER_TRIGGERS
+     WHERE (
+               (TRIGGER_NAME = 'ETL_KS_IMM_TRG' AND TABLE_NAME = 'ETL_KURULUM_SURUMU') OR
+               (TRIGGER_NAME = 'ETL_YD_IMM_TRG' AND TABLE_NAME = 'ETL_YUKLEME_DEFTERI') OR
+               (TRIGGER_NAME = 'ETL_YYD_IMM_TRG' AND TABLE_NAME = 'ETL_YAYIN_DEFTERI'))
+       AND TRIGGER_TYPE = 'BEFORE STATEMENT'
+       AND TRIGGERING_EVENT = 'UPDATE OR DELETE'
+       AND STATUS = 'ENABLED';
+    IF V_COUNT <> 3 THEN
+        RAISE_APPLICATION_ERROR(-20076, 'V1 append-only trigger set is not enabled');
+    END IF;
+
+    SELECT COUNT(*) INTO V_COUNT
+      FROM USER_OBJECTS
+     WHERE OBJECT_NAME IN ('ETL_KS_IMM_TRG', 'ETL_YD_IMM_TRG', 'ETL_YYD_IMM_TRG')
+       AND OBJECT_TYPE = 'TRIGGER'
+       AND STATUS = 'VALID';
+    IF V_COUNT <> 3 THEN
+        RAISE_APPLICATION_ERROR(-20076, 'V1 append-only trigger set is invalid');
+    END IF;
+END;
+/
+
+PROMPT Replacing package with AKIS Oracle ledger V2
+@@02_package.sql
+
+DECLARE
+    V_COUNT NUMBER;
+BEGIN
+    SELECT COUNT(*) INTO V_COUNT
+      FROM USER_OBJECTS
+     WHERE OBJECT_NAME = 'ETL_KANIT_PKG'
+       AND OBJECT_TYPE IN ('PACKAGE', 'PACKAGE BODY')
+       AND STATUS = 'VALID';
+    IF V_COUNT <> 2 THEN
+        RAISE_APPLICATION_ERROR(-20074, 'V2 package replacement is invalid');
+    END IF;
+
+    SELECT COUNT(*) INTO V_COUNT
+      FROM USER_ERRORS
+     WHERE NAME = 'ETL_KANIT_PKG'
+       AND TYPE IN ('PACKAGE', 'PACKAGE BODY');
+    IF V_COUNT <> 0 THEN
+        RAISE_APPLICATION_ERROR(-20078, 'V2 package replacement has compiler errors');
+    END IF;
+END;
+/
+
+PROMPT Advancing immutable version marker to AKIS Oracle ledger V2
+DECLARE
+    C_V1_HASH CONSTANT VARCHAR2(64) :=
+        '6fce5297df31bd700711a62af2e37a5305fdfb573f0828db83aa4e407f401c9c';
+    C_V2_HASH CONSTANT VARCHAR2(64) :=
+        '05229dc78ea243a2904f4e170dc814d7852fb786cd44732fb71f7819ada3a68a';
+    V_TRIGGER_DISABLED BOOLEAN := FALSE;
+BEGIN
+    EXECUTE IMMEDIATE 'ALTER TRIGGER ETL_KS_IMM_TRG DISABLE';
+    V_TRIGGER_DISABLED := TRUE;
+
+    UPDATE ETL_KURULUM_SURUMU
+       SET SCHEMA_VERSION = 2,
+           CONTRACT_HASH = C_V2_HASH,
+           INSTALLED_AT = SYSTIMESTAMP,
+           INSTALLED_BY = SYS_CONTEXT('USERENV', 'SESSION_USER')
+     WHERE COMPONENT_CODE = 'AKIS_LEDGER'
+       AND SCHEMA_VERSION = 1
+       AND CONTRACT_HASH = C_V1_HASH;
+    IF SQL%ROWCOUNT <> 1 THEN
+        RAISE_APPLICATION_ERROR(-20079, 'V1 marker changed during upgrade');
+    END IF;
+
+    COMMIT;
+    EXECUTE IMMEDIATE 'ALTER TRIGGER ETL_KS_IMM_TRG ENABLE';
+    V_TRIGGER_DISABLED := FALSE;
+EXCEPTION
+    WHEN OTHERS THEN
+        ROLLBACK;
+        IF V_TRIGGER_DISABLED THEN
+            BEGIN
+                EXECUTE IMMEDIATE 'ALTER TRIGGER ETL_KS_IMM_TRG ENABLE';
+            EXCEPTION
+                WHEN OTHERS THEN NULL;
+            END;
+        END IF;
+        RAISE;
+END;
+/
+
+PROMPT Validating AKIS Oracle ledger V2 after upgrade
+@@validate.sql
+
+PROMPT AKIS Oracle ledger V1 -> V2 upgrade completed
