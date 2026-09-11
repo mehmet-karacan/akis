@@ -119,6 +119,29 @@ class ProcedureRuntimePlanResolverTest {
     }
 
     @Test
+    void rejectsCommandsThatEscapeTheirBoundObjectsOrNeedUnresolvedValues() {
+        ObjectNode wrongSource = definition();
+        ((ObjectNode) wrongSource.get("tasks").get(1))
+                .put("command", "SELECT ID, ACIKLAMA FROM TTBP.OTHER_TABLE");
+        assertRejectedAtPublication(wrongSource);
+
+        ObjectNode sourceBind = definition();
+        ((ObjectNode) sourceBind.get("tasks").get(1))
+                .put("command", "SELECT ID, ACIKLAMA FROM TTBP.HAKEDIS_TIPI WHERE ID = :ID");
+        assertRejectedAtPublication(sourceBind);
+
+        ObjectNode wrongTarget = definition();
+        ((ObjectNode) wrongTarget.get("tasks").get(2)).put(
+                "command", "INSERT INTO INNOVA_ODI.OTHER_TABLE (ID, ACIKLAMA) VALUES (:ID, :ACIKLAMA)");
+        assertRejectedAtPublication(wrongTarget);
+
+        ObjectNode wrongStatsTarget = definition();
+        ((ObjectNode) wrongStatsTarget.get("tasks").get(3)).put(
+                "command", "BEGIN DBMS_STATS.GATHER_TABLE_STATS(ownname => 'INNOVA_ODI', tabname => 'OTHER_TABLE'); END;");
+        assertRejectedAtPublication(wrongStatsTarget);
+    }
+
+    @Test
     void rejectsSecretBearingManifestBeforeHashing() {
         Fixture fixture = fixture();
         ((ObjectNode) fixture.unsignedManifest().get("environment").get("policy"))
@@ -145,7 +168,10 @@ class ProcedureRuntimePlanResolverTest {
     }
 
     private Fixture fixture() {
-        ObjectNode definition = definition();
+        return fixture(definition());
+    }
+
+    private Fixture fixture(ObjectNode definition) {
         ObjectNode scenario = scenario(definition);
         String scenarioHash = sha256(canonicalize(scenario).toString());
         ObjectNode unsigned = manifest(definition, scenario, scenarioHash);
@@ -157,6 +183,14 @@ class ProcedureRuntimePlanResolverTest {
         ObjectNode signed = releaseCore.deepCopy();
         signed.put("releaseHash", releaseHash);
         return new Fixture(scenario, scenarioHash, unsigned, signed, runtimeHash, releaseHash);
+    }
+
+    private void assertRejectedAtPublication(ObjectNode definition) {
+        ObjectNode scenario = scenario(definition);
+        String scenarioHash = sha256(canonicalize(scenario).toString());
+        ObjectNode manifest = manifest(definition, scenario, scenarioHash);
+        assertThrows(ProcedureRuntimePlanException.class, () -> resolver.compileHashForPublication(
+                scenarioHash, scenario, manifest));
     }
 
     private ObjectNode definition() {

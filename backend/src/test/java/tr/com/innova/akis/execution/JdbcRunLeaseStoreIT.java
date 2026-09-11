@@ -621,6 +621,7 @@ class JdbcRunLeaseStoreIT {
         @Bean
         DataSource dataSource() {
             String url = requiredEnvironment("SPRING_DATASOURCE_URL");
+            IntegrationTestDatabase.requireIsolatedUrl(url);
             DriverManagerDataSource dataSource = new DriverManagerDataSource();
             dataSource.setUrl(url);
             dataSource.setUsername(requiredEnvironment("SPRING_DATASOURCE_USERNAME"));

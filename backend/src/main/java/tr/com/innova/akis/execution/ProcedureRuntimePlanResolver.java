@@ -158,6 +158,7 @@ public final class ProcedureRuntimePlanResolver {
         }
         Map<String, TaskBinding> bindings = manifestBindings(manifest, tasks);
         validateTopologyShape(tasks, bindings);
+        validateBoundCommands(tasks, bindings);
 
         ObjectNode plan = objectMapper.createObjectNode();
         plan.set("bindings", bindingNodes(tasks, bindings));
@@ -622,6 +623,93 @@ public final class ProcedureRuntimePlanResolver {
         if (sourceConnections.size() != 1 || targetIdentities.size() != 1) {
             throw shape("Procedure V1 requires one SOURCE connection and one TARGET object/connection.");
         }
+    }
+
+    private void validateBoundCommands(List<Task> tasks, Map<String, TaskBinding> bindings) {
+        for (Task task : tasks) {
+            TaskBinding binding = bindings.get(task.id());
+            if (task.connectionRole() == ConnectionRole.SOURCE) {
+                validateBoundSourceSelect(task, binding);
+            }
+            else {
+                validateBoundTargetCommand(task, binding);
+            }
+        }
+    }
+
+    private void validateBoundSourceSelect(Task task, TaskBinding binding) {
+        if (task.type() != TaskType.SQL || task.riskClass() != RiskClass.READ_ONLY
+                || task.input() != null || task.output() == null || !task.namedBinds().isEmpty()) {
+            throw shape("Procedure V1 source tasks require an output-only bound SELECT.");
+        }
+        String identifier = Pattern.quote(binding.physicalIdentity());
+        Pattern select = Pattern.compile(
+                "^SELECT\\s+[A-Z][A-Z0-9_$#]*(?:\\s*,\\s*[A-Z][A-Z0-9_$#]*)*"
+                        + "\\s+FROM\\s+" + identifier + "$",
+                Pattern.CASE_INSENSITIVE);
+        if (!select.matcher(executableSql(task.command())).matches()) {
+            throw shape("Procedure V1 SELECT must read explicit columns from its bound source object.");
+        }
+    }
+
+    private void validateBoundTargetCommand(Task task, TaskBinding binding) {
+        if (task.output() != null) {
+            throw shape("Procedure V1 target tasks cannot publish rowset output.");
+        }
+        String identifier = Pattern.quote(binding.physicalIdentity());
+        if (task.type() == TaskType.SQL && task.riskClass() == RiskClass.DML) {
+            if (task.input() == null || task.namedBinds().isEmpty()) {
+                throw shape("Procedure V1 INSERT requires an adjacent rowset input and named binds.");
+            }
+            Pattern insert = Pattern.compile(
+                    "^INSERT\\s+INTO\\s+" + identifier
+                            + "\\s*\\((?<columns>[A-Z][A-Z0-9_$#]*(?:\\s*,\\s*[A-Z][A-Z0-9_$#]*)*)\\)"
+                            + "\\s*VALUES\\s*\\((?<values>:[A-Z][A-Z0-9_$#]*(?:\\s*,\\s*:[A-Z][A-Z0-9_$#]*)*)\\)$",
+                    Pattern.CASE_INSENSITIVE);
+            var match = insert.matcher(executableSql(task.command()));
+            if (!match.matches()) {
+                throw shape("Procedure V1 INSERT must write only to its bound target object.");
+            }
+            List<String> columns = commaSeparated(match.group("columns"));
+            List<String> values = commaSeparated(match.group("values")).stream()
+                    .map(value -> value.substring(1))
+                    .toList();
+            if (!columns.equals(values) || !values.equals(task.namedBinds())) {
+                throw shape("Procedure V1 INSERT columns and named binds must match in order.");
+            }
+            return;
+        }
+        if (task.type() == TaskType.SQL && task.riskClass() == RiskClass.DESTRUCTIVE) {
+            if (task.input() != null || !task.namedBinds().isEmpty()
+                    || !Pattern.compile(
+                            "^TRUNCATE\\s+TABLE\\s+" + identifier + "$",
+                            Pattern.CASE_INSENSITIVE)
+                    .matcher(executableSql(task.command())).matches()) {
+                throw shape("Procedure V1 destructive SQL is limited to its bound target TRUNCATE.");
+            }
+            return;
+        }
+        if (task.type() == TaskType.PLSQL && task.riskClass() == RiskClass.DESTRUCTIVE) {
+            String owner = Pattern.quote(binding.owner());
+            String objectName = Pattern.quote(binding.objectName());
+            Pattern gatherStats = Pattern.compile(
+                    "^\\s*BEGIN\\s+DBMS_STATS\\.GATHER_TABLE_STATS\\s*\\(\\s*"
+                            + "(?:OWNNAME\\s*=>\\s*)?'" + owner + "'\\s*,\\s*"
+                            + "(?:TABNAME\\s*=>\\s*)?'" + objectName + "'\\s*\\)\\s*;\\s*END\\s*;\\s*$",
+                    Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+            if (task.input() != null || !task.namedBinds().isEmpty()
+                    || !gatherStats.matcher(task.command()).matches()) {
+                throw shape("Procedure V1 PL/SQL is limited to approved statistics gathering for its bound target.");
+            }
+            return;
+        }
+        throw shape("Procedure V1 target task type is not executable.");
+    }
+
+    private List<String> commaSeparated(String value) {
+        return Pattern.compile("\\s*,\\s*").splitAsStream(value.trim())
+                .map(part -> part.toUpperCase(java.util.Locale.ROOT))
+                .toList();
     }
 
     private void requireManifestIntegrity(

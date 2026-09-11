@@ -470,7 +470,8 @@ class JdbcPinnedSchemaSnapshotStoreIT {
         @Bean
         DataSource dataSource() {
             DriverManagerDataSource dataSource = new DriverManagerDataSource();
-            dataSource.setUrl(requiredEnvironment("SPRING_DATASOURCE_URL"));
+            dataSource.setUrl(IntegrationTestDatabase.requireIsolatedUrl(
+                    requiredEnvironment("SPRING_DATASOURCE_URL")));
             dataSource.setUsername(requiredEnvironment("SPRING_DATASOURCE_USERNAME"));
             dataSource.setPassword(requiredEnvironment("SPRING_DATASOURCE_PASSWORD"));
             return dataSource;
