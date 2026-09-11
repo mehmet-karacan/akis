@@ -10,6 +10,7 @@ import { createIdempotencyKey, executionApi, isExecutionDisabled } from './api'
 import { ExecutionDisabledNotice } from './ExecutionDisabledNotice'
 import { useExecutionI18n } from './i18n'
 import { RunStatusBadge } from './RunStatusBadge'
+import { isRunnablePublication } from './types'
 import './execution.css'
 
 export function RunsPage() {
@@ -21,8 +22,8 @@ export function RunsPage() {
     () => operationsApi.listPublications(projectUuid),
     [projectUuid],
   )
-  const activePublications = useMemo(
-    () => (publications.data ?? []).filter((publication) => publication.status === 'AKTIF'),
+  const runnablePublications = useMemo(
+    () => (publications.data ?? []).filter(isRunnablePublication),
     [publications.data],
   )
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -33,7 +34,7 @@ export function RunsPage() {
   const [executionDisabled, setExecutionDisabled] = useState(false)
 
   const openDialog = () => {
-    const firstPublication = activePublications[0]
+    const firstPublication = runnablePublications[0]
     setPublicationUuid(firstPublication?.uuid ?? '')
     setIdempotencyKey(createIdempotencyKey())
     setSubmitError('')
@@ -74,7 +75,7 @@ export function RunsPage() {
             className="ops-button"
             type="button"
             onClick={openDialog}
-            disabled={executionDisabled || publications.loading || activePublications.length === 0}
+            disabled={executionDisabled || publications.loading || runnablePublications.length === 0}
           >
             <Plus aria-hidden="true" /> {t('startRun')}
           </button>
@@ -88,7 +89,7 @@ export function RunsPage() {
           onRetry={() => void publications.reload()}
         />
       ) : null}
-      {!publications.loading && !publications.error && activePublications.length === 0 ? (
+      {!publications.loading && !publications.error && runnablePublications.length === 0 ? (
         <div className="execution-guidance"><Play aria-hidden="true" /><span>{t('noActivePublication')}</span></div>
       ) : null}
 
@@ -111,7 +112,7 @@ export function RunsPage() {
                 <tr key={run.runUuid}>
                   <td><code title={run.runUuid}>{run.runUuid.slice(0, 8)}…</code></td>
                   <td><code title={run.publicationUuid}>{run.publicationUuid.slice(0, 8)}…</code></td>
-                  <td>#{run.attemptNumber}</td><td>{run.startType}</td>
+                  <td>#{run.attemptNumber}</td><td>{run.startType === 'ILK' ? t('startInitial') : run.startType}</td>
                   <td><RunStatusBadge status={run.status} /></td>
                   <td>{formatDate(run.createdAt, locale)}</td>
                   <td><Link className="ops-link" to={`/projects/${encodeURIComponent(projectUuid)}/runs/${run.runUuid}`}>{t('viewDetails')}</Link></td>
@@ -128,7 +129,7 @@ export function RunsPage() {
             {submitError ? <div className="ops-alert ops-alert-error" role="alert">{submitError}</div> : null}
             <Field label={t('publication')} hint={t('choosePublication')}>
               <select value={publicationUuid} onChange={(event) => setPublicationUuid(event.target.value)} required>
-                {activePublications.map((publication) => <option key={publication.uuid} value={publication.uuid}>{publicationLabel(publication)}</option>)}
+                {runnablePublications.map((publication) => <option key={publication.uuid} value={publication.uuid}>{publicationLabel(publication)}</option>)}
               </select>
             </Field>
             <div className="execution-idempotency-note">{t('idempotencyPrepared')}</div>

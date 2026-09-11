@@ -2,8 +2,8 @@ import { useTranslation } from 'react-i18next'
 
 const en = {
   runs: 'Runs', runsHelp: 'Execution requests created from active, immutable publications.', startRun: 'Start run', starting: 'Starting…',
-  publication: 'Publication', choosePublication: 'Choose an active publication', noActivePublication: 'No active publication is available. Approve a publication before starting a run.',
-  attempt: 'Attempt', startType: 'Start type', status: 'Status', createdAt: 'Created', startedAt: 'Started', finishedAt: 'Finished', actions: 'Actions',
+  publication: 'Publication', choosePublication: 'Choose an executable active publication', noActivePublication: 'No executable active publication is available. Publish a supported mapping or procedure before starting a run.',
+  attempt: 'Attempt', startType: 'Start type', startInitial: 'Initial', status: 'Status', createdAt: 'Created', startedAt: 'Started', finishedAt: 'Finished', actions: 'Actions',
   viewDetails: 'View details', emptyRuns: 'No runs have been requested for this project.', loading: 'Loading…', retry: 'Try again', requestFailed: 'The request could not be completed.',
   close: 'Close', runDetail: 'Run detail', runContext: 'Execution context', events: 'Events', emptyEvents: 'No events have been recorded for this run.',
   refresh: 'Refresh', backToRuns: 'Back to runs', cancelRun: 'Cancel run', cancelling: 'Cancelling…', confirmCancel: 'Cancel queued run?', confirmCancelHelp: 'Only a queued run can be cancelled safely. This action records a cancellation event.',
@@ -18,8 +18,8 @@ const en = {
 
 const tr: Record<keyof typeof en, string> = {
   runs: 'Çalıştırmalar', runsHelp: 'Aktif ve değişmez yayınlardan oluşturulan çalıştırma talepleri.', startRun: 'Çalıştırma başlat', starting: 'Başlatılıyor…',
-  publication: 'Yayın', choosePublication: 'Aktif bir yayın seçin', noActivePublication: 'Aktif yayın bulunmuyor. Çalıştırma başlatmadan önce bir yayını onaylayın.',
-  attempt: 'Deneme', startType: 'Başlatma türü', status: 'Durum', createdAt: 'Oluşturulma', startedAt: 'Başlangıç', finishedAt: 'Bitiş', actions: 'İşlemler',
+  publication: 'Yayın', choosePublication: 'Çalıştırılabilir etkin bir yayın seçin', noActivePublication: 'Çalıştırılabilir etkin yayın bulunmuyor. Çalıştırmadan önce desteklenen bir eşleme veya prosedür yayınlayın.',
+  attempt: 'Deneme', startType: 'Başlatma türü', startInitial: 'İlk çalıştırma', status: 'Durum', createdAt: 'Oluşturulma', startedAt: 'Başlangıç', finishedAt: 'Bitiş', actions: 'İşlemler',
   viewDetails: 'Detayları aç', emptyRuns: 'Bu proje için henüz çalıştırma talebi yok.', loading: 'Yükleniyor…', retry: 'Tekrar dene', requestFailed: 'İstek tamamlanamadı.',
   close: 'Kapat', runDetail: 'Çalıştırma detayı', runContext: 'Çalıştırma bağlamı', events: 'Olaylar', emptyEvents: 'Bu çalıştırma için henüz olay kaydedilmedi.',
   refresh: 'Yenile', backToRuns: 'Çalıştırmalara dön', cancelRun: 'Çalıştırmayı iptal et', cancelling: 'İptal ediliyor…', confirmCancel: 'Bekleyen çalıştırma iptal edilsin mi?', confirmCancelHelp: 'Yalnız bekleyen çalıştırma güvenle iptal edilebilir. Bu işlem bir iptal olayı kaydeder.',

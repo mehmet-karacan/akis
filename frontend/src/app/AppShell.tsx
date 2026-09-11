@@ -12,13 +12,32 @@ import { useTheme, type ThemeMode } from '../core/theme/ThemeContext'
 import type { Project } from '../features/projects/projectsApi'
 
 const projectNavigation = [
-  { path: '', key: 'nav.overview', icon: Blocks },
-  { path: '/topology', key: 'nav.topology', icon: Network },
-  { path: '/models', key: 'nav.models', icon: Boxes },
-  { path: '/definitions', key: 'nav.definitions', icon: Braces },
-  { path: '/publications', key: 'nav.publications', icon: FileCheck2 },
-  { path: '/runs', key: 'nav.runs', icon: Gauge },
-  { path: '/team', key: 'nav.team', icon: UsersRound },
+  {
+    key: 'nav.group.project',
+    items: [{ path: '', key: 'nav.overview', icon: Blocks, mobile: true }],
+  },
+  {
+    key: 'nav.group.configure',
+    items: [
+      { path: '/topology', key: 'nav.topology', icon: Network, mobile: true },
+      { path: '/models', key: 'nav.models', icon: Boxes },
+    ],
+  },
+  {
+    key: 'nav.group.design',
+    items: [{ path: '/definitions', key: 'nav.definitions', icon: Braces, mobile: true }],
+  },
+  {
+    key: 'nav.group.operate',
+    items: [
+      { path: '/publications', key: 'nav.publications', icon: FileCheck2 },
+      { path: '/runs', key: 'nav.runs', icon: Gauge, mobile: true },
+    ],
+  },
+  {
+    key: 'nav.group.administration',
+    items: [{ path: '/team', key: 'nav.team', icon: UsersRound }],
+  },
 ]
 
 export function AppShell() {
@@ -58,17 +77,33 @@ export function AppShell() {
           </NavLink>
           {projectUuid && (
             <div className="nav-section">
-              {!collapsed && <p className="nav-label">{project?.code ?? 'PROJECT'}</p>}
-              {projectNavigation.map(({ path, key, icon: Icon }) => (
-                <NavLink key={key} end={!path} to={`/projects/${projectUuid}${path}`} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-                  <Icon size={18} /><span>{t(key)}</span>
-                </NavLink>
+              {!collapsed && <p className="nav-label nav-project-label">{project?.code ?? t('nav.project')}</p>}
+              {projectNavigation.map((group) => (
+                <div className="nav-group" key={group.key}>
+                  {!collapsed && <p className="nav-group-label">{t(group.key)}</p>}
+                  {group.items.map(({ path, key, icon: Icon, mobile }) => (
+                    <NavLink
+                      key={key}
+                      end={!path}
+                      title={collapsed ? t(key) : undefined}
+                      to={`/projects/${projectUuid}${path}`}
+                      className={({ isActive }) => `nav-item ${mobile ? 'mobile-primary' : ''} ${isActive ? 'active' : ''}`}
+                    >
+                      <Icon size={18} /><span>{t(key)}</span>
+                    </NavLink>
+                  ))}
+                </div>
               ))}
             </div>
           )}
         </nav>
-        <button className="collapse-button" onClick={() => setCollapsed((value) => !value)} aria-label="Toggle navigation">
-          {collapsed ? <PanelLeftOpen size={18} /> : <><PanelLeftClose size={18} /><span>Collapse</span></>}
+        <button
+          className="collapse-button"
+          onClick={() => setCollapsed((value) => !value)}
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? t('nav.expand') : t('nav.collapse')}
+        >
+          {collapsed ? <PanelLeftOpen size={18} /> : <><PanelLeftClose size={18} /><span>{t('nav.collapse')}</span></>}
         </button>
       </aside>
 
@@ -97,7 +132,7 @@ export function AppShell() {
             </label>
             <div className="user-menu">
               <CircleUserRound size={18} /><span>{username}</span>
-              <button title={t('nav.signOut')} onClick={() => { logout(); navigate('/login') }}><LogOut size={16} /></button>
+              <button aria-label={t('nav.signOut')} title={t('nav.signOut')} onClick={() => { logout(); navigate('/login') }}><LogOut size={16} /></button>
             </div>
           </div>
         </header>
