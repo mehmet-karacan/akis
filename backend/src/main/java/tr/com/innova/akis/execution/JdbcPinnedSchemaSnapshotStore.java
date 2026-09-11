@@ -98,7 +98,7 @@ public class JdbcPinnedSchemaSnapshotStore implements PinnedSchemaSnapshotPort {
                and bs.uuid = :connectionVersionUuid
                and b.veritabani_turu = 'ORACLE'
                and b.durum_kodu = 'AKTIF'
-               and y.durum_kodu = 'AKTIF'
+               and y.durum_kodu = :publicationStatus
                and sg.uuid = :schemaSnapshotUuid
                and sg.id = tvn.sema_goruntusu_id
                and sg.veri_nesnesi_id = vn.id
@@ -124,8 +124,10 @@ public class JdbcPinnedSchemaSnapshotStore implements PinnedSchemaSnapshotPort {
     public PinnedSnapshots load(PilotRuntimePlan plan) {
         validatePlan(plan);
         try {
-            LoadedSnapshot source = loadBinding(plan, plan.source(), DatasetRole.SOURCE);
-            LoadedSnapshot target = loadBinding(plan, plan.target(), DatasetRole.TARGET);
+            LoadedSnapshot source = loadBinding(
+                    plan, plan.source(), DatasetRole.SOURCE, "AKTIF");
+            LoadedSnapshot target = loadBinding(
+                    plan, plan.target(), DatasetRole.TARGET, "AKTIF");
             if (!source.projectUuid().equals(target.projectUuid())
                     || !source.publicationUuid().equals(target.publicationUuid())) {
                 throw failure(Failure.CROSS_PUBLICATION_BINDING);
@@ -144,7 +146,10 @@ public class JdbcPinnedSchemaSnapshotStore implements PinnedSchemaSnapshotPort {
     }
 
     private LoadedSnapshot loadBinding(
-            PilotRuntimePlan plan, DatasetBinding binding, DatasetRole role) {
+            PilotRuntimePlan plan,
+            DatasetBinding binding,
+            DatasetRole role,
+            String publicationStatus) {
         validateBinding(binding, role);
         List<SnapshotHeader> matches = jdbc.sql(HEADER_SQL)
                 .param("definitionUuid", plan.definitionUuid())
@@ -163,6 +168,7 @@ public class JdbcPinnedSchemaSnapshotStore implements PinnedSchemaSnapshotPort {
                 .param("snapshotFingerprint", binding.schemaSnapshotFingerprint())
                 .param("physicalIdentity", binding.physicalIdentity())
                 .param("bindingVersion", binding.bindingVersion())
+                .param("publicationStatus", publicationStatus)
                 .query(this::mapHeader)
                 .list();
         if (matches.isEmpty()) {
@@ -189,6 +195,46 @@ public class JdbcPinnedSchemaSnapshotStore implements PinnedSchemaSnapshotPort {
         return new LoadedSnapshot(
                 header.projectUuid(), header.publicationUuid(),
                 new PinnedSnapshot(header.snapshotUuid(), calculated, body));
+    }
+
+    /**
+     * Loads the exact trusted source snapshot for a Procedure publication.
+     * Pending approval is accepted only because this method is used by the
+     * source-only preflight path; it does not create a runnable execution.
+     */
+    @Transactional(readOnly = true)
+    PinnedProcedureSource loadProcedureSource(
+            ProcedureRuntimePlan plan,
+            ProcedureRuntimePlan.Task sourceTask,
+            ProcedureRuntimePlan.TaskBinding binding,
+            String publicationStatus) {
+        if (plan == null || sourceTask == null || binding == null
+                || sourceTask.connectionRole() != ProcedureRuntimePlan.ConnectionRole.SOURCE
+                || binding.role() != ProcedureRuntimePlan.ConnectionRole.SOURCE
+                || !sourceTask.id().equals(binding.taskId())
+                || sourceTask.output() == null
+                || !("AKTIF".equals(publicationStatus)
+                    || "ONAY_BEKLIYOR".equals(publicationStatus))) {
+            throw failure(Failure.INVALID_CONTRACT);
+        }
+        DatasetBinding adapted = ProcedureOracleBindingAdapter.source(binding);
+        PilotRuntimePlan adaptedPlan = new PilotRuntimePlan(
+                PilotRuntimePlan.CURRENT_VERSION,
+                plan.runtimePlanHash(),
+                plan.releaseHash(),
+                plan.scenarioPlanHash(),
+                plan.definitionUuid(),
+                plan.definitionVersionUuid(),
+                sourceTask.output().maximumRows(),
+                adapted,
+                null,
+                List.of(),
+                PilotRuntimePlan.WriteStrategy.ATOMIC_DELETE_INSERT,
+                plan.canonicalPlan());
+        LoadedSnapshot loaded = loadBinding(
+                adaptedPlan, adapted, DatasetRole.SOURCE, publicationStatus);
+        return new PinnedProcedureSource(
+                loaded.projectUuid(), loaded.publicationUuid(), loaded.snapshot());
     }
 
     private List<Column> loadColumns(long snapshotId) {
@@ -338,6 +384,10 @@ public class JdbcPinnedSchemaSnapshotStore implements PinnedSchemaSnapshotPort {
     }
 
     private record LoadedSnapshot(
+            UUID projectUuid, UUID publicationUuid, PinnedSnapshot snapshot) {
+    }
+
+    record PinnedProcedureSource(
             UUID projectUuid, UUID publicationUuid, PinnedSnapshot snapshot) {
     }
 }

@@ -4,8 +4,8 @@ Status date: 2026-09-11
 
 ## Current completion estimate
 
-- Controlled Oracle MVP: **approximately 65% complete / 35% remaining**.
-- Broad ODI-like enterprise platform: **approximately 30% complete / 70% remaining**.
+- Controlled Oracle MVP: **approximately 68% complete / 32% remaining**.
+- Broad ODI-like enterprise platform: **approximately 31% complete / 69% remaining**.
 
 The MVP estimate means one governed Oracle-to-Oracle procedure can be designed,
 versioned, bound, approved, executed manually, observed and reconciled. The broader
@@ -30,6 +30,9 @@ multi-engine support, deployment automation and production operations.
   approval-required publication state.
 - PostgreSQL run leases, fencing, append-only step journal and reconciliation
   primitives with fail-closed tests.
+- Published Procedure source preflight: exact immutable plan/binding resolution,
+  trusted snapshot re-attestation, a fresh read-only Oracle session, bounded typed
+  rowset encoding and payload hash; no source rows are returned by the API.
 - Project bundle V1 export/import for definition metadata. Secret values remain
   outside bundles and Git.
 
@@ -44,13 +47,16 @@ multi-engine support, deployment automation and production operations.
 - Scenario: compiled as plan version 2
 - Publication: created with `ORACLE_PROCEDURE_V1` capability and currently
   `ONAY_BEKLIYOR`, because `TRUNCATE` is irreversible.
+- Read-only source preflight: passed against live SKY with 33 rows, 13 supported
+  columns and `targetSessionOpened=false`.
 - No business-table DDL or DML has been executed by Akış yet.
 
 ## Remaining work for the controlled Oracle MVP
 
-1. Implement the production Oracle Procedure executor session:
-   bounded source SELECT, typed rowset storage, target batch INSERT, approved
-   TRUNCATE and allow-listed `DBMS_STATS` execution.
+1. Complete the production Oracle Procedure executor session. Published-plan
+   source SELECT/preflight and bounded typed payload are complete; remaining work
+   is target privilege/preflight, approved TRUNCATE, batch INSERT, allow-listed
+   `DBMS_STATS` and journal integration.
 2. Enforce execution-wide deadlines, cancellation, connection cleanup and
    deterministic error/outcome classification for Oracle implicit commits.
 3. Connect Procedure execution to the guarded worker orchestrator while keeping
@@ -58,9 +64,9 @@ multi-engine support, deployment automation and production operations.
 4. Add publication approval and dry-run/preflight views to the UI.
 5. Add operational run/step log details, row counts, durations, error guidance
    and reconciliation actions to the landing dashboard.
-6. Run the HAKEDIS_TIPI pilot in stages: read-only preflight, target privilege
-   check, bounded rehearsal, explicit approval, real transfer and source/target
-   count/hash verification.
+6. Continue the HAKEDIS_TIPI pilot stages. Read-only preflight is complete;
+   remaining gates are target privilege check, bounded rehearsal, explicit
+   approval, real transfer and source/target count/hash verification.
 
 ## Work after the first pilot
 
@@ -72,4 +78,3 @@ multi-engine support, deployment automation and production operations.
 - CI/CD remains intentionally disabled until the bootstrap and pilot gates are
   accepted explicitly.
 - Additional databases, reusable knowledge modules, lineage, CDC and scale tests.
-

@@ -646,7 +646,7 @@ class JdbcOracleSchemaPreflightTest {
                     }
                     String statementSql = (String) arguments[0];
                     sql.add(statementSql);
-                    List<Map<String, Object>> rows = statementSql.contains("all_tab_columns")
+                    List<Map<String, Object>> rows = statementSql.contains("all_tab_cols")
                             ? columns
                             : statementSql.contains("all_triggers") ? triggers : constraints;
                     return statement(rows);

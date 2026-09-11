@@ -85,6 +85,12 @@ bilinçli olarak taşımaz. Sözleşme:
 
 Sağlık uç noktası: http://localhost:8080/actuator/health
 
+Yayınlanmış Oracle Procedure için hedefe hiç bağlanmadan salt-okunur kaynak
+doğrulaması yapılabilir. Bu akış immutable plan/binding hash'lerini ve trusted
+snapshot'ı yeniden doğrular, en fazla 1000 satırı tip/byte sınırları içinde okur
+ve API'de yalnız özet/hash döndürür. Sözleşme:
+`docs/architecture/PROCEDURE_SOURCE_PREFLIGHT.md`.
+
 Manuel run oluşturma varsayılan olarak kapalıdır. Yalnız kontrol düzlemi testi için
 `.env` içinde `AKIS_EXECUTION_ACCEPT_MANUAL_REQUESTS=true` yapılabilir. Worker
 bayrağı target-local Oracle ledger kurulup crash/reconciliation kapıları geçilene

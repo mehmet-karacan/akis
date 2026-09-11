@@ -15,6 +15,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import tools.jackson.databind.ObjectMapper;
 
 import tr.com.innova.akis.discovery.SchemaFingerprint;
@@ -33,6 +35,9 @@ import tr.com.innova.akis.execution.PilotRuntimePlan.DatasetRole;
  * Oracle catalog reads. It never changes connection state or transaction state.
  */
 final class JdbcOracleSchemaPreflight {
+
+    private static final Logger LOGGER =
+            LoggerFactory.getLogger(JdbcOracleSchemaPreflight.class);
 
     private static final Pattern IDENTIFIER = Pattern.compile("[A-Z][A-Z0-9_$#]{0,127}");
     private static final Pattern HASH = Pattern.compile("[0-9a-f]{64}");
@@ -57,7 +62,7 @@ final class JdbcOracleSchemaPreflight {
                    identity_column,
                    default_on_null,
                    column_id
-              FROM all_tab_columns
+              FROM all_tab_cols
              WHERE owner = ?
                AND table_name = ?
                AND hidden_column = 'NO'
@@ -206,7 +211,13 @@ final class JdbcOracleSchemaPreflight {
         catch (OracleSchemaPreflightException exception) {
             throw exception;
         }
-        catch (SQLException | RuntimeException exception) {
+        catch (SQLException exception) {
+            LOGGER.warn(
+                    "Oracle schema preflight metadata read failed (vendorCode={}, sqlState={}).",
+                    exception.getErrorCode(), exception.getSQLState());
+            throw failure(OracleSchemaPreflightFailure.METADATA_UNAVAILABLE);
+        }
+        catch (RuntimeException exception) {
             // JDBC exception text may contain endpoints. Do not retain it as a cause.
             throw failure(OracleSchemaPreflightFailure.METADATA_UNAVAILABLE);
         }
