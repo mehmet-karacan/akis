@@ -69,6 +69,7 @@ export function RunDetailPage() {
               <dt>{t('publicationUuid')}</dt><dd><CopyValue value={run.data.publicationUuid} /></dd>
               <dt>{t('attempt')}</dt><dd>#{run.data.attemptNumber}</dd>
               <dt>{t('startType')}</dt><dd>{run.data.startType}</dd>
+              <dt>{t('releaseHash')}</dt><dd><CopyValue value={run.data.releaseHash} /></dd>
               <dt>{t('planHash')}</dt><dd><CopyValue value={run.data.planHash} /></dd>
               <dt>{t('createdAt')}</dt><dd>{formatDate(run.data.createdAt, locale)}</dd>
               <dt>{t('startedAt')}</dt><dd>{formatDate(run.data.startedAt, locale)}</dd>

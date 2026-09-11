@@ -1,11 +1,52 @@
 import { render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import i18n from '../../core/i18n'
+import { executionApi } from './api'
 import { ExecutionDisabledNotice } from './ExecutionDisabledNotice'
+import { RunDetailPage } from './RunDetailPage'
 import { RunStatusBadge } from './RunStatusBadge'
+import type { RunRecord } from './types'
+
+vi.mock('./api', () => ({
+  executionApi: {
+    getRun: vi.fn(),
+    listEvents: vi.fn(),
+    cancelRun: vi.fn(),
+  },
+  isExecutionDisabled: vi.fn(() => false),
+}))
+
+const run: RunRecord = {
+  jobRequestUuid: 'job-request-id',
+  runUuid: 'run-id',
+  publicationUuid: 'publication-id',
+  attemptNumber: 1,
+  startType: 'MANUAL',
+  status: 'BASARILI',
+  releaseHash: 'release-hash-value',
+  planHash: 'plan-hash-value',
+  createdAt: '2026-09-11T08:00:00Z',
+  startedAt: '2026-09-11T08:01:00Z',
+  finishedAt: '2026-09-11T08:02:00Z',
+  cancellationRequestedAt: null,
+}
+
+function renderRunDetail() {
+  return render(
+    <MemoryRouter initialEntries={['/projects/project-id/runs/run-id']}>
+      <Routes>
+        <Route path="/projects/:projectUuid/runs/:runUuid" element={<RunDetailPage />} />
+      </Routes>
+    </MemoryRouter>,
+  )
+}
 
 describe('execution UI states', () => {
   beforeEach(async () => {
+    vi.clearAllMocks()
+    vi.mocked(executionApi.getRun).mockResolvedValue(run)
+    vi.mocked(executionApi.listEvents).mockResolvedValue([])
     await i18n.changeLanguage('en')
   })
 
@@ -38,5 +79,25 @@ describe('execution UI states', () => {
       expect(screen.queryByText(status)).not.toBeInTheDocument()
       unmount()
     }
+  })
+
+  it('shows release and plan hashes as distinct copyable values', async () => {
+    renderRunDetail()
+
+    const releaseHash = await screen.findByText('release-hash-value')
+    const planHash = screen.getByText('plan-hash-value')
+
+    expect(screen.getByText('Release hash')).toBeInTheDocument()
+    expect(screen.getByText('Plan hash')).toBeInTheDocument()
+    expect(releaseHash.closest('.ops-copy-value')?.querySelector('button')).toHaveAccessibleName('Copy')
+    expect(planHash.closest('.ops-copy-value')?.querySelector('button')).toHaveAccessibleName('Copy')
+  })
+
+  it('localizes both hash labels in Turkish', async () => {
+    await i18n.changeLanguage('tr')
+    renderRunDetail()
+
+    expect(await screen.findByText('Sürüm özeti')).toBeInTheDocument()
+    expect(screen.getByText('Plan özeti')).toBeInTheDocument()
   })
 })

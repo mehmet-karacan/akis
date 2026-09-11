@@ -8,19 +8,22 @@ export type RunStatus =
   | 'IPTAL'
   | string
 
-export interface Run {
+export interface RunRecord {
   jobRequestUuid: string
   runUuid: string
   publicationUuid: string
   attemptNumber: number
   startType: string
   status: RunStatus
+  releaseHash: string
   planHash: string
   createdAt: string
   startedAt: string | null
   finishedAt: string | null
   cancellationRequestedAt: string | null
 }
+
+export type Run = RunRecord
 
 export interface RunEvent {
   uuid: string

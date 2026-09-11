@@ -1,15 +1,15 @@
 import { ApiProblem, apiRequest, jsonBody } from '../../core/api/client'
-import type { Run, RunEvent } from './types'
+import type { RunEvent, RunRecord } from './types'
 
 const runsPath = (projectUuid: string) =>
   `/api/v1/projects/${encodeURIComponent(projectUuid)}/runs`
 
 export const executionApi = {
   listRuns(projectUuid: string) {
-    return apiRequest<Run[]>(runsPath(projectUuid))
+    return apiRequest<RunRecord[]>(runsPath(projectUuid))
   },
   getRun(projectUuid: string, runUuid: string) {
-    return apiRequest<Run>(`${runsPath(projectUuid)}/${encodeURIComponent(runUuid)}`)
+    return apiRequest<RunRecord>(`${runsPath(projectUuid)}/${encodeURIComponent(runUuid)}`)
   },
   listEvents(projectUuid: string, runUuid: string) {
     return apiRequest<RunEvent[]>(
@@ -17,14 +17,14 @@ export const executionApi = {
     )
   },
   startRun(projectUuid: string, publicationUuid: string, idempotencyKey: string) {
-    return apiRequest<Run>(runsPath(projectUuid), {
+    return apiRequest<RunRecord>(runsPath(projectUuid), {
       method: 'POST',
       headers: { 'Idempotency-Key': idempotencyKey },
       ...jsonBody({ publicationUuid }),
     })
   },
   cancelRun(projectUuid: string, runUuid: string) {
-    return apiRequest<Run>(`${runsPath(projectUuid)}/${encodeURIComponent(runUuid)}/cancel`, {
+    return apiRequest<RunRecord>(`${runsPath(projectUuid)}/${encodeURIComponent(runUuid)}/cancel`, {
       method: 'POST',
     })
   },
