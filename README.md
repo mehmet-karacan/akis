@@ -1,5 +1,8 @@
 # Akış
 
+Current implementation status and remaining work are tracked in
+[`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md).
+
 Akış, ilk aşamada Oracle'dan Oracle'a güvenilir veri taşıma hedefiyle geliştirilen
 bir veri entegrasyon platformudur. Metadata ve kontrol verisi PostgreSQL'de tutulur;
 taşınan iş verisi PostgreSQL üzerinden geçirilmez.

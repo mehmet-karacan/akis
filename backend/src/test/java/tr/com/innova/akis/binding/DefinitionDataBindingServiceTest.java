@@ -17,6 +17,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import tr.com.innova.akis.binding.BindingModels.BindingRow;
+import tr.com.innova.akis.binding.BindingModels.BindingCandidateRow;
 import tr.com.innova.akis.binding.BindingModels.CreateBinding;
 import tr.com.innova.akis.binding.BindingModels.DataObjectRef;
 import tr.com.innova.akis.binding.BindingModels.DefinitionVersionRef;
@@ -160,6 +161,27 @@ class DefinitionDataBindingServiceTest {
                 .anyMatch(component -> component.getName().equalsIgnoreCase("id")));
     }
 
+    @Test
+    void listsOnlyStoreGovernedCandidatesForTheRequestedDefinitionVersion() {
+        FakeStore store = new FakeStore(DefinitionType.PROCEDURE);
+        DefinitionDataBindingService service = new DefinitionDataBindingService(store);
+
+        List<BindingCandidateRow> candidates = service.candidates(
+                PROJECT_UUID, DEFINITION_UUID, VERSION_UUID);
+
+        assertEquals(1, candidates.size());
+        assertEquals("SKY", candidates.getFirst().connectionCode());
+        assertEquals(SNAPSHOT_UUID, candidates.getFirst().schemaSnapshotUuid());
+    }
+
+    @Test
+    void candidateApiViewDoesNotExposeNumericInternalIdentifiers() {
+        assertFalse(Arrays.stream(
+                        DefinitionDataBindingController.BindingCandidateView.class
+                                .getRecordComponents())
+                .anyMatch(component -> component.getName().equalsIgnoreCase("id")));
+    }
+
     private static final class FakeStore implements DefinitionDataBindingStore {
 
         private static final long PROJECT_ID = 10;
@@ -236,6 +258,16 @@ class DefinitionDataBindingServiceTest {
         @Override
         public List<BindingRow> list(long projectId, long definitionVersionId) {
             return found.stream().toList();
+        }
+
+        @Override
+        public List<BindingCandidateRow> listTrustedSnapshotCandidates(long projectId) {
+            return List.of(new BindingCandidateRow(
+                    DATA_OBJECT_UUID, "HAKEDIS_TIPI", "Hakediş tipi",
+                    "HAKEDIS_TIPI", SNAPSHOT_UUID, "a".repeat(64),
+                    OffsetDateTime.now(), UUID.randomUUID(), "SKY_TTBP", "TTBP",
+                    UUID.randomUUID(), "SKY", "SKY", VERSION_UUID, 1,
+                    List.of("LOCAL")));
         }
 
         private static BindingRow row(UUID uuid) {

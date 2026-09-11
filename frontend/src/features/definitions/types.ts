@@ -87,6 +87,25 @@ export interface DataBinding {
   createdAt: string
 }
 
+export interface BindingCandidate {
+  dataObjectUuid: string
+  dataObjectCode: string
+  dataObjectName: string
+  objectReference: string
+  schemaSnapshotUuid: string
+  snapshotFingerprint: string
+  discoveredAt: string
+  physicalSchemaUuid: string
+  physicalSchemaCode: string
+  physicalSchemaReference: string
+  connectionUuid: string
+  connectionCode: string
+  connectionName: string
+  connectionVersionUuid: string
+  connectionVersionNumber: number
+  environmentCodes: string[]
+}
+
 export interface MappingDataset {
   id: string
   role: DatasetRole

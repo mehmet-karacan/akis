@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import tr.com.innova.akis.binding.BindingModels.BindingRow;
+import tr.com.innova.akis.binding.BindingModels.BindingCandidateRow;
 import tr.com.innova.akis.security.AuthorizationService;
 
 @RestController
@@ -64,6 +65,18 @@ final class DefinitionDataBindingController {
                 .toList();
     }
 
+    @GetMapping("/candidates")
+    List<BindingCandidateView> candidates(
+            @PathVariable UUID projectUuid,
+            @PathVariable UUID definitionUuid,
+            @PathVariable UUID definitionVersionUuid) {
+        authorization.requireProjectPermission(projectUuid, PROJECT_READ);
+        return service.candidates(projectUuid, definitionUuid, definitionVersionUuid)
+                .stream()
+                .map(BindingCandidateView::from)
+                .toList();
+    }
+
     @GetMapping("/{bindingUuid}")
     BindingView get(
             @PathVariable UUID projectUuid,
@@ -97,6 +110,37 @@ final class DefinitionDataBindingController {
                     row.uuid(), row.definitionUuid(), row.definitionVersionUuid(),
                     row.nodeCode(), row.role(), row.dataObjectUuid(),
                     row.schemaSnapshotUuid(), row.createdAt());
+        }
+    }
+
+    record BindingCandidateView(
+            UUID dataObjectUuid,
+            String dataObjectCode,
+            String dataObjectName,
+            String objectReference,
+            UUID schemaSnapshotUuid,
+            String snapshotFingerprint,
+            OffsetDateTime discoveredAt,
+            UUID physicalSchemaUuid,
+            String physicalSchemaCode,
+            String physicalSchemaReference,
+            UUID connectionUuid,
+            String connectionCode,
+            String connectionName,
+            UUID connectionVersionUuid,
+            int connectionVersionNumber,
+            List<String> environmentCodes) {
+
+        static BindingCandidateView from(BindingCandidateRow row) {
+            return new BindingCandidateView(
+                    row.dataObjectUuid(), row.dataObjectCode(), row.dataObjectName(),
+                    row.objectReference(), row.schemaSnapshotUuid(),
+                    row.snapshotFingerprint(), row.discoveredAt(),
+                    row.physicalSchemaUuid(), row.physicalSchemaCode(),
+                    row.physicalSchemaReference(), row.connectionUuid(),
+                    row.connectionCode(), row.connectionName(),
+                    row.connectionVersionUuid(), row.connectionVersionNumber(),
+                    row.environmentCodes());
         }
     }
 }

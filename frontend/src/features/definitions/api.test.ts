@@ -33,4 +33,14 @@ describe('definition organization API contracts', () => {
     expect(init.method).toBe('POST')
     expect(JSON.parse(String(init.body))).toEqual({ folderUuid: 'folder-2', expectedVersion: 7 })
   })
+
+  it('loads governed binding candidates from the selected immutable version', async () => {
+    const fetchMock = mockResponse([])
+
+    await definitionsApi.listBindingCandidates('project id', 'definition/id', 'version id')
+
+    const [path, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(path).toBe('/api/v1/projects/project%20id/definitions/definition%2Fid/versions/version%20id/data-bindings/candidates')
+    expect(init.method).toBeUndefined()
+  })
 })

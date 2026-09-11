@@ -840,6 +840,12 @@ commit;
         throw "Deterministic idempotent scenario compilation failed."
     }
     $bindingPath = "/api/v1/projects/$($project.uuid)/definitions/$($mappingDefinition.uuid)/versions/$($mappingVersion.uuid)/data-bindings"
+    $candidatePath = "$bindingPath/candidates"
+    $untrustedCandidates = Invoke-AkisJson GET $candidatePath
+    $untrustedCandidateCount = if ($null -eq $untrustedCandidates) { 0 } else { @($untrustedCandidates).Count }
+    if ($untrustedCandidateCount -ne 0) {
+        throw "An Oracle snapshot without server provenance was exposed as a binding candidate."
+    }
     try {
         Invoke-AkisJson POST $bindingPath @{
             nodeCode = "source"
@@ -876,6 +882,11 @@ select sg.id, p.id, b.id, bs.id, '$lifecycleTestUuid', 1,
         -c $snapshotEvidenceSql | Out-Null
     if ($LASTEXITCODE -ne 0) {
         throw "Could not seed isolated server snapshot evidence."
+    }
+    $trustedCandidates = @(Invoke-AkisJson GET $candidatePath | ForEach-Object { $_ })
+    if ($trustedCandidates.Count -ne 2 `
+            -or @($trustedCandidates | Where-Object { $_.snapshotFingerprint.Length -ne 64 }).Count -ne 0) {
+        throw "Trusted Oracle binding candidate catalog is invalid."
     }
     $definitionBinding = Invoke-AkisJson POST $bindingPath @{
         nodeCode = "source"

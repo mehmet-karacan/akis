@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type
 import { useSearchParams } from 'react-router-dom'
 import { ApiProblem } from '../../core/api/client'
 import { definitionsApi } from './api'
+import { bindingNodes, candidateLabel, unboundNodes } from './bindingCatalog'
 import { createDefaultContent, isMappingContent, isProcedureContent, supportsVisualEditor } from './defaults'
 import { definitionTypeKey, useDefinitionsI18n } from './i18n'
 import { JsonDraftEditor } from './JsonDraftEditor'
@@ -27,6 +28,7 @@ import { ProcedureEditor } from './ProcedureEditor'
 import { ProjectExplorer } from './ProjectExplorer'
 import type {
   DataBinding,
+  BindingCandidate,
   Definition,
   DefinitionType,
   DefinitionTypeDescriptor,
@@ -793,6 +795,59 @@ function BindingsPanel(props: BindingsPanelProps) {
     schemaSnapshotUuid: string
   }>({ nodeCode: '', role: 'KAYNAK', dataObjectUuid: '', schemaSnapshotUuid: '' })
   const [saving, setSaving] = useState(false)
+  const [candidates, setCandidates] = useState<BindingCandidate[]>([])
+  const [loadingCandidates, setLoadingCandidates] = useState(false)
+  const [candidateError, setCandidateError] = useState('')
+  const nodes = useMemo(
+    () => bindingNodes(props.definition.type, props.selectedVersion?.content),
+    [props.definition.type, props.selectedVersion?.content],
+  )
+  const availableNodes = useMemo(
+    () => unboundNodes(nodes, props.bindings),
+    [nodes, props.bindings],
+  )
+  const selectedCandidate = candidates.find((candidate) => candidate.schemaSnapshotUuid === input.schemaSnapshotUuid)
+
+  useEffect(() => {
+    setInput({ nodeCode: '', role: 'KAYNAK', dataObjectUuid: '', schemaSnapshotUuid: '' })
+    setCandidates([])
+    setCandidateError('')
+    if (!props.selectedVersion) return
+    let active = true
+    setLoadingCandidates(true)
+    void definitionsApi.listBindingCandidates(
+      props.projectUuid, props.definition.uuid, props.selectedVersion.uuid,
+    ).then((items) => {
+      if (active) setCandidates(items)
+    }).catch((error) => {
+      if (active) setCandidateError(errorMessage(error, t('bindingCandidatesError')))
+    }).finally(() => {
+      if (active) setLoadingCandidates(false)
+    })
+    return () => { active = false }
+  }, [props.definition.uuid, props.projectUuid, props.selectedVersion, t])
+
+  useEffect(() => {
+    if (nodes.length === 0 || availableNodes.length === 0) return
+    if (availableNodes.some((node) => node.code === input.nodeCode)) return
+    const node = availableNodes[0]!
+    setInput((current) => ({ ...current, nodeCode: node.code, role: node.role }))
+  }, [availableNodes, input.nodeCode, nodes.length])
+
+  function selectNode(nodeCode: string) {
+    const node = availableNodes.find((candidate) => candidate.code === nodeCode)
+    if (!node) return
+    setInput({ ...input, nodeCode: node.code, role: node.role })
+  }
+
+  function selectCandidate(snapshotUuid: string) {
+    const candidate = candidates.find((item) => item.schemaSnapshotUuid === snapshotUuid)
+    setInput({
+      ...input,
+      schemaSnapshotUuid: candidate?.schemaSnapshotUuid ?? '',
+      dataObjectUuid: candidate?.dataObjectUuid ?? '',
+    })
+  }
   async function submit(event: FormEvent) {
     event.preventDefault()
     if (!props.selectedVersion) return
@@ -800,7 +855,7 @@ function BindingsPanel(props: BindingsPanelProps) {
     try {
       const created = await definitionsApi.createBinding(props.projectUuid, props.definition.uuid, props.selectedVersion.uuid, input)
       props.onCreated(created)
-      setInput({ nodeCode: '', role: 'KAYNAK', dataObjectUuid: '', schemaSnapshotUuid: '' })
+      setInput((current) => ({ ...current, nodeCode: '', dataObjectUuid: '', schemaSnapshotUuid: '' }))
     } catch (error) {
       props.onError(errorMessage(error, t('requestError')))
     } finally {
@@ -814,14 +869,28 @@ function BindingsPanel(props: BindingsPanelProps) {
         <label><span>{t('version')}</span><select value={props.selectedVersion?.uuid ?? ''} onChange={(event) => props.selectVersion(event.target.value)}><option value="">—</option>{props.versions.map((version) => <option key={version.uuid} value={version.uuid}>v{version.versionNumber}</option>)}</select></label>
       </div>
       <form className="definition-binding-form" onSubmit={submit}>
-        <label><span>{t('nodeCode')}</span><input required value={input.nodeCode} onChange={(event) => setInput({ ...input, nodeCode: event.target.value })} /></label>
-        <label><span>{t('role')}</span><select value={input.role} onChange={(event) => setInput({ ...input, role: event.target.value as 'KAYNAK' | 'HEDEF' })}><option value="KAYNAK">{t('source')}</option><option value="HEDEF">{t('target')}</option></select></label>
-        <label><span>{t('dataObjectUuid')}</span><input required pattern="[0-9a-fA-F-]{36}" value={input.dataObjectUuid} onChange={(event) => setInput({ ...input, dataObjectUuid: event.target.value })} /></label>
-        <label><span>{t('schemaSnapshotUuid')}</span><input required pattern="[0-9a-fA-F-]{36}" value={input.schemaSnapshotUuid} onChange={(event) => setInput({ ...input, schemaSnapshotUuid: event.target.value })} /></label>
-        <button className="definition-button definition-button--primary" type="submit" disabled={!props.selectedVersion || saving}>{saving ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}{t('saveBinding')}</button>
+        {nodes.length > 0 ? <>
+          <label><span>{t('stepOrDataset')}</span><select required value={input.nodeCode} onChange={(event) => selectNode(event.target.value)}><option value="">—</option>{availableNodes.map((node) => <option key={node.code} value={node.code}>{node.name} · {node.code} · {node.role === 'KAYNAK' ? t('source') : t('target')}</option>)}</select></label>
+          <label><span>{t('catalogSnapshot')}</span><select required value={input.schemaSnapshotUuid} onChange={(event) => selectCandidate(event.target.value)} disabled={loadingCandidates || candidates.length === 0}><option value="">—</option>{candidates.map((candidate) => <option key={candidate.schemaSnapshotUuid} value={candidate.schemaSnapshotUuid}>{candidateLabel(candidate)}</option>)}</select></label>
+          <label><span>{t('role')}</span><input readOnly value={input.role === 'KAYNAK' ? t('source') : t('target')} /></label>
+          <label><span>{t('environments')}</span><input readOnly value={selectedCandidate?.environmentCodes.join(', ') ?? '—'} /></label>
+        </> : <>
+          <label><span>{t('nodeCode')}</span><input required value={input.nodeCode} onChange={(event) => setInput({ ...input, nodeCode: event.target.value })} /></label>
+          <label><span>{t('role')}</span><select value={input.role} onChange={(event) => setInput({ ...input, role: event.target.value as 'KAYNAK' | 'HEDEF' })}><option value="KAYNAK">{t('source')}</option><option value="HEDEF">{t('target')}</option></select></label>
+          <label><span>{t('dataObjectUuid')}</span><input required pattern="[0-9a-fA-F-]{36}" value={input.dataObjectUuid} onChange={(event) => setInput({ ...input, dataObjectUuid: event.target.value })} /></label>
+          <label><span>{t('schemaSnapshotUuid')}</span><input required pattern="[0-9a-fA-F-]{36}" value={input.schemaSnapshotUuid} onChange={(event) => setInput({ ...input, schemaSnapshotUuid: event.target.value })} /></label>
+        </>}
+        <button className="definition-button definition-button--primary" type="submit" disabled={!props.selectedVersion || saving || (nodes.length > 0 && (!input.nodeCode || !selectedCandidate))}>{saving ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}{t('saveBinding')}</button>
       </form>
+      {loadingCandidates && <p className="definition-state"><LoaderCircle className="spin" aria-hidden="true" /> {t('loadingBindingCandidates')}</p>}
+      {candidateError && <p className="definition-state definition-state--error" role="alert"><AlertCircle aria-hidden="true" /> {candidateError}</p>}
+      {!loadingCandidates && !candidateError && nodes.length > 0 && candidates.length === 0 && <p className="definition-state">{t('noTrustedSnapshots')}</p>}
+      {!loadingCandidates && nodes.length > 0 && availableNodes.length === 0 && <p className="definition-state">{t('allNodesBound')}</p>}
       {props.bindings.length === 0 ? <p className="definition-state">{t('noBindings')}</p> : (
-        <div className="definition-binding-list">{props.bindings.map((binding) => <article key={binding.uuid}><span className={`definition-role definition-role--${binding.role === 'KAYNAK' ? 'source' : 'target'}`}>{binding.role === 'KAYNAK' ? t('source') : t('target')}</span><strong>{binding.nodeCode}</strong><dl><div><dt>{t('dataObjectUuid')}</dt><dd><code>{binding.dataObjectUuid}</code></dd></div><div><dt>{t('schemaSnapshotUuid')}</dt><dd><code>{binding.schemaSnapshotUuid}</code></dd></div></dl></article>)}</div>
+        <div className="definition-binding-list">{props.bindings.map((binding) => {
+          const candidate = candidates.find((item) => item.schemaSnapshotUuid === binding.schemaSnapshotUuid)
+          return <article key={binding.uuid}><span className={`definition-role definition-role--${binding.role === 'KAYNAK' ? 'source' : 'target'}`}>{binding.role === 'KAYNAK' ? t('source') : t('target')}</span><strong>{binding.nodeCode}</strong><dl>{candidate ? <><div><dt>{t('catalogObject')}</dt><dd>{candidate.connectionCode} · {candidate.physicalSchemaReference}.{candidate.objectReference}</dd></div><div><dt>{t('snapshotFingerprint')}</dt><dd><code title={candidate.snapshotFingerprint}>{candidate.snapshotFingerprint.slice(0, 12)}…{candidate.snapshotFingerprint.slice(-8)}</code></dd></div></> : <><div><dt>{t('dataObjectUuid')}</dt><dd><code>{binding.dataObjectUuid}</code></dd></div><div><dt>{t('legacySnapshot')}</dt><dd><code>{binding.schemaSnapshotUuid}</code></dd></div></>}</dl></article>
+        })}</div>
       )}
     </section>
   )

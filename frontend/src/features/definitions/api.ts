@@ -1,6 +1,7 @@
 import { ApiProblem, apiRequest, jsonBody } from '../../core/api/client'
 import type {
   DataBinding,
+  BindingCandidate,
   Definition,
   DefinitionType,
   DefinitionTypeDescriptor,
@@ -111,6 +112,11 @@ export const definitionsApi = {
   listBindings: (projectUuid: string, definitionUuid: string, versionUuid: string) =>
     apiRequest<DataBinding[]>(
       `${base}/projects/${segment(projectUuid)}/definitions/${segment(definitionUuid)}/versions/${segment(versionUuid)}/data-bindings`,
+    ),
+
+  listBindingCandidates: (projectUuid: string, definitionUuid: string, versionUuid: string) =>
+    apiRequest<BindingCandidate[]>(
+      `${base}/projects/${segment(projectUuid)}/definitions/${segment(definitionUuid)}/versions/${segment(versionUuid)}/data-bindings/candidates`,
     ),
 
   createBinding: (

@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import tr.com.innova.akis.binding.BindingModels.BindingRow;
+import tr.com.innova.akis.binding.BindingModels.BindingCandidateRow;
 import tr.com.innova.akis.binding.BindingModels.CreateBinding;
 import tr.com.innova.akis.binding.BindingModels.DataObjectRef;
 import tr.com.innova.akis.binding.BindingModels.DefinitionVersionRef;
@@ -30,4 +31,6 @@ interface DefinitionDataBindingStore {
             long projectId, long definitionVersionId, UUID bindingUuid);
 
     List<BindingRow> list(long projectId, long definitionVersionId);
+
+    List<BindingCandidateRow> listTrustedSnapshotCandidates(long projectId);
 }

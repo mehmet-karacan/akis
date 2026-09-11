@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
 
 import tr.com.innova.akis.binding.BindingModels.BindingRow;
+import tr.com.innova.akis.binding.BindingModels.BindingCandidateRow;
 import tr.com.innova.akis.binding.BindingModels.CreateBinding;
 import tr.com.innova.akis.binding.BindingModels.DataObjectRef;
 import tr.com.innova.akis.binding.BindingModels.DefinitionVersionRef;
@@ -88,6 +89,15 @@ public class DefinitionDataBindingService {
                 project.id(), definitionUuid, definitionVersionUuid);
         requireSupportedType(version);
         return store.list(project.id(), version.id());
+    }
+
+    public List<BindingCandidateRow> candidates(
+            UUID projectUuid, UUID definitionUuid, UUID definitionVersionUuid) {
+        ProjectRef project = project(projectUuid);
+        DefinitionVersionRef version = version(
+                project.id(), definitionUuid, definitionVersionUuid);
+        requireSupportedType(version);
+        return store.listTrustedSnapshotCandidates(project.id());
     }
 
     private ProjectRef project(UUID projectUuid) {

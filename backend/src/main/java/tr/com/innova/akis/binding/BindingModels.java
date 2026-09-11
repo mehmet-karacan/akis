@@ -1,6 +1,7 @@
 package tr.com.innova.akis.binding;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import tools.jackson.databind.JsonNode;
@@ -51,5 +52,28 @@ final class BindingModels {
             UUID dataObjectUuid,
             UUID schemaSnapshotUuid,
             OffsetDateTime createdAt) {
+    }
+
+    record BindingCandidateRow(
+            UUID dataObjectUuid,
+            String dataObjectCode,
+            String dataObjectName,
+            String objectReference,
+            UUID schemaSnapshotUuid,
+            String snapshotFingerprint,
+            OffsetDateTime discoveredAt,
+            UUID physicalSchemaUuid,
+            String physicalSchemaCode,
+            String physicalSchemaReference,
+            UUID connectionUuid,
+            String connectionCode,
+            String connectionName,
+            UUID connectionVersionUuid,
+            int connectionVersionNumber,
+            List<String> environmentCodes) {
+
+        BindingCandidateRow {
+            environmentCodes = List.copyOf(environmentCodes);
+        }
     }
 }
