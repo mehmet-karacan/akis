@@ -110,10 +110,13 @@ neslini değiştirmeden `BASARISIZ` yapar, lease'i temizler ve
 `SONUC_BELIRSIZ`/reconcile üretmez.
 
 `CALISIYOR` aşamasında hedef sahiplenilmiş fakat immutable publish intent henüz
-oluşmamışken sonuç belirsizleşirse publish-marker reconciliation yolu kullanılmaz.
-Bu dal için typed intent-absent çözümü eklenene kadar run fail-closed `MUTABAKAT`
-durumunda kalır. Ayrıca iki Oracle session'ın toplam zaman bütçesi boyunca lease
-periyodik yenilenmeden otomatik worker aktive edilmez.
+oluşmamışken lease dolarsa V011 reaper run ve target deadline'larının exact
+eşleştiğini doğrular; target'ı `BOS`, run'ı `BASARISIZ` yapar. Intent öncesi iptal
+aynı kanıtla `IPTAL/BOS` olur. Intent mevcutsa veya publish başlamışsa target
+`ASKIDA`, run `SONUC_BELIRSIZ` kalır. Mutabakat lease'i dolduğunda original
+publish `R/T` ve bariyer `R+1/T+1` ile immutable hash/count kanıtları terminal
+olayda korunur ve run `MUDAHALE_GEREKLI` olur. Ayrıca iki Oracle session'ın toplam
+zaman bütçesi boyunca lease periyodik yenilenmeden otomatik worker aktive edilmez.
 
 - Eşleşen marker varsa checkpoint yeniden kurulur; DML tekrarlanmaz.
 - Kilit alındıktan sonra marker yoksa önceki transaction kesin sonuçlanmıştır;

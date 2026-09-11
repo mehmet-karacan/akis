@@ -12,7 +12,8 @@ Oracle hedef kimliği ile bounded typed pilot runtime planı ve Faz 3D'nin kontr
 completion/reconciliation, append-only publish-intent, pinned snapshot preflight
 ve bounded typed I/O güvenlik temeli tamamlanmıştır. Exact runtime connection/secret
 provider, reconciliation sırasında target generation'ı kalıcı artıran V009 fence
-bariyeri, V010 ACK-loss dayanımlı worker geçişleri, exact lease'li mutabakat
+bariyeri, V010 ACK-loss dayanımlı worker geçişleri, V011 intent-öncesi güvenli
+lease reaping ayrımı, exact lease'li mutabakat
 orkestrasyonu, aynı Oracle oturumunda source schema re-attestation ve tek guarded
 Oracle transaction sahibi atomic publish facade da hazırdır. Manuel
 istek yalnız kalıcı `BEKLIYOR` run üretir. Worker poller ve Oracle business DML
@@ -131,9 +132,9 @@ GitHub Actions ve diğer CI/CD workflow'ları bu aşamada bilinçli olarak kapal
 4. UI, uçtan uca tanım yönetimi ve portable JSON proje bundle'ı
 5. Kalıcı manuel run isteği, idempotency, izleme ve queued cancel
 6. PostgreSQL lease/fencing, target-local Oracle ledger ve atomic publish facade
-   (tamamlandı); exact T/T+1 reconciliation, V010 worker ACK ve lifecycle portları
-   tamamlandı, kontrollü ana worker orchestration ve crash enjeksiyon matrisi
-   sıradaki kapıdır
+   (tamamlandı); exact T/T+1 reconciliation, V010 worker ACK/lifecycle portları ve
+   V011 pre-publish crash reaping tamamlandı, kontrollü ana worker orchestration
+   ve crash enjeksiyon matrisi sıradaki kapıdır
 7. Retry/resume, scheduler ve production operasyonları
 
 Paket, Prosedür, Değişken, Sequence, Scenario ve Load Plan dahil tam kavram

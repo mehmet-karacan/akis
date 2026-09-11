@@ -117,7 +117,9 @@ append-only publish intent'in exact run kaydından yüklendiğini de doğrular; 
 poller veya Oracle bağlantısı başlatmaz. V010 run/target claim, preflight ve terminal
 geçiş ACK kaybı tekrarlarını; target başka run tarafından yeniden sahiplenildikten
 sonra eski başarı ACK'sinin immutable kanıttan doğrulanmasını da gerçek PostgreSQL
-üzerinde sınar.
+üzerinde sınar. V011 testleri intent öncesi target lease kaybını güvenli
+`BASARISIZ/BOS`, intent sonrası kaybı `SONUC_BELIRSIZ/ASKIDA` olarak ayırır;
+reconciliation expiry olayında original `R/T` ile bariyer `R+1/T+1` kanıtını korur.
 
 `run-oracle-ledger-it.ps1`, gerçek değerleri yalnız Git dışındaki `.env`
 dosyasından alır. Hedef Oracle 19c üzerinde production JDBC ledger adaptörüyle
@@ -143,7 +145,8 @@ worker tarafından yürütülemez.
 
 Faz 3D güvenlik temeli; V006 kontrollü completion/reconciliation durum API'lerini,
 V007/V008 exact append-only publish intent kanıtını, V009 reconciliation fence
-bariyerini, V010 ACK-loss dayanımlı worker geçişlerini, pinned snapshot loader'ını,
+bariyerini, V010 ACK-loss dayanımlı worker geçişlerini, V011 güvenli pre-publish
+lease reaper'larını, pinned snapshot loader'ını,
 salt-okunur canlı Oracle schema preflight'ını, runtime connection/secret
 provider'ını ve bounded typed source/target I/O çekirdeğini ekler. Pilot payload
 codec'i yalnız gerçek pilotta gereken `NUMBER`, `VARCHAR2` ve
