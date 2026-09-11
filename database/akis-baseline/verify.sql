@@ -11,22 +11,22 @@ BEGIN
         RAISE EXCEPTION 'Expected 8 Akis tables, found %', actual;
     END IF;
 
-    SELECT COUNT(*) INTO actual FROM role;
+    SELECT COUNT(*) INTO actual FROM rol;
     IF actual <> 6 THEN
         RAISE EXCEPTION 'Expected 6 built-in roles, found %', actual;
     END IF;
 
-    SELECT COUNT(*) INTO actual FROM permission;
+    SELECT COUNT(*) INTO actual FROM yetki;
     IF actual <> 22 THEN
         RAISE EXCEPTION 'Expected 22 permissions, found %', actual;
     END IF;
 
-    SELECT COUNT(*) INTO actual FROM app_user;
+    SELECT COUNT(*) INTO actual FROM kullanici;
     IF actual <> 0 THEN
         RAISE EXCEPTION 'Business identity data must start empty.';
     END IF;
 
-    SELECT COUNT(*) INTO actual FROM project;
+    SELECT COUNT(*) INTO actual FROM proje;
     IF actual <> 0 THEN
         RAISE EXCEPTION 'Project data must start empty.';
     END IF;
@@ -35,13 +35,13 @@ $$;
 
 BEGIN;
 
-INSERT INTO app_user(id, display_name)
+INSERT INTO kullanici(id, gorunen_ad)
 VALUES ('00000000-0000-0000-0000-000000000001', 'Contract User');
 
-INSERT INTO project(id, code, name)
+INSERT INTO proje(id, kod, ad)
 VALUES ('00000000-0000-0000-0000-000000000002', 'CONTRACT', 'Contract Project');
 
-INSERT INTO project_membership(id, project_id, user_id)
+INSERT INTO proje_uyeligi(id, proje_id, kullanici_id)
 VALUES (
     '00000000-0000-0000-0000-000000000003',
     '00000000-0000-0000-0000-000000000002',
@@ -52,43 +52,43 @@ DECLARE
     system_role_id UUID;
     project_role_id UUID;
 BEGIN
-    SELECT id INTO system_role_id FROM role WHERE code = 'SYSTEM_ADMIN';
-    SELECT id INTO project_role_id FROM role WHERE code = 'DEVELOPER';
+    SELECT id INTO system_role_id FROM rol WHERE kod = 'SISTEM_YONETICISI';
+    SELECT id INTO project_role_id FROM rol WHERE kod = 'GELISTIRICI';
 
     BEGIN
-        INSERT INTO user_role(user_id, role_id, role_scope, project_id)
+        INSERT INTO kullanici_rol(kullanici_id, rol_id, rol_kapsami, proje_id)
         VALUES (
             '00000000-0000-0000-0000-000000000001',
             system_role_id,
-            'SYSTEM',
+            'SISTEM',
             '00000000-0000-0000-0000-000000000002');
-        RAISE EXCEPTION 'SYSTEM role with project_id was accepted.';
+        RAISE EXCEPTION 'Proje kimliği taşıyan sistem rolü kabul edildi.';
     EXCEPTION
         WHEN check_violation THEN NULL;
     END;
 
     BEGIN
-        INSERT INTO user_role(user_id, role_id, role_scope)
+        INSERT INTO kullanici_rol(kullanici_id, rol_id, rol_kapsami)
         VALUES (
             '00000000-0000-0000-0000-000000000001',
             project_role_id,
-            'PROJECT');
-        RAISE EXCEPTION 'PROJECT role without project_id was accepted.';
+            'PROJE');
+        RAISE EXCEPTION 'Proje kimliği bulunmayan proje rolü kabul edildi.';
     EXCEPTION
         WHEN check_violation THEN NULL;
     END;
 
-    INSERT INTO user_role(user_id, role_id, role_scope)
+    INSERT INTO kullanici_rol(kullanici_id, rol_id, rol_kapsami)
     VALUES (
         '00000000-0000-0000-0000-000000000001',
         system_role_id,
-        'SYSTEM');
+        'SISTEM');
 
-    INSERT INTO user_role(user_id, role_id, role_scope, project_id)
+    INSERT INTO kullanici_rol(kullanici_id, rol_id, rol_kapsami, proje_id)
     VALUES (
         '00000000-0000-0000-0000-000000000001',
         project_role_id,
-        'PROJECT',
+        'PROJE',
         '00000000-0000-0000-0000-000000000002');
 END
 $$;

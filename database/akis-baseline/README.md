@@ -1,48 +1,46 @@
-# Akis clean baseline
+# Akış temiz başlangıç şeması
 
-This directory contains the clean replacement baseline for the local PostgreSQL
-control database. The final database schema is named `akis` and the baseline has
-no separate version namespace or label.
+Bu dizin yerel PostgreSQL kontrol veritabanının temiz başlangıç şemasını içerir.
+Nihai veritabanı şeması `akis` adındadır ve ayrı bir sürüm adlandırması kullanılmaz.
 
-The first migration deliberately contains only identity, RBAC and project
-membership. Business tables start empty. Built-in roles and permissions are
-reference data and are seeded by the migration.
+İlk migration yalnız kimlik, rol/yetki ve proje üyeliği yapılarını içerir. İş
+tabloları boş başlar. Hazır roller ve yetkiler referans verisi olarak eklenir.
 
-## First group
+## İlk grup
 
 ```text
-app_user
-external_identity
-role
-permission
-role_permission
-project
-project_membership
-user_role
+kullanici
+harici_kimlik
+rol
+yetki
+rol_yetki
+proje
+proje_uyeligi
+kullanici_rol
 ```
 
-`role` is a reusable system/project role definition. `project_membership` is the
-user-to-project relationship. `user_role` assigns a system role directly to a
-user or a project role to a user within a project. Composite foreign keys ensure
-that a project-scoped assignment has a matching project membership.
+`rol`, yeniden kullanılabilir sistem/proje rol tanımıdır. `proje_uyeligi`,
+kullanıcı ile proje arasındaki ilişkidir. `kullanici_rol`, sistem rolünü doğrudan
+kullanıcıya veya proje rolünü proje içindeki kullanıcıya atar. Birleşik foreign
+key, proje kapsamlı rol atamasının ilgili proje üyeliğine sahip olmasını zorunlu
+kılar.
 
-The existing `entegrasyon` schema remains only as a temporary rollback source
-while application repositories are moved group by group. It must not receive new
-schema features. Once every group passes clean-database acceptance tests, these
-baseline files replace the old Flyway chain and the old schema is retired.
+Mevcut `entegrasyon` şeması, uygulama repository'leri grup grup taşınırken yalnız
+geçici geri dönüş kaynağı olarak korunur. Buraya yeni şema özelliği eklenmez. Tüm
+gruplar temiz veritabanı kabul testlerini geçince bu dosyalar eski Flyway zincirinin
+yerini alır ve eski şema kaldırılır.
 
-No bootstrap user or credential is stored in this migration. The first
-administrator will be created through a separate, explicit local bootstrap flow.
+Migration içinde başlangıç kullanıcısı veya parola bulunmaz. İlk yönetici ayrı ve
+açık bir yerel başlangıç akışıyla oluşturulur.
 
-## Verification
+## Doğrulama
 
-With the local PostgreSQL container running, execute:
+Yerel PostgreSQL container'ı çalışırken şu komut yürütülür:
 
 ```powershell
 .\database\akis-baseline\test-baseline.ps1
 ```
 
-The script creates a uniquely named temporary database, applies the clean
-migration, runs positive and negative integrity checks, and removes only that
-temporary database. It does not modify the development database or contact an
-Oracle system.
+Betik benzersiz adlı geçici bir veritabanı oluşturur, temiz migration'ı uygular,
+olumlu ve olumsuz bütünlük kontrollerini çalıştırır ve yalnız bu geçici veritabanını
+siler. Geliştirme veritabanını değiştirmez ve Oracle sistemlerine bağlanmaz.

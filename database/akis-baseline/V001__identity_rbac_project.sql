@@ -1,275 +1,275 @@
 CREATE SCHEMA akis;
 SET search_path TO akis, public;
 
-CREATE TABLE app_user (
+CREATE TABLE kullanici (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    display_name VARCHAR(200) NOT NULL,
-    email VARCHAR(320),
-    disabled_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    version BIGINT NOT NULL DEFAULT 0,
-    CONSTRAINT ck_app_user_display_name
-        CHECK (btrim(display_name) <> ''),
-    CONSTRAINT ck_app_user_email
-        CHECK (email IS NULL OR btrim(email) <> ''),
-    CONSTRAINT ck_app_user_updated_at
-        CHECK (updated_at >= created_at),
-    CONSTRAINT ck_app_user_version
-        CHECK (version >= 0)
+    gorunen_ad VARCHAR(200) NOT NULL,
+    eposta VARCHAR(320),
+    devre_disi_birakilma_zamani TIMESTAMPTZ,
+    olusturulma_zamani TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    guncellenme_zamani TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    surum BIGINT NOT NULL DEFAULT 0,
+    CONSTRAINT ck_kullanici_gorunen_ad
+        CHECK (btrim(gorunen_ad) <> ''),
+    CONSTRAINT ck_kullanici_eposta
+        CHECK (eposta IS NULL OR btrim(eposta) <> ''),
+    CONSTRAINT ck_kullanici_guncellenme_zamani
+        CHECK (guncellenme_zamani >= olusturulma_zamani),
+    CONSTRAINT ck_kullanici_surum
+        CHECK (surum >= 0)
 );
 
-CREATE UNIQUE INDEX uq_app_user_email
-    ON app_user (lower(email))
-    WHERE email IS NOT NULL;
+CREATE UNIQUE INDEX uq_kullanici_eposta
+    ON kullanici (lower(eposta))
+    WHERE eposta IS NOT NULL;
 
-CREATE TABLE external_identity (
+CREATE TABLE harici_kimlik (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES app_user(id) ON DELETE CASCADE,
-    provider_type VARCHAR(20) NOT NULL,
-    issuer VARCHAR(500),
-    subject VARCHAR(500) NOT NULL,
-    last_login_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT ck_external_identity_provider
-        CHECK (provider_type IN ('OIDC', 'LOCAL')),
-    CONSTRAINT ck_external_identity_subject
-        CHECK (btrim(subject) <> ''),
-    CONSTRAINT ck_external_identity_issuer
+    kullanici_id UUID NOT NULL REFERENCES kullanici(id) ON DELETE CASCADE,
+    saglayici_turu VARCHAR(20) NOT NULL,
+    yayinlayici VARCHAR(500),
+    harici_kullanici_anahtari VARCHAR(500) NOT NULL,
+    son_giris_zamani TIMESTAMPTZ,
+    olusturulma_zamani TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT ck_harici_kimlik_saglayici_turu
+        CHECK (saglayici_turu IN ('OIDC', 'YEREL')),
+    CONSTRAINT ck_harici_kimlik_kullanici_anahtari
+        CHECK (btrim(harici_kullanici_anahtari) <> ''),
+    CONSTRAINT ck_harici_kimlik_yayinlayici
         CHECK (
-            (provider_type = 'OIDC' AND issuer IS NOT NULL AND btrim(issuer) <> '')
-            OR (provider_type = 'LOCAL' AND issuer IS NULL)
+            (saglayici_turu = 'OIDC' AND yayinlayici IS NOT NULL AND btrim(yayinlayici) <> '')
+            OR (saglayici_turu = 'YEREL' AND yayinlayici IS NULL)
         ),
-    CONSTRAINT uq_external_identity
-        UNIQUE NULLS NOT DISTINCT (provider_type, issuer, subject)
+    CONSTRAINT uq_harici_kimlik
+        UNIQUE NULLS NOT DISTINCT (saglayici_turu, yayinlayici, harici_kullanici_anahtari)
 );
 
-CREATE TABLE role (
+CREATE TABLE rol (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    scope VARCHAR(20) NOT NULL,
-    code VARCHAR(100) NOT NULL,
-    name VARCHAR(200) NOT NULL,
-    description VARCHAR(1000),
-    built_in BOOLEAN NOT NULL DEFAULT FALSE,
-    enabled BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT ck_role_scope
-        CHECK (scope IN ('SYSTEM', 'PROJECT')),
-    CONSTRAINT ck_role_code
-        CHECK (code ~ '^[A-Z][A-Z0-9_]{0,99}$'),
-    CONSTRAINT ck_role_name
-        CHECK (btrim(name) <> ''),
-    CONSTRAINT uq_role_scope_code
-        UNIQUE (scope, code),
-    CONSTRAINT uq_role_id_scope
-        UNIQUE (id, scope)
+    kapsam VARCHAR(20) NOT NULL,
+    kod VARCHAR(100) NOT NULL,
+    ad VARCHAR(200) NOT NULL,
+    aciklama VARCHAR(1000),
+    sistem_tanimi_mi BOOLEAN NOT NULL DEFAULT FALSE,
+    etkin_mi BOOLEAN NOT NULL DEFAULT TRUE,
+    olusturulma_zamani TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT ck_rol_kapsam
+        CHECK (kapsam IN ('SISTEM', 'PROJE')),
+    CONSTRAINT ck_rol_kod
+        CHECK (kod ~ '^[A-Z][A-Z0-9_]{0,99}$'),
+    CONSTRAINT ck_rol_ad
+        CHECK (btrim(ad) <> ''),
+    CONSTRAINT uq_rol_kapsam_kod
+        UNIQUE (kapsam, kod),
+    CONSTRAINT uq_rol_id_kapsam
+        UNIQUE (id, kapsam)
 );
 
-CREATE TABLE permission (
+CREATE TABLE yetki (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    scope VARCHAR(20) NOT NULL,
-    code VARCHAR(100) NOT NULL,
-    resource VARCHAR(100) NOT NULL,
-    action VARCHAR(50) NOT NULL,
-    description VARCHAR(1000),
-    CONSTRAINT ck_permission_scope
-        CHECK (scope IN ('SYSTEM', 'PROJECT')),
-    CONSTRAINT ck_permission_code
-        CHECK (code ~ '^[A-Z][A-Z0-9_]{0,99}$'),
-    CONSTRAINT ck_permission_resource
-        CHECK (resource ~ '^[A-Z][A-Z0-9_]{0,99}$'),
-    CONSTRAINT ck_permission_action
-        CHECK (action ~ '^[A-Z][A-Z0-9_]{0,49}$'),
-    CONSTRAINT uq_permission_code
-        UNIQUE (code)
+    kapsam VARCHAR(20) NOT NULL,
+    kod VARCHAR(100) NOT NULL,
+    kaynak VARCHAR(100) NOT NULL,
+    eylem VARCHAR(50) NOT NULL,
+    aciklama VARCHAR(1000),
+    CONSTRAINT ck_yetki_kapsam
+        CHECK (kapsam IN ('SISTEM', 'PROJE')),
+    CONSTRAINT ck_yetki_kod
+        CHECK (kod ~ '^[A-Z][A-Z0-9_]{0,99}$'),
+    CONSTRAINT ck_yetki_kaynak
+        CHECK (kaynak ~ '^[A-Z][A-Z0-9_]{0,99}$'),
+    CONSTRAINT ck_yetki_eylem
+        CHECK (eylem ~ '^[A-Z][A-Z0-9_]{0,49}$'),
+    CONSTRAINT uq_yetki_kod
+        UNIQUE (kod)
 );
 
-CREATE TABLE role_permission (
-    role_id UUID NOT NULL REFERENCES role(id) ON DELETE CASCADE,
-    permission_id UUID NOT NULL REFERENCES permission(id) ON DELETE CASCADE,
-    PRIMARY KEY (role_id, permission_id)
+CREATE TABLE rol_yetki (
+    rol_id UUID NOT NULL REFERENCES rol(id) ON DELETE CASCADE,
+    yetki_id UUID NOT NULL REFERENCES yetki(id) ON DELETE CASCADE,
+    PRIMARY KEY (rol_id, yetki_id)
 );
 
-CREATE TABLE project (
+CREATE TABLE proje (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    code VARCHAR(100) NOT NULL,
-    name VARCHAR(200) NOT NULL,
-    description VARCHAR(2000),
-    archived_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    version BIGINT NOT NULL DEFAULT 0,
-    CONSTRAINT ck_project_code
-        CHECK (code ~ '^[A-Z][A-Z0-9_]{0,99}$'),
-    CONSTRAINT ck_project_name
-        CHECK (btrim(name) <> ''),
-    CONSTRAINT ck_project_updated_at
-        CHECK (updated_at >= created_at),
-    CONSTRAINT ck_project_version
-        CHECK (version >= 0),
-    CONSTRAINT uq_project_code
-        UNIQUE (code)
+    kod VARCHAR(100) NOT NULL,
+    ad VARCHAR(200) NOT NULL,
+    aciklama VARCHAR(2000),
+    arsivlenme_zamani TIMESTAMPTZ,
+    olusturulma_zamani TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    guncellenme_zamani TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    surum BIGINT NOT NULL DEFAULT 0,
+    CONSTRAINT ck_proje_kod
+        CHECK (kod ~ '^[A-Z][A-Z0-9_]{0,99}$'),
+    CONSTRAINT ck_proje_ad
+        CHECK (btrim(ad) <> ''),
+    CONSTRAINT ck_proje_guncellenme_zamani
+        CHECK (guncellenme_zamani >= olusturulma_zamani),
+    CONSTRAINT ck_proje_surum
+        CHECK (surum >= 0),
+    CONSTRAINT uq_proje_kod
+        UNIQUE (kod)
 );
 
-CREATE TABLE project_membership (
+CREATE TABLE proje_uyeligi (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id UUID NOT NULL REFERENCES project(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES app_user(id) ON DELETE CASCADE,
-    state VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
-    joined_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    suspended_at TIMESTAMPTZ,
-    ended_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    version BIGINT NOT NULL DEFAULT 0,
-    CONSTRAINT ck_project_membership_state
-        CHECK (state IN ('ACTIVE', 'SUSPENDED', 'ENDED')),
-    CONSTRAINT ck_project_membership_dates
+    proje_id UUID NOT NULL REFERENCES proje(id) ON DELETE CASCADE,
+    kullanici_id UUID NOT NULL REFERENCES kullanici(id) ON DELETE CASCADE,
+    durum VARCHAR(20) NOT NULL DEFAULT 'AKTIF',
+    katilma_zamani TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    askiya_alinma_zamani TIMESTAMPTZ,
+    sona_erme_zamani TIMESTAMPTZ,
+    olusturulma_zamani TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    surum BIGINT NOT NULL DEFAULT 0,
+    CONSTRAINT ck_proje_uyeligi_durum
+        CHECK (durum IN ('AKTIF', 'ASKIDA', 'SONLANDI')),
+    CONSTRAINT ck_proje_uyeligi_tarihler
         CHECK (
-            (state = 'ACTIVE' AND suspended_at IS NULL AND ended_at IS NULL)
-            OR (state = 'SUSPENDED' AND suspended_at IS NOT NULL AND ended_at IS NULL)
-            OR (state = 'ENDED' AND ended_at IS NOT NULL)
+            (durum = 'AKTIF' AND askiya_alinma_zamani IS NULL AND sona_erme_zamani IS NULL)
+            OR (durum = 'ASKIDA' AND askiya_alinma_zamani IS NOT NULL AND sona_erme_zamani IS NULL)
+            OR (durum = 'SONLANDI' AND sona_erme_zamani IS NOT NULL)
         ),
-    CONSTRAINT ck_project_membership_version
-        CHECK (version >= 0),
-    CONSTRAINT uq_project_membership
-        UNIQUE (project_id, user_id),
-    CONSTRAINT uq_project_membership_id_project_user
-        UNIQUE (id, project_id, user_id)
+    CONSTRAINT ck_proje_uyeligi_surum
+        CHECK (surum >= 0),
+    CONSTRAINT uq_proje_uyeligi
+        UNIQUE (proje_id, kullanici_id),
+    CONSTRAINT uq_proje_uyeligi_id_proje_kullanici
+        UNIQUE (id, proje_id, kullanici_id)
 );
 
-CREATE TABLE user_role (
+CREATE TABLE kullanici_rol (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES app_user(id) ON DELETE CASCADE,
-    role_id UUID NOT NULL,
-    role_scope VARCHAR(20) NOT NULL,
-    project_id UUID,
-    granted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    granted_by UUID REFERENCES app_user(id),
-    revoked_at TIMESTAMPTZ,
-    revoked_by UUID REFERENCES app_user(id),
-    CONSTRAINT fk_user_role_definition
-        FOREIGN KEY (role_id, role_scope) REFERENCES role(id, scope),
-    CONSTRAINT fk_user_role_project_membership
-        FOREIGN KEY (project_id, user_id)
-        REFERENCES project_membership(project_id, user_id),
-    CONSTRAINT ck_user_role_scope
+    kullanici_id UUID NOT NULL REFERENCES kullanici(id) ON DELETE CASCADE,
+    rol_id UUID NOT NULL,
+    rol_kapsami VARCHAR(20) NOT NULL,
+    proje_id UUID,
+    atanma_zamani TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atayan_kullanici_id UUID REFERENCES kullanici(id),
+    iptal_zamani TIMESTAMPTZ,
+    iptal_eden_kullanici_id UUID REFERENCES kullanici(id),
+    CONSTRAINT fk_kullanici_rol_tanimi
+        FOREIGN KEY (rol_id, rol_kapsami) REFERENCES rol(id, kapsam),
+    CONSTRAINT fk_kullanici_rol_proje_uyeligi
+        FOREIGN KEY (proje_id, kullanici_id)
+        REFERENCES proje_uyeligi(proje_id, kullanici_id),
+    CONSTRAINT ck_kullanici_rol_kapsami
         CHECK (
-            (role_scope = 'SYSTEM' AND project_id IS NULL)
-            OR (role_scope = 'PROJECT' AND project_id IS NOT NULL)
+            (rol_kapsami = 'SISTEM' AND proje_id IS NULL)
+            OR (rol_kapsami = 'PROJE' AND proje_id IS NOT NULL)
         ),
-    CONSTRAINT ck_user_role_revocation
+    CONSTRAINT ck_kullanici_rol_iptal
         CHECK (
-            (revoked_at IS NULL AND revoked_by IS NULL)
-            OR (revoked_at IS NOT NULL AND revoked_at >= granted_at)
+            (iptal_zamani IS NULL AND iptal_eden_kullanici_id IS NULL)
+            OR (iptal_zamani IS NOT NULL AND iptal_zamani >= atanma_zamani)
         )
 );
 
-CREATE UNIQUE INDEX uq_user_role_active_system
-    ON user_role (user_id, role_id)
-    WHERE project_id IS NULL AND revoked_at IS NULL;
+CREATE UNIQUE INDEX uq_kullanici_rol_aktif_sistem
+    ON kullanici_rol (kullanici_id, rol_id)
+    WHERE proje_id IS NULL AND iptal_zamani IS NULL;
 
-CREATE UNIQUE INDEX uq_user_role_active_project
-    ON user_role (user_id, role_id, project_id)
-    WHERE project_id IS NOT NULL AND revoked_at IS NULL;
+CREATE UNIQUE INDEX uq_kullanici_rol_aktif_proje
+    ON kullanici_rol (kullanici_id, rol_id, proje_id)
+    WHERE proje_id IS NOT NULL AND iptal_zamani IS NULL;
 
-CREATE INDEX ix_external_identity_user ON external_identity(user_id);
-CREATE INDEX ix_project_membership_user ON project_membership(user_id, state);
-CREATE INDEX ix_user_role_project_user ON user_role(project_id, user_id)
-    WHERE project_id IS NOT NULL AND revoked_at IS NULL;
+CREATE INDEX ix_harici_kimlik_kullanici ON harici_kimlik(kullanici_id);
+CREATE INDEX ix_proje_uyeligi_kullanici ON proje_uyeligi(kullanici_id, durum);
+CREATE INDEX ix_kullanici_rol_proje_kullanici ON kullanici_rol(proje_id, kullanici_id)
+    WHERE proje_id IS NOT NULL AND iptal_zamani IS NULL;
 
-INSERT INTO role(scope, code, name, description, built_in) VALUES
-    ('SYSTEM', 'SYSTEM_ADMIN', 'System Administrator',
-        'Manages global identities and platform policy.', TRUE),
-    ('PROJECT', 'PROJECT_ADMIN', 'Project Administrator',
-        'Manages project settings, members, connections and schemas.', TRUE),
-    ('PROJECT', 'DEVELOPER', 'Developer',
-        'Authors and validates integration definitions.', TRUE),
-    ('PROJECT', 'OPERATOR', 'Operator',
-        'Operates executions and schedules without editing definitions.', TRUE),
-    ('PROJECT', 'RELEASE_APPROVER', 'Release Approver',
-        'Reviews and approves runnable production versions.', TRUE),
-    ('PROJECT', 'VIEWER', 'Viewer',
-        'Reads project definitions, catalog and execution history.', TRUE);
+INSERT INTO rol(kapsam, kod, ad, aciklama, sistem_tanimi_mi) VALUES
+    ('SISTEM', 'SISTEM_YONETICISI', 'Sistem Yöneticisi',
+        'Genel kullanıcıları, kimlikleri ve platform politikasını yönetir.', TRUE),
+    ('PROJE', 'PROJE_YONETICISI', 'Proje Yöneticisi',
+        'Proje ayarlarını, üyeleri, bağlantıları ve şemaları yönetir.', TRUE),
+    ('PROJE', 'GELISTIRICI', 'Geliştirici',
+        'Entegrasyon tanımlarını oluşturur ve doğrular.', TRUE),
+    ('PROJE', 'OPERASYON', 'Operasyon',
+        'Tanımları değiştirmeden çalıştırmaları ve zamanlamaları yönetir.', TRUE),
+    ('PROJE', 'YAYIN_ONAYLAYICI', 'Yayın Onaylayıcı',
+        'Çalıştırılabilir üretim sürümlerini inceler ve onaylar.', TRUE),
+    ('PROJE', 'GORUNTULEYICI', 'Görüntüleyici',
+        'Proje tanımlarını, kataloğu ve çalışma geçmişini görüntüler.', TRUE);
 
-INSERT INTO permission(scope, code, resource, action, description) VALUES
-    ('SYSTEM', 'USER_MANAGE', 'USER', 'MANAGE', 'Creates and disables users and identities.'),
-    ('SYSTEM', 'PROJECT_CREATE', 'PROJECT', 'CREATE', 'Creates projects.'),
-    ('SYSTEM', 'SYSTEM_POLICY_MANAGE', 'SYSTEM_POLICY', 'MANAGE', 'Manages platform policy.'),
-    ('PROJECT', 'PROJECT_READ', 'PROJECT', 'READ', 'Reads project details.'),
-    ('PROJECT', 'PROJECT_MANAGE', 'PROJECT', 'MANAGE', 'Updates and archives a project.'),
-    ('PROJECT', 'MEMBER_MANAGE', 'MEMBER', 'MANAGE', 'Manages project membership and roles.'),
-    ('PROJECT', 'CONNECTION_READ', 'CONNECTION', 'READ', 'Reads connections and schemas.'),
-    ('PROJECT', 'CONNECTION_MANAGE', 'CONNECTION', 'MANAGE', 'Creates connection revisions and schema mappings.'),
-    ('PROJECT', 'CONNECTION_TEST', 'CONNECTION', 'TEST', 'Tests a connection revision.'),
-    ('PROJECT', 'CATALOG_READ', 'CATALOG', 'READ', 'Reads discovered catalog metadata.'),
-    ('PROJECT', 'CATALOG_DISCOVER', 'CATALOG', 'DISCOVER', 'Runs metadata discovery.'),
-    ('PROJECT', 'DEFINITION_READ', 'DEFINITION', 'READ', 'Reads project definitions.'),
-    ('PROJECT', 'DEFINITION_WRITE', 'DEFINITION', 'WRITE', 'Creates and edits project definitions.'),
-    ('PROJECT', 'DEFINITION_VALIDATE', 'DEFINITION', 'VALIDATE', 'Validates project definitions.'),
-    ('PROJECT', 'RUNNABLE_VERSION_READ', 'RUNNABLE_VERSION', 'READ', 'Reads immutable runnable versions.'),
-    ('PROJECT', 'RUNNABLE_VERSION_CREATE', 'RUNNABLE_VERSION', 'CREATE', 'Submits an immutable runnable version.'),
-    ('PROJECT', 'RUNNABLE_VERSION_APPROVE', 'RUNNABLE_VERSION', 'APPROVE', 'Approves a runnable production version.'),
-    ('PROJECT', 'RUN_READ', 'RUN', 'READ', 'Reads executions and step details.'),
-    ('PROJECT', 'RUN_START', 'RUN', 'START', 'Starts an authorized execution.'),
-    ('PROJECT', 'RUN_CANCEL', 'RUN', 'CANCEL', 'Requests execution cancellation.'),
-    ('PROJECT', 'RUN_RETRY', 'RUN', 'RETRY', 'Retries an eligible execution.'),
-    ('PROJECT', 'SCHEDULE_MANAGE', 'SCHEDULE', 'MANAGE', 'Creates and updates schedules.');
+INSERT INTO yetki(kapsam, kod, kaynak, eylem, aciklama) VALUES
+    ('SISTEM', 'KULLANICI_YONET', 'KULLANICI', 'YONET', 'Kullanıcıları ve kimlikleri oluşturur veya devre dışı bırakır.'),
+    ('SISTEM', 'PROJE_OLUSTUR', 'PROJE', 'OLUSTUR', 'Proje oluşturur.'),
+    ('SISTEM', 'SISTEM_POLITIKASI_YONET', 'SISTEM_POLITIKASI', 'YONET', 'Platform politikasını yönetir.'),
+    ('PROJE', 'PROJE_GORUNTULE', 'PROJE', 'GORUNTULE', 'Proje ayrıntılarını görüntüler.'),
+    ('PROJE', 'PROJE_YONET', 'PROJE', 'YONET', 'Projeyi günceller ve arşivler.'),
+    ('PROJE', 'UYE_YONET', 'UYE', 'YONET', 'Proje üyeliklerini ve rollerini yönetir.'),
+    ('PROJE', 'BAGLANTI_GORUNTULE', 'BAGLANTI', 'GORUNTULE', 'Bağlantıları ve şemaları görüntüler.'),
+    ('PROJE', 'BAGLANTI_YONET', 'BAGLANTI', 'YONET', 'Bağlantı sürümlerini ve şema eşleştirmelerini yönetir.'),
+    ('PROJE', 'BAGLANTI_TEST_ET', 'BAGLANTI', 'TEST_ET', 'Bağlantı sürümünü test eder.'),
+    ('PROJE', 'KATALOG_GORUNTULE', 'KATALOG', 'GORUNTULE', 'Keşfedilmiş katalog bilgisini görüntüler.'),
+    ('PROJE', 'KATALOG_KESFET', 'KATALOG', 'KESFET', 'Metadata keşfini çalıştırır.'),
+    ('PROJE', 'TANIM_GORUNTULE', 'TANIM', 'GORUNTULE', 'Proje tanımlarını görüntüler.'),
+    ('PROJE', 'TANIM_DUZENLE', 'TANIM', 'DUZENLE', 'Proje tanımlarını oluşturur ve düzenler.'),
+    ('PROJE', 'TANIM_DOGRULA', 'TANIM', 'DOGRULA', 'Proje tanımlarını doğrular.'),
+    ('PROJE', 'CALISTIRILABILIR_SURUM_GORUNTULE', 'CALISTIRILABILIR_SURUM', 'GORUNTULE', 'Çalıştırılabilir sürümleri görüntüler.'),
+    ('PROJE', 'CALISTIRILABILIR_SURUM_OLUSTUR', 'CALISTIRILABILIR_SURUM', 'OLUSTUR', 'Değişmez çalıştırılabilir sürüm oluşturur.'),
+    ('PROJE', 'CALISTIRILABILIR_SURUM_ONAYLA', 'CALISTIRILABILIR_SURUM', 'ONAYLA', 'Çalıştırılabilir üretim sürümünü onaylar.'),
+    ('PROJE', 'CALISTIRMA_GORUNTULE', 'CALISTIRMA', 'GORUNTULE', 'Çalıştırmaları ve adım ayrıntılarını görüntüler.'),
+    ('PROJE', 'CALISTIRMA_BASLAT', 'CALISTIRMA', 'BASLAT', 'Yetkili bir çalıştırmayı başlatır.'),
+    ('PROJE', 'CALISTIRMA_IPTAL_ET', 'CALISTIRMA', 'IPTAL_ET', 'Çalıştırmanın iptalini ister.'),
+    ('PROJE', 'CALISTIRMA_YENIDEN_DENE', 'CALISTIRMA', 'YENIDEN_DENE', 'Uygun bir çalıştırmayı yeniden dener.'),
+    ('PROJE', 'ZAMANLAMA_YONET', 'ZAMANLAMA', 'YONET', 'Zamanlamaları oluşturur ve günceller.');
 
-WITH grants(role_code, permission_code) AS (
+WITH atamalar(rol_kodu, yetki_kodu) AS (
     VALUES
-        ('SYSTEM_ADMIN', 'USER_MANAGE'),
-        ('SYSTEM_ADMIN', 'PROJECT_CREATE'),
-        ('SYSTEM_ADMIN', 'SYSTEM_POLICY_MANAGE'),
+        ('SISTEM_YONETICISI', 'KULLANICI_YONET'),
+        ('SISTEM_YONETICISI', 'PROJE_OLUSTUR'),
+        ('SISTEM_YONETICISI', 'SISTEM_POLITIKASI_YONET'),
 
-        ('PROJECT_ADMIN', 'PROJECT_READ'),
-        ('PROJECT_ADMIN', 'PROJECT_MANAGE'),
-        ('PROJECT_ADMIN', 'MEMBER_MANAGE'),
-        ('PROJECT_ADMIN', 'CONNECTION_READ'),
-        ('PROJECT_ADMIN', 'CONNECTION_MANAGE'),
-        ('PROJECT_ADMIN', 'CONNECTION_TEST'),
-        ('PROJECT_ADMIN', 'CATALOG_READ'),
-        ('PROJECT_ADMIN', 'CATALOG_DISCOVER'),
-        ('PROJECT_ADMIN', 'DEFINITION_READ'),
+        ('PROJE_YONETICISI', 'PROJE_GORUNTULE'),
+        ('PROJE_YONETICISI', 'PROJE_YONET'),
+        ('PROJE_YONETICISI', 'UYE_YONET'),
+        ('PROJE_YONETICISI', 'BAGLANTI_GORUNTULE'),
+        ('PROJE_YONETICISI', 'BAGLANTI_YONET'),
+        ('PROJE_YONETICISI', 'BAGLANTI_TEST_ET'),
+        ('PROJE_YONETICISI', 'KATALOG_GORUNTULE'),
+        ('PROJE_YONETICISI', 'KATALOG_KESFET'),
+        ('PROJE_YONETICISI', 'TANIM_GORUNTULE'),
 
-        ('DEVELOPER', 'PROJECT_READ'),
-        ('DEVELOPER', 'CONNECTION_READ'),
-        ('DEVELOPER', 'CONNECTION_TEST'),
-        ('DEVELOPER', 'CATALOG_READ'),
-        ('DEVELOPER', 'CATALOG_DISCOVER'),
-        ('DEVELOPER', 'DEFINITION_READ'),
-        ('DEVELOPER', 'DEFINITION_WRITE'),
-        ('DEVELOPER', 'DEFINITION_VALIDATE'),
-        ('DEVELOPER', 'RUNNABLE_VERSION_READ'),
-        ('DEVELOPER', 'RUNNABLE_VERSION_CREATE'),
-        ('DEVELOPER', 'RUN_READ'),
+        ('GELISTIRICI', 'PROJE_GORUNTULE'),
+        ('GELISTIRICI', 'BAGLANTI_GORUNTULE'),
+        ('GELISTIRICI', 'BAGLANTI_TEST_ET'),
+        ('GELISTIRICI', 'KATALOG_GORUNTULE'),
+        ('GELISTIRICI', 'KATALOG_KESFET'),
+        ('GELISTIRICI', 'TANIM_GORUNTULE'),
+        ('GELISTIRICI', 'TANIM_DUZENLE'),
+        ('GELISTIRICI', 'TANIM_DOGRULA'),
+        ('GELISTIRICI', 'CALISTIRILABILIR_SURUM_GORUNTULE'),
+        ('GELISTIRICI', 'CALISTIRILABILIR_SURUM_OLUSTUR'),
+        ('GELISTIRICI', 'CALISTIRMA_GORUNTULE'),
 
-        ('OPERATOR', 'PROJECT_READ'),
-        ('OPERATOR', 'CONNECTION_READ'),
-        ('OPERATOR', 'CATALOG_READ'),
-        ('OPERATOR', 'DEFINITION_READ'),
-        ('OPERATOR', 'RUNNABLE_VERSION_READ'),
-        ('OPERATOR', 'RUN_READ'),
-        ('OPERATOR', 'RUN_START'),
-        ('OPERATOR', 'RUN_CANCEL'),
-        ('OPERATOR', 'RUN_RETRY'),
-        ('OPERATOR', 'SCHEDULE_MANAGE'),
+        ('OPERASYON', 'PROJE_GORUNTULE'),
+        ('OPERASYON', 'BAGLANTI_GORUNTULE'),
+        ('OPERASYON', 'KATALOG_GORUNTULE'),
+        ('OPERASYON', 'TANIM_GORUNTULE'),
+        ('OPERASYON', 'CALISTIRILABILIR_SURUM_GORUNTULE'),
+        ('OPERASYON', 'CALISTIRMA_GORUNTULE'),
+        ('OPERASYON', 'CALISTIRMA_BASLAT'),
+        ('OPERASYON', 'CALISTIRMA_IPTAL_ET'),
+        ('OPERASYON', 'CALISTIRMA_YENIDEN_DENE'),
+        ('OPERASYON', 'ZAMANLAMA_YONET'),
 
-        ('RELEASE_APPROVER', 'PROJECT_READ'),
-        ('RELEASE_APPROVER', 'CATALOG_READ'),
-        ('RELEASE_APPROVER', 'DEFINITION_READ'),
-        ('RELEASE_APPROVER', 'RUNNABLE_VERSION_READ'),
-        ('RELEASE_APPROVER', 'RUNNABLE_VERSION_APPROVE'),
-        ('RELEASE_APPROVER', 'RUN_READ'),
+        ('YAYIN_ONAYLAYICI', 'PROJE_GORUNTULE'),
+        ('YAYIN_ONAYLAYICI', 'KATALOG_GORUNTULE'),
+        ('YAYIN_ONAYLAYICI', 'TANIM_GORUNTULE'),
+        ('YAYIN_ONAYLAYICI', 'CALISTIRILABILIR_SURUM_GORUNTULE'),
+        ('YAYIN_ONAYLAYICI', 'CALISTIRILABILIR_SURUM_ONAYLA'),
+        ('YAYIN_ONAYLAYICI', 'CALISTIRMA_GORUNTULE'),
 
-        ('VIEWER', 'PROJECT_READ'),
-        ('VIEWER', 'CONNECTION_READ'),
-        ('VIEWER', 'CATALOG_READ'),
-        ('VIEWER', 'DEFINITION_READ'),
-        ('VIEWER', 'RUNNABLE_VERSION_READ'),
-        ('VIEWER', 'RUN_READ')
+        ('GORUNTULEYICI', 'PROJE_GORUNTULE'),
+        ('GORUNTULEYICI', 'BAGLANTI_GORUNTULE'),
+        ('GORUNTULEYICI', 'KATALOG_GORUNTULE'),
+        ('GORUNTULEYICI', 'TANIM_GORUNTULE'),
+        ('GORUNTULEYICI', 'CALISTIRILABILIR_SURUM_GORUNTULE'),
+        ('GORUNTULEYICI', 'CALISTIRMA_GORUNTULE')
 )
-INSERT INTO role_permission(role_id, permission_id)
+INSERT INTO rol_yetki(rol_id, yetki_id)
 SELECT r.id, p.id
-  FROM grants g
-  JOIN role r ON r.code = g.role_code
-  JOIN permission p ON p.code = g.permission_code;
+  FROM atamalar a
+  JOIN rol r ON r.kod = a.rol_kodu
+  JOIN yetki p ON p.kod = a.yetki_kodu;

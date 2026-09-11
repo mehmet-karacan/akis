@@ -44,14 +44,15 @@ recreated as explicit acceptance fixtures before the old database is retired.
 
 ### 3.1 Mixed technical language
 
-Table and column names are Turkish while several stored values and Java/API
-contracts are English. Examples include Turkish `durum_kodu` columns containing
-both `AKTIF` and `ACTIVE` in different tables. This increases translation code and
-makes cross-module contracts harder to read.
+Tablo ve kolon adlarının dili ile saklanan sabit değerlerin dili tutarlı değildir.
+Örneğin Türkçe `durum_kodu` kolonları farklı tablolarda hem `AKTIF` hem `ACTIVE`
+değerlerini içerir. Bu durum sözleşmeleri zorlaştırır.
 
-Recommendation: use English technical identifiers in PostgreSQL, Java and API
-contracts. Localize only the UI. Use `state`, `type`, `role`, `risk`, `result` and
-`error_code` instead of adding `_kodu` to every discriminator.
+Karar: PostgreSQL tablo ve kolon adları Türkçe ve anlamlı olacaktır. Türkçe
+karakterler yerine araç uyumluluğu için ASCII karşılıkları kullanılacaktır
+(`kullanici`, `proje_uyeligi`, `olusturulma_zamani`). Sabit kodlar da Türkçe ASCII
+olacaktır. Her ayırıcıya `_kodu` eklemek yerine alanın anlamı doğrudan yazılacaktır:
+`durum`, `tur`, `kapsam`, `sonuc` ve `hata_kodu`.
 
 ### 3.2 Status used for unrelated concepts
 
@@ -79,14 +80,14 @@ issuer. It is the correct external login key. The coupling is wrong because:
 Recommendation:
 
 ```text
-app_user
+kullanici
 ├─ id (UUID primary key)
 ├─ display_name
 ├─ email
 ├─ disabled_at
 └─ created_at / updated_at
 
-external_identity
+harici_kimlik
 ├─ id (UUID primary key)
 ├─ user_id
 ├─ provider_type        OIDC | LOCAL
@@ -96,7 +97,7 @@ external_identity
 └─ unique(provider_type, issuer, subject)
 ```
 
-No password hash or secret value belongs in `app_user`. Local credentials, if
+No password hash or secret value belongs in `kullanici`. Local credentials, if
 retained for development, require a separate restricted record or environment
 configuration.
 
@@ -108,7 +109,7 @@ multiple parallel table families. The clean `akis` baseline should expose one
 consistent RBAC model:
 
 ```text
-role
+rol
 ├─ id (UUID primary key)
 ├─ scope                  SYSTEM | PROJECT
 ├─ code                   stable machine identifier
@@ -116,18 +117,18 @@ role
 ├─ built_in
 └─ enabled
 
-permission
+yetki
 ├─ id (UUID primary key)
 ├─ code                   stable machine identifier
 ├─ scope
 ├─ resource
 └─ action
 
-role_permission
+rol_yetki
 ├─ role_id
 └─ permission_id
 
-user_role
+kullanici_rol
 ├─ user_id
 ├─ role_id
 ├─ project_id             required for PROJECT, null for SYSTEM
@@ -135,21 +136,21 @@ user_role
 └─ revoked_at / revoked_by
 ```
 
-`project_member` remains the explicit user–project relationship. A project role
-assignment must belong to an active project membership. `user_role` grants the
+`proje_uyeligi` remains the explicit user–project relationship. A project role
+assignment must belong to an active project membership. `kullanici_rol` grants the
 role; it does not replace the membership lifecycle or its audit history.
 
 Recommended built-in project roles:
 
 | Role code | Responsibility | Explicit exclusions |
 | --- | --- | --- |
-| `PROJECT_ADMIN` | Project settings, membership, connections and schemas | No implicit production approval or execution |
-| `DEVELOPER` | Interface/mapping/procedure/package authoring and validation | Cannot approve own release or operate production by default |
-| `OPERATOR` | Start, cancel, retry and inspect executions; manage schedules | Cannot modify definition content |
-| `RELEASE_APPROVER` | Review and approve runnable production versions | Cannot silently change the submitted version |
-| `VIEWER` | Read definitions, catalog and execution history | No mutation or execution |
+| `PROJE_YONETICISI` | Project settings, membership, connections and schemas | No implicit production approval or execution |
+| `GELISTIRICI` | Interface/mapping/procedure/package authoring and validation | Cannot approve own release or operate production by default |
+| `OPERASYON` | Start, cancel, retry and inspect executions; manage schedules | Cannot modify definition content |
+| `YAYIN_ONAYLAYICI` | Review and approve runnable production versions | Cannot silently change the submitted version |
+| `GORUNTULEYICI` | Read definitions, catalog and execution history | No mutation or execution |
 
-The system role `SYSTEM_ADMIN` manages global identities and platform policy but
+The system role `SISTEM_YONETICISI` manages global identities and platform policy but
 does not automatically bypass project or production permissions. Emergency
 break-glass access, if added later, must be explicit, time-limited and audited.
 
@@ -161,7 +162,7 @@ not only in hidden buttons:
 - project administration does not imply production execution,
 - revoked role assignments stop authorizing immediately while their history is
   retained,
-- API authorization resolves the external identity to `app_user` once, then uses
+- API authorization resolves the external identity to `kullanici` once, then uses
   user/project/role relations instead of joining OIDC issuer and subject through
   every permission query.
 
@@ -253,10 +254,10 @@ migration followed by corrective migrations.
 
 ### Identity and access
 
-- `app_user`
-- `external_identity`
-- `role`, `permission`, `role_permission`, `user_role`
-- `project_member`
+- `kullanici`
+- `harici_kimlik`
+- `rol`, `yetki`, `rol_yetki`, `kullanici_rol`
+- `proje_uyeligi`
 
 The role model covers both system and project scopes. Project-scoped assignments
 carry `project_id`; system-scoped assignments do not. Built-in Developer,
@@ -265,7 +266,7 @@ than duplicated as one physical role row per project.
 
 ### Projects and definitions
 
-- `project`, `folder`
+- `proje`, `klasor`
 - `definition`, `definition_draft`, `definition_version`
 - dependencies only when package/interface compilation actually consumes them
 
@@ -319,7 +320,7 @@ added only with a consuming API and acceptance test.
 - Local Basic and OIDC identities no longer share misleading columns.
 - Developer, Operator and Release Approver permissions are separated and enforced
   server-side.
-- `role`, `permission`, `role_permission` and `user_role` have one system/project
+- `rol`, `yetki`, `rol_yetki` and `kullanici_rol` have one system/project
   scope contract; project assignments require membership.
 - Binary fields are boolean/timestamp facts; workflow states remain explicit.
 - Status/type/error values have one language and one Java enum contract.
