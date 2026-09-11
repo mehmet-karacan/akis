@@ -90,7 +90,7 @@
 .project-explorer .definition-icon-button { width: 2rem; height: 2rem; }
 .explorer-tree, .explorer-tree ul { margin: 0; padding: 0; list-style: none; }
 .explorer-tree ul { margin-left: .82rem; padding-left: .55rem; border-left: 1px solid var(--df-line); }
-.explorer-folder-row { display: flex; align-items: center; min-width: 0; }
+.explorer-folder-row { position: relative; display: flex; align-items: center; min-width: 0; }
 .explorer-toggle { width: 1.75rem; height: 2rem; display: grid; flex: 0 0 auto; place-items: center; padding: 0; color: var(--df-muted); border: 0; border-radius: .35rem; background: transparent; }
 .explorer-toggle:hover { color: var(--df-text); background: var(--df-panel-muted); }
 span.explorer-toggle { pointer-events: none; }
@@ -103,6 +103,9 @@ span.explorer-toggle { pointer-events: none; }
 .explorer-folder-row:hover .explorer-folder-action, .explorer-folder-action:focus-visible { opacity: 1; }
 .explorer-folder-action:hover { color: var(--df-accent); background: var(--df-panel-muted); }
 @media (pointer: coarse) { .explorer-folder-action { opacity: 1; } }
+.explorer-context-menu { position: absolute; z-index: 5; right: .2rem; top: 2rem; min-width: 10rem; padding: .3rem; border: 1px solid var(--df-line); border-radius: .45rem; background: var(--df-panel); box-shadow: 0 12px 30px rgb(0 0 0 / .16); }
+.explorer-context-menu button { width: 100%; display: flex; align-items: center; gap: .45rem; padding: .48rem .55rem; color: var(--df-text); text-align: left; border: 0; border-radius: .32rem; background: transparent; font-size: .72rem; }
+.explorer-context-menu button:hover, .explorer-context-menu button:focus-visible { background: var(--df-panel-muted); }
 .explorer-definition button { min-width: 0; width: 100%; display: flex; align-items: center; gap: .5rem; padding: .42rem .45rem; color: var(--df-text); text-align: left; border: 1px solid transparent; border-radius: .45rem; background: transparent; }
 .explorer-definition button:hover { background: var(--df-panel-muted); }
 .explorer-definition button.is-selected { color: var(--df-accent); border-color: color-mix(in srgb, var(--df-accent) 32%, var(--df-line)); background: var(--df-accent-soft); }
@@ -147,6 +150,17 @@ span.explorer-toggle { pointer-events: none; }
 .definition-segmented { display: flex; padding: .18rem; border: 1px solid var(--df-line); border-radius: .5rem; background: var(--df-panel); }
 .definition-segmented button { min-height: 1.9rem; padding: .25rem .55rem; border: 0; border-radius: .34rem; background: transparent; color: var(--df-muted); font-size: .73rem; font-weight: 700; }
 .definition-segmented button[aria-pressed='true'] { background: var(--df-accent-soft); color: var(--df-accent); }
+.definition-editor-mode button:last-child { color: var(--df-muted); }
+.structured-draft-form { display: grid; grid-template-columns: repeat(2, minmax(12rem, 1fr)); gap: .8rem; padding: 1rem; }
+.structured-draft-wide { grid-column: 1 / -1; }
+.structured-draft-wide textarea { min-height: 12rem; font-family: "Cascadia Code", Consolas, monospace; }
+.structured-package-editor { display: grid; gap: .85rem; padding: 1rem; }
+.structured-package-editor > label { max-width: 25rem; }
+.structured-package-editor > header { display: flex; align-items: end; justify-content: space-between; gap: 1rem; padding-top: .7rem; border-top: 1px solid var(--df-line); }
+.structured-package-editor > header h3 { margin: 0 0 .2rem; font-size: .9rem; }
+.structured-package-editor > header p { margin: 0; color: var(--df-muted); font-size: .72rem; }
+.structured-package-list { display: grid; gap: .5rem; }
+.structured-package-list article { display: grid; grid-template-columns: auto minmax(10rem, 1fr) minmax(10rem, 1fr) auto; align-items: end; gap: .65rem; padding: .7rem; border: 1px solid var(--df-line); border-radius: .55rem; background: var(--df-bg); }
 .definition-schema-version { display: flex; align-items: center; gap: .4rem; }
 .definition-schema-version span { margin: 0 !important; white-space: nowrap; }
 .definition-schema-version input { width: 4rem; min-height: 2.25rem; }
@@ -191,14 +205,22 @@ span.explorer-toggle { pointer-events: none; }
 .procedure-editor-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: .8rem; }
 .procedure-editor-heading h3 { margin: 0 0 .25rem; font-size: .95rem; }
 .procedure-editor-heading p { max-width: 48rem; margin: 0; color: var(--df-muted); font-size: .74rem; line-height: 1.5; }
-.procedure-task-list { display: grid; gap: .75rem; }
-.procedure-task { border: 1px solid var(--df-line); border-radius: .65rem; background: var(--df-bg); overflow: hidden; }
-.procedure-task > header { display: flex; align-items: center; gap: .65rem; padding: .65rem .75rem; border-bottom: 1px solid var(--df-line); background: var(--df-panel-muted); }
-.procedure-task > header > div:nth-child(2) { display: grid; gap: .12rem; min-width: 0; flex: 1; }
-.procedure-task > header strong { overflow: hidden; font-size: .82rem; text-overflow: ellipsis; white-space: nowrap; }
-.procedure-task > header small { color: var(--df-muted); font-size: .67rem; }
+.procedure-workbench { display: grid; grid-template-columns: minmax(15rem, 21rem) minmax(0, 1fr); min-height: 34rem; margin-top: .75rem; border: 1px solid var(--df-line); border-radius: .65rem; background: var(--df-bg); overflow: hidden; }
+.procedure-task-list { display: grid; align-content: start; gap: .35rem; padding: .45rem; border-right: 1px solid var(--df-line); background: var(--df-panel-muted); }
+.procedure-task { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border: 1px solid transparent; border-radius: .52rem; background: transparent; overflow: hidden; }
+.procedure-task:hover, .procedure-task.is-selected { border-color: var(--df-line-strong); background: var(--df-panel); }
+.procedure-task.is-selected { box-shadow: inset 3px 0 var(--df-accent); }
+.procedure-task-select { min-width: 0; display: flex; align-items: center; gap: .6rem; padding: .58rem; text-align: left; color: var(--df-text); border: 0; background: transparent; cursor: pointer; }
+.procedure-task-select > div { min-width: 0; display: grid; gap: .12rem; flex: 1; }
+.procedure-task strong { overflow: hidden; font-size: .78rem; text-overflow: ellipsis; white-space: nowrap; }
+.procedure-task small { color: var(--df-muted); font-size: .63rem; }
 .procedure-step-number { display: grid; place-items: center; width: 2rem; height: 2rem; flex: 0 0 auto; border-radius: .45rem; background: var(--df-accent-soft); color: var(--df-accent); font-family: "Cascadia Code", Consolas, monospace; font-size: .72rem; font-weight: 800; }
-.procedure-task-actions { display: flex; gap: .35rem; }
+.procedure-task-actions { display: flex; gap: .15rem; padding-right: .35rem; }
+.procedure-task-actions .definition-icon-button { width: 1.75rem; height: 1.75rem; border-color: transparent; }
+.procedure-task-editor { min-width: 0; }
+.procedure-task-editor > header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .75rem; border-bottom: 1px solid var(--df-line); background: var(--df-panel-muted); }
+.procedure-task-editor > header h3, .procedure-task-editor > header p { margin: 0; }
+.procedure-task-editor > header > span { color: var(--df-muted); font: .68rem "Cascadia Code", Consolas, monospace; }
 .procedure-task-grid { display: grid; grid-template-columns: repeat(4, minmax(9rem, 1fr)); gap: .65rem; padding: .75rem; }
 .procedure-task-grid label, .procedure-command, .procedure-flow-options label { display: grid; gap: .3rem; }
 .procedure-task-grid label > span, .procedure-command > span, .procedure-flow-options label > span { color: var(--df-muted); font-size: .68rem; font-weight: 720; }
@@ -210,6 +232,7 @@ span.explorer-toggle { pointer-events: none; }
 .procedure-checkbox { display: flex !important; align-items: center; grid-template-columns: auto 1fr; align-self: center; gap: .45rem !important; }
 .procedure-checkbox input { width: auto; }
 .procedure-checkbox span { color: var(--df-text) !important; }
+@media (max-width: 900px) { .procedure-workbench { grid-template-columns: 1fr; } .procedure-task-list { max-height: 18rem; border-right: 0; border-bottom: 1px solid var(--df-line); overflow: auto; } .procedure-task-grid { grid-template-columns: repeat(2, minmax(9rem, 1fr)); } }
 
 .definition-version-layout { display: grid; grid-template-columns: minmax(18rem, 24rem) minmax(0, 1fr); min-height: 28rem; }
 .definition-version-column { border-right: 1px solid var(--df-line); }

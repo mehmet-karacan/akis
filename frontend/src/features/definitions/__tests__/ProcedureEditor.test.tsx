@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import i18n from '../../../core/i18n'
@@ -22,46 +22,35 @@ describe('ProcedureEditor', () => {
     expect(container.querySelectorAll('.procedure-task')).toHaveLength(2)
     fireEvent.click(screen.getByRole('button', { name: 'Add target step' }))
     expect(container.querySelectorAll('.procedure-task')).toHaveLength(3)
-
-    const lastStep = container.querySelectorAll('.procedure-task')[2] as HTMLElement
-    expect(within(lastStep).getByDisplayValue('STEP_3')).toBeInTheDocument()
-    fireEvent.click(within(lastStep).getByRole('button', { name: 'Move up' }))
-    expect(within(container.querySelectorAll('.procedure-task')[0] as HTMLElement).getByDisplayValue('STEP_3')).toBeInTheDocument()
-
-    fireEvent.click(within(container.querySelectorAll('.procedure-task')[0] as HTMLElement).getByRole('button', { name: 'Remove' }))
+    expect(screen.getByDisplayValue('STEP_3')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Move up: Target command' }))
+    expect(container.querySelectorAll('.procedure-task')[0]).toHaveTextContent('Target command')
+    fireEvent.click(screen.getByRole('button', { name: 'Remove: Target command' }))
     expect(container.querySelectorAll('.procedure-task')).toHaveLength(2)
   })
 
   it('keeps row handoff references valid when source step IDs change', () => {
-    const { container } = render(<Harness />)
-    const sourceStep = container.querySelectorAll('.procedure-task')[0] as HTMLElement
-
-    fireEvent.change(within(sourceStep).getByDisplayValue('READ_SOURCE'), { target: { value: 'READ_SKY' } })
-
-    const targetStep = container.querySelectorAll('.procedure-task')[1] as HTMLElement
-    expect(within(targetStep).getByDisplayValue('READ_SKY')).toBeInTheDocument()
+    render(<Harness />)
+    fireEvent.change(screen.getByDisplayValue('READ_SOURCE'), { target: { value: 'READ_SKY' } })
+    fireEvent.click(document.querySelectorAll<HTMLButtonElement>('.procedure-task-select')[1]!)
+    expect(screen.getByDisplayValue('READ_SKY')).toBeInTheDocument()
   })
 
   it('moves a row producer and its consumer together without changing the handoff', () => {
     const { container } = render(<Harness />)
     fireEvent.click(screen.getByRole('button', { name: 'Add target step' }))
-    const sourceStep = container.querySelectorAll('.procedure-task')[0] as HTMLElement
-
-    fireEvent.click(within(sourceStep).getByRole('button', { name: 'Move down' }))
-
-    expect(within(container.querySelectorAll('.procedure-task')[0] as HTMLElement).getByDisplayValue('STEP_3')).toBeInTheDocument()
-    const consumer = container.querySelectorAll('.procedure-task')[2] as HTMLElement
-    expect(within(consumer).getByLabelText('Consume rows from an earlier SELECT')).toBeChecked()
-    expect(within(consumer).getByDisplayValue('READ_SOURCE')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Move down: Read source rows' }))
+    expect(container.querySelectorAll('.procedure-task')[0]).toHaveTextContent('Target command')
+    fireEvent.click(document.querySelectorAll<HTMLButtonElement>('.procedure-task-select')[2]!)
+    expect(screen.getByLabelText('Consume rows from an earlier SELECT')).toBeChecked()
+    expect(screen.getByDisplayValue('READ_SOURCE')).toBeInTheDocument()
   })
 
   it('uses the current runtime row and timeout limits', () => {
-    const { container } = render(<Harness />)
-    const sourceStep = container.querySelectorAll('.procedure-task')[0] as HTMLElement
-
-    expect(within(sourceStep).getByLabelText('Maximum rows')).toHaveValue(1000)
-    expect(within(sourceStep).getByLabelText('Maximum rows')).toHaveAttribute('max', '1000')
-    expect(within(sourceStep).getByLabelText('Timeout (seconds)')).toHaveAttribute('max', '300')
+    render(<Harness />)
+    expect(screen.getByLabelText('Maximum rows')).toHaveValue(1000)
+    expect(screen.getByLabelText('Maximum rows')).toHaveAttribute('max', '1000')
+    expect(screen.getByLabelText('Timeout (seconds)')).toHaveAttribute('max', '300')
   })
 
   it('rejects malformed task arrays before the visual editor renders them', () => {

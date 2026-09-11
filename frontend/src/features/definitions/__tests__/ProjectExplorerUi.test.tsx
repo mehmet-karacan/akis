@@ -31,4 +31,16 @@ describe('project explorer UI', () => {
     expect(select).toHaveBeenCalledWith('definition-1')
     expect(createFolder).toHaveBeenCalledOnce()
   })
+
+  it('preserves a collapsed folder after refreshed data arrives and exposes a context menu', () => {
+    const move = vi.fn()
+    const view = render(<ProjectExplorer folders={[folder]} definitions={[definition]} selectedUuid={null} onSelect={vi.fn()} onCreateFolder={vi.fn()} onMoveFolder={move} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse folder' }))
+    expect(screen.queryByRole('button', { name: /Load ledger/ })).not.toBeInTheDocument()
+    view.rerender(<ProjectExplorer folders={[{ ...folder }]} definitions={[definition]} selectedUuid={null} onSelect={vi.fn()} onCreateFolder={vi.fn()} onMoveFolder={move} />)
+    expect(screen.queryByRole('button', { name: /Load ledger/ })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Finance' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Move folder' }))
+    expect(move).toHaveBeenCalledWith(expect.objectContaining(folder))
+  })
 })

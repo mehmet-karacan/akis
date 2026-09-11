@@ -76,7 +76,7 @@ export function createDefaultContent(type: DefinitionType): unknown {
 }
 
 export function supportsVisualEditor(type: DefinitionType, schemaVersion: number): boolean {
-  return type === 'MAPPING' || (type === 'PROCEDURE' && schemaVersion === 2)
+  return ['MAPPING', 'VARIABLE', 'SEQUENCE', 'PACKAGE'].includes(type) || (type === 'PROCEDURE' && schemaVersion === 2)
 }
 
 export function isMappingContent(value: unknown): value is MappingContent {

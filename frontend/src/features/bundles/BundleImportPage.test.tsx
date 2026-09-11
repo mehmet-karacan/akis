@@ -68,6 +68,8 @@ describe('bundle import gate', () => {
     expect(bundleApi.importProject).toHaveBeenNthCalledWith(1, document, 'FAIL', true)
 
     fireEvent.click(importButton)
+    expect(screen.getByRole('dialog', { name: 'Confirm project import' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm import' }))
     expect(await screen.findByRole('link', { name: 'Open imported project' })).toHaveAttribute(
       'href', '/projects/11111111-1111-1111-1111-111111111111',
     )
@@ -101,6 +103,7 @@ describe('bundle import gate', () => {
     const importButton = screen.getByRole('button', { name: 'Import project' })
     await waitFor(() => expect(importButton).toBeEnabled())
     fireEvent.click(importButton)
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm import' }))
 
     expect(await screen.findByText(/response was not confirmed/i)).toBeInTheDocument()
     expect(importButton).toBeDisabled()

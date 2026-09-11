@@ -1,8 +1,9 @@
-import { ArrowUpRight, Database, FolderInput, Plus, RotateCcw, X } from 'lucide-react'
+import { ArrowUpRight, Database, FolderInput, Plus, RotateCcw } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { ApiProblem } from '../../core/api/client'
+import { Dialog } from '../../core/ui/Dialog'
 import { createProject, listProjects, type Project } from './projectsApi'
 
 export function ProjectsPage() {
@@ -48,7 +49,7 @@ export function ProjectsPage() {
       <header className="page-header">
         <div><p className="eyebrow">{t('projects.eyebrow')}</p><h1>{t('projects.title')}</h1><p>{t('projects.description')}</p></div>
         <div className="page-actions">
-          <button className="button secondary" onClick={() => navigate('/project-bundles/import')}><FolderInput size={17} />{t('projects.import')}</button>
+          <button className="button secondary" onClick={() => navigate('/projects/import')}><FolderInput size={17} />{t('projects.import')}</button>
           <button className="button primary" onClick={() => setShowCreate(true)}><Plus size={17} />{t('projects.new')}</button>
         </div>
       </header>
@@ -64,17 +65,14 @@ export function ProjectsPage() {
             </button>
           ))}</div>}
 
-      {showCreate && <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowCreate(false) }}>
-        <section className="dialog" role="dialog" aria-modal="true" aria-labelledby="create-project-title">
-          <header><div><p className="eyebrow">{t('projects.eyebrow')}</p><h2 id="create-project-title">{t('projects.new')}</h2></div><button className="icon-button" onClick={() => setShowCreate(false)}><X size={19} /></button></header>
+      <Dialog open={showCreate} title={t('projects.new')} eyebrow={t('projects.eyebrow')} closeLabel={t('common.close')} busy={creating} onClose={() => setShowCreate(false)}>
           <form onSubmit={create}>
             <label>{t('projects.code')}<input name="code" pattern="[A-Za-z][A-Za-z0-9_-]{1,39}" required placeholder="FINANCE_DWH" /></label>
             <label>{t('projects.name')}<input name="name" required /></label>
             <label>{t('projects.descriptionField')}<textarea name="description" rows={4} /></label>
             <footer><button className="button secondary" type="button" onClick={() => setShowCreate(false)}>{t('common.cancel')}</button><button className="button primary" disabled={creating}>{creating ? t('projects.creating') : t('projects.create')}</button></footer>
           </form>
-        </section>
-      </div>}
+      </Dialog>
     </section>
   )
 }

@@ -18,6 +18,8 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { ApiProblem } from '../../core/api/client'
+import { usePendingChanges } from '../../core/navigation/PendingChangesContext'
+import { Dialog } from '../../core/ui/Dialog'
 import { definitionsApi } from './api'
 import { bindingNodes, candidateLabel, unboundNodes } from './bindingCatalog'
 import { createDefaultContent, isMappingContent, isProcedureContent, supportsVisualEditor } from './defaults'
@@ -26,6 +28,7 @@ import { JsonDraftEditor } from './JsonDraftEditor'
 import { MappingGrid } from './MappingGrid'
 import { ProcedureEditor } from './ProcedureEditor'
 import { ProjectExplorer } from './ProjectExplorer'
+import { StructuredDraftEditor } from './StructuredDraftEditor'
 import type {
   DataBinding,
   BindingCandidate,
@@ -81,6 +84,7 @@ function useDialogEscape(close: () => void, blocked = false) {
 
 export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps) {
   const { language, t } = useDefinitionsI18n()
+  const { setPendingChanges } = usePendingChanges()
   const [searchParams, setSearchParams] = useSearchParams()
   const initialSelection = useRef({ projectUuid, uuid: searchParams.get('definition') })
   if (initialSelection.current.projectUuid !== projectUuid) {
@@ -98,6 +102,7 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
   const [showCreate, setShowCreate] = useState(false)
   const [showCreateFolder, setShowCreateFolder] = useState(false)
   const [showMoveDefinition, setShowMoveDefinition] = useState(false)
+  const [pendingDefinitionUuid, setPendingDefinitionUuid] = useState<string | null>(null)
   const [folderToMove, setFolderToMove] = useState<Folder | null>(null)
   const [creating, setCreating] = useState(false)
   const [creatingFolder, setCreatingFolder] = useState(false)
@@ -120,6 +125,7 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
   const [bindings, setBindings] = useState<DataBinding[]>([])
   const [compiling, setCompiling] = useState(false)
   const [status, setStatus] = useState<{ tone: 'success' | 'error' | 'info'; text: string } | null>(null)
+  const saveDraftAction = useRef<() => Promise<boolean>>(async () => true)
 
   const selectedDefinition = definitions.find((definition) => definition.uuid === selectedUuid) ?? null
   const selectedVersion = versions.find((version) => version.uuid === selectedVersionUuid) ?? null
@@ -242,8 +248,8 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
     return activeFolders.filter((folder) => visible.has(folder.uuid))
   }, [filteredDefinitions, folders, query, typeFilter])
 
-  async function saveDraft() {
-    if (!selectedDefinition || saving || !jsonValid) return
+  async function saveDraft(): Promise<boolean> {
+    if (!selectedDefinition || saving || !jsonValid) return false
     setSaving(true)
     setStatus(null)
     try {
@@ -258,13 +264,28 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
       setContent(saved.content)
       setDirty(false)
       setStatus({ tone: 'success', text: t('saved') })
+      return true
     } catch (error) {
       const isConflict = error instanceof ApiProblem && error.status === 409
       setStatus({ tone: 'error', text: isConflict ? t('conflict') : errorMessage(error, t('requestError')) })
+      return false
     } finally {
       setSaving(false)
     }
   }
+  saveDraftAction.current = saveDraft
+
+  useEffect(() => {
+    setPendingChanges(dirty ? { save: () => saveDraftAction.current() } : null)
+    return () => setPendingChanges(null)
+  }, [dirty, setPendingChanges])
+
+  useEffect(() => {
+    if (!dirty) return
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [dirty])
 
   function handleWorkspaceKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === 's') {
@@ -322,9 +343,7 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
     setStatus(null)
   }
 
-  function selectDefinition(uuid: string) {
-    if (uuid === selectedUuid) return
-    if (dirty && !window.confirm(t('discardChanges'))) return
+  function applyDefinitionSelection(uuid: string) {
     definitionRequest.current += 1
     setSelectedUuid(uuid)
     setTab('draft')
@@ -332,6 +351,12 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
     nextParams.set('definition', uuid)
     nextParams.delete('tab')
     setSearchParams(nextParams, { replace: true })
+  }
+
+  function selectDefinition(uuid: string) {
+    if (uuid === selectedUuid) return
+    if (dirty) { setPendingDefinitionUuid(uuid); return }
+    applyDefinitionSelection(uuid)
   }
 
   return (
@@ -447,9 +472,9 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
                     </div>
                     <div className="definition-editor-actions">
                       {supportsVisualEditor(selectedDefinition.type, schemaVersion) && (
-                        <div className="definition-segmented" aria-label={t('draft')}>
-                          <button type="button" aria-pressed={editorMode === 'visual'} onClick={() => setEditorMode('visual')}>{selectedDefinition.type === 'PROCEDURE' ? t('procedureEditor') : t('visualEditor')}</button>
-                          <button type="button" aria-pressed={editorMode === 'json'} onClick={() => setEditorMode('json')}>{t('jsonEditor')}</button>
+                        <div className="definition-segmented definition-editor-mode" aria-label={t('editorMode')}>
+                          <button type="button" aria-pressed={editorMode === 'visual'} onClick={() => setEditorMode('visual')}>{selectedDefinition.type === 'PROCEDURE' ? t('procedureEditor') : t('formEditor')}</button>
+                          <button type="button" aria-pressed={editorMode === 'json'} onClick={() => setEditorMode('json')}>{t('advancedJson')}</button>
                         </div>
                       )}
                       <label className="definition-schema-version">
@@ -466,6 +491,8 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
                     <MappingGrid value={content} onChange={updateContent} />
                   ) : selectedDefinition.type === 'PROCEDURE' && supportsVisualEditor(selectedDefinition.type, schemaVersion) && editorMode === 'visual' && isProcedureContent(content) ? (
                     <ProcedureEditor value={content} onChange={updateContent} />
+                  ) : ['VARIABLE', 'SEQUENCE', 'PACKAGE'].includes(selectedDefinition.type) && editorMode === 'visual' ? (
+                    <StructuredDraftEditor type={selectedDefinition.type} value={content} onChange={updateContent} />
                   ) : (
                     <JsonDraftEditor value={content} onChange={updateContent} onValidityChange={setJsonValid} />
                   )}
@@ -592,6 +619,10 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
           }}
         />
       )}
+      <Dialog open={pendingDefinitionUuid !== null} title={t('changeObjectTitle')} eyebrow={t('unsaved')} closeLabel={t('cancel')} busy={saving} onClose={() => setPendingDefinitionUuid(null)} className="definition-dialog definition-dialog--compact">
+        <p>{t('changeObjectDescription')}</p>
+        <footer className="dialog-actions"><button className="definition-button definition-button--quiet" type="button" onClick={() => setPendingDefinitionUuid(null)}>{t('stay')}</button><button className="definition-button definition-button--quiet" type="button" onClick={() => { const uuid = pendingDefinitionUuid; setPendingDefinitionUuid(null); setDirty(false); if (uuid) applyDefinitionSelection(uuid) }}>{t('discardAndContinue')}</button><button className="definition-button definition-button--primary" type="button" onClick={async () => { const uuid = pendingDefinitionUuid; if (await saveDraft()) { setPendingDefinitionUuid(null); if (uuid) applyDefinitionSelection(uuid) } }}>{t('saveAndContinue')}</button></footer>
+      </Dialog>
     </div>
   )
 }

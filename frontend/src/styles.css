@@ -18,6 +18,7 @@
   --accent: #147d75;
   --accent-hover: #0d6862;
   --accent-soft: #e3f2ef;
+  --on-accent: #ffffff;
   --amber: #d49238;
   --danger: #b84046;
   --danger-soft: #fbeaec;
@@ -45,9 +46,10 @@
   --line-strong: #3a4a50;
   --nav: #0a1012;
   --nav-soft: #172226;
-  --accent: #49b9ad;
-  --accent-hover: #62c8be;
+  --accent: #55c7bb;
+  --accent-hover: #71d4ca;
   --accent-soft: #183b39;
+  --on-accent: #071312;
   --amber: #e1a34e;
   --danger: #ed7f84;
   --danger-soft: #432528;
@@ -71,7 +73,7 @@ h2 { letter-spacing: -.025em; }
 .button { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 8px; padding: 0 16px; font-size: .84rem; font-weight: 700; }
 .button:hover, .icon-button:hover { transform: translateY(-1px); }
 .button:disabled { opacity: .55; cursor: wait; transform: none; }
-.button.primary { background: var(--accent); color: white; box-shadow: 0 6px 16px rgba(20,125,117,.2); }
+.button.primary { background: var(--accent); color: var(--on-accent); box-shadow: 0 6px 16px rgba(20,125,117,.2); }
 .button.primary:hover { background: var(--accent-hover); }
 .button.secondary { border-color: var(--line); background: var(--surface); }
 .icon-button { width: 38px; height: 38px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; background: transparent; }
@@ -107,6 +109,8 @@ label { display: grid; gap: 7px; color: var(--ink-soft); font-size: .77rem; font
 .local-notice { display: flex; align-items: center; justify-content: center; gap: 7px; color: var(--ink-faint); font-size: .7rem; }
 
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: 242px minmax(0, 1fr); transition: grid-template-columns .2s ease; }
+.skip-link { position: fixed; z-index: 200; left: 1rem; top: .7rem; padding: .65rem .85rem; color: var(--on-accent); border-radius: 7px; background: var(--accent); transform: translateY(-160%); }
+.skip-link:focus { transform: translateY(0); }
 .app-shell.sidebar-collapsed { grid-template-columns: 72px minmax(0, 1fr); }
 .sidebar { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; padding: 22px 14px 14px; color: #bdc8ca; background: var(--nav); overflow: hidden; }
 .brand-block { min-height: 48px; display: flex; align-items: center; gap: 11px; padding: 0 9px 17px; border-bottom: 1px solid rgba(255,255,255,.08); }
@@ -180,6 +184,19 @@ label { display: grid; gap: 7px; color: var(--ink-soft); font-size: .77rem; font
 .dialog h2 { margin: 0; }
 .dialog form { display: grid; gap: 17px; }
 .dialog form > footer { display: flex; justify-content: flex-end; gap: 9px; margin-top: 7px; padding-top: 18px; border-top: 1px solid var(--line); }
+.dialog-description { color: var(--ink-soft); line-height: 1.55; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
+.dialog:focus { outline: none; }
+.project-switcher-dialog { width: min(580px, 100%); }
+.project-switcher-dialog > label { margin-bottom: 14px; }
+.project-switcher-list { max-height: min(360px, 55vh); display: grid; gap: 5px; overflow: auto; }
+.project-switcher-list > button { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 12px; text-align: left; color: var(--ink); border: 1px solid transparent; border-radius: 8px; background: transparent; cursor: pointer; }
+.project-switcher-list > button:hover, .project-switcher-list > button.is-current { border-color: var(--line); background: var(--surface-subtle); }
+.project-switcher-list span { display: grid; gap: 3px; }
+.project-switcher-list small { color: var(--ink-faint); font: .66rem "Cascadia Mono", Consolas, monospace; }
+.project-switcher-list em { color: var(--accent); font-size: .67rem; font-style: normal; font-weight: 700; }
+.project-switcher-list > p { padding: 18px 4px; color: var(--ink-soft); text-align: center; font-size: .76rem; }
+.project-switcher-dialog > footer { display: flex; justify-content: flex-end; margin-top: 14px; padding-top: 16px; border-top: 1px solid var(--line); }
 
 .project-heading { align-items: center; }
 .project-entry-page { min-height: calc(100vh - 176px); display: grid; place-content: center; justify-items: start; }

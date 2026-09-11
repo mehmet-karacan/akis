@@ -88,6 +88,9 @@
 .bundle-button svg { width: 1rem; height: 1rem; }
 .bundle-button:disabled { opacity: .55; cursor: not-allowed; }
 .bundle-button-primary { background: var(--accent, #147d75); color: #fff; }
+:root[data-theme='dark'] .bundle-button-primary { color: var(--on-accent, #071312); }
+.bundle-confirm-dialog > p { color: var(--ink-soft); line-height: 1.55; }
+.bundle-confirm-actions { display: flex; justify-content: flex-end; gap: .55rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--line); }
 .bundle-button-secondary { border-color: var(--line-strong, #c8d2ce); background: var(--surface, #fff); color: var(--ink, #182226); }
 .bundle-button:hover:not(:disabled) { filter: brightness(.97); }
 .bundle-button:focus-visible, .bundle-policy-options input:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent, #147d75) 32%, transparent); outline-offset: 2px; }

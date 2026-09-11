@@ -40,6 +40,7 @@ export function App() {
       <Route element={<ProtectedShell />}>
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/project-bundles/import" element={<BundleImportPage />} />
+        <Route path="/projects/import" element={<BundleImportPage />} />
         <Route path="/projects/:projectUuid" element={<ProjectOverviewPage />} />
         <Route path="/projects/:projectUuid/topology" element={<TopologyPage />} />
         <Route path="/projects/:projectUuid/models" element={<TopologyPage initialTab="catalog" />} />
@@ -50,6 +51,7 @@ export function App() {
         <Route path="/projects/:projectUuid/runs" element={<RunsPage />} />
         <Route path="/projects/:projectUuid/operations" element={<RunsPage />} />
         <Route path="/projects/:projectUuid/runs/:runUuid" element={<RunDetailPage />} />
+        <Route path="/projects/:projectUuid/operations/runs/:runUuid" element={<RunDetailPage />} />
         <Route path="/projects/:projectUuid/team" element={<MembershipsPage />} />
         <Route path="/projects/:projectUuid/connections" element={<TopologyPage />} />
         <Route path="/identity/users" element={<IdentityUsersPage />} />

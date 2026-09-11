@@ -7,8 +7,9 @@ import {
   FolderInput,
   FolderOpen,
   FolderPlus,
+  MoreHorizontal,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { definitionTypeKey, useDefinitionsI18n } from './i18n'
 import type { Definition, Folder as ProjectFolder } from './types'
 
@@ -62,7 +63,9 @@ interface ProjectExplorerProps {
 export function ProjectExplorer({ folders, definitions, selectedUuid, onSelect, onCreateFolder, onMoveFolder }: ProjectExplorerProps) {
   const { t } = useDefinitionsI18n()
   const tree = useMemo(() => buildFolderTree(folders), [folders])
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(folders.map((folder) => folder.uuid)))
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(folders.filter((folder) => !folder.parentUuid).map((folder) => folder.uuid)))
+  const knownFolders = useRef(new Set(folders.map((folder) => folder.uuid)))
+  const [menuFolderUuid, setMenuFolderUuid] = useState<string | null>(null)
   const definitionsByFolder = useMemo(() => {
     const grouped = new Map<string | null, Definition[]>()
     for (const definition of definitions) {
@@ -73,8 +76,21 @@ export function ProjectExplorer({ folders, definitions, selectedUuid, onSelect, 
   }, [definitions])
 
   useEffect(() => {
-    setExpanded((current) => new Set([...current, ...folders.map((folder) => folder.uuid)]))
+    const available = new Set(folders.map((folder) => folder.uuid))
+    setExpanded((current) => {
+      const next = new Set([...current].filter((uuid) => available.has(uuid)))
+      for (const folder of folders) if (!knownFolders.current.has(folder.uuid) && !folder.parentUuid) next.add(folder.uuid)
+      return next
+    })
+    knownFolders.current = available
   }, [folders])
+
+  useEffect(() => {
+    if (!menuFolderUuid) return
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setMenuFolderUuid(null) }
+    window.addEventListener('keydown', close)
+    return () => window.removeEventListener('keydown', close)
+  }, [menuFolderUuid])
 
   const toggle = (uuid: string) => {
     setExpanded((current) => {
@@ -86,7 +102,7 @@ export function ProjectExplorer({ folders, definitions, selectedUuid, onSelect, 
   }
 
   const definitionItem = (definition: Definition) => (
-    <li className="explorer-definition" key={definition.uuid}>
+    <li className="explorer-definition" key={definition.uuid} role="treeitem" aria-selected={definition.uuid === selectedUuid}>
       <button
         type="button"
         className={definition.uuid === selectedUuid ? 'is-selected' : ''}
@@ -103,8 +119,9 @@ export function ProjectExplorer({ folders, definitions, selectedUuid, onSelect, 
     const isExpanded = expanded.has(folder.uuid)
     const directDefinitions = definitionsByFolder.get(folder.uuid) ?? []
     const childCount = folder.children.length + directDefinitions.length
-    return <li className="explorer-folder" key={folder.uuid}>
-      <div className="explorer-folder-row">
+    const openMenu = (event: MouseEvent) => { event.preventDefault(); setMenuFolderUuid(folder.uuid) }
+    return <li className="explorer-folder" key={folder.uuid} role="treeitem" aria-expanded={isExpanded}>
+      <div className="explorer-folder-row" onContextMenu={openMenu}>
         <button type="button" className="explorer-toggle" aria-expanded={isExpanded} aria-label={isExpanded ? t('collapseFolder') : t('expandFolder')} onClick={() => toggle(folder.uuid)}>
           {isExpanded ? <ChevronDown size={15} aria-hidden="true" /> : <ChevronRight size={15} aria-hidden="true" />}
         </button>
@@ -112,9 +129,12 @@ export function ProjectExplorer({ folders, definitions, selectedUuid, onSelect, 
           {isExpanded ? <FolderOpen size={16} aria-hidden="true" /> : <Folder size={16} aria-hidden="true" />}
           <span>{folder.name}</span><small>{childCount}</small>
         </button>
-        <button className="explorer-folder-action" type="button" aria-label={t('moveFolderNamed', { name: folder.name })} title={t('moveFolder')} onClick={() => onMoveFolder(folder)}><FolderInput size={14} aria-hidden="true" /></button>
+        <button className="explorer-folder-action" type="button" aria-label={t('folderActionsNamed', { name: folder.name })} aria-haspopup="menu" aria-expanded={menuFolderUuid === folder.uuid} onClick={() => setMenuFolderUuid((current) => current === folder.uuid ? null : folder.uuid)}><MoreHorizontal size={15} aria-hidden="true" /></button>
+        {menuFolderUuid === folder.uuid && <div className="explorer-context-menu" role="menu">
+          <button type="button" role="menuitem" onClick={() => { setMenuFolderUuid(null); onMoveFolder(folder) }}><FolderInput size={14} aria-hidden="true" />{t('moveFolder')}</button>
+        </div>}
       </div>
-      {isExpanded ? <ul>{folder.children.map(folderItem)}{directDefinitions.map(definitionItem)}</ul> : null}
+      {isExpanded ? <ul role="group">{folder.children.map(folderItem)}{directDefinitions.map(definitionItem)}</ul> : null}
     </li>
   }
 
@@ -126,11 +146,11 @@ export function ProjectExplorer({ folders, definitions, selectedUuid, onSelect, 
       <div><span>{t('projectExplorer')}</span><small>{t('objectCount', { count: visibleCount })}</small></div>
       <button className="definition-icon-button" type="button" aria-label={t('newFolder')} title={t('newFolder')} onClick={onCreateFolder}><FolderPlus size={16} aria-hidden="true" /></button>
     </header>
-    {tree.length === 0 && unfiled.length === 0 ? <div className="definition-state"><FileCode2 aria-hidden="true" /><p>{t('empty')}</p></div> : <ul className="explorer-tree">
+    {tree.length === 0 && unfiled.length === 0 ? <div className="definition-state"><FileCode2 aria-hidden="true" /><p>{t('empty')}</p></div> : <ul className="explorer-tree" role="tree">
       {tree.map(folderItem)}
       {unfiled.length > 0 ? <li className="explorer-folder explorer-unfiled">
         <div className="explorer-folder-row"><span className="explorer-toggle" /><span className="explorer-folder-name"><Folder size={16} aria-hidden="true" /><span>{t('unfiled')}</span><small>{unfiled.length}</small></span></div>
-        <ul>{unfiled.map(definitionItem)}</ul>
+        <ul role="group">{unfiled.map(definitionItem)}</ul>
       </li> : null}
     </ul>}
   </nav>

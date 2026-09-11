@@ -10,6 +10,7 @@ import {
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiProblem } from '../../core/api/client'
+import { Dialog } from '../../core/ui/Dialog'
 import { bundleApi } from './api'
 import { useBundleI18n, type BundleMessageKey } from './i18n'
 import type {
@@ -36,6 +37,7 @@ export function BundleImportPage() {
   const [error, setError] = useState('')
   const [working, setWorking] = useState<WorkingState>(null)
   const [importAttempted, setImportAttempted] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const validationSequence = useRef(0)
   const fileInput = useRef<HTMLInputElement>(null)
   const completionPanel = useRef<HTMLElement>(null)
@@ -53,6 +55,7 @@ export function BundleImportPage() {
     setDryRunResult(null)
     setImportResult(null)
     setImportAttempted(false)
+    setConfirmOpen(false)
     setError('')
   }
 
@@ -98,6 +101,7 @@ export function BundleImportPage() {
     setDryRunResult(null)
     setImportResult(null)
     setImportAttempted(false)
+    setConfirmOpen(false)
     setError('')
   }
 
@@ -125,6 +129,7 @@ export function BundleImportPage() {
   const importProject = async () => {
     if (!selected || !dryRunPassed) return
     setWorking('import')
+    setConfirmOpen(false)
     setImportAttempted(true)
     setDryRunProof('')
     setError('')
@@ -148,6 +153,7 @@ export function BundleImportPage() {
     setDryRunResult(null)
     setImportResult(null)
     setImportAttempted(false)
+    setConfirmOpen(false)
     setError('')
     setWorking(null)
     if (fileInput.current) fileInput.current.value = ''
@@ -232,7 +238,7 @@ export function BundleImportPage() {
               {working === 'dryRun' ? <LoaderCircle className="bundle-spin" aria-hidden="true" /> : <FolderInput aria-hidden="true" />}
               {working === 'dryRun' ? t('dryRunning') : t('dryRun')}
             </button>
-            <button className="bundle-button bundle-button-primary" type="button" onClick={() => void importProject()} disabled={!dryRunPassed || working !== null || Boolean(importResult)}>
+            <button className="bundle-button bundle-button-primary" type="button" onClick={() => setConfirmOpen(true)} disabled={!dryRunPassed || working !== null || Boolean(importResult)}>
               {working === 'import' ? <LoaderCircle className="bundle-spin" aria-hidden="true" /> : <FolderInput aria-hidden="true" />}
               {working === 'import' ? t('importing') : t('importProject')}
             </button>
@@ -259,6 +265,14 @@ export function BundleImportPage() {
       ) : null}
 
       {validation?.valid ? <BundleCountsView counts={counts} /> : null}
+      <Dialog open={confirmOpen} title={t('confirmImportTitle')} eyebrow={t('confirmImportEyebrow')} closeLabel={t('close')} busy={working === 'import'} onClose={() => setConfirmOpen(false)} className="bundle-confirm-dialog">
+        <p>{t('confirmImportDescription').replace('{{project}}', selected?.document.project.name ?? '')}</p>
+        <dl className="bundle-file-summary">
+          <div><dt>{t('bundleProject')}</dt><dd>{selected?.document.project.code}</dd></div>
+          <div><dt>{t('conflictPolicy')}</dt><dd>{conflict === 'FAIL' ? t('conflictFail') : t('conflictRename')}</dd></div>
+        </dl>
+        <footer className="bundle-confirm-actions"><button className="bundle-button bundle-button-secondary" type="button" onClick={() => setConfirmOpen(false)}>{t('cancel')}</button><button className="bundle-button bundle-button-primary" type="button" onClick={() => void importProject()}>{t('confirmImport')}</button></footer>
+      </Dialog>
     </main>
   )
 }
