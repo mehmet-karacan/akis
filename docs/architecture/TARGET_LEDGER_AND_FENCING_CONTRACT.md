@@ -102,6 +102,14 @@ gelmezse yetki kalıcı olarak düşer. Terminal mutasyon kabul edildiğinde ter
 ve heartbeat iptali aynı kritik bölümde tamamlanır. Uzun Oracle/ağ I/O'su bu gate
 kilidi altında çalıştırılmaz; her sonraki yetkili adımda gate tekrar kontrol edilir.
 
+Non-polling tek-run orkestratör bu sırayı caller girdisi almadan uygular. Claim, target
+acquire, publish intent ve terminal PostgreSQL mutasyonlarında kayıp ACK için aynı
+token/evidence ile yalnız bir exact retry yapar. Oracle çağrıları gate kilidinin dışında,
+öncesi ve sonrasında synchronous checkpoint ile çevrilidir. Typed Oracle sonucu
+belirsizse başarı veya güvenli rollback uydurulmaz; target `ASKIDA` kalacak terminal
+yola gidilir. Bu çekirdek Spring bean/poller değildir ve mutlak lease'e bağlı Oracle
+operation budget tamamlanmadan aktive edilmez.
+
 Süresi dolan target sahibi yeni run'a verilmez. Reaper eski run'ı
 `SONUC_BELIRSIZ`, target kaynağını `ASKIDA` yapar ve olayı aynı PostgreSQL
 transaction'ında ekler. Reconciler daha yüksek target token'ını Oracle'da kalıcı

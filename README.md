@@ -18,7 +18,8 @@ orkestrasyonu, aynı Oracle oturumunda source schema re-attestation ve tek guard
 Oracle transaction sahibi atomic publish facade da hazırdır. Salt-okunur hedef
 kimlik doğrulaması, fence oturumunda ledger'dan önce aynı bağlantıda kimlik
 yeniden doğrulaması ve bağımsız transaction'lı heartbeat supervision kapısı da
-tamamlanmıştır. Manuel
+tamamlanmıştır. Poller olmayan, tek run'ı typed sonuçlarla fail-closed yürüten
+pilot worker orkestrasyon çekirdeği de hazırdır. Manuel
 istek yalnız kalıcı `BEKLIYOR` run üretir. Worker poller ve Oracle business DML
 kapalıdır; ürün üretim kullanımı için hazır değildir.
 
@@ -136,9 +137,9 @@ GitHub Actions ve diğer CI/CD workflow'ları bu aşamada bilinçli olarak kapal
 5. Kalıcı manuel run isteği, idempotency, izleme ve queued cancel
 6. PostgreSQL lease/fencing, target-local Oracle ledger ve atomic publish facade
    (tamamlandı); exact T/T+1 reconciliation, V010 worker ACK/lifecycle portları ve
-   V011 pre-publish crash reaping, aynı oturumda target identity kapısı ve heartbeat
-   supervision tamamlandı; kontrollü ana worker orchestration ve crash enjeksiyon
-   matrisi sıradaki kapıdır
+   V011 pre-publish crash reaping, aynı oturumda target identity kapısı, heartbeat
+   supervision ve non-polling tek-run orkestrasyonu tamamlandı; lease'e bağlı mutlak
+   Oracle operation budget ve canlı crash enjeksiyon matrisi sıradaki kapıdır
 7. Retry/resume, scheduler ve production operasyonları
 
 Paket, Prosedür, Değişken, Sequence, Scenario ve Load Plan dahil tam kavram

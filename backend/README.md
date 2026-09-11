@@ -151,7 +151,9 @@ salt-okunur canlı Oracle schema preflight'ını, runtime connection/secret
 provider'ını, aynı salt-okunur target session'ında kanonik hedef kimlik okumasını,
 fence ledger çağrısından önce aynı bağlantıda hedef kimlik doğrulamasını,
 `REQUIRES_NEW` lease mutasyonlarını ve tek-kapılı heartbeat supervisor'ını ekler.
-Pilot payload
+Poller/bean olarak kaydedilmeyen `PilotWorkerOrchestrator`, bir claim'i pinned
+kanıtlardan typed terminal sonuca kadar yürütür; ACK kaybında exact işlemi yalnız
+bir kez ve lease gate'in içinde tekrarlar. Pilot payload
 codec'i yalnız gerçek pilotta gereken `NUMBER`, `VARCHAR2` ve
 timezone'sız `TIMESTAMP(6)` tiplerini kabul eder; hücre ve batch limitleri uygular,
 satır sırasından bağımsız canonical hash üretir. Target writer exclusive table lock,
@@ -173,8 +175,8 @@ bundan sonra ayrı reconciliation session'ında fence ile eski `T` publish marke
 idempotent PostgreSQL completion'a çevrilir; Oracle sonucu belirsizse completion yapılmaz.
 Pilot runtime plan yalnız iki Oracle tablo,
 doğrudan kolon eşlemesi, en fazla 1000 kaynak satır ve atomik delete/insert
-stratejisini kabul eder. Ana veri taşıma worker poller'ı, retry/resume, crash enjeksiyon
-matrisi ve scheduler henüz ürün kodu değildir.
+stratejisini kabul eder. Ana worker poller'ı, lease'e bağlı Oracle operation budget,
+retry/resume, canlı crash enjeksiyon matrisi ve scheduler henüz ürün kodu değildir.
 Worker flag'i bu kapılar ve crash testleri tamamlanana kadar açık değerde fail-closed
 kalır.
 
@@ -188,8 +190,9 @@ PostgreSQL yetki mutasyonlarını periyodik heartbeat ile aynı kritik bölümde
 başarılı terminal mutasyon heartbeat'i kilit bırakılmadan kapatır. Oracle ve ağ I/O'su
 bu kilidin dışında kalır; lease kaybı yeni yetkili adıma geçişi fail-closed durdurur.
 
-Aktivasyon öncesinde bu parçaların kontrollü ana worker orkestrasyonunda birleştirilmesi,
-JDBC çağrıları için lease bütçesiyle uyumlu bounded timeout'ların uygulanması ve crash
-enjeksiyon matrisinin geçmesi zorunludur. Publish intent oluşmadan sona eren run'lar
+Aktivasyon öncesinde JDBC çağrılarının mutlak lease deadline'ına bağlanması, transaction
+finalization rezervinin uygulanması ve canlı crash enjeksiyon matrisinin geçmesi
+zorunludur. Mevcut profile timeout'ları işlem başına sınır koyar; tek başına uçtan uca
+lease bütçesi değildir. Publish intent oluşmadan sona eren run'lar
 V011 exact pre-publish reaper yolunu kullanır; mevcut publish reconciliation servisi
 kanıt olmayan durumda sonuç uydurmaz ve PostgreSQL completion yapmadan fail-closed kalır.
