@@ -136,6 +136,39 @@
 .topology-field > span small { color: var(--topology-muted); font-size: .7rem; font-weight: 500; }
 .topology-field textarea { resize: vertical; }
 
+.topology-version-wizard, .topology-version-success { display: grid; gap: 1rem; }
+.topology-wizard-steps { display: grid; gap: .4rem; grid-template-columns: repeat(3, 1fr); list-style: none; margin: 0; padding: 0; }
+.topology-wizard-steps li { align-items: center; color: var(--topology-muted); display: flex; font-size: .72rem; font-weight: 750; gap: .35rem; }
+.topology-wizard-steps li span { align-items: center; background: var(--topology-subtle); border: 1px solid var(--topology-border); border-radius: 50%; display: inline-flex; height: 1.55rem; justify-content: center; width: 1.55rem; }
+.topology-wizard-steps li[aria-current="step"] { color: var(--topology-accent-strong); }
+.topology-wizard-steps li[aria-current="step"] span, .topology-wizard-steps li.is-complete span { background: var(--topology-accent); border-color: var(--topology-accent); color: #fff; }
+.topology-choice { border: 0; display: grid; gap: .55rem; grid-template-columns: 1fr 1fr; margin: 0; padding: 0; }
+.topology-choice legend, .topology-segment legend { font-size: .8rem; font-weight: 700; margin-bottom: .35rem; }
+.topology-choice button { background: var(--topology-surface); border: 1px solid var(--topology-border); border-radius: .65rem; color: inherit; cursor: pointer; display: grid; gap: .25rem; min-height: 6.5rem; padding: .75rem; text-align: left; }
+.topology-choice button[aria-pressed="true"] { background: color-mix(in srgb, var(--topology-accent) 8%, transparent); border-color: var(--topology-accent); box-shadow: inset 0 0 0 1px var(--topology-accent); }
+.topology-choice button svg { color: var(--topology-accent); height: 1.15rem; width: 1.15rem; }
+.topology-choice button small { color: var(--topology-muted); font-size: .72rem; line-height: 1.35; }
+.topology-segment { border: 0; display: grid; grid-template-columns: 1fr 1fr; margin: 0; padding: 0; }
+.topology-segment legend { grid-column: 1 / -1; }
+.topology-segment button { background: var(--topology-surface); border: 1px solid var(--topology-border); color: var(--topology-muted); cursor: pointer; min-height: 2.4rem; }
+.topology-segment button:first-of-type { border-radius: .5rem 0 0 .5rem; }
+.topology-segment button:last-of-type { border-left: 0; border-radius: 0 .5rem .5rem 0; }
+.topology-segment button[aria-pressed="true"] { background: var(--topology-accent); color: #fff; }
+.topology-inline-error { align-items: flex-start; background: color-mix(in srgb, #d54b4b 9%, var(--topology-surface)); border: 1px solid color-mix(in srgb, #d54b4b 35%, var(--topology-border)); border-radius: .6rem; color: #9d2f2f; display: flex; font-size: .8rem; gap: .45rem; padding: .65rem; }
+.topology-inline-error svg { flex: none; height: 1rem; width: 1rem; }
+.topology-managed-note { align-items: flex-start; background: var(--topology-subtle); border-radius: .65rem; display: flex; gap: .65rem; padding: .8rem; }
+.topology-managed-note svg { color: var(--topology-accent); flex: none; width: 1.15rem; }
+.topology-managed-note p { color: var(--topology-muted); font-size: .8rem; line-height: 1.45; margin: .2rem 0 0; }
+.topology-review { border: 1px solid var(--topology-border); border-radius: .7rem; margin: 0; overflow: hidden; }
+.topology-review div { display: grid; gap: .5rem; grid-template-columns: 8.5rem minmax(0, 1fr); padding: .65rem .75rem; }
+.topology-review div + div { border-top: 1px solid var(--topology-border); }
+.topology-review dt { color: var(--topology-muted); font-size: .75rem; }
+.topology-review dd { font-size: .8rem; font-weight: 700; margin: 0; overflow-wrap: anywhere; }
+.topology-form-actions { display: flex; gap: .65rem; justify-content: space-between; margin-top: .25rem; }
+.topology-version-success > svg { color: #139b67; height: 2.1rem; width: 2.1rem; }
+.topology-version-success h3, .topology-version-success p { margin: 0; }
+.topology-version-success > div > p { color: var(--topology-muted); font-size: .82rem; margin-top: .2rem; }
+
 .is-spinning { animation: topology-spin .8s linear infinite; }
 @keyframes topology-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .is-spinning { animation: none; } }

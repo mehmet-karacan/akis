@@ -152,9 +152,15 @@ final class RuntimeOracleConnectionProvider {
     }
 
     private void validateProfile(DatasetBinding binding, ConnectionProfile profile) {
+        if ("JNDI".equals(profile.mode())) {
+            // A local name can be rebound by the application server. Execution remains
+            // fail-closed until the resolved Oracle target has an immutable fingerprint.
+            throw failure(Failure.UNSUPPORTED_PROFILE);
+        }
         boolean hasService = validDatabaseName(profile.serviceName());
         boolean hasSid = validDatabaseName(profile.sid());
-        if (!binding.connectionVersionUuid().equals(profile.connectionVersionUuid())
+        if (!"JDBC".equals(profile.mode())
+                || !binding.connectionVersionUuid().equals(profile.connectionVersionUuid())
                 || !ORACLE_DRIVER.equals(profile.driverReference())
                 || !validHost(profile.host())
                 || profile.port() < 1 || profile.port() > 65_535
@@ -214,7 +220,7 @@ final class RuntimeOracleConnectionProvider {
         }
         Set<String> allowed = Set.of(
                 "connectTimeoutMs", "readTimeoutMs", "networkTimeoutMs",
-                "queryTimeoutSeconds");
+                "queryTimeoutSeconds", "purpose");
         if (!policy.propertyNames().stream().allMatch(allowed::contains)) {
             throw failure(Failure.UNSUPPORTED_PROFILE);
         }

@@ -176,6 +176,34 @@ class RuntimeOracleConnectionProviderTest {
     }
 
     @Test
+    void rejectsJndiExecutionUntilResolvedTargetIdentityIsPinned() {
+        ConnectionProfile jndi = new ConnectionProfile(
+                UUID.randomUUID(), CONNECTION_VERSION_UUID, "JNDI",
+                "java:comp/env/jdbc/OracleMain", null, null, null, null,
+                0, null, policy(), null, null);
+        AtomicInteger secretReads = new AtomicInteger();
+        AtomicInteger opens = new AtomicInteger();
+        RuntimeOracleConnectionProvider provider = provider(
+                jndi,
+                name -> {
+                    secretReads.incrementAndGet();
+                    return credential();
+                },
+                (url, properties) -> {
+                    opens.incrementAndGet();
+                    return new FakeConnection(false).proxy();
+                });
+
+        RuntimeOracleConnectionException exception = assertThrows(
+                RuntimeOracleConnectionException.class,
+                () -> provider.openSource(binding(DatasetRole.SOURCE)));
+
+        assertEquals(Failure.UNSUPPORTED_PROFILE, exception.failure());
+        assertEquals(0, secretReads.get());
+        assertEquals(0, opens.get());
+    }
+
+    @Test
     void sanitizesEnvironmentAndJdbcFailures() {
         RuntimeOracleConnectionProvider envFailure = provider(
                 normalProfile(), name -> {

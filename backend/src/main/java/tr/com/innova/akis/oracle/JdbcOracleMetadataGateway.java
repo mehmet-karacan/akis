@@ -15,6 +15,10 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 
+import javax.naming.InitialContext;
+import javax.naming.NamingException;
+import javax.sql.DataSource;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
@@ -96,6 +100,9 @@ final class JdbcOracleMetadataGateway implements OracleMetadataGateway {
     }
 
     private Connection open(ConnectionProfile profile, Credentials credentials) throws SQLException {
+        if ("JNDI".equals(profile.mode())) {
+            return openJndi(profile);
+        }
         loadDriver(profile.driverReference());
         Properties properties = new Properties();
         properties.setProperty("user", credentials.username());
@@ -123,6 +130,49 @@ final class JdbcOracleMetadataGateway implements OracleMetadataGateway {
             connection.close();
             throw exception;
         }
+    }
+
+    private Connection openJndi(ConnectionProfile profile) {
+        InitialContext context = null;
+        Connection connection = null;
+        try {
+            context = new InitialContext();
+            Object resource = context.lookup(profile.jndiName());
+            if (!(resource instanceof DataSource dataSource)) {
+                throw jndiUnavailable();
+            }
+            connection = dataSource.getConnection();
+            connection.setReadOnly(true);
+            return connection;
+        }
+        catch (NamingException | SQLException | RuntimeException exception) {
+            if (connection != null) {
+                try {
+                    connection.close();
+                }
+                catch (SQLException ignored) {
+                    // Preserve only the sanitized JNDI failure.
+                }
+            }
+            throw jndiUnavailable();
+        }
+        finally {
+            if (context != null) {
+                try {
+                    context.close();
+                }
+                catch (NamingException ignored) {
+                    // The DataSource lookup result no longer depends on this context.
+                }
+            }
+        }
+    }
+
+    private ApiException jndiUnavailable() {
+        return new ApiException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "ORACLE_JNDI_RESOURCE_UNAVAILABLE",
+                "Oracle JNDI DataSource bu çalışma ortamında kullanılamıyor.");
     }
 
     private void loadDriver(String driverReference) {

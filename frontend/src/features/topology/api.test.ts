@@ -16,6 +16,22 @@ function mockResponse(body: unknown = {}) {
 }
 
 describe('topology API contracts', () => {
+  it('creates Oracle connection versions through the isolated V2 contract', async () => {
+    const fetchMock = mockResponse({ mode: 'JNDI' })
+    const body = {
+      mode: 'JNDI' as const,
+      jndi: { name: 'java:comp/env/jdbc/OracleMain' },
+      policyVersion: 2 as const,
+      executionPolicy: {},
+    }
+
+    await topologyApi.createVersion('project id', 'connection/id', body)
+
+    const [path, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(path).toBe('/api/v2/projects/project%20id/connections/connection%2Fid/versions')
+    expect(JSON.parse(String(init.body))).toEqual(body)
+  })
+
   it('runs Oracle connection tests only through the explicit POST endpoint', async () => {
     const fetchMock = mockResponse({ connected: true })
 

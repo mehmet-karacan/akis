@@ -17,6 +17,8 @@ final class OracleDiscoveryModels {
             UUID connectionUuid,
             UUID connectionVersionUuid,
             String databaseType,
+            String mode,
+            String jndiName,
             String driverReference,
             String host,
             String serviceName,
@@ -27,6 +29,28 @@ final class OracleDiscoveryModels {
             String secretProvider,
             String secretReferencePath,
             String secretStatus) {
+
+        ConnectionProfile(
+                long projectId,
+                long connectionId,
+                UUID connectionUuid,
+                UUID connectionVersionUuid,
+                String databaseType,
+                String driverReference,
+                String host,
+                String serviceName,
+                String sid,
+                String tlsMode,
+                int port,
+                JsonNode policy,
+                String secretProvider,
+                String secretReferencePath,
+                String secretStatus) {
+            this(projectId, connectionId, connectionUuid, connectionVersionUuid,
+                    databaseType, "JDBC", null, driverReference, host, serviceName,
+                    sid, tlsMode, port, policy, secretProvider,
+                    secretReferencePath, secretStatus);
+        }
     }
 
     record PhysicalSchemaProfile(

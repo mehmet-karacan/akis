@@ -165,6 +165,11 @@ As of 2026-09-11:
 - definition selection is deep-linkable with the `definition` query parameter,
 - unsaved draft switching is guarded and stale definition responses cannot overwrite a newer selection,
 - route-level code splitting keeps the initial application bundle independent from the large design and topology workspaces.
+- V016/V017 preserve existing SKY/GPU connection-version identities while adding immutable JDBC/JNDI mode invariants,
+- Oracle JDBC drivers are server-pinned; local-only JNDI DataSources are supported for test/discovery while execution remains fail-closed until an immutable target fingerprint is enforced,
+- the connection-version UI is a localized JDBC/JNDI wizard with explicit Service Name/SID, TCP-only creation until verified TCPS is delivered, active ENV secret-reference-only credentials, review, create and revision-specific test actions.
+
+The append-only connection test journal, explicit draft-to-active transition, advanced verified TCPS wallet/certificate support and portable Bundle V2 connection requirements remain the next Oracle Connection V2 delivery slice. Existing Bundle V1 remains unchanged and sanitized.
 
 Folder archive/delete is intentionally deferred. Its non-empty-folder and subtree behavior requires an explicit product decision; no silent cascade is permitted.
 

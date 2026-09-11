@@ -24,16 +24,36 @@ export interface Connection {
 export interface ConnectionVersion {
   uuid: string
   versionNumber: number
-  driverReference: string
-  host: string
+  mode: 'JDBC' | 'JNDI'
+  driverReference?: string | null
+  host?: string | null
   serviceName?: string | null
   sid?: string | null
   databaseName?: string | null
+  jndiName?: string | null
   tlsMode?: string | null
-  port: number
+  port?: number | null
   policyVersion: number
   policy?: unknown
   createdAt: string
+}
+
+export type CreateConnectionVersionRequest = {
+  mode: 'JDBC'
+  jdbc: {
+    host: string
+    port: number
+    connectIdentifier: { type: 'SERVICE_NAME' | 'SID'; value: string }
+    transport: 'TCP'
+    credentialSecretReferenceUuid: string
+  }
+  policyVersion: 2
+  executionPolicy: Record<string, never>
+} | {
+  mode: 'JNDI'
+  jndi: { name: string }
+  policyVersion: 2
+  executionPolicy: Record<string, never>
 }
 
 export interface PhysicalSchema {
@@ -158,6 +178,8 @@ export interface DiscoveryResult {
 type JsonRecord = Record<string, unknown>
 
 const base = (projectUuid: string) => `/api/v1/projects/${encodeURIComponent(projectUuid)}`
+const connectionVersionsV2 = (projectUuid: string, connectionUuid: string) =>
+  `/api/v2/projects/${encodeURIComponent(projectUuid)}/connections/${encodeURIComponent(connectionUuid)}/versions`
 
 const get = <T>(path: string) => apiRequest<T>(path)
 const post = <T>(path: string, body?: JsonRecord) => apiRequest<T>(path, {
@@ -170,8 +192,8 @@ export const topologyApi = {
   createSecret: (projectUuid: string, body: JsonRecord) => post<SecretReference>(`${base(projectUuid)}/secret-references`, body),
   listConnections: (projectUuid: string) => get<Connection[]>(`${base(projectUuid)}/connections`),
   createConnection: (projectUuid: string, body: JsonRecord) => post<Connection>(`${base(projectUuid)}/connections`, body),
-  listVersions: (projectUuid: string, connectionUuid: string) => get<ConnectionVersion[]>(`${base(projectUuid)}/connections/${encodeURIComponent(connectionUuid)}/versions`),
-  createVersion: (projectUuid: string, connectionUuid: string, body: JsonRecord) => post<ConnectionVersion>(`${base(projectUuid)}/connections/${encodeURIComponent(connectionUuid)}/versions`, body),
+  listVersions: (projectUuid: string, connectionUuid: string) => get<ConnectionVersion[]>(connectionVersionsV2(projectUuid, connectionUuid)),
+  createVersion: (projectUuid: string, connectionUuid: string, body: CreateConnectionVersionRequest) => post<ConnectionVersion>(connectionVersionsV2(projectUuid, connectionUuid), body),
   listPhysicalSchemas: (projectUuid: string) => get<PhysicalSchema[]>(`${base(projectUuid)}/physical-schemas`),
   createPhysicalSchema: (projectUuid: string, body: JsonRecord) => post<PhysicalSchema>(`${base(projectUuid)}/physical-schemas`, body),
   listLogicalSchemas: (projectUuid: string) => get<LogicalSchema[]>(`${base(projectUuid)}/logical-schemas`),

@@ -21,6 +21,8 @@ public class OracleDiscoveryService {
     private static final String ORACLE_DRIVER = "oracle.jdbc.OracleDriver";
     private static final Pattern HOST = Pattern.compile("[A-Za-z0-9.-]{1,253}");
     private static final Pattern DATABASE_NAME = Pattern.compile("[A-Za-z0-9_$#.-]{1,128}");
+    private static final Pattern JNDI_NAME = Pattern.compile(
+            "java:comp/env/jdbc/[A-Za-z0-9_.-]{1,180}");
     private static final Pattern IDENTIFIER = Pattern.compile("[A-Z][A-Z0-9_$#]{0,127}");
     private static final Set<String> TLS_MODES = Set.of(
             "DISABLED", "REQUIRED", "VERIFY_CA", "VERIFY_FULL");
@@ -43,7 +45,7 @@ public class OracleDiscoveryService {
             UUID connectionUuid,
             UUID connectionVersionUuid) {
         ConnectionProfile profile = profile(projectUuid, connectionUuid, connectionVersionUuid);
-        try (Credentials credentials = credentialResolver.resolve(profile)) {
+        try (Credentials credentials = credentials(profile)) {
             ConnectionProbe probe = gateway.test(profile, credentials);
             requireOracle19c(probe);
             return probe;
@@ -74,7 +76,7 @@ public class OracleDiscoveryService {
         String normalizedTableName = tableName == null || tableName.isBlank()
                 ? null
                 : identifier(tableName, "Tablo adı");
-        try (Credentials credentials = credentialResolver.resolve(profile)) {
+        try (Credentials credentials = credentials(profile)) {
             return gateway.discover(profile, credentials, owner, normalizedTableName, limit);
         }
     }
@@ -88,6 +90,16 @@ public class OracleDiscoveryService {
                 .orElseThrow(() -> notFound("Oracle bağlantı sürümü bulunamadı."));
         if (!"ORACLE".equals(profile.databaseType())) {
             throw validation("Bu işlem yalnız Oracle bağlantılarında kullanılabilir.");
+        }
+        if ("JNDI".equals(profile.mode())) {
+            if (profile.jndiName() == null || !JNDI_NAME.matcher(profile.jndiName()).matches()
+                    || profile.secretProvider() != null || profile.secretReferencePath() != null) {
+                throw validation("Oracle JNDI bağlantı profili geçersiz.");
+            }
+            return profile;
+        }
+        if (!"JDBC".equals(profile.mode())) {
+            throw validation("Oracle bağlantı modu geçersiz.");
         }
         if (!ORACLE_DRIVER.equals(profile.driverReference())) {
             throw validation("Oracle JDBC sürücü referansı izin listesinde değil.");
@@ -107,6 +119,12 @@ public class OracleDiscoveryService {
             throw validation("Oracle bağlantısında geçerli serviceName veya SID alanlarından biri olmalıdır.");
         }
         return profile;
+    }
+
+    private Credentials credentials(ConnectionProfile profile) {
+        return "JNDI".equals(profile.mode())
+                ? new Credentials("", new char[0])
+                : credentialResolver.resolve(profile);
     }
 
     private boolean validDatabaseName(String value) {

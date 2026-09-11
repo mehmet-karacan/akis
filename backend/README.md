@@ -23,6 +23,7 @@ Temel yüzeyler:
 - `POST|GET /api/v1/projects/{projectUuid}/secret-references`
 - `POST|GET /api/v1/projects/{projectUuid}/connections`
 - `POST|GET /api/v1/projects/{projectUuid}/connections/{connectionUuid}/versions`
+- `POST|GET /api/v2/projects/{projectUuid}/connections/{connectionUuid}/versions` (Oracle JDBC/JNDI)
 - `POST|GET /api/v1/projects/{projectUuid}/physical-schemas`
 - `POST|GET /api/v1/projects/{projectUuid}/logical-schemas`
 - `POST|GET /api/v1/projects/{projectUuid}/environments`
@@ -90,6 +91,21 @@ Secret referansı `ENV` sağlayıcısında, değeri `username` ve `password` ala
 taşıyan yerel JSON ortam değişkenine işaret eder. Değer metadata veritabanına,
 yanıta veya loga yazılmaz. Discovery yalnız tablo/view, kolon, PK/UK/FK metadata'sı
 okur; DDL veya DML çalıştırmaz.
+
+Oracle bağlantı sürümleri `JDBC` veya `JNDI` modundadır. JDBC sürücüsü backend
+tarafından `oracle.jdbc.OracleDriver` olarak sabitlenir ve Service Name/SID
+alanlarından tam biri kullanılır. JNDI yalnız yerel `java:comp/env/jdbc/...`
+DataSource adlarını kabul eder; LDAP/RMI veya kullanıcı tarafından verilen provider
+ayarları desteklenmez. JNDI kimliği uygulama sunucusunca yönetildiğinden bu sürüme
+secret bağı kurulmaz. Bağlantı sürümü ve secret bağı oluşturulduktan sonra immutable
+kalır; yayınlanmış schema/snapshot referansları sonradan değiştirilemez.
+JNDI ile test/discovery yerel DataSource üzerinden yapılabilir; iş çalıştırma ise
+çözümlenen Oracle hedefi immutable bir parmak iziyle sabitlenene kadar fail-closed'dur.
+`VERIFY_CA` ve `VERIFY_FULL` yeni Oracle kayıtlarında wallet/trust-store desteği
+tamamlanana kadar kabul edilmez.
+V2 sihirbazı aynı nedenle yeni sürümlerde yalnız `TCP` sunar; eski V1 kayıtları
+okunabilir kalır. Oracle çalıştırma kimliği için yalnız aktif `ENV` secret
+referansları kabul edilir.
 
 ## Çalıştırma ve test
 

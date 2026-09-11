@@ -64,6 +64,31 @@ class OracleDiscoveryServiceTest {
     }
 
     @Test
+    void jndiConnectionTestDoesNotResolveApplicationCredentials() {
+        ConnectionProfile profile = new ConnectionProfile(
+                11L, 7L, OracleDiscoveryTestFixtures.CONNECTION_UUID,
+                OracleDiscoveryTestFixtures.VERSION_UUID, "ORACLE", "JNDI",
+                "java:comp/env/jdbc/OracleMain", null, null, null, null,
+                "DISABLED", 0, new ObjectMapper().createObjectNode(),
+                null, null, null);
+        StubRepository repository = new StubRepository(
+                profile,
+                new PhysicalSchemaProfile(
+                        OracleDiscoveryTestFixtures.PHYSICAL_SCHEMA_UUID,
+                        7L, "APP_OWNER", "AKTIF"));
+        CapturingGateway gateway = new CapturingGateway();
+        gateway.probe = oracle19c();
+
+        ConnectionProbe result = service(repository, gateway).testConnection(
+                OracleDiscoveryTestFixtures.PROJECT_UUID,
+                OracleDiscoveryTestFixtures.CONNECTION_UUID,
+                OracleDiscoveryTestFixtures.VERSION_UUID);
+
+        assertEquals(19, result.databaseMajorVersion());
+        assertArrayEquals(new char[0], gateway.passwordReference);
+    }
+
+    @Test
     void discoveryRejectsPhysicalSchemaFromAnotherConnectionBeforeOpeningOracle() {
         StubRepository repository = repository(99L);
         CapturingGateway gateway = new CapturingGateway();

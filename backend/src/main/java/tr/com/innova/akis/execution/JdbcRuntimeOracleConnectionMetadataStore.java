@@ -37,6 +37,8 @@ public class JdbcRuntimeOracleConnectionMetadataStore
         return jdbc.sql("""
                         select distinct p.uuid as project_uuid,
                                bs.uuid as connection_version_uuid,
+                               bs.baglanti_modu,
+                               bs.jndi_adi,
                                bs.surucu_referansi,
                                bs.sunucu_adi,
                                bs.servis_adi,
@@ -68,11 +70,11 @@ public class JdbcRuntimeOracleConnectionMetadataStore
                           join entegrasyon.baglanti b
                             on b.proje_id = tvn.proje_id
                            and b.id = bs.baglanti_id
-                          join entegrasyon.baglanti_secret_bagi bsb
+                          left join entegrasyon.baglanti_secret_bagi bsb
                             on bsb.proje_id = tvn.proje_id
                            and bsb.baglanti_surumu_id = bs.id
                            and bsb.rol_kodu = 'KIMLIK'
-                          join entegrasyon.secret_referansi sr
+                          left join entegrasyon.secret_referansi sr
                             on sr.proje_id = tvn.proje_id
                            and sr.id = bsb.secret_referansi_id
                          where tvn.uuid = :definitionDataObjectUuid
@@ -100,7 +102,7 @@ public class JdbcRuntimeOracleConnectionMetadataStore
                            and b.durum_kodu = 'AKTIF'
                            and fs.durum_kodu = 'AKTIF'
                            and ose.durum_kodu = 'AKTIF'
-                           and sr.durum_kodu = 'AKTIF'
+                           and (bs.baglanti_modu = 'JNDI' or sr.durum_kodu = 'AKTIF')
                            and tvn.rol_kodu = :storedRole
                         """)
                 .param("definitionDataObjectUuid", binding.definitionDataObjectUuid())
@@ -120,6 +122,7 @@ public class JdbcRuntimeOracleConnectionMetadataStore
                 .query((rs, rowNum) -> new ConnectionProfile(
                         rs.getObject("project_uuid", UUID.class),
                         rs.getObject("connection_version_uuid", UUID.class),
+                        rs.getString("baglanti_modu"), rs.getString("jndi_adi"),
                         rs.getString("surucu_referansi"), rs.getString("sunucu_adi"),
                         rs.getString("servis_adi"), rs.getString("sid"),
                         rs.getInt("port"), rs.getString("tls_modu"),

@@ -12,6 +12,8 @@ interface RuntimeOracleConnectionMetadataPort {
     record ConnectionProfile(
             UUID projectUuid,
             UUID connectionVersionUuid,
+            String mode,
+            String jndiName,
             String driverReference,
             String host,
             String serviceName,
@@ -24,6 +26,23 @@ interface RuntimeOracleConnectionMetadataPort {
 
         public ConnectionProfile {
             policy = policy == null ? null : policy.deepCopy();
+        }
+
+        public ConnectionProfile(
+                UUID projectUuid,
+                UUID connectionVersionUuid,
+                String driverReference,
+                String host,
+                String serviceName,
+                String sid,
+                int port,
+                String tlsMode,
+                JsonNode policy,
+                String secretProvider,
+                String secretReferencePath) {
+            this(projectUuid, connectionVersionUuid, "JDBC", null,
+                    driverReference, host, serviceName, sid, port, tlsMode,
+                    policy, secretProvider, secretReferencePath);
         }
 
         @Override

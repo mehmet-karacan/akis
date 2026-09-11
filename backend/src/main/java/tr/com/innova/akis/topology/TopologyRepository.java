@@ -158,38 +158,42 @@ public class TopologyRepository {
             long connectionId,
             UUID uuid,
             int versionNumber,
+            String mode,
             String driverReference,
             String host,
             String serviceName,
             String sid,
             String databaseName,
+            String jndiName,
             String tlsMode,
-            int port,
+            Integer port,
             int policyVersion,
             JsonNode policy) {
         return jdbc.sql("""
                         insert into entegrasyon.baglanti_surumu(
-                            proje_id, baglanti_id, uuid, surum_no, surucu_referansi,
-                            sunucu_adi, servis_adi, sid, veritabani_adi, tls_modu,
+                            proje_id, baglanti_id, uuid, surum_no, baglanti_modu, surucu_referansi,
+                            sunucu_adi, servis_adi, sid, veritabani_adi, jndi_adi, tls_modu,
                             port, politika_surumu, politika)
-                        values (:projectId, :connectionId, :uuid, :versionNumber, :driverReference,
-                                :host, :serviceName, :sid, :databaseName, :tlsMode,
+                        values (:projectId, :connectionId, :uuid, :versionNumber, :mode, :driverReference,
+                                :host, :serviceName, :sid, :databaseName, :jndiName, :tlsMode,
                                 :port, :policyVersion, cast(:policy as jsonb))
-                        returning id, uuid, baglanti_id, surum_no, surucu_referansi,
-                                  sunucu_adi, servis_adi, sid, veritabani_adi, tls_modu,
+                        returning id, uuid, baglanti_id, surum_no, baglanti_modu, surucu_referansi,
+                                  sunucu_adi, servis_adi, sid, veritabani_adi, jndi_adi, tls_modu,
                                   port, politika_surumu, politika, olusturulma_zamani
                         """)
                 .param("projectId", projectId)
                 .param("connectionId", connectionId)
                 .param("uuid", uuid)
                 .param("versionNumber", versionNumber)
-                .param("driverReference", driverReference)
-                .param("host", host)
+                .param("mode", mode)
+                .param("driverReference", driverReference, Types.VARCHAR)
+                .param("host", host, Types.VARCHAR)
                 .param("serviceName", serviceName, Types.VARCHAR)
                 .param("sid", sid, Types.VARCHAR)
                 .param("databaseName", databaseName, Types.VARCHAR)
+                .param("jndiName", jndiName, Types.VARCHAR)
                 .param("tlsMode", tlsMode)
-                .param("port", port)
+                .param("port", port, Types.INTEGER)
                 .param("policyVersion", policyVersion)
                 .param("policy", policy.toString())
                 .query(this::mapConnectionVersion)
@@ -426,8 +430,8 @@ public class TopologyRepository {
 
     private String connectionVersionSelect() {
         return """
-                select id, uuid, baglanti_id, surum_no, surucu_referansi,
-                       sunucu_adi, servis_adi, sid, veritabani_adi, tls_modu,
+                select id, uuid, baglanti_id, surum_no, baglanti_modu, surucu_referansi,
+                       sunucu_adi, servis_adi, sid, veritabani_adi, jndi_adi, tls_modu,
                        port, politika_surumu, politika, olusturulma_zamani
                   from entegrasyon.baglanti_surumu
                 """;
@@ -438,10 +442,10 @@ public class TopologyRepository {
         return new ConnectionVersionRow(
                 rs.getLong("id"), rs.getObject("uuid", UUID.class),
                 rs.getLong("baglanti_id"), rs.getInt("surum_no"),
-                rs.getString("surucu_referansi"), rs.getString("sunucu_adi"),
+                rs.getString("baglanti_modu"), rs.getString("surucu_referansi"), rs.getString("sunucu_adi"),
                 rs.getString("servis_adi"), rs.getString("sid"),
-                rs.getString("veritabani_adi"), rs.getString("tls_modu"),
-                rs.getInt("port"), rs.getInt("politika_surumu"),
+                rs.getString("veritabani_adi"), rs.getString("jndi_adi"), rs.getString("tls_modu"),
+                rs.getObject("port", Integer.class), rs.getInt("politika_surumu"),
                 json(rs.getString("politika")),
                 rs.getObject("olusturulma_zamani", OffsetDateTime.class));
     }

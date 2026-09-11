@@ -216,6 +216,12 @@ try {
         provider = "ENV"
         name = "Test Oracle credential reference"
     }
+    $vaultSecretReference = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/secret-references" @{
+        code = "TEST_ORACLE_VAULT"
+        referencePath = "secret/data/akis/oracle"
+        provider = "VAULT"
+        name = "Unsupported Oracle Vault reference"
+    }
     $connection = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/connections" @{
         code = "TEST_ORACLE"
         databaseType = "ORACLE"
@@ -233,6 +239,211 @@ try {
     }
     if ($connectionVersion.versionNumber -ne 1) {
         throw "First connection version number is invalid."
+    }
+    if ($connectionVersion.driverReference -ne "oracle.jdbc.OracleDriver") {
+        throw "Legacy JDBC connection version was not normalized by the platform."
+    }
+    $v2JdbcVersion = Invoke-AkisJson POST "/api/v2/projects/$($project.uuid)/connections/$($connection.uuid)/versions" @{
+        mode = "JDBC"
+        jdbc = @{
+            host = "db-host.invalid"
+            port = 1521
+            connectIdentifier = @{ type = "SERVICE_NAME"; value = "TEST_SERVICE" }
+            transport = "TCP"
+            credentialSecretReferenceUuid = $secretReference.uuid
+        }
+        policyVersion = 2
+        executionPolicy = @{ connectTimeoutMs = 10000 }
+    }
+    if ($v2JdbcVersion.mode -ne "JDBC" -or $v2JdbcVersion.driverReference -ne "oracle.jdbc.OracleDriver" -or $v2JdbcVersion.serviceName -ne "TEST_SERVICE" -or $v2JdbcVersion.tlsMode -ne "DISABLED") {
+        throw "V2 JDBC connection version contract is invalid."
+    }
+    try {
+        Invoke-AkisJson POST "/api/v2/projects/$($project.uuid)/connections/$($connection.uuid)/versions" @{
+            mode = "JDBC"
+            jdbc = @{
+                host = "db-host.invalid"
+                port = 1521
+                connectIdentifier = @{ type = "SID"; value = "TESTDB" }
+                transport = "TCP"
+                credentialSecretReferenceUuid = $vaultSecretReference.uuid
+            }
+            policyVersion = 2
+        }
+        throw "Unsupported Oracle secret provider was accepted."
+    }
+    catch {
+        if ($_.Exception.Response.StatusCode.value__ -ne 422) {
+            throw
+        }
+    }
+    $jndiVersion = Invoke-AkisJson POST "/api/v2/projects/$($project.uuid)/connections/$($connection.uuid)/versions" @{
+        mode = "JNDI"
+        jndi = @{ name = "java:comp/env/jdbc/ApiTestOracle" }
+        policyVersion = 2
+        executionPolicy = @{}
+    }
+    if ($jndiVersion.mode -ne "JNDI" -or $jndiVersion.jndiName -ne "java:comp/env/jdbc/ApiTestOracle" -or $null -ne $jndiVersion.driverReference) {
+        throw "JNDI connection version contract is invalid."
+    }
+    $jndiDraftConnection = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/connections" @{
+        code = "JNDI_DRAFT"
+        databaseType = "ORACLE"
+        name = "JNDI draft"
+    }
+    Invoke-AkisJson POST "/api/v2/projects/$($project.uuid)/connections/$($jndiDraftConnection.uuid)/versions" @{
+        mode = "JNDI"
+        jndi = @{ name = "java:comp/env/jdbc/DraftOracle" }
+        policyVersion = 2
+    } | Out-Null
+    $jndiDraftState = Invoke-AkisJson GET "/api/v1/projects/$($project.uuid)/connections/$($jndiDraftConnection.uuid)"
+    if ($jndiDraftState.status -ne "TASLAK") {
+        throw "Untested JNDI-only connection was activated."
+    }
+    $legacyVersions = Invoke-AkisJson GET "/api/v1/projects/$($project.uuid)/connections/$($connection.uuid)/versions"
+    $v2Versions = Invoke-AkisJson GET "/api/v2/projects/$($project.uuid)/connections/$($connection.uuid)/versions"
+    if ($legacyVersions.Count -ne 2 -or $v2Versions.Count -ne 3) {
+        throw "V1 JDBC compatibility and V2 mode isolation are invalid (v1=$($legacyVersions.Count), v2=$($v2Versions.Count))."
+    }
+    try {
+        Invoke-AkisJson POST "/api/v2/projects/$($project.uuid)/connections/$($connection.uuid)/versions" @{
+            mode = "JNDI"
+            jndi = @{ name = "ldap://remote.example/DataSource" }
+            policyVersion = 2
+        }
+        throw "Remote JNDI name was accepted."
+    }
+    catch {
+        if ($_.Exception.Response.StatusCode.value__ -ne 422) {
+            throw
+        }
+    }
+    try {
+        Invoke-AkisJson POST "/api/v2/projects/$($project.uuid)/connections/$($connection.uuid)/versions" @{
+            mode = "JNDI"
+            jndi = @{
+                name = "java:comp/env/jdbc/UnknownFieldProbe"
+                providerUrl = "ldap://remote.example"
+            }
+            policyVersion = 2
+            secretValue = "must-not-be-ignored"
+        }
+        throw "Unknown Oracle V2 fields were silently accepted."
+    }
+    catch {
+        if ($_.Exception.Response.StatusCode.value__ -ne 400) {
+            throw
+        }
+    }
+    try {
+        Invoke-AkisJson POST "/api/v2/projects/$($project.uuid)/connections/$($connection.uuid)/versions" @{
+            mode = "JNDI"
+            jndi = @{ name = "java:comp/env/jdbc/MixedProbe" }
+            jdbc = @{
+                host = "db-host.invalid"
+                port = 1521
+                connectIdentifier = @{ type = "SID"; value = "TESTDB" }
+                transport = "TCP"
+                credentialSecretReferenceUuid = $secretReference.uuid
+            }
+            policyVersion = 2
+        }
+        throw "Mixed JDBC/JNDI payload was accepted."
+    }
+    catch {
+        if ($_.Exception.Response.StatusCode.value__ -ne 422) {
+            throw
+        }
+    }
+    $isolationProject = Invoke-AkisJson POST "/api/v1/projects" @{
+        code = "API_ISOLATION"
+        name = "API Isolation Project"
+    }
+    $foreignSecret = Invoke-AkisJson POST "/api/v1/projects/$($isolationProject.uuid)/secret-references" @{
+        code = "FOREIGN_ORACLE"
+        referencePath = "FOREIGN_ORACLE_CREDENTIAL"
+        provider = "ENV"
+        name = "Foreign Oracle credential"
+    }
+    try {
+        Invoke-AkisJson POST "/api/v2/projects/$($project.uuid)/connections/$($connection.uuid)/versions" @{
+            mode = "JDBC"
+            jdbc = @{
+                host = "db-host.invalid"
+                port = 1521
+                connectIdentifier = @{ type = "SID"; value = "TESTDB" }
+                transport = "TCP"
+                credentialSecretReferenceUuid = $foreignSecret.uuid
+            }
+            policyVersion = 2
+        }
+        throw "Cross-project credential secret was accepted."
+    }
+    catch {
+        if ($_.Exception.Response.StatusCode.value__ -ne 404) {
+            throw
+        }
+    }
+    try {
+        Invoke-AkisJson GET "/api/v2/projects/$($isolationProject.uuid)/connections/$($connection.uuid)/versions" | Out-Null
+        throw "Cross-project connection UUID was accepted."
+    }
+    catch {
+        if ($_.Exception.Response.StatusCode.value__ -ne 404) {
+            throw
+        }
+    }
+    try {
+        Invoke-AkisJson POST "/api/v2/projects/$($project.uuid)/connections/$($connection.uuid)/versions" @{
+            mode = "JDBC"
+            jdbc = @{
+                host = "db-host.invalid"
+                port = 1521
+                connectIdentifier = @{ type = "SID"; value = "BAD)(DESCRIPTION=" }
+                transport = "TCP"
+                credentialSecretReferenceUuid = $secretReference.uuid
+            }
+            policyVersion = 2
+        }
+        throw "Unsafe Oracle connect identifier was accepted."
+    }
+    catch {
+        if ($_.Exception.Response.StatusCode.value__ -ne 422) {
+            throw
+        }
+    }
+    try {
+        Invoke-AkisJson POST "/api/v2/projects/$($project.uuid)/connections/$($connection.uuid)/versions" @{
+            mode = "JNDI"
+            jndi = @{ name = "java:comp/env/jdbc/PolicyProbe" }
+            policyVersion = 1
+            executionPolicy = @{ purpose = "LEGACY" }
+        }
+        throw "Unsupported Oracle V2 policy contract was accepted."
+    }
+    catch {
+        if ($_.Exception.Response.StatusCode.value__ -ne 422) {
+            throw
+        }
+    }
+    try {
+        Invoke-AkisJson POST "/api/v2/projects/$($project.uuid)/connections/$($connection.uuid)/versions" @{
+            mode = "JDBC"
+            jdbc = @{
+                host = "db-host.invalid"
+                port = 1521
+                connectIdentifier = @{ type = "SID"; value = "TESTDB" }
+                transport = "VERIFY_CA"
+                credentialSecretReferenceUuid = $secretReference.uuid
+            }
+            policyVersion = 2
+        }
+        throw "Unsupported Oracle TLS verification mode was accepted."
+    }
+    catch {
+        if ($_.Exception.Response.StatusCode.value__ -ne 422) {
+            throw
+        }
     }
     $activeConnection = Invoke-AkisJson GET "/api/v1/projects/$($project.uuid)/connections/$($connection.uuid)"
     if ($activeConnection.status -ne "AKTIF") {

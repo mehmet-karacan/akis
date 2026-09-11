@@ -96,9 +96,10 @@ final class TopologyController {
             @Valid @RequestBody CreateConnectionVersionRequest request) {
         authorization.requireProjectPermission(projectUuid, TOPOLOGY_WRITE);
         ConnectionVersionRow row = service.createConnectionVersion(
-                projectUuid, connectionUuid, request.driverReference(), request.host(),
+                projectUuid, connectionUuid, "JDBC", request.driverReference(), request.host(),
                 request.serviceName(), request.sid(), request.databaseName(), request.tlsMode(),
-                request.port(), request.policyVersion() == null ? 1 : request.policyVersion(),
+                request.port(), null,
+                request.policyVersion() == null ? 1 : request.policyVersion(),
                 request.policy(), request.secretReferenceUuid(), request.secretRole());
         return ResponseEntity.status(201).body(ConnectionVersionView.from(row));
     }
@@ -109,6 +110,7 @@ final class TopologyController {
             @PathVariable UUID connectionUuid) {
         authorization.requireProjectPermission(projectUuid, TOPOLOGY_READ);
         return service.listConnectionVersions(projectUuid, connectionUuid).stream()
+                .filter(row -> "JDBC".equals(row.mode()))
                 .map(ConnectionVersionView::from)
                 .toList();
     }

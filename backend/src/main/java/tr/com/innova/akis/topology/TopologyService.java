@@ -27,12 +27,22 @@ import tr.com.innova.akis.topology.TopologyModels.SecretReferenceRow;
 public class TopologyService {
 
     private static final Pattern CODE = Pattern.compile("[A-Z][A-Z0-9_]{0,99}");
+    private static final Pattern HOST = Pattern.compile(
+            "(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?");
+    private static final Pattern JNDI_NAME = Pattern.compile(
+            "java:comp/env/jdbc/[A-Za-z0-9_.-]{1,180}");
+    private static final Pattern DATABASE_NAME = Pattern.compile("[A-Za-z0-9_$#.-]{1,128}");
     private static final Set<String> DATABASE_TYPES = Set.of("ORACLE", "POSTGRESQL", "MYSQL");
     private static final Set<String> SECRET_PROVIDERS = Set.of("ENV", "VAULT", "KUBERNETES");
     private static final Set<String> TLS_MODES = Set.of(
             "DISABLED", "REQUIRED", "VERIFY_CA", "VERIFY_FULL");
+    private static final Set<String> ORACLE_TLS_MODES = Set.of("DISABLED", "REQUIRED");
     private static final Set<String> SECRET_ROLES = Set.of(
             "KIMLIK", "WALLET", "CLIENT_SERTIFIKA");
+    private static final Set<String> CONNECTION_MODES = Set.of("JDBC", "JNDI");
+    private static final Set<String> CONNECTION_POLICY_FIELDS = Set.of(
+            "connectTimeoutMs", "readTimeoutMs", "networkTimeoutMs",
+            "queryTimeoutSeconds", "purpose");
     private static final Set<String> RISKS = Set.of("DUSUK", "ORTA", "URETIM");
     private final TopologyRepository repository;
     private final ObjectMapper objectMapper;
@@ -99,13 +109,15 @@ public class TopologyService {
     ConnectionVersionRow createConnectionVersion(
             UUID projectUuid,
             UUID connectionUuid,
+            String mode,
             String driverReference,
             String host,
             String serviceName,
             String sid,
             String databaseName,
             String tlsMode,
-            int port,
+            Integer port,
+            String jndiName,
             int policyVersion,
             JsonNode policy,
             UUID secretReferenceUuid,
@@ -115,21 +127,80 @@ public class TopologyService {
         if ("PASIF".equals(connection.status())) {
             throw validation("Pasif bağlantıya yeni sürüm eklenemez.");
         }
-        validateEndpoint(connection.databaseType(), serviceName, sid, databaseName);
-        if (port < 1 || port > 65535) {
-            throw validation("Port 1-65535 aralığında olmalıdır.");
+        String normalizedMode = allowed(mode == null ? "JDBC" : mode, CONNECTION_MODES, "bağlantı modu");
+        String normalizedDriver = null;
+        String normalizedHost = null;
+        String normalizedServiceName = null;
+        String normalizedSid = null;
+        String normalizedDatabaseName = null;
+        String normalizedJndiName = null;
+        String normalizedTlsMode = "DISABLED";
+        Integer normalizedPort = null;
+        if ("JDBC".equals(normalizedMode)) {
+            if (trimToNull(jndiName) != null) {
+                throw validation("JDBC bağlantısında JNDI alanı gönderilemez.");
+            }
+            validateEndpoint(connection.databaseType(), serviceName, sid, databaseName);
+            normalizedHost = required(host, "Sunucu adı", 253);
+            if (!HOST.matcher(normalizedHost).matches() || normalizedHost.contains("..")) {
+                throw validation("Sunucu adı geçersiz.");
+            }
+            if (port == null || port < 1 || port > 65535) {
+                throw validation("Port 1-65535 aralığında olmalıdır.");
+            }
+            normalizedPort = port;
+            normalizedDriver = pinnedDriver(connection.databaseType());
+            String requestedDriver = trimToNull(driverReference);
+            if (requestedDriver != null && !normalizedDriver.equals(requestedDriver)) {
+                throw validation("Sürücü referansı platform izin listesiyle uyuşmuyor.");
+            }
+            normalizedServiceName = trimToNull(serviceName);
+            normalizedSid = trimToNull(sid);
+            normalizedDatabaseName = trimToNull(databaseName);
+            String identifier = "ORACLE".equals(connection.databaseType())
+                    ? (normalizedServiceName != null ? normalizedServiceName : normalizedSid)
+                    : normalizedDatabaseName;
+            if (identifier == null || !DATABASE_NAME.matcher(identifier).matches()) {
+                throw validation("Veritabanı bağlantı tanımlayıcısı geçersiz.");
+            }
+            Set<String> allowedTlsModes = "ORACLE".equals(connection.databaseType())
+                    ? ORACLE_TLS_MODES
+                    : TLS_MODES;
+            normalizedTlsMode = allowed(
+                    tlsMode == null ? "DISABLED" : tlsMode, allowedTlsModes, "TLS modu");
+        }
+        else {
+            if (!"ORACLE".equals(connection.databaseType())) {
+                throw validation("JNDI modu şu anda yalnız Oracle bağlantıları için desteklenir.");
+            }
+            if (trimToNull(driverReference) != null || trimToNull(host) != null || port != null
+                    || trimToNull(serviceName) != null || trimToNull(sid) != null
+                    || trimToNull(databaseName) != null || (tlsMode != null && !"DISABLED".equals(tlsMode))) {
+                throw validation("JNDI bağlantısında JDBC sunucu, port, sürücü veya TLS alanları gönderilemez.");
+            }
+            normalizedJndiName = required(jndiName, "JNDI adı", 200);
+            if (!JNDI_NAME.matcher(normalizedJndiName).matches()) {
+                throw validation("JNDI adı java:comp/env/jdbc/ altında güvenli bir yerel ad olmalıdır.");
+            }
+            if (secretReferenceUuid != null || secretRole != null) {
+                throw validation("JNDI bağlantısında secret referansı uygulama sunucusu tarafından yönetilir.");
+            }
         }
         if (policyVersion < 1) {
             throw validation("Policy sürümü sıfırdan büyük olmalıdır.");
         }
         JsonNode safePolicy = policy == null ? objectMapper.createObjectNode() : policy;
-        validatePolicy(safePolicy);
+        validateConnectionPolicy(safePolicy);
 
         SecretReferenceRow secret = null;
         String normalizedRole = null;
         if (secretReferenceUuid != null) {
             secret = repository.findSecretReference(project.id(), secretReferenceUuid)
                     .orElseThrow(() -> notFound("Secret referansı bulunamadı."));
+            if ("ORACLE".equals(connection.databaseType())
+                    && (!"ENV".equals(secret.provider()) || !"AKTIF".equals(secret.status()))) {
+                throw validation("Oracle kimlik bilgisi için aktif bir ENV secret referansı zorunludur.");
+            }
             normalizedRole = allowed(
                     secretRole == null ? "KIMLIK" : secretRole,
                     SECRET_ROLES,
@@ -143,16 +214,16 @@ public class TopologyService {
         ConnectionVersionRow version = repository.createConnectionVersion(
                 project.id(), connection.id(), UUID.randomUUID(),
                 repository.nextConnectionVersion(connection.id()),
-                required(driverReference, "Sürücü referansı", 300),
-                required(host, "Sunucu adı", 500),
-                trimToNull(serviceName), trimToNull(sid), trimToNull(databaseName),
-                allowed(tlsMode == null ? "DISABLED" : tlsMode, TLS_MODES, "TLS modu"),
-                port, policyVersion, safePolicy);
+                normalizedMode, normalizedDriver, normalizedHost,
+                normalizedServiceName, normalizedSid, normalizedDatabaseName,
+                normalizedJndiName, normalizedTlsMode, normalizedPort, policyVersion, safePolicy);
         if (secret != null) {
             repository.bindSecret(
                     project.id(), version.id(), secret.id(), normalizedRole);
         }
-        repository.activateDraftConnection(connection.id());
+        if ("JDBC".equals(normalizedMode)) {
+            repository.activateDraftConnection(connection.id());
+        }
         return version;
     }
 
@@ -246,6 +317,9 @@ public class TopologyService {
         if (physical.connectionId() != version.connectionId()) {
             throw validation("Fiziksel şema ile bağlantı sürümü aynı bağlantıya ait olmalıdır.");
         }
+        if ("JNDI".equals(version.mode())) {
+            throw validation("JNDI bağlantı sürümü çalıştırma bağında kullanılamaz.");
+        }
         return repository.createSchemaBinding(
                 project.id(), UUID.randomUUID(), logical.id(), environment.id(),
                 physical.id(), version.id());
@@ -291,6 +365,39 @@ public class TopologyService {
         if (!secretSanitizer.sensitivePaths(policy).isEmpty()) {
             throw validation("Policy içinde secret veya credential değeri tutulamaz.");
         }
+    }
+
+    private void validateConnectionPolicy(JsonNode policy) {
+        validatePolicy(policy);
+        if (!policy.propertyNames().stream().allMatch(CONNECTION_POLICY_FIELDS::contains)) {
+            throw validation("Bağlantı policy alanı izin listesinde değil.");
+        }
+        policyInteger(policy, "connectTimeoutMs", 1_000, 120_000);
+        policyInteger(policy, "readTimeoutMs", 1_000, 300_000);
+        policyInteger(policy, "networkTimeoutMs", 1_000, 300_000);
+        policyInteger(policy, "queryTimeoutSeconds", 1, 300);
+        JsonNode purpose = policy.get("purpose");
+        if (purpose != null && (!purpose.isString()
+                || !purpose.stringValue().matches("[A-Z][A-Z0-9_]{0,63}"))) {
+            throw validation("Bağlantı purpose policy değeri geçersiz.");
+        }
+    }
+
+    private void policyInteger(JsonNode policy, String field, int minimum, int maximum) {
+        JsonNode value = policy.get(field);
+        if (value != null && (!value.isIntegralNumber() || !value.canConvertToInt()
+                || value.intValue() < minimum || value.intValue() > maximum)) {
+            throw validation("Bağlantı timeout policy değeri geçersiz.");
+        }
+    }
+
+    private String pinnedDriver(String databaseType) {
+        return switch (databaseType) {
+            case "ORACLE" -> "oracle.jdbc.OracleDriver";
+            case "POSTGRESQL" -> "org.postgresql.Driver";
+            case "MYSQL" -> "com.mysql.cj.jdbc.Driver";
+            default -> throw validation("Desteklenmeyen veritabanı türü.");
+        };
     }
 
     private String normalizeCode(String code) {
