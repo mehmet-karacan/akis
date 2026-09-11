@@ -62,6 +62,14 @@
 .topology-card > svg { color: var(--topology-muted); height: 1rem; width: 1rem; }
 .topology-card-icon { align-items: center; background: var(--topology-subtle); border-radius: .5rem; color: var(--topology-accent); display: flex; padding: .45rem; }
 .topology-card-icon svg { height: 1rem; width: 1rem; }
+.database-provider-icon { --provider-color: var(--topology-accent); align-items: center; background: color-mix(in srgb, var(--provider-color) 11%, var(--topology-surface)); border: 1px solid color-mix(in srgb, var(--provider-color) 22%, var(--topology-border)); border-radius: .58rem; color: var(--provider-color); display: grid; flex: none; height: 2.35rem; place-items: center; position: relative; width: 2.35rem; }
+.database-provider-icon > span { font-size: .92rem; font-weight: 900; line-height: 1; }
+.database-provider-icon > svg { background: var(--topology-surface); border-radius: 50%; bottom: -.2rem; height: .83rem; padding: .1rem; position: absolute; right: -.2rem; width: .83rem; }
+.database-provider-icon--oracle { --provider-color: #c74634; }
+.database-provider-icon--postgresql { --provider-color: #336791; }
+.database-provider-icon--mysql { --provider-color: #00758f; }
+.database-provider-icon--mariadb { --provider-color: #8b5a2b; }
+.database-provider-icon--sqlserver { --provider-color: #a4262c; }
 .topology-version-list { grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); }
 .topology-version-list button { background: transparent; border: 1px solid var(--topology-border); border-radius: .65rem; color: inherit; cursor: pointer; display: grid; gap: .17rem; padding: .7rem; text-align: left; }
 .topology-version-list button[aria-pressed="true"] { background: color-mix(in srgb, var(--topology-accent) 8%, transparent); border-color: var(--topology-accent); }

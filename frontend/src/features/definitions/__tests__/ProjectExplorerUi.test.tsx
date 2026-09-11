@@ -25,6 +25,7 @@ describe('project explorer UI', () => {
 
     expect(screen.getByRole('navigation', { name: 'Project explorer' })).toBeInTheDocument()
     expect(screen.getByText('Finance')).toBeInTheDocument()
+    expect(document.querySelector('[data-definition-type="PROCEDURE"]')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Load ledger/ }))
     fireEvent.click(screen.getByRole('button', { name: 'New Folder' }))
 

@@ -127,3 +127,18 @@ frontend must not infer steps from arbitrary event JSON.
 
 CI/CD and workflow execution remain disabled by default. Local runtime flags are
 not committed.
+
+## 10. Visual identity and administration order
+
+- Connections use compact provider cards. Oracle, PostgreSQL, MySQL and other
+  providers have a recognizable provider color and monogram while their text
+  label remains visible and accessible.
+- Project contents remain a scalable folder tree instead of a wall of cards.
+  Folders use folder icons; Mapping, Package, Procedure, Variable, Sequence and
+  the other definition types each use a stable Lucide icon and type label.
+- Color and icons are supporting cues only. Selection, status and object type
+  are always expressed in text as well.
+- Role and permission assignment screens are deliberately scheduled after the
+  project, connection/schema, definition and execution workflows. Existing
+  server-side authorization and database integrity controls remain mandatory
+  throughout development.

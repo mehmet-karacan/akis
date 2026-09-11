@@ -110,6 +110,11 @@ span.explorer-toggle { pointer-events: none; }
 .explorer-definition button:hover { background: var(--df-panel-muted); }
 .explorer-definition button.is-selected { color: var(--df-accent); border-color: color-mix(in srgb, var(--df-accent) 32%, var(--df-line)); background: var(--df-accent-soft); }
 .explorer-definition-icon { width: 1.65rem; height: 1.65rem; display: grid; flex: 0 0 auto; place-items: center; color: var(--df-accent); border-radius: .35rem; background: var(--df-panel-muted); }
+.explorer-definition-icon--mapping, .explorer-definition-icon--reusable-mapping { color: #2878a9; }
+.explorer-definition-icon--package, .explorer-definition-icon--load-plan { color: #7655a6; }
+.explorer-definition-icon--procedure, .explorer-definition-icon--user-function { color: #087f8c; }
+.explorer-definition-icon--variable, .explorer-definition-icon--sequence { color: #a46812; }
+.explorer-definition-icon--knowledge-module { color: #40713a; }
 .explorer-definition button > span:last-child { min-width: 0; display: grid; flex: 1; gap: .08rem; }
 .explorer-definition strong, .explorer-definition small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .explorer-definition strong { font-size: .74rem; }

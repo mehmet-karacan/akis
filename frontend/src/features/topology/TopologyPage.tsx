@@ -23,6 +23,7 @@ import {
 } from './api'
 import { getTopologyCopy, type CopyKey } from './copy'
 import { ConnectionVersionLifecyclePanel, lifecycleLabel } from './ConnectionVersionLifecyclePanel'
+import { DatabaseProviderIcon } from './DatabaseProviderIcon'
 import { DiscoverySnapshotPanel } from './DiscoverySnapshotPanel'
 import { OracleConnectionVersionForm } from './OracleConnectionVersionForm'
 import './topology.css'
@@ -295,7 +296,7 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
                 <PanelHeading icon={<Cable />} title={tr('connections')} count={resources.connections.length} action={<button className="topology-button topology-button--small" onClick={() => setForm('connection')}><Plus />{tr('addConnection')}</button>} />
                 {resources.connections.length === 0 ? <Empty>{tr('noItems')}</Empty> : <div className="topology-cards">{resources.connections.map((item) => (
                   <button key={item.uuid} className="topology-card" aria-pressed={selectedConnectionUuid === item.uuid} onClick={() => setSelectedConnectionUuid(item.uuid)}>
-                    <span className="topology-card-icon"><Database /></span><span><strong>{item.name}</strong><small>{item.code} · {item.databaseType}</small></span><Status value={item.status} /><ChevronRight />
+                    <DatabaseProviderIcon databaseType={item.databaseType} /><span><strong>{item.name}</strong><small>{item.code} · {item.databaseType}</small></span><Status value={item.status} /><ChevronRight />
                   </button>
                 ))}</div>}
               </section>

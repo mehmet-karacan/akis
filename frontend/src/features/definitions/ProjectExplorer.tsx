@@ -1,5 +1,4 @@
 import {
-  Braces,
   ChevronDown,
   ChevronRight,
   FileCode2,
@@ -10,6 +9,7 @@ import {
   MoreHorizontal,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
+import { DefinitionTypeIcon } from './DefinitionTypeIcon'
 import { definitionTypeKey, useDefinitionsI18n } from './i18n'
 import type { Definition, Folder as ProjectFolder } from './types'
 
@@ -109,7 +109,9 @@ export function ProjectExplorer({ folders, definitions, selectedUuid, onSelect, 
         aria-current={definition.uuid === selectedUuid ? 'page' : undefined}
         onClick={() => onSelect(definition.uuid)}
       >
-        <span className="explorer-definition-icon"><Braces size={15} aria-hidden="true" /></span>
+        <span className={`explorer-definition-icon explorer-definition-icon--${definition.type.toLowerCase().replaceAll('_', '-')}`}>
+          <DefinitionTypeIcon type={definition.type} />
+        </span>
         <span><strong>{definition.name}</strong><small>{t(definitionTypeKey[definition.type])} · {definition.code}</small></span>
       </button>
     </li>
