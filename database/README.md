@@ -1,5 +1,10 @@
 # Metadata veritabanı
 
+> Temiz şema çalışması `database/akis-baseline` dizinindedir ve nihai PostgreSQL
+> şema adı `akis` olacaktır. Aşağıdaki `entegrasyon` migrasyon zinciri, backend
+> geçişi tamamlanana kadar yalnız mevcut uygulamanın uyumluluğu ve geri dönüş için
+> korunmaktadır; yeni şema geliştirmesi burada yapılmamalıdır.
+
 PostgreSQL metadata baseline şeması `entegrasyon` namespace'inde sürümlü SQL
 migrasyonlarıyla tanımlanır. Baseline 58 tablo içerir ve ortak tanım kataloğu
 üzerinden şu dokuz geliştirme nesnesini saklar:

@@ -1,6 +1,6 @@
 # Akış Database Rebase Audit
 
-Status: **Proposed; no destructive database action has been performed**
+Status: **Accepted direction; clean `akis` baseline in progress; no destructive cutover has been performed**
 Date: 2026-09-12
 
 ## 1. Recommendation
@@ -104,7 +104,8 @@ configuration.
 
 Role and permission tables are required. The cleanup must remove duplication,
 not authorization. The current database splits system and project roles across
-multiple parallel table families. V2 should expose one consistent RBAC model:
+multiple parallel table families. The clean `akis` baseline should expose one
+consistent RBAC model:
 
 ```text
 role
@@ -236,7 +237,7 @@ form the identity. Never expose internal enum values directly in the localized U
 The current schema gives 63 of 65 tables both a BIGINT `id` and a UUID. This is
 not automatically wrong, but it adds mapping and constraint noise everywhere.
 
-Recommended V2 rule:
+Recommended baseline rule:
 
 - metadata/control aggregates use UUID as their primary and foreign key,
 - high-volume append-only event/journal tables may use BIGINT identity keys for
@@ -245,7 +246,7 @@ Recommended V2 rule:
   addressable through the API,
 - use a numeric sequence only where ordering or high-volume ingestion needs it.
 
-## 7. Proposed V2 module boundary
+## 7. Clean baseline module boundary
 
 The clean baseline should be organized by domain rather than by one 60 KB initial
 migration followed by corrective migrations.
@@ -294,9 +295,10 @@ added only with a consuming API and acceptance test.
 ## 8. Rebase delivery plan
 
 1. Freeze schema feature work; UI research and read-only analysis may continue.
-2. Produce an old-table → V2-table/field mapping and mark every field
+2. Produce an old-table → clean-baseline table/field mapping and mark every field
    `KEEP`, `RENAME`, `DERIVE`, `DEFER` or `DROP`.
-3. Create a new baseline in a separate database such as `akis_metadata_v2`; never
+3. Create the baseline in a separate temporary database such as
+   `akis_metadata_clean`; never
    overwrite the current volume during development.
 4. Split baseline migrations by the module boundaries above. Preserve critical
    runtime invariants and fail-closed functions with focused tests.
@@ -305,14 +307,14 @@ added only with a consuming API and acceptance test.
    connection definitions, schema mappings, catalog bindings and definition
    versions. Preserve the successful pilot as a sanitized test fixture or archive.
 7. Run all migration, repository, service, API, bundle, execution and frontend
-   contract tests against a clean V2 database.
-8. Switch local configuration to V2 only after acceptance passes.
+   contract tests against a clean database containing the `akis` schema.
+8. Switch local configuration to the clean baseline only after acceptance passes.
 9. Delete the old database/volume only after explicit user approval and after the
    backup hash and restore check are recorded.
 
 ## 9. Acceptance gates
 
-- A clean database can be created from the V2 migrations only.
+- A clean database can be created from the clean migrations only.
 - No migration contains real credentials or local connection values.
 - Local Basic and OIDC identities no longer share misleading columns.
 - Developer, Operator and Release Approver permissions are separated and enforced
@@ -330,6 +332,6 @@ added only with a consuming API and acceptance test.
 
 Before retiring the current database, confirm that it is local-development-only
 and that no other developer, test environment or external deployment uses these
-20 Flyway migrations as an applied history. The V2 baseline can be designed and
-tested without this confirmation; deleting or replacing the current database
+20 Flyway migrations as an applied history. The clean baseline can be designed
+and tested without this confirmation; deleting or replacing the current database
 cannot.
