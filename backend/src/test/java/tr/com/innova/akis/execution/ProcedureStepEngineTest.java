@@ -1,6 +1,7 @@
 package tr.com.innova.akis.execution;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 import java.util.ArrayDeque;
@@ -103,6 +104,136 @@ class ProcedureStepEngineTest {
     }
 
     @Test
+    void readOnlyExecutorBoundaryFailureIsRecordedAsSafeFailure() {
+        Fixture fixture = new Fixture();
+        fixture.executorFailureTaskId = "READ";
+
+        ProcedureStepEngine.FailedSafely result = assertInstanceOf(
+                ProcedureStepEngine.FailedSafely.class, fixture.execute());
+
+        assertEquals("READ", result.taskId());
+        assertEquals("EXECUTOR_BOUNDARY_FAILED", result.errorCode());
+        assertEquals(List.of(new FailureEvent(
+                "READ", "EXECUTOR_BOUNDARY_FAILED", true, true, false)),
+                fixture.failures);
+        assertFalse(fixture.events.stream().anyMatch(event -> event.startsWith("UNKNOWN:")));
+    }
+
+    @Test
+    void mutatingExecutorBoundaryFailureIsRecordedAsUnknown() {
+        Fixture fixture = new Fixture();
+        fixture.executorFailureTaskId = "PREPARE";
+
+        ProcedureStepEngine.UnknownOutcome result = assertInstanceOf(
+                ProcedureStepEngine.UnknownOutcome.class, fixture.execute());
+
+        assertEquals("PREPARE", result.taskId());
+        assertEquals("EXECUTOR_BOUNDARY_FAILED", result.errorCode());
+        assertEquals(List.of(), fixture.failures);
+        assertEquals("UNKNOWN:PREPARE:EXECUTOR_BOUNDARY_FAILED", fixture.events.getLast());
+    }
+
+    @Test
+    void readOnlyUnknownAndUnconfirmedRollbackAreStillSafeFailures() {
+        Fixture reportedUnknown = new Fixture();
+        reportedUnknown.results.clear();
+        reportedUnknown.results.add(new ProcedureTaskExecutorPort.Succeeded(0, 0, null));
+        reportedUnknown.results.add(
+                new ProcedureTaskExecutorPort.OutcomeUnknown("SOURCE_OUTCOME_UNKNOWN"));
+
+        ProcedureStepEngine.FailedSafely unknownResult = assertInstanceOf(
+                ProcedureStepEngine.FailedSafely.class, reportedUnknown.execute());
+        assertEquals("SOURCE_OUTCOME_UNKNOWN", unknownResult.errorCode());
+        assertEquals(new FailureEvent(
+                "READ", "SOURCE_OUTCOME_UNKNOWN", true, true, false),
+                reportedUnknown.failures.getFirst());
+
+        Fixture rollbackUnconfirmed = new Fixture();
+        rollbackUnconfirmed.results.clear();
+        rollbackUnconfirmed.results.add(new ProcedureTaskExecutorPort.Succeeded(0, 0, null));
+        rollbackUnconfirmed.results.add(
+                new ProcedureTaskExecutorPort.SafeFailure("SOURCE_FAILED", false));
+
+        ProcedureStepEngine.FailedSafely rollbackResult = assertInstanceOf(
+                ProcedureStepEngine.FailedSafely.class, rollbackUnconfirmed.execute());
+        assertEquals("SOURCE_FAILED", rollbackResult.errorCode());
+        assertEquals(new FailureEvent(
+                "READ", "SOURCE_FAILED", true, true, false),
+                rollbackUnconfirmed.failures.getFirst());
+    }
+
+    @Test
+    void notAttemptedRemainsSafeAndHonorsErrorPolicy() {
+        Fixture continued = new Fixture();
+        continued.results.removeFirst();
+        continued.results.addFirst(
+                new ProcedureTaskExecutorPort.NotAttempted("PROCEDURE_EXECUTOR_DISABLED"));
+
+        ProcedureStepEngine.Completed completed = assertInstanceOf(
+                ProcedureStepEngine.Completed.class, continued.execute());
+        assertEquals(3, completed.completedTasks());
+        assertEquals(1, completed.warnings());
+        assertEquals(new FailureEvent(
+                "PREPARE", "PROCEDURE_EXECUTOR_DISABLED", false, true, true),
+                continued.failures.getFirst());
+
+        Fixture stopped = new Fixture();
+        stopped.results.clear();
+        stopped.results.add(new ProcedureTaskExecutorPort.Succeeded(0, 0, null));
+        stopped.results.add(
+                new ProcedureTaskExecutorPort.NotAttempted("PROCEDURE_EXECUTOR_DISABLED"));
+
+        ProcedureStepEngine.FailedSafely failed = assertInstanceOf(
+                ProcedureStepEngine.FailedSafely.class, stopped.execute());
+        assertEquals("READ", failed.taskId());
+        assertEquals(new FailureEvent(
+                "READ", "PROCEDURE_EXECUTOR_DISABLED", false, true, false),
+                stopped.failures.getFirst());
+    }
+
+    @Test
+    void rowAggregateOverflowStopsAfterAcceptedSuccessWithoutDuplicatingOutcome() {
+        Fixture fixture = new Fixture();
+        fixture.results.clear();
+        fixture.results.add(new ProcedureTaskExecutorPort.Succeeded(
+                Long.MAX_VALUE, 0, null));
+        fixture.results.add(new ProcedureTaskExecutorPort.Succeeded(2, 8, fixture.rowset));
+
+        ProcedureStepEngine.StoppedFailClosed result = assertInstanceOf(
+                ProcedureStepEngine.StoppedFailClosed.class, fixture.execute());
+
+        assertEquals(ProcedureStepEngine.FailureCode.AGGREGATE_METRICS_OVERFLOW,
+                result.failure());
+        assertEquals(List.of("PREPARE", "READ"),
+                fixture.commands.stream().map(command -> command.task().id()).toList());
+        assertEquals(List.of(
+                "START:PREPARE", "SUCCESS:PREPARE",
+                "START:READ", "SUCCESS:READ"), fixture.events);
+        assertEquals(List.of(), fixture.failures);
+    }
+
+    @Test
+    void byteAggregateOverflowStopsAfterAcceptedSuccessWithoutDuplicatingOutcome() {
+        Fixture fixture = new Fixture();
+        fixture.results.clear();
+        fixture.results.add(new ProcedureTaskExecutorPort.Succeeded(
+                0, Long.MAX_VALUE, null));
+        fixture.results.add(new ProcedureTaskExecutorPort.Succeeded(2, 8, fixture.rowset));
+
+        ProcedureStepEngine.StoppedFailClosed result = assertInstanceOf(
+                ProcedureStepEngine.StoppedFailClosed.class, fixture.execute());
+
+        assertEquals(ProcedureStepEngine.FailureCode.AGGREGATE_METRICS_OVERFLOW,
+                result.failure());
+        assertEquals(List.of("PREPARE", "READ"),
+                fixture.commands.stream().map(command -> command.task().id()).toList());
+        assertEquals(List.of(
+                "START:PREPARE", "SUCCESS:PREPARE",
+                "START:READ", "SUCCESS:READ"), fixture.events);
+        assertEquals(List.of(), fixture.failures);
+    }
+
+    @Test
     void rejectedStartEvidencePreventsAnyExecutorCall() {
         Fixture fixture = new Fixture();
         fixture.rejectStart = true;
@@ -116,7 +247,7 @@ class ProcedureStepEngineTest {
     }
 
     @Test
-    void invalidExecutorRowsetReceiptBecomesUnknownAndDoesNotReachConsumer() {
+    void invalidReadOnlyRowsetReceiptFailsSafelyAndDoesNotReachConsumer() {
         Fixture fixture = new Fixture();
         fixture.results.clear();
         fixture.results.add(new ProcedureTaskExecutorPort.Succeeded(0, 0, null));
@@ -124,8 +255,8 @@ class ProcedureStepEngineTest {
                 2, 8, new RowsetHandle(
                         UUID.randomUUID(), "b".repeat(64), "READ", 2, 8)));
 
-        ProcedureStepEngine.UnknownOutcome result = assertInstanceOf(
-                ProcedureStepEngine.UnknownOutcome.class, fixture.execute());
+        ProcedureStepEngine.FailedSafely result = assertInstanceOf(
+                ProcedureStepEngine.FailedSafely.class, fixture.execute());
 
         assertEquals("INVALID_EXECUTOR_RECEIPT", result.errorCode());
         assertEquals(List.of("PREPARE", "READ"),
@@ -140,7 +271,9 @@ class ProcedureStepEngineTest {
         private final ArrayDeque<TaskResult> results = new ArrayDeque<>();
         private final List<TaskCommand> commands = new ArrayList<>();
         private final List<String> events = new ArrayList<>();
+        private final List<FailureEvent> failures = new ArrayList<>();
         private boolean rejectStart;
+        private String executorFailureTaskId;
 
         private Fixture() {
             results.add(new ProcedureTaskExecutorPort.Succeeded(0, 0, null));
@@ -152,6 +285,9 @@ class ProcedureStepEngineTest {
         private ProcedureStepEngine.RunResult execute() {
             ProcedureTaskExecutorPort executor = command -> {
                 commands.add(command);
+                if (command.task().id().equals(executorFailureTaskId)) {
+                    throw new IllegalStateException("sensitive executor failure");
+                }
                 return results.removeFirst();
             };
             ProcedureExecutionJournalPort journal = new ProcedureExecutionJournalPort() {
@@ -175,6 +311,9 @@ class ProcedureStepEngineTest {
                         boolean rollbackConfirmed,
                         boolean continued) {
                     events.add("FAILED:" + evidence.task().id() + ":" + continued);
+                    failures.add(new FailureEvent(
+                            evidence.task().id(), errorCode, attempted,
+                            rollbackConfirmed, continued));
                     return true;
                 }
 
@@ -186,6 +325,14 @@ class ProcedureStepEngineTest {
             };
             return new ProcedureStepEngine(executor, journal).execute(plan);
         }
+    }
+
+    private record FailureEvent(
+            String taskId,
+            String errorCode,
+            boolean attempted,
+            boolean rollbackConfirmed,
+            boolean continued) {
     }
 
     private static ProcedureRuntimePlan plan() {

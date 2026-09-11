@@ -56,76 +56,131 @@ final class ProcedureStepEngine {
                         plan, index + 1, task, binding, task.input() == null ? null : pending));
             }
             catch (RuntimeException exception) {
-                if (!accepted(() -> journal.outcomeUnknown(evidence, "EXECUTOR_BOUNDARY_FAILED"))) {
-                    return new StoppedFailClosed(FailureCode.CONTROL_PLANE_UNCONFIRMED);
+                FailureHandling failure = failedAtExecutorBoundary(
+                        task, evidence, "EXECUTOR_BOUNDARY_FAILED");
+                if (failure.continued()) {
+                    warnings++;
+                    pending = null;
+                    continue;
                 }
-                return new UnknownOutcome(task.id(), "EXECUTOR_BOUNDARY_FAILED");
+                return failure.terminalResult();
             }
 
             if (result instanceof Succeeded success) {
                 if (!validSuccess(plan, task, success)) {
-                    if (!accepted(() -> journal.outcomeUnknown(evidence, "INVALID_EXECUTOR_RECEIPT"))) {
-                        return new StoppedFailClosed(FailureCode.CONTROL_PLANE_UNCONFIRMED);
+                    FailureHandling failure = failedAtExecutorBoundary(
+                            task, evidence, "INVALID_EXECUTOR_RECEIPT");
+                    if (failure.continued()) {
+                        warnings++;
+                        pending = null;
+                        continue;
                     }
-                    return new UnknownOutcome(task.id(), "INVALID_EXECUTOR_RECEIPT");
+                    return failure.terminalResult();
                 }
                 if (!accepted(() -> journal.succeeded(
                         evidence, success.rowCount(), success.byteCount()))) {
                     return new StoppedFailClosed(FailureCode.CONTROL_PLANE_UNCONFIRMED);
                 }
-                rows += success.rowCount();
-                bytes += success.byteCount();
+                long nextRows;
+                long nextBytes;
+                try {
+                    nextRows = Math.addExact(rows, success.rowCount());
+                    nextBytes = Math.addExact(bytes, success.byteCount());
+                }
+                catch (ArithmeticException exception) {
+                    return new StoppedFailClosed(
+                            FailureCode.AGGREGATE_METRICS_OVERFLOW);
+                }
+                rows = nextRows;
+                bytes = nextBytes;
                 completed++;
                 pending = success.output();
                 continue;
             }
             pending = null;
             if (result instanceof OutcomeUnknown unknown) {
+                if (task.riskClass() == ProcedureRuntimePlan.RiskClass.READ_ONLY) {
+                    FailureHandling failure = recordSafeFailure(
+                            task, evidence, unknown.errorCode(), true, true);
+                    if (failure.continued()) {
+                        warnings++;
+                        continue;
+                    }
+                    return failure.terminalResult();
+                }
                 if (!accepted(() -> journal.outcomeUnknown(evidence, unknown.errorCode()))) {
                     return new StoppedFailClosed(FailureCode.CONTROL_PLANE_UNCONFIRMED);
                 }
                 return new UnknownOutcome(task.id(), unknown.errorCode());
             }
             if (result instanceof SafeFailure failure) {
-                if (!failure.rollbackConfirmed()) {
+                boolean rollbackConfirmed = failure.rollbackConfirmed()
+                        || task.riskClass() == ProcedureRuntimePlan.RiskClass.READ_ONLY;
+                if (!rollbackConfirmed) {
                     if (!accepted(() -> journal.outcomeUnknown(
                             evidence, "ROLLBACK_UNCONFIRMED"))) {
                         return new StoppedFailClosed(FailureCode.CONTROL_PLANE_UNCONFIRMED);
                     }
                     return new UnknownOutcome(task.id(), "ROLLBACK_UNCONFIRMED");
                 }
-                boolean continued = task.onError() == ErrorPolicy.CONTINUE;
-                if (!accepted(() -> journal.failed(
-                        evidence, failure.errorCode(), true, true, continued))) {
-                    return new StoppedFailClosed(FailureCode.CONTROL_PLANE_UNCONFIRMED);
-                }
-                if (continued) {
+                FailureHandling safeFailure = recordSafeFailure(
+                        task, evidence, failure.errorCode(), true, true);
+                if (safeFailure.continued()) {
                     warnings++;
                     continue;
                 }
-                return new FailedSafely(task.id(), failure.errorCode());
+                return safeFailure.terminalResult();
             }
             if (result instanceof NotAttempted skipped) {
-                boolean continued = task.onError() == ErrorPolicy.CONTINUE;
-                if (!accepted(() -> journal.failed(
-                        evidence, skipped.errorCode(), false, true, continued))) {
-                    return new StoppedFailClosed(FailureCode.CONTROL_PLANE_UNCONFIRMED);
-                }
-                if (continued) {
+                FailureHandling notAttempted = recordSafeFailure(
+                        task, evidence, skipped.errorCode(), false, true);
+                if (notAttempted.continued()) {
                     warnings++;
                     continue;
                 }
-                return new FailedSafely(task.id(), skipped.errorCode());
+                return notAttempted.terminalResult();
             }
-            if (!accepted(() -> journal.outcomeUnknown(evidence, "INVALID_EXECUTOR_RESULT"))) {
-                return new StoppedFailClosed(FailureCode.CONTROL_PLANE_UNCONFIRMED);
+            FailureHandling invalid = failedAtExecutorBoundary(
+                    task, evidence, "INVALID_EXECUTOR_RESULT");
+            if (invalid.continued()) {
+                warnings++;
+                continue;
             }
-            return new UnknownOutcome(task.id(), "INVALID_EXECUTOR_RESULT");
+            return invalid.terminalResult();
         }
         if (pending != null) {
             return new StoppedFailClosed(FailureCode.INVALID_RUNTIME_PLAN);
         }
         return new Completed(completed, warnings, rows, bytes);
+    }
+
+    private FailureHandling failedAtExecutorBoundary(
+            Task task, TaskEvidence evidence, String errorCode) {
+        if (task.riskClass() == ProcedureRuntimePlan.RiskClass.READ_ONLY) {
+            return recordSafeFailure(task, evidence, errorCode, true, true);
+        }
+        if (!accepted(() -> journal.outcomeUnknown(evidence, errorCode))) {
+            return new FailureHandling(false,
+                    new StoppedFailClosed(FailureCode.CONTROL_PLANE_UNCONFIRMED));
+        }
+        return new FailureHandling(false, new UnknownOutcome(task.id(), errorCode));
+    }
+
+    private FailureHandling recordSafeFailure(
+            Task task,
+            TaskEvidence evidence,
+            String errorCode,
+            boolean attempted,
+            boolean rollbackConfirmed) {
+        boolean continued = task.onError() == ErrorPolicy.CONTINUE;
+        if (!accepted(() -> journal.failed(
+                evidence, errorCode, attempted, rollbackConfirmed, continued))) {
+            return new FailureHandling(false,
+                    new StoppedFailClosed(FailureCode.CONTROL_PLANE_UNCONFIRMED));
+        }
+        return continued
+                ? new FailureHandling(true, null)
+                : new FailureHandling(false, new FailedSafely(task.id(), errorCode));
     }
 
     private boolean validTask(
@@ -190,7 +245,11 @@ final class ProcedureStepEngine {
 
     enum FailureCode {
         INVALID_RUNTIME_PLAN,
+        AGGREGATE_METRICS_OVERFLOW,
         CONTROL_PLANE_UNCONFIRMED
+    }
+
+    private record FailureHandling(boolean continued, RunResult terminalResult) {
     }
 
     @FunctionalInterface

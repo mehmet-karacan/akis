@@ -23,6 +23,7 @@ akis:
   execution:
     accept-manual-requests: ${AKIS_EXECUTION_ACCEPT_MANUAL_REQUESTS:false}
     worker-enabled: ${AKIS_EXECUTION_WORKER_ENABLED:false}
+    procedure-runtime-enabled: ${AKIS_EXECUTION_PROCEDURE_RUNTIME_ENABLED:false}
   security:
     mode: ${AKIS_SECURITY_MODE:fail-closed}
     development:
