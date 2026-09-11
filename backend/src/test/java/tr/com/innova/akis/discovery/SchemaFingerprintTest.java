@@ -46,6 +46,32 @@ class SchemaFingerprintTest {
         assertNotEquals(before, after);
     }
 
+    @Test
+    void publicRuntimeInputUsesTheExactSnapshotCanonicalContract() throws Exception {
+        ColumnInput column = column("ID", 1, "NUMBER");
+        ConstraintInput constraint = constraint(
+                "PK_TEST", "PK", List.of("ID"), "{\"source\":\"oracle\"}");
+        var properties = objectMapper.readTree("{\"contract\":1}");
+
+        String snapshotHash = fingerprint.calculate(
+                "19c", 1, properties, List.of(column), List.of(constraint));
+        String runtimeHash = fingerprint.calculate(new SchemaFingerprintInput(
+                "19c",
+                1,
+                properties,
+                List.of(new SchemaFingerprintInput.Column(
+                        column.reference(), column.producerType(), column.canonicalType(),
+                        column.ordinal(), column.precision(), column.scale(), column.length(),
+                        column.timePrecision(), column.nullable(), column.defaultExpression(),
+                        column.name())),
+                List.of(new SchemaFingerprintInput.Constraint(
+                        constraint.externalReference(), constraint.type(), constraint.enabled(),
+                        constraint.detailVersion(), constraint.details(), constraint.name(),
+                        constraint.columnReferences()))));
+
+        assertEquals(snapshotHash, runtimeHash);
+    }
+
     private ColumnInput column(String reference, int ordinal, String producerType) {
         return new ColumnInput(
                 reference, producerType, "STRING", ordinal, null, null, null, null,

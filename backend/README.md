@@ -109,9 +109,10 @@ gerçek HTTP üzerinden sınar. Test sonunda uygulamayı durdurur ve geçici
 veritabanını siler.
 
 `test-worker-lease.ps1` ikinci bir geçici PostgreSQL veritabanında gerçek
-`JdbcRunLeaseStore` ile claim, target generation, DB-time heartbeat deadline
-yenilemesi ve stale generation reddini sınar; worker poller veya Oracle bağlantısı
-başlatmaz.
+`JdbcRunLeaseStore` ile claim, target generation, DB-time heartbeat deadline,
+publish-intent/checkpoint tamamlaması ve reconciliation durumlarını sınar. Aynı
+koşuda runtime plana ait immutable source/target snapshot gövdelerinin exact yayın
+bağlarından yüklendiğini de doğrular; worker poller veya Oracle bağlantısı başlatmaz.
 
 `run-oracle-ledger-it.ps1`, gerçek değerleri yalnız Git dışındaki `.env`
 dosyasından alır. Hedef Oracle 19c üzerinde production JDBC ledger adaptörüyle
@@ -135,11 +136,21 @@ Package, Procedure, Load Plan ve pilot dışı geçerli Mapping V2 tanımları g
 dönük yayınlanabilir; manifestte `DEFINITION_ONLY` olarak işaretlenir ve pilot
 worker tarafından yürütülemez.
 
+Faz 3D güvenlik temeli; V006 kontrollü completion/reconciliation durum API'lerini,
+V007 append-only publish intent kanıtını, pinned snapshot loader'ını, salt-okunur
+canlı Oracle schema preflight'ını ve bounded typed source/target I/O çekirdeğini
+ekler. Pilot payload codec'i yalnız gerçek pilotta gereken `NUMBER`, `VARCHAR2` ve
+timezone'sız `TIMESTAMP(6)` tiplerini kabul eder; hücre ve batch limitleri uygular,
+satır sırasından bağımsız canonical hash üretir. Target writer exclusive table lock,
+aynı bağlantıda target identity ve transaction içi target count/hash doğrulaması
+olmadan DELETE/INSERT yapmaz ve uygulama bean'i olarak kaydedilmez.
+
 Bu katman worker poller başlatmaz ve Oracle business/staging DML çalıştırmaz.
 Target-local Oracle package yalnız caller-owned transaction içinde çağrılır;
 adaptör commit veya rollback yapmaz. Pilot runtime plan yalnız iki Oracle tablo,
 doğrudan kolon eşlemesi, en fazla 1000 kaynak satır ve atomik delete/insert
-stratejisini kabul eder. Kontrollü full-refresh writer, canlı schema fingerprint
-preflight, PostgreSQL completion/checkpoint, reconciliation orchestration,
-retry/resume ve scheduler henüz ürün kodu değildir. Worker flag'i bu kapılar ve
-crash testleri tamamlanana kadar açık değerde fail-closed kalır.
+stratejisini kabul eder. Ledger `PREPARE -> LOCK -> DML -> VERIFY -> RECORD -> COMMIT`
+sırasını tek transaction sahibi altında zorlayan facade, runtime connection/secret
+provider, fence-barrier reconciliation orchestration, retry/resume ve scheduler
+henüz ürün kodu değildir. Worker flag'i bu kapılar ve crash testleri tamamlanana
+kadar açık değerde fail-closed kalır.

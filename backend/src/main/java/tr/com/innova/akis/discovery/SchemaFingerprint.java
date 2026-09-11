@@ -16,12 +16,34 @@ import tools.jackson.databind.node.ObjectNode;
 import tr.com.innova.akis.discovery.SchemaSnapshotModels.ColumnInput;
 import tr.com.innova.akis.discovery.SchemaSnapshotModels.ConstraintInput;
 
-final class SchemaFingerprint {
+public final class SchemaFingerprint {
 
     private final ObjectMapper objectMapper;
 
-    SchemaFingerprint(ObjectMapper objectMapper) {
+    public SchemaFingerprint(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
+    }
+
+    public String calculate(SchemaFingerprintInput input) {
+        ObjectNode root = objectMapper.createObjectNode();
+        root.put("engineVersion", input.engineVersion());
+        root.put("propertyVersion", input.propertyVersion());
+        root.set("properties", canonicalize(input.properties()));
+
+        ArrayNode columnArray = root.putArray("columns");
+        input.columns().stream()
+                .sorted(Comparator.comparingInt(SchemaFingerprintInput.Column::ordinal)
+                        .thenComparing(SchemaFingerprintInput.Column::reference))
+                .map(this::columnNode)
+                .forEach(columnArray::add);
+
+        ArrayNode constraintArray = root.putArray("constraints");
+        input.constraints().stream()
+                .sorted(Comparator.comparing(
+                        SchemaFingerprintInput.Constraint::externalReference))
+                .map(this::constraintNode)
+                .forEach(constraintArray::add);
+        return sha256(root.toString());
     }
 
     String calculate(
@@ -30,24 +52,19 @@ final class SchemaFingerprint {
             JsonNode properties,
             List<ColumnInput> columns,
             List<ConstraintInput> constraints) {
-        ObjectNode root = objectMapper.createObjectNode();
-        root.put("engineVersion", engineVersion);
-        root.put("propertyVersion", propertyVersion);
-        root.set("properties", canonicalize(properties));
-
-        ArrayNode columnArray = root.putArray("columns");
-        columns.stream()
-                .sorted(Comparator.comparingInt(ColumnInput::ordinal)
-                        .thenComparing(ColumnInput::reference))
-                .map(this::columnNode)
-                .forEach(columnArray::add);
-
-        ArrayNode constraintArray = root.putArray("constraints");
-        constraints.stream()
-                .sorted(Comparator.comparing(ConstraintInput::externalReference))
-                .map(this::constraintNode)
-                .forEach(constraintArray::add);
-        return sha256(root.toString());
+        return calculate(new SchemaFingerprintInput(
+                engineVersion,
+                propertyVersion,
+                properties,
+                columns.stream().map(column -> new SchemaFingerprintInput.Column(
+                        column.reference(), column.producerType(), column.canonicalType(),
+                        column.ordinal(), column.precision(), column.scale(), column.length(),
+                        column.timePrecision(), column.nullable(), column.defaultExpression(),
+                        column.name())).toList(),
+                constraints.stream().map(constraint -> new SchemaFingerprintInput.Constraint(
+                        constraint.externalReference(), constraint.type(), constraint.enabled(),
+                        constraint.detailVersion(), constraint.details(), constraint.name(),
+                        constraint.columnReferences())).toList()));
     }
 
     JsonNode canonicalize(JsonNode node) {
@@ -66,7 +83,7 @@ final class SchemaFingerprint {
         return node.deepCopy();
     }
 
-    private ObjectNode columnNode(ColumnInput column) {
+    private ObjectNode columnNode(SchemaFingerprintInput.Column column) {
         ObjectNode node = objectMapper.createObjectNode();
         node.put("reference", column.reference());
         node.put("producerType", column.producerType());
@@ -82,7 +99,7 @@ final class SchemaFingerprint {
         return node;
     }
 
-    private ObjectNode constraintNode(ConstraintInput constraint) {
+    private ObjectNode constraintNode(SchemaFingerprintInput.Constraint constraint) {
         ObjectNode node = objectMapper.createObjectNode();
         node.put("externalReference", constraint.externalReference());
         node.put("type", constraint.type());

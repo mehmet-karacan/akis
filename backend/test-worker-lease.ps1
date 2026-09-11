@@ -42,7 +42,7 @@ try {
     $env:AKIS_EXECUTION_WORKER_ENABLED = "false"
     $env:AKIS_SECURITY_MODE = "fail-closed"
 
-    & $maven -pl backend "-Dtest=JdbcRunLeaseStoreIT" test
+    & $maven -pl backend "-Dtest=JdbcRunLeaseStoreIT,JdbcPinnedSchemaSnapshotStoreIT" test
     if ($LASTEXITCODE -ne 0) {
         throw "Worker lease JDBC integration test failed."
     }
