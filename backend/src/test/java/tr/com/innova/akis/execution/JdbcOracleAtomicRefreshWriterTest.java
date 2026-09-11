@@ -45,6 +45,9 @@ class JdbcOracleAtomicRefreshWriterTest {
     private final JdbcOracleAtomicRefreshWriter writer =
             new JdbcOracleAtomicRefreshWriter();
     private final OraclePilotPayloadCodec codec = new OraclePilotPayloadCodec();
+    private final OracleAtomicRefreshWriterPort.LockedTargetVerifier lockedTargetVerifier =
+            lockedTarget -> {
+    };
 
     @Test
     void verifiesIdentityLocksThenRefreshesWithoutCompletingCallerTransaction() {
@@ -55,11 +58,12 @@ class JdbcOracleAtomicRefreshWriterTest {
         FakeTarget target = new FakeTarget();
 
         OraclePilotWriteResult result = writer.write(
-                target.connection(), plan, fence(TARGET_HASH, 1), batch);
+                target.connection(), plan, fence(TARGET_HASH, 1), batch,
+                lockedTarget -> target.events.add("LOCKED_PREFLIGHT"));
 
         assertEquals(List.of(
-                "LOCK", "IDENTITY_DATABASE", "IDENTITY_OBJECT", "DELETE", "INSERT_BATCH",
-                "VERIFY"),
+                "LOCK", "IDENTITY_DATABASE", "IDENTITY_OBJECT", "LOCKED_PREFLIGHT",
+                "DELETE", "INSERT_BATCH", "VERIFY"),
                 target.events);
         assertEquals("LOCK TABLE \"INNOVA_ODI\".\"STG_HAKEDIS_TIPI\" "
                 + "IN EXCLUSIVE MODE NOWAIT", target.lockSql);
@@ -90,7 +94,8 @@ class JdbcOracleAtomicRefreshWriterTest {
             FakeTarget target = new FakeTarget();
             OraclePilotDataException error = assertThrows(
                     OraclePilotDataException.class,
-                    () -> writer.write(target.connection(), plan, token, batch));
+                    () -> writer.write(target.connection(), plan, token, batch,
+                            lockedTargetVerifier));
 
             assertEquals(Failure.TARGET_IDENTITY_MISMATCH, error.failure());
             assertEquals("LOCK", target.events.getFirst());
@@ -110,13 +115,37 @@ class JdbcOracleAtomicRefreshWriterTest {
         OraclePilotDataException error = assertThrows(
                 OraclePilotDataException.class,
                 () -> writer.write(target.connection(), plan, fence(TARGET_HASH, 1),
-                        batch(plan.runtimePlanHash(), List.of())));
+                        batch(plan.runtimePlanHash(), List.of()), lockedTargetVerifier));
 
         assertEquals(Failure.TARGET_LOCK_FAILED, error.failure());
         assertEquals(List.of("LOCK"), target.events);
         assertFalse(target.events.contains("DELETE"));
         assertEquals("The Oracle pilot target lock could not be acquired.", error.getMessage());
         assertNull(error.getCause());
+        assertEquals(0, target.commits);
+        assertEquals(0, target.rollbacks);
+    }
+
+    @Test
+    void lockedTargetPreflightFailurePreventsEveryBusinessDml() {
+        PilotRuntimePlan plan = plan();
+        FakeTarget target = new FakeTarget();
+
+        IllegalStateException error = assertThrows(
+                IllegalStateException.class,
+                () -> writer.write(
+                        target.connection(), plan, fence(TARGET_HASH, 1),
+                        batch(plan.runtimePlanHash(), List.of()),
+                        locked -> {
+                            target.events.add("LOCKED_PREFLIGHT");
+                            throw new IllegalStateException("schema drift");
+                        }));
+
+        assertEquals("schema drift", error.getMessage());
+        assertEquals(List.of(
+                "LOCK", "IDENTITY_DATABASE", "IDENTITY_OBJECT", "LOCKED_PREFLIGHT"),
+                target.events);
+        assertFalse(target.events.contains("DELETE"));
         assertEquals(0, target.commits);
         assertEquals(0, target.rollbacks);
     }
@@ -133,7 +162,7 @@ class JdbcOracleAtomicRefreshWriterTest {
         assertEquals(Failure.INVALID_BATCH, assertThrows(
                 OraclePilotDataException.class,
                 () -> writer.write(target.connection(), plan,
-                        fence(TARGET_HASH, 1), tampered)).failure());
+                        fence(TARGET_HASH, 1), tampered, lockedTargetVerifier)).failure());
         assertEquals(List.of(), target.events);
 
         FakeTarget autoCommit = new FakeTarget();
@@ -141,7 +170,7 @@ class JdbcOracleAtomicRefreshWriterTest {
         assertEquals(Failure.INVALID_CONNECTION, assertThrows(
                 OraclePilotDataException.class,
                 () -> writer.write(autoCommit.connection(), plan,
-                        fence(TARGET_HASH, 1), valid)).failure());
+                        fence(TARGET_HASH, 1), valid, lockedTargetVerifier)).failure());
         assertEquals(List.of(), autoCommit.events);
     }
 
@@ -158,7 +187,7 @@ class JdbcOracleAtomicRefreshWriterTest {
 
         OraclePilotWriteResult result = writer.write(
                 target.connection(), plan, fence(TARGET_HASH, 1),
-                batch(plan.runtimePlanHash(), rows));
+                batch(plan.runtimePlanHash(), rows), lockedTargetVerifier);
 
         assertEquals(2, target.batchExecutions);
         assertEquals(251, result.insertedRows());
@@ -177,7 +206,8 @@ class JdbcOracleAtomicRefreshWriterTest {
                 OraclePilotDataException.class,
                 () -> writer.write(target.connection(), plan, fence(TARGET_HASH, 1),
                         batch(plan.runtimePlanHash(), List.of(cells(
-                                "1", "ONE", "2026-09-11T10:15:30")))));
+                                "1", "ONE", "2026-09-11T10:15:30"))),
+                        lockedTargetVerifier));
 
         assertEquals(Failure.TARGET_WRITE_FAILED, error.failure());
         assertEquals("72000", error.sqlState());
@@ -198,7 +228,8 @@ class JdbcOracleAtomicRefreshWriterTest {
                 OraclePilotDataException.class,
                 () -> writer.write(target.connection(), plan, fence(TARGET_HASH, 1),
                         batch(plan.runtimePlanHash(), List.of(cells(
-                                "1", "ONE", "2026-09-11T10:15:30")))));
+                                "1", "ONE", "2026-09-11T10:15:30"))),
+                        lockedTargetVerifier));
 
         assertEquals(Failure.TARGET_VERIFICATION_FAILED, error.failure());
         assertEquals("VERIFY", target.events.getLast());

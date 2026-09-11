@@ -52,6 +52,7 @@ class JdbcPinnedSchemaSnapshotStoreIT {
     private static JdbcClient jdbc;
     private static JdbcTemplate jdbcTemplate;
     private static JdbcPinnedSchemaSnapshotStore store;
+    private static JdbcRuntimeOracleConnectionMetadataStore connectionMetadataStore;
     private static ObjectMapper objectMapper;
 
     private DatasetBinding source;
@@ -68,6 +69,8 @@ class JdbcPinnedSchemaSnapshotStoreIT {
         jdbc = context.getBean(JdbcClient.class);
         jdbcTemplate = context.getBean(JdbcTemplate.class);
         store = context.getBean(JdbcPinnedSchemaSnapshotStore.class);
+        connectionMetadataStore = context.getBean(
+                JdbcRuntimeOracleConnectionMetadataStore.class);
         objectMapper = context.getBean(ObjectMapper.class);
     }
 
@@ -212,6 +215,26 @@ class JdbcPinnedSchemaSnapshotStoreIT {
                 exception.failure());
     }
 
+    @Test
+    void loadsRuntimeConnectionMetadataOnlyForTheExactBoundVersion() {
+        var profile = connectionMetadataStore.find(source).orElseThrow();
+
+        assertEquals(source.connectionVersionUuid(), profile.connectionVersionUuid());
+        assertEquals("oracle.jdbc.OracleDriver", profile.driverReference());
+        assertEquals("ENV", profile.secretProvider());
+        assertEquals("AKIS_SRC_CREDENTIAL", profile.secretReferencePath());
+
+        DatasetBinding forged = new DatasetBinding(
+                source.datasetId(), source.role(), source.databaseType(),
+                source.dataObjectType(), source.definitionDataObjectUuid(),
+                source.dataObjectUuid(), source.environmentSchemaBindingUuid(),
+                source.physicalSchemaUuid(), UUID.randomUUID(),
+                source.schemaSnapshotUuid(), source.bindingVersion(),
+                source.schemaSnapshotFingerprint(), source.physicalIdentity(),
+                source.owner(), source.objectName());
+        assertEquals(java.util.Optional.empty(), connectionMetadataStore.find(forged));
+    }
+
     private FixtureBinding createBinding(
             long projectId,
             long environmentId,
@@ -240,12 +263,31 @@ class JdbcPinnedSchemaSnapshotStoreIT {
                         insert into entegrasyon.baglanti_surumu(
                             proje_id, baglanti_id, surum_no, surucu_referansi,
                             sunucu_adi, servis_adi, port, uuid)
-                        values (:projectId, :connectionId, 1, 'oracle-thin',
+                        values (:projectId, :connectionId, 1, 'oracle.jdbc.OracleDriver',
                                 'db.invalid', 'SERVICE', 1521, :uuid)
                         returning id
                         """)
                 .param("projectId", projectId).param("connectionId", connectionId)
                 .param("uuid", connectionVersionUuid).query(Long.class).single();
+        long secretId = jdbc.sql("""
+                        insert into entegrasyon.secret_referansi(
+                            proje_id, kod, referans_yolu, saglayici_kodu,
+                            durum_kodu, ad)
+                        values (:projectId, :code, :reference, 'ENV', 'AKTIF', :code)
+                        returning id
+                        """)
+                .param("projectId", projectId).param("code", code + "_SECRET")
+                .param("reference", "AKIS_" + code + "_CREDENTIAL")
+                .query(Long.class).single();
+        jdbc.sql("""
+                        insert into entegrasyon.baglanti_secret_bagi(
+                            proje_id, baglanti_surumu_id, secret_referansi_id,
+                            rol_kodu)
+                        values (:projectId, :connectionVersionId, :secretId, 'KIMLIK')
+                        """)
+                .param("projectId", projectId)
+                .param("connectionVersionId", connectionVersionId)
+                .param("secretId", secretId).update();
         long physicalSchemaId = jdbc.sql("""
                         insert into entegrasyon.fiziksel_sema(
                             proje_id, baglanti_id, kod, sema_referansi, ad, uuid)
@@ -457,6 +499,12 @@ class JdbcPinnedSchemaSnapshotStoreIT {
         @Bean
         JdbcPinnedSchemaSnapshotStore store(JdbcClient jdbc, ObjectMapper objectMapper) {
             return new JdbcPinnedSchemaSnapshotStore(jdbc, objectMapper);
+        }
+
+        @Bean
+        JdbcRuntimeOracleConnectionMetadataStore connectionMetadataStore(
+                JdbcClient jdbc, ObjectMapper objectMapper) {
+            return new JdbcRuntimeOracleConnectionMetadataStore(jdbc, objectMapper);
         }
 
         private static String requiredEnvironment(String name) {

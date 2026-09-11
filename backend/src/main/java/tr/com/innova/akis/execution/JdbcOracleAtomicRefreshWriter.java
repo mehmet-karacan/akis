@@ -22,7 +22,7 @@ import tr.com.innova.akis.execution.RunLeasePort.TargetFenceToken;
  * Performs DELETE plus batched INSERT on one caller-owned transaction.
  * This adapter never commits or rolls back the supplied connection.
  */
-final class JdbcOracleAtomicRefreshWriter {
+final class JdbcOracleAtomicRefreshWriter implements OracleAtomicRefreshWriterPort {
 
     private static final int BATCH_SIZE = 250;
 
@@ -42,19 +42,24 @@ final class JdbcOracleAtomicRefreshWriter {
                 payloadCodec, "Payload codec is required.");
     }
 
-    OraclePilotWriteResult write(
+    @Override
+    public OraclePilotWriteResult write(
             Connection connection,
             PilotRuntimePlan plan,
             TargetFenceToken fenceToken,
-            OraclePilotBatch batch) {
+            OraclePilotBatch batch,
+            LockedTargetVerifier lockedTargetVerifier) {
         OraclePilotSqlContract.ValidatedPlan safePlan = OraclePilotSqlContract.validate(plan);
         validateBatch(safePlan, batch);
+        Objects.requireNonNull(
+                lockedTargetVerifier, "Locked target verifier is required.");
         ensureWritableTransaction(connection);
 
         String target = OraclePilotSqlContract.qualified(
                 safePlan.targetOwner(), safePlan.targetObject());
         lockTarget(connection, target);
         verifyTargetIdentity(connection, safePlan, fenceToken);
+        lockedTargetVerifier.verify(connection);
         String deleteSql = "DELETE FROM " + target;
         String insertSql = "INSERT INTO " + target + " ("
                 + OraclePilotSqlContract.quotedColumns(safePlan.targetColumns())

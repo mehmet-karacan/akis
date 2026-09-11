@@ -81,6 +81,124 @@ class JdbcOracleSchemaPreflightTest {
     }
 
     @Test
+    void lockedTargetApiReattestsOnTheSameConnectionAndCatchesPostPreflightDrift() {
+        SchemaFingerprintInput input = snapshotInput(
+                List.of(numberColumn("ID", 1)), List.of());
+        Inputs inputs = inputs(input, input);
+        FakeOracle source = new FakeOracle(columnRows(input.columns()), List.of());
+        List<Map<String, Object>> mutableTargetColumns = new ArrayList<>(
+                columnRows(input.columns()));
+        FakeOracle target = new FakeOracle(mutableTargetColumns, List.of());
+        Connection lockedTargetConnection = target.connection();
+
+        preflight.verify(
+                inputs.plan,
+                source.connection(), inputs.sourceSnapshot,
+                lockedTargetConnection, inputs.targetSnapshot);
+        int readsBeforeLockedAttestation = target.sql.size();
+
+        var attestation = preflight.verifyLockedTarget(
+                inputs.plan,
+                lockedTargetConnection,
+                inputs.sourceSnapshot,
+                inputs.targetSnapshot);
+
+        assertEquals(DatasetRole.TARGET, attestation.role());
+        assertEquals(readsBeforeLockedAttestation + 3, target.sql.size());
+        assertTrue(target.sql.stream().allMatch(sql -> sql.stripLeading().startsWith("SELECT")));
+        assertTrue(target.connectionMethods.stream().noneMatch(this::isStateChangingMethod));
+
+        mutableTargetColumns.set(0, columnRow(stringColumn("ID", 1)));
+        OracleSchemaPreflightException drift = assertThrows(
+                OracleSchemaPreflightException.class,
+                () -> preflight.verifyLockedTarget(
+                        inputs.plan,
+                        lockedTargetConnection,
+                        inputs.sourceSnapshot,
+                        inputs.targetSnapshot));
+        assertEquals(OracleSchemaPreflightFailure.LIVE_SCHEMA_DRIFT, drift.failure());
+    }
+
+    @Test
+    void lockedTargetApiCatchesTriggerCreatedAfterInitialPreflight() {
+        SchemaFingerprintInput input = snapshotInput(
+                List.of(numberColumn("ID", 1)), List.of());
+        Inputs inputs = inputs(input, input);
+        List<Map<String, Object>> mutableTriggers = new ArrayList<>();
+        FakeOracle target = new FakeOracle(
+                columnRows(input.columns()), List.of(), mutableTriggers,
+                "Oracle Database", 19, null);
+        Connection lockedTargetConnection = target.connection();
+
+        preflight.verify(
+                inputs.plan,
+                new FakeOracle(columnRows(input.columns()), List.of()).connection(),
+                inputs.sourceSnapshot,
+                lockedTargetConnection,
+                inputs.targetSnapshot);
+        mutableTriggers.add(Map.of("TRIGGER_NAME", "BI_STG_TABLE"));
+
+        OracleSchemaPreflightException error = assertThrows(
+                OracleSchemaPreflightException.class,
+                () -> preflight.verifyLockedTarget(
+                        inputs.plan,
+                        lockedTargetConnection,
+                        inputs.sourceSnapshot,
+                        inputs.targetSnapshot));
+        assertEquals(OracleSchemaPreflightFailure.UNSUPPORTED_SCHEMA, error.failure());
+    }
+
+    @Test
+    void lockedTargetApiProvesSourceSnapshotHashBeforeAnyTargetCatalogRead() {
+        SchemaFingerprintInput input = snapshotInput(
+                List.of(numberColumn("ID", 1)), List.of());
+        Inputs inputs = inputs(input, input);
+        SchemaFingerprintInput tamperedSource = snapshotInput(
+                List.of(stringColumn("ID", 1)), List.of());
+        FakeOracle untouchedTarget = new FakeOracle(List.of(), List.of());
+
+        OracleSchemaPreflightException error = assertThrows(
+                OracleSchemaPreflightException.class,
+                () -> preflight.verifyLockedTarget(
+                        inputs.plan,
+                        untouchedTarget.connection(),
+                        new ExpectedSnapshot(
+                                inputs.sourceSnapshot.schemaSnapshotUuid(), tamperedSource),
+                        inputs.targetSnapshot));
+
+        assertEquals(OracleSchemaPreflightFailure.SNAPSHOT_FINGERPRINT_MISMATCH,
+                error.failure());
+        assertTrue(untouchedTarget.connectionMethods.isEmpty());
+        assertTrue(untouchedTarget.sql.isEmpty());
+    }
+
+    @Test
+    void lockedTargetApiRejectsAutoCommitConnectionBeforeCatalogReads() {
+        SchemaFingerprintInput input = snapshotInput(
+                List.of(numberColumn("ID", 1)), List.of());
+        Inputs inputs = inputs(input, input);
+        List<String> invoked = new ArrayList<>();
+        Connection autoCommitConnection = proxy(Connection.class, (proxy, method, arguments) -> {
+            invoked.add(method.getName());
+            if (method.getName().equals("getAutoCommit")) {
+                return true;
+            }
+            return defaultValue(method.getReturnType());
+        });
+
+        OracleSchemaPreflightException error = assertThrows(
+                OracleSchemaPreflightException.class,
+                () -> preflight.verifyLockedTarget(
+                        inputs.plan,
+                        autoCommitConnection,
+                        inputs.sourceSnapshot,
+                        inputs.targetSnapshot));
+
+        assertEquals(OracleSchemaPreflightFailure.INVALID_CONTRACT, error.failure());
+        assertEquals(List.of("isClosed", "getAutoCommit"), invoked);
+    }
+
+    @Test
     void acceptsIdenticalUnconstrainedOracleNumberColumns() {
         Column unconstrainedNumber = new Column(
                 "ID", "NUMBER", "DECIMAL", 1, null, null, null, null,

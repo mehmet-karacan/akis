@@ -27,6 +27,7 @@ import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import tr.com.innova.akis.execution.RunLeasePort.ClaimedRun;
 import tr.com.innova.akis.execution.RunLeasePort.HeartbeatOutcome;
@@ -46,8 +47,10 @@ class JdbcRunLeaseStoreIT {
 
     private static AnnotationConfigApplicationContext context;
     private static JdbcRunLeaseStore store;
+    private static JdbcPilotPublishIntentStore publishIntentStore;
     private static JdbcClient jdbc;
     private static JdbcTemplate jdbcTemplate;
+    private static TransactionTemplate transactions;
 
     @BeforeAll
     static void startDatabaseContext() {
@@ -58,8 +61,11 @@ class JdbcRunLeaseStoreIT {
                 .load()
                 .migrate();
         store = context.getBean(JdbcRunLeaseStore.class);
+        publishIntentStore = context.getBean(JdbcPilotPublishIntentStore.class);
         jdbc = context.getBean(JdbcClient.class);
         jdbcTemplate = context.getBean(JdbcTemplate.class);
+        transactions = new TransactionTemplate(
+                context.getBean(PlatformTransactionManager.class));
     }
 
     @AfterAll
@@ -201,6 +207,17 @@ class JdbcRunLeaseStoreIT {
                 .single());
         assertTrue(startPublish(claimed.token(), target));
         assertTrue(startPublish(claimed.token(), target));
+        var intent = publishIntentStore.find(claimed.token().runUuid()).orElseThrow();
+        assertEquals(claimed.token().runUuid(), intent.runUuid());
+        assertEquals(claimed.token().generation(), intent.runGeneration());
+        assertEquals(target.targetResourceUuid(), intent.targetResourceUuid());
+        assertEquals(target.targetGeneration(), intent.targetGeneration());
+        assertEquals(TARGET_HASH, intent.canonicalTargetHash());
+        assertEquals(RUNTIME_PLAN_HASH, intent.runtimePlanHash());
+        assertEquals(PUBLISH_KEY_HASH, intent.publishKeyHash());
+        assertEquals(PAYLOAD_HASH, intent.payloadHash());
+        assertEquals(33, intent.rowCount());
+        assertEquals(1024, intent.byteCount());
         assertFalse(startPublish(
                 claimed.token(), target, UUID.randomUUID(), PAYLOAD_HASH));
         assertFalse(startPublish(claimed.token(), target, "0".repeat(64)));
@@ -226,6 +243,8 @@ class JdbcRunLeaseStoreIT {
 
         assertEquals("BASARILI", runStatus(claimed.token().runUuid()));
         assertEquals("BOS", targetStatus(target.targetResourceUuid()));
+        assertEquals(java.util.Optional.empty(),
+                publishIntentStore.find(claimed.token().runUuid()));
         assertEquals(1, jdbc.sql("""
                         select count(*) from entegrasyon.kontrol_noktasi
                          where hedef_kaynagi_id = (
@@ -306,6 +325,24 @@ class JdbcRunLeaseStoreIT {
                 .single());
         assertEquals("YENIDEN_DENENEBILIR", runStatus(claimed.token().runUuid()));
         assertEquals("BOS", targetStatus(target.targetResourceUuid()));
+    }
+
+    @Test
+    void publishFacadeCannotObserveAnUncommittedCallerIntent() {
+        ClaimedRun claimed = claim("lease-it-worker-uncommitted");
+        TargetFenceToken target = store.acquireTarget(claimed.token(), TARGET_HASH, 1);
+        assertTrue(startWork(claimed.token(), target));
+
+        transactions.executeWithoutResult(status -> {
+            assertTrue(startPublish(claimed.token(), target));
+            assertEquals(java.util.Optional.empty(),
+                    publishIntentStore.find(claimed.token().runUuid()));
+            status.setRollbackOnly();
+        });
+
+        assertEquals("CALISIYOR", runStatus(claimed.token().runUuid()));
+        assertEquals(java.util.Optional.empty(),
+                publishIntentStore.find(claimed.token().runUuid()));
     }
 
     private UUID workerProfileUuid() {
@@ -442,6 +479,11 @@ class JdbcRunLeaseStoreIT {
         @Bean
         JdbcRunLeaseStore jdbcRunLeaseStore(JdbcClient jdbcClient) {
             return new JdbcRunLeaseStore(jdbcClient);
+        }
+
+        @Bean
+        JdbcPilotPublishIntentStore jdbcPilotPublishIntentStore(JdbcClient jdbcClient) {
+            return new JdbcPilotPublishIntentStore(jdbcClient);
         }
 
         private static String requiredEnvironment(String name) {

@@ -115,9 +115,48 @@ final class JdbcOracleSchemaPreflight {
                 plan.source(), DatasetRole.SOURCE, sourceConnection, sourceSnapshot);
         VerifiedBinding target = verifyBinding(
                 plan.target(), DatasetRole.TARGET, targetConnection, targetSnapshot);
-        validateMappings(plan, source, target);
+        validateMappings(plan, source.expectedColumns(), target);
         verifyTargetWriteSafety(targetConnection, plan.target(), target);
         return new PreflightResult(source.result(), target.result());
+    }
+
+    /**
+     * Re-attests the target on the caller's already exclusively locked physical
+     * connection. Fresh catalog reads here close the gap between the earlier
+     * two-sided preflight and the business write. Acquiring the table lock and
+     * owning its transaction remain the enclosing facade's responsibility.
+     */
+    BindingResult verifyLockedTarget(
+            PilotRuntimePlan plan,
+            Connection lockedTargetConnection,
+            ExpectedSnapshot sourceSnapshot,
+            ExpectedSnapshot targetSnapshot) {
+        if (plan == null || lockedTargetConnection == null
+                || sourceSnapshot == null || targetSnapshot == null) {
+            throw failure(OracleSchemaPreflightFailure.INVALID_CONTRACT);
+        }
+        PinnedBinding source = verifyPinnedSnapshot(
+                plan.source(), DatasetRole.SOURCE, sourceSnapshot);
+        verifyLockedConnectionState(lockedTargetConnection);
+        VerifiedBinding target = verifyBinding(
+                plan.target(), DatasetRole.TARGET, lockedTargetConnection, targetSnapshot);
+        validateMappings(plan, source.expectedColumns(), target);
+        verifyTargetWriteSafety(lockedTargetConnection, plan.target(), target);
+        return target.result();
+    }
+
+    private void verifyLockedConnectionState(Connection connection) {
+        try {
+            if (connection.isClosed() || connection.getAutoCommit() || connection.isReadOnly()) {
+                throw failure(OracleSchemaPreflightFailure.INVALID_CONTRACT);
+            }
+        }
+        catch (OracleSchemaPreflightException exception) {
+            throw exception;
+        }
+        catch (SQLException | RuntimeException exception) {
+            throw failure(OracleSchemaPreflightFailure.METADATA_UNAVAILABLE);
+        }
     }
 
     private VerifiedBinding verifyBinding(
@@ -125,19 +164,7 @@ final class JdbcOracleSchemaPreflight {
             DatasetRole requiredRole,
             Connection connection,
             ExpectedSnapshot snapshot) {
-        validateContract(binding, requiredRole, snapshot);
-        String calculated;
-        try {
-            calculated = fingerprint.calculate(snapshot.input());
-        }
-        catch (RuntimeException exception) {
-            throw failure(OracleSchemaPreflightFailure.INVALID_CONTRACT);
-        }
-        if (!constantTimeEquals(binding.schemaSnapshotFingerprint(), calculated)) {
-            throw failure(OracleSchemaPreflightFailure.SNAPSHOT_FINGERPRINT_MISMATCH);
-        }
-
-        validateVerifiableSnapshot(snapshot.input(), requiredRole);
+        PinnedBinding pinned = verifyPinnedSnapshot(binding, requiredRole, snapshot);
         List<LiveColumn> liveColumns;
         try {
             verifyOracle19c(connection.getMetaData());
@@ -161,11 +188,30 @@ final class JdbcOracleSchemaPreflight {
                 new BindingResult(
                         requiredRole,
                         binding.schemaSnapshotUuid(),
-                        calculated,
+                        pinned.verifiedFingerprint(),
                         snapshot.input().columns().size(),
                         snapshot.input().constraints().size()),
                 snapshot.input().columns(),
                 liveColumns);
+    }
+
+    private PinnedBinding verifyPinnedSnapshot(
+            DatasetBinding binding,
+            DatasetRole requiredRole,
+            ExpectedSnapshot snapshot) {
+        validateContract(binding, requiredRole, snapshot);
+        String calculated;
+        try {
+            calculated = fingerprint.calculate(snapshot.input());
+        }
+        catch (RuntimeException exception) {
+            throw failure(OracleSchemaPreflightFailure.INVALID_CONTRACT);
+        }
+        if (!constantTimeEquals(binding.schemaSnapshotFingerprint(), calculated)) {
+            throw failure(OracleSchemaPreflightFailure.SNAPSHOT_FINGERPRINT_MISMATCH);
+        }
+        validateVerifiableSnapshot(snapshot.input(), requiredRole);
+        return new PinnedBinding(calculated, snapshot.input().columns());
     }
 
     private void validateContract(
@@ -327,8 +373,10 @@ final class JdbcOracleSchemaPreflight {
     }
 
     private void validateMappings(
-            PilotRuntimePlan plan, VerifiedBinding source, VerifiedBinding target) {
-        Map<String, Column> sourceColumns = byReference(source.expectedColumns());
+            PilotRuntimePlan plan,
+            List<Column> expectedSourceColumns,
+            VerifiedBinding target) {
+        Map<String, Column> sourceColumns = byReference(expectedSourceColumns);
         Map<String, Column> targetColumns = byReference(target.expectedColumns());
         Set<String> mappedTargets = new java.util.HashSet<>();
         Set<String> mappedSources = new java.util.HashSet<>();
@@ -543,6 +591,10 @@ final class JdbcOracleSchemaPreflight {
 
     private record VerifiedBinding(
             BindingResult result, List<Column> expectedColumns, List<LiveColumn> liveColumns) {
+    }
+
+    private record PinnedBinding(
+            String verifiedFingerprint, List<Column> expectedColumns) {
     }
 
     private record LiveConstraint(

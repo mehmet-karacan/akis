@@ -10,7 +10,9 @@ Faz 3A PostgreSQL lease/fencing koordinasyon temeli, Oracle 19c target-local
 ledger/fencing kurulumu, Faz 3B Oracle ledger JDBC adaptörü, Faz 3C kanonik
 Oracle hedef kimliği ile bounded typed pilot runtime planı ve Faz 3D'nin kontrollü
 completion/reconciliation, append-only publish-intent, pinned snapshot preflight
-ve bounded typed I/O güvenlik temeli tamamlanmıştır. Manuel
+ve bounded typed I/O güvenlik temeli tamamlanmıştır. Exact runtime connection/secret
+provider ile tek guarded Oracle transaction sahibi atomic publish facade da hazırdır.
+Manuel
 istek yalnız kalıcı `BEKLIYOR` run üretir. Worker poller ve Oracle business DML
 kapalıdır; ürün üretim kullanımı için hazır değildir.
 
@@ -126,8 +128,8 @@ GitHub Actions ve diğer CI/CD workflow'ları bu aşamada bilinçli olarak kapal
 3. Backend domain/API
 4. UI, uçtan uca tanım yönetimi ve portable JSON proje bundle'ı
 5. Kalıcı manuel run isteği, idempotency, izleme ve queued cancel
-6. PostgreSQL lease/fencing temeli ve target-local Oracle ledger (tamamlandı),
-   kontrollü Oracle worker ve crash/reconciliation testleri
+6. PostgreSQL lease/fencing, target-local Oracle ledger ve atomic publish facade
+   (tamamlandı); kontrollü Oracle worker orchestration ve crash/reconciliation testleri
 7. Retry/resume, scheduler ve production operasyonları
 
 Paket, Prosedür, Değişken, Sequence, Scenario ve Load Plan dahil tam kavram

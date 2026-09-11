@@ -70,12 +70,13 @@ sürecidir.
 ## Commit sırası
 
 1. PostgreSQL kısa transaction: claim, DB-time lease, generation ve olay.
-2. PostgreSQL olay: hedefe yazılacak deterministik batch anahtarı ve beklenen
-   hashler; satır verisi içermez.
+2. PostgreSQL transaction: immutable publish intent; exact runtime plan, publish
+   key, payload, satır/bayt sayısı ve iki lease generation kanıtı; satır verisi içermez.
 3. Oracle kısa transaction: daha yüksek target fence token'ını kalıcı yükselt.
-4. Oracle data transaction: kilit satırı `FOR UPDATE`, token/owner kontrolü,
-   mevcut marker kontrolü, DML ve marker insert, tek commit.
-5. Oracle marker yeniden okunarak sonuç doğrulanır.
+4. Oracle data transaction: `PREPARE`, hedefte exclusive lock, aynı connection'da
+   identity ile schema/trigger preflight, DML, transaction içi payload doğrulama,
+   marker `RECORD` ve tek commit. Exact marker zaten varsa DML yapılmaz.
+5. Commit sonucu belirsizse Oracle marker yeni reconciliation connection'ında okunur.
 6. PostgreSQL transaction: checkpoint aynası, metrik/olay ve state projection.
 
 Oracle commit'ten önce PostgreSQL'e tamamlandı checkpoint'i yazılmaz. Commit yanıtı

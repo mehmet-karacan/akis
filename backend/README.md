@@ -112,7 +112,9 @@ veritabanını siler.
 `JdbcRunLeaseStore` ile claim, target generation, DB-time heartbeat deadline,
 publish-intent/checkpoint tamamlaması ve reconciliation durumlarını sınar. Aynı
 koşuda runtime plana ait immutable source/target snapshot gövdelerinin exact yayın
-bağlarından yüklendiğini de doğrular; worker poller veya Oracle bağlantısı başlatmaz.
+bağlarından, runtime Oracle bağlantı metadata'sının exact connection sürümünden ve
+append-only publish intent'in exact run kaydından yüklendiğini de doğrular; worker
+poller veya Oracle bağlantısı başlatmaz.
 
 `run-oracle-ledger-it.ps1`, gerçek değerleri yalnız Git dışındaki `.env`
 dosyasından alır. Hedef Oracle 19c üzerinde production JDBC ledger adaptörüyle
@@ -137,9 +139,10 @@ dönük yayınlanabilir; manifestte `DEFINITION_ONLY` olarak işaretlenir ve pil
 worker tarafından yürütülemez.
 
 Faz 3D güvenlik temeli; V006 kontrollü completion/reconciliation durum API'lerini,
-V007 append-only publish intent kanıtını, pinned snapshot loader'ını, salt-okunur
-canlı Oracle schema preflight'ını ve bounded typed source/target I/O çekirdeğini
-ekler. Pilot payload codec'i yalnız gerçek pilotta gereken `NUMBER`, `VARCHAR2` ve
+V007/V008 exact append-only publish intent kanıtını, pinned snapshot loader'ını,
+salt-okunur canlı Oracle schema preflight'ını, runtime connection/secret
+provider'ını ve bounded typed source/target I/O çekirdeğini ekler. Pilot payload
+codec'i yalnız gerçek pilotta gereken `NUMBER`, `VARCHAR2` ve
 timezone'sız `TIMESTAMP(6)` tiplerini kabul eder; hücre ve batch limitleri uygular,
 satır sırasından bağımsız canonical hash üretir. Target writer exclusive table lock,
 aynı bağlantıda target identity ve transaction içi target count/hash doğrulaması
@@ -147,10 +150,14 @@ olmadan DELETE/INSERT yapmaz ve uygulama bean'i olarak kaydedilmez.
 
 Bu katman worker poller başlatmaz ve Oracle business/staging DML çalıştırmaz.
 Target-local Oracle package yalnız caller-owned transaction içinde çağrılır;
-adaptör commit veya rollback yapmaz. Pilot runtime plan yalnız iki Oracle tablo,
+adaptör commit veya rollback yapmaz. Atomic publish facade, PostgreSQL'de daha önce
+commit edilmiş intent'i tekrar okuyup caller'dan connection/evidence kabul etmeden
+tek guarded Oracle session üzerinde
+`PREPARE -> LOCK -> IDENTITY -> LOCKED PREFLIGHT -> DML -> VERIFY -> RECORD -> COMMIT`
+sırasını zorlar. Exact marker varsa DML'i atlar; commit hatasını, sonradan rollback
+yanıt verse bile `OutcomeUnknown` olarak sınıflandırır. Pilot runtime plan yalnız iki Oracle tablo,
 doğrudan kolon eşlemesi, en fazla 1000 kaynak satır ve atomik delete/insert
-stratejisini kabul eder. Ledger `PREPARE -> LOCK -> DML -> VERIFY -> RECORD -> COMMIT`
-sırasını tek transaction sahibi altında zorlayan facade, runtime connection/secret
-provider, fence-barrier reconciliation orchestration, retry/resume ve scheduler
-henüz ürün kodu değildir. Worker flag'i bu kapılar ve crash testleri tamamlanana
-kadar açık değerde fail-closed kalır.
+stratejisini kabul eder. Run durumunu facade sonuçlarına bağlayan worker orchestration,
+fence-barrier reconciliation, retry/resume ve scheduler henüz ürün kodu değildir.
+Worker flag'i bu kapılar ve crash testleri tamamlanana kadar açık değerde fail-closed
+kalır.
