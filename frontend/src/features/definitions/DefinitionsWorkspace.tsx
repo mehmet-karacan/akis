@@ -1,10 +1,10 @@
 import {
   AlertCircle,
-  Braces,
   Check,
   ChevronRight,
   CirclePlus,
   FileCode2,
+  FolderInput,
   GitBranch,
   Layers3,
   LoaderCircle,
@@ -15,7 +15,8 @@ import {
   ShieldCheck,
   X,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { ApiProblem } from '../../core/api/client'
 import { definitionsApi } from './api'
 import { createDefaultContent, isMappingContent, isProcedureContent, supportsVisualEditor } from './defaults'
@@ -23,6 +24,7 @@ import { definitionTypeKey, useDefinitionsI18n } from './i18n'
 import { JsonDraftEditor } from './JsonDraftEditor'
 import { MappingGrid } from './MappingGrid'
 import { ProcedureEditor } from './ProcedureEditor'
+import { ProjectExplorer } from './ProjectExplorer'
 import type {
   DataBinding,
   Definition,
@@ -32,6 +34,9 @@ import type {
   Draft,
   Folder,
   NewDefinitionInput,
+  NewFolderInput,
+  MoveDefinitionInput,
+  MoveFolderInput,
   Scenario,
 } from './types'
 import { DEFINITION_TYPES } from './types'
@@ -62,8 +67,24 @@ function errorMessage(error: unknown, fallback: string) {
   return fallback
 }
 
+function useDialogEscape(close: () => void, blocked = false) {
+  useEffect(() => {
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape' && !blocked) close()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [blocked, close])
+}
+
 export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps) {
   const { language, t } = useDefinitionsI18n()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const initialSelection = useRef({ projectUuid, uuid: searchParams.get('definition') })
+  if (initialSelection.current.projectUuid !== projectUuid) {
+    initialSelection.current = { projectUuid, uuid: searchParams.get('definition') }
+  }
+  const definitionRequest = useRef(0)
   const [definitions, setDefinitions] = useState<Definition[]>([])
   const [folders, setFolders] = useState<Folder[]>([])
   const [types, setTypes] = useState<DefinitionTypeDescriptor[]>(fallbackTypes)
@@ -73,7 +94,13 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
+  const [showCreateFolder, setShowCreateFolder] = useState(false)
+  const [showMoveDefinition, setShowMoveDefinition] = useState(false)
+  const [folderToMove, setFolderToMove] = useState<Folder | null>(null)
   const [creating, setCreating] = useState(false)
+  const [creatingFolder, setCreatingFolder] = useState(false)
+  const [movingDefinition, setMovingDefinition] = useState(false)
+  const [movingFolder, setMovingFolder] = useState(false)
   const [tab, setTab] = useState<WorkspaceTab>('draft')
   const [editorMode, setEditorMode] = useState<EditorMode>('visual')
   const [draft, setDraft] = useState<Draft | null>(null)
@@ -112,10 +139,12 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
       setDefinitions(nextDefinitions)
       setFolders(nextFolders)
       setTypes(nextTypes)
+      const requestedUuid = initialSelection.current.uuid
+      initialSelection.current.uuid = null
       setSelectedUuid((current) =>
         current && nextDefinitions.some((definition) => definition.uuid === current)
           ? current
-          : (nextDefinitions[0]?.uuid ?? null),
+          : requestedUuid && nextDefinitions.some((definition) => definition.uuid === requestedUuid) ? requestedUuid : null,
       )
     } catch (error) {
       setLoadError(errorMessage(error, t('loadError')))
@@ -130,6 +159,7 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
 
   const loadDefinition = useCallback(async () => {
     if (!selectedDefinition) return
+    const requestNumber = ++definitionRequest.current
     setDraftLoading(true)
     setStatus(null)
     setVersions([])
@@ -141,6 +171,7 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
         definitionsApi.getDraft(projectUuid, selectedDefinition.uuid),
         definitionsApi.listVersions(projectUuid, selectedDefinition.uuid),
       ])
+      if (definitionRequest.current !== requestNumber) return
       setDraft(nextDraft)
       setSchemaVersion(nextDraft?.schemaVersion ?? (selectedDefinition.type === 'MAPPING' || selectedDefinition.type === 'PROCEDURE' ? 2 : 1))
       setContent(nextDraft?.content ?? createDefaultContent(selectedDefinition.type))
@@ -149,9 +180,9 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
       setVersions(nextVersions)
       setSelectedVersionUuid(nextVersions[0]?.uuid ?? null)
     } catch (error) {
-      setStatus({ tone: 'error', text: errorMessage(error, t('requestError')) })
+      if (definitionRequest.current === requestNumber) setStatus({ tone: 'error', text: errorMessage(error, t('requestError')) })
     } finally {
-      setDraftLoading(false)
+      if (definitionRequest.current === requestNumber) setDraftLoading(false)
     }
   }, [projectUuid, selectedDefinition, t])
 
@@ -191,6 +222,23 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
         .includes(normalized)
     })
   }, [definitions, language, query, typeFilter, typeLabel])
+
+  const explorerFolders = useMemo(() => {
+    const activeFolders = folders.filter((folder) => folder.status === 'AKTIF')
+    if (!query.trim() && !typeFilter) return activeFolders
+    const byUuid = new Map(activeFolders.map((folder) => [folder.uuid, folder]))
+    const visible = new Set<string>()
+    for (const definition of filteredDefinitions) {
+      let folderUuid = definition.folderUuid
+      const path = new Set<string>()
+      while (folderUuid && !path.has(folderUuid)) {
+        path.add(folderUuid)
+        visible.add(folderUuid)
+        folderUuid = byUuid.get(folderUuid)?.parentUuid ?? null
+      }
+    }
+    return activeFolders.filter((folder) => visible.has(folder.uuid))
+  }, [filteredDefinitions, folders, query, typeFilter])
 
   async function saveDraft() {
     if (!selectedDefinition || saving || !jsonValid) return
@@ -272,11 +320,23 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
     setStatus(null)
   }
 
+  function selectDefinition(uuid: string) {
+    if (uuid === selectedUuid) return
+    if (dirty && !window.confirm(t('discardChanges'))) return
+    definitionRequest.current += 1
+    setSelectedUuid(uuid)
+    setTab('draft')
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.set('definition', uuid)
+    nextParams.delete('tab')
+    setSearchParams(nextParams, { replace: true })
+  }
+
   return (
     <div className="definitions-workspace" onKeyDown={handleWorkspaceKeyDown}>
       <header className="definitions-titlebar">
         <div>
-          <p className="definition-eyebrow">DESIGN CONTROL</p>
+          <p className="definition-eyebrow">{t('designControl')}</p>
           <h1>{t('title')}</h1>
           <p>{t('subtitle')}</p>
         </div>
@@ -310,35 +370,28 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
               <p>{loadError}</p>
               <button className="definition-button definition-button--quiet" type="button" onClick={() => void loadWorkspace()}>{t('retry')}</button>
             </div>
-          ) : filteredDefinitions.length === 0 ? (
-            <div className="definition-state"><FileCode2 aria-hidden="true" /><p>{t('empty')}</p></div>
           ) : (
-            <ul className="definition-list">
-              {filteredDefinitions.map((definition) => (
-                <li key={definition.uuid}>
-                  <button
-                    type="button"
-                    className={definition.uuid === selectedUuid ? 'is-selected' : ''}
-                    aria-current={definition.uuid === selectedUuid ? 'true' : undefined}
-                    onClick={() => {
-                      setSelectedUuid(definition.uuid)
-                      setTab('draft')
-                    }}
-                  >
-                    <span className="definition-list-icon"><Braces size={17} aria-hidden="true" /></span>
-                    <span className="definition-list-copy">
-                      <strong>{definition.name}</strong>
-                      <span><code>{definition.code}</code> · {typeLabel(definition.type)}</span>
-                    </span>
-                    <ChevronRight size={16} aria-hidden="true" />
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <ProjectExplorer
+              folders={explorerFolders}
+              definitions={filteredDefinitions}
+              selectedUuid={selectedUuid}
+              onSelect={selectDefinition}
+              onCreateFolder={() => setShowCreateFolder(true)}
+              onMoveFolder={setFolderToMove}
+            />
           )}
         </aside>
 
         <main className="definition-workbench">
+          {status && (
+            <div className={`definition-notice definition-notice--${status.tone}`} role={status.tone === 'error' ? 'alert' : 'status'}>
+              {status.tone === 'success' ? <Check size={16} aria-hidden="true" /> : <AlertCircle size={16} aria-hidden="true" />}
+              <span>{status.text}</span>
+              {status.tone === 'error' && selectedDefinition && draft ? (
+                <button type="button" onClick={() => void loadDefinition()}>{t('reloadDraft')}</button>
+              ) : null}
+            </div>
+          )}
           {!selectedDefinition ? (
             <div className="definition-empty-workbench">
               <Layers3 aria-hidden="true" />
@@ -350,15 +403,20 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
                 <div>
                   <div className="definition-document-meta">
                     <span className="definition-type-chip">{typeLabel(selectedDefinition.type)}</span>
-                    <span>{selectedDefinition.status}</span>
+                    <span>{selectedDefinition.status === 'AKTIF' ? t('active') : selectedDefinition.status}</span>
                     <span><code>{selectedDefinition.code}</code></span>
                   </div>
                   <h2>{selectedDefinition.name}</h2>
                   {selectedDefinition.description && <p>{selectedDefinition.description}</p>}
                 </div>
-                <button className="definition-icon-button" type="button" aria-label={t('reloadDraft')} onClick={() => void loadDefinition()}>
-                  <RefreshCw size={17} aria-hidden="true" />
-                </button>
+                <div className="definition-document-actions">
+                  <button className="definition-button definition-button--quiet" type="button" onClick={() => setShowMoveDefinition(true)}>
+                    <FolderInput size={16} aria-hidden="true" /> {t('moveDefinition')}
+                  </button>
+                  <button className="definition-icon-button" type="button" aria-label={t('reloadDraft')} onClick={() => void loadDefinition()}>
+                    <RefreshCw size={17} aria-hidden="true" />
+                  </button>
+                </div>
               </header>
 
               <div className="definition-tabs" role="tablist" aria-label={t('details')}>
@@ -375,16 +433,6 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
                   </button>
                 )}
               </div>
-
-              {status && (
-                <div className={`definition-notice definition-notice--${status.tone}`} role={status.tone === 'error' ? 'alert' : 'status'}>
-                  {status.tone === 'success' ? <Check size={16} aria-hidden="true" /> : <AlertCircle size={16} aria-hidden="true" />}
-                  <span>{status.text}</span>
-                  {status.tone === 'error' && draft && (
-                    <button type="button" onClick={() => void loadDefinition()}>{t('reloadDraft')}</button>
-                  )}
-                </div>
-              )}
 
               {draftLoading ? (
                 <div className="definition-state"><LoaderCircle className="spin" aria-hidden="true" /> {t('loading')}</div>
@@ -466,6 +514,9 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
               const created = await definitionsApi.createDefinition(projectUuid, input)
               setDefinitions((current) => [created, ...current])
               setSelectedUuid(created.uuid)
+              const nextParams = new URLSearchParams(searchParams)
+              nextParams.set('definition', created.uuid)
+              setSearchParams(nextParams, { replace: true })
               setShowCreate(false)
               setTab('draft')
             } catch (error) {
@@ -476,6 +527,179 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
           }}
         />
       )}
+      {showCreateFolder && (
+        <CreateFolderDialog
+          folders={folders}
+          creating={creatingFolder}
+          close={() => setShowCreateFolder(false)}
+          onCreate={async (input) => {
+            setCreatingFolder(true)
+            try {
+              const created = await definitionsApi.createFolder(projectUuid, input)
+              setFolders((current) => [...current, created])
+              setShowCreateFolder(false)
+              setStatus({ tone: 'success', text: t('folderCreated') })
+            } catch (error) {
+              setStatus({ tone: 'error', text: errorMessage(error, t('requestError')) })
+            } finally {
+              setCreatingFolder(false)
+            }
+          }}
+        />
+      )}
+      {showMoveDefinition && selectedDefinition && (
+        <MoveDefinitionDialog
+          definition={selectedDefinition}
+          folders={folders}
+          folderRequired={types.find((type) => type.code === selectedDefinition.type)?.folderRequired ?? false}
+          moving={movingDefinition}
+          close={() => setShowMoveDefinition(false)}
+          onMove={async (input) => {
+            setMovingDefinition(true)
+            try {
+              const moved = await definitionsApi.moveDefinition(projectUuid, selectedDefinition.uuid, input)
+              setDefinitions((current) => current.map((definition) => definition.uuid === moved.uuid ? moved : definition))
+              setShowMoveDefinition(false)
+              setStatus({ tone: 'success', text: t('definitionMoved') })
+            } catch (error) {
+              setStatus({ tone: 'error', text: errorMessage(error, t('requestError')) })
+            } finally {
+              setMovingDefinition(false)
+            }
+          }}
+        />
+      )}
+      {folderToMove && (
+        <MoveFolderDialog
+          folder={folderToMove}
+          folders={folders}
+          moving={movingFolder}
+          close={() => setFolderToMove(null)}
+          onMove={async (input) => {
+            setMovingFolder(true)
+            try {
+              const moved = await definitionsApi.moveFolder(projectUuid, folderToMove.uuid, input)
+              setFolders((current) => current.map((folder) => folder.uuid === moved.uuid ? moved : folder))
+              setFolderToMove(null)
+              setStatus({ tone: 'success', text: t('folderMoved') })
+            } catch (error) {
+              setStatus({ tone: 'error', text: errorMessage(error, t('requestError')) })
+            } finally {
+              setMovingFolder(false)
+            }
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+interface CreateFolderDialogProps {
+  folders: Folder[]
+  creating: boolean
+  close: () => void
+  onCreate: (input: NewFolderInput) => Promise<void>
+}
+
+function CreateFolderDialog({ folders, creating, close, onCreate }: CreateFolderDialogProps) {
+  const { t } = useDefinitionsI18n()
+  useDialogEscape(close, creating)
+  const [input, setInput] = useState<NewFolderInput>({ parentUuid: null, type: 'GELISTIRME', code: '', name: '', description: '' })
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    await onCreate(input)
+  }
+  return (
+    <div className="definition-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) close() }}>
+      <section className="definition-dialog" role="dialog" aria-modal="true" aria-labelledby="new-folder-title">
+        <header><div><p className="definition-eyebrow">{t('designControl')}</p><h2 id="new-folder-title">{t('newFolder')}</h2></div><button className="definition-icon-button" type="button" aria-label={t('close')} onClick={close}><X size={18} aria-hidden="true" /></button></header>
+        <form onSubmit={submit}>
+          <div className="definition-form-grid">
+            <label><span>{t('parentFolder')}</span><select value={input.parentUuid ?? ''} onChange={(event) => setInput({ ...input, parentUuid: event.target.value || null })}><option value="">{t('rootFolder')}</option>{folders.filter((folder) => folder.status === 'AKTIF').map((folder) => <option key={folder.uuid} value={folder.uuid}>{folder.name} · {folder.code}</option>)}</select></label>
+            <label><span>{t('folderType')}</span><select value={input.type} onChange={(event) => setInput({ ...input, type: event.target.value as NewFolderInput['type'] })}><option value="GELISTIRME">{t('developmentFolder')}</option><option value="MODEL">{t('modelFolder')}</option><option value="YUKLEME_PLANI">{t('loadPlanFolder')}</option></select></label>
+            <label><span>{t('code')}</span><input autoFocus required pattern="[A-Z][A-Z0-9_]{0,99}" placeholder="FINANCE" value={input.code} onChange={(event) => setInput({ ...input, code: event.target.value.toLocaleUpperCase('en-US').replace(/[^A-Z0-9_]/g, '') })} /></label>
+            <label><span>{t('name')}</span><input required value={input.name} onChange={(event) => setInput({ ...input, name: event.target.value })} /></label>
+            <label className="definition-form-grid--wide"><span>{t('description')}</span><textarea rows={3} value={input.description} onChange={(event) => setInput({ ...input, description: event.target.value })} /></label>
+          </div>
+          <footer><button className="definition-button definition-button--quiet" type="button" onClick={close}>{t('cancel')}</button><button className="definition-button definition-button--primary" type="submit" disabled={creating}>{creating ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}{creating ? t('creatingFolder') : t('createFolder')}</button></footer>
+        </form>
+      </section>
+    </div>
+  )
+}
+
+interface MoveDefinitionDialogProps {
+  definition: Definition
+  folders: Folder[]
+  folderRequired: boolean
+  moving: boolean
+  close: () => void
+  onMove: (input: MoveDefinitionInput) => Promise<void>
+}
+
+function MoveDefinitionDialog({ definition, folders, folderRequired, moving, close, onMove }: MoveDefinitionDialogProps) {
+  const { t } = useDefinitionsI18n()
+  useDialogEscape(close, moving)
+  const [folderUuid, setFolderUuid] = useState<string | null>(definition.folderUuid)
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    if (folderRequired && !folderUuid) return
+    await onMove({ folderUuid, expectedVersion: definition.version })
+  }
+  return (
+    <div className="definition-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) close() }}>
+      <section className="definition-dialog definition-dialog--compact" role="dialog" aria-modal="true" aria-labelledby="move-definition-title">
+        <header><div><p className="definition-eyebrow">{t('designControl')}</p><h2 id="move-definition-title">{t('moveDefinition')}</h2></div><button className="definition-icon-button" type="button" aria-label={t('close')} onClick={close}><X size={18} aria-hidden="true" /></button></header>
+        <form onSubmit={submit}>
+          <p className="definition-dialog-help">{t('moveDefinitionHelp')}</p>
+          <label><span>{t('folder')}</span><select autoFocus required={folderRequired} value={folderUuid ?? ''} onChange={(event) => setFolderUuid(event.target.value || null)}><option value="" disabled={folderRequired}>{t('unfiled')}</option>{folders.filter((folder) => folder.status === 'AKTIF').map((folder) => <option key={folder.uuid} value={folder.uuid}>{folder.name} · {folder.code}</option>)}</select>{folderRequired && !folderUuid ? <small className="definition-field-error">{t('folderRequired')}</small> : null}</label>
+          <footer><button className="definition-button definition-button--quiet" type="button" onClick={close}>{t('cancel')}</button><button className="definition-button definition-button--primary" type="submit" disabled={moving || folderUuid === definition.folderUuid || (folderRequired && !folderUuid)}>{moving ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <FolderInput size={16} aria-hidden="true" />}{moving ? t('movingDefinition') : t('move')}</button></footer>
+        </form>
+      </section>
+    </div>
+  )
+}
+
+interface MoveFolderDialogProps {
+  folder: Folder
+  folders: Folder[]
+  moving: boolean
+  close: () => void
+  onMove: (input: MoveFolderInput) => Promise<void>
+}
+
+function MoveFolderDialog({ folder, folders, moving, close, onMove }: MoveFolderDialogProps) {
+  const { t } = useDefinitionsI18n()
+  useDialogEscape(close, moving)
+  const [parentUuid, setParentUuid] = useState<string | null>(folder.parentUuid)
+  const unavailable = useMemo(() => {
+    const result = new Set([folder.uuid])
+    let changed = true
+    while (changed) {
+      changed = false
+      for (const candidate of folders) {
+        if (candidate.parentUuid && result.has(candidate.parentUuid) && !result.has(candidate.uuid)) {
+          result.add(candidate.uuid)
+          changed = true
+        }
+      }
+    }
+    return result
+  }, [folder.uuid, folders])
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    await onMove({ parentUuid, expectedVersion: folder.version })
+  }
+  return (
+    <div className="definition-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) close() }}>
+      <section className="definition-dialog definition-dialog--compact" role="dialog" aria-modal="true" aria-labelledby="move-folder-title">
+        <header><div><p className="definition-eyebrow">{t('designControl')}</p><h2 id="move-folder-title">{t('moveFolder')}</h2></div><button className="definition-icon-button" type="button" aria-label={t('close')} onClick={close}><X size={18} aria-hidden="true" /></button></header>
+        <form onSubmit={submit}>
+          <p className="definition-dialog-help">{t('moveFolderHelp')}</p>
+          <label><span>{t('parentFolder')}</span><select autoFocus value={parentUuid ?? ''} onChange={(event) => setParentUuid(event.target.value || null)}><option value="">{t('rootFolder')}</option>{folders.filter((candidate) => candidate.status === 'AKTIF' && !unavailable.has(candidate.uuid)).map((candidate) => <option key={candidate.uuid} value={candidate.uuid}>{candidate.name} · {candidate.code}</option>)}</select></label>
+          <footer><button className="definition-button definition-button--quiet" type="button" onClick={close}>{t('cancel')}</button><button className="definition-button definition-button--primary" type="submit" disabled={moving || parentUuid === folder.parentUuid}>{moving ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <FolderInput size={16} aria-hidden="true" />}{moving ? t('movingFolder') : t('move')}</button></footer>
+        </form>
+      </section>
     </div>
   )
 }
@@ -614,6 +838,7 @@ interface CreateDefinitionDialogProps {
 
 function CreateDefinitionDialog({ folders, types, creating, close, onCreate }: CreateDefinitionDialogProps) {
   const { t } = useDefinitionsI18n()
+  useDialogEscape(close, creating)
   const [input, setInput] = useState<NewDefinitionInput>({ folderUuid: null, type: 'MAPPING', code: '', name: '', description: '' })
   const descriptor = types.find((type) => type.code === input.type)
   async function submit(event: FormEvent) {
@@ -624,11 +849,11 @@ function CreateDefinitionDialog({ folders, types, creating, close, onCreate }: C
   return (
     <div className="definition-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) close() }}>
       <section className="definition-dialog" role="dialog" aria-modal="true" aria-labelledby="new-definition-title">
-        <header><div><p className="definition-eyebrow">DESIGN CONTROL</p><h2 id="new-definition-title">{t('newDefinition')}</h2></div><button className="definition-icon-button" type="button" aria-label={t('close')} onClick={close}><X size={18} aria-hidden="true" /></button></header>
+        <header><div><p className="definition-eyebrow">{t('designControl')}</p><h2 id="new-definition-title">{t('newDefinition')}</h2></div><button className="definition-icon-button" type="button" aria-label={t('close')} onClick={close}><X size={18} aria-hidden="true" /></button></header>
         <form onSubmit={submit}>
           <div className="definition-form-grid">
             <label><span>{t('type')}</span><select value={input.type} onChange={(event) => setInput({ ...input, type: event.target.value as DefinitionType, folderUuid: null })}>{types.map((type) => <option key={type.code} value={type.code}>{t(definitionTypeKey[type.code])}</option>)}</select></label>
-            <label><span>{t('folder')}</span><select required={descriptor?.folderRequired} value={input.folderUuid ?? ''} onChange={(event) => setInput({ ...input, folderUuid: event.target.value || null })}><option value="">{t('noFolder')}</option>{folders.map((folder) => <option key={folder.uuid} value={folder.uuid}>{folder.name} · {folder.code}</option>)}</select>{descriptor?.folderRequired && !input.folderUuid && <small>{t('folderRequired')}</small>}</label>
+            <label><span>{t('folder')}</span><select required={descriptor?.folderRequired} value={input.folderUuid ?? ''} onChange={(event) => setInput({ ...input, folderUuid: event.target.value || null })}><option value="">{t('noFolder')}</option>{folders.filter((folder) => folder.status === 'AKTIF').map((folder) => <option key={folder.uuid} value={folder.uuid}>{folder.name} · {folder.code}</option>)}</select>{descriptor?.folderRequired && !input.folderUuid && <small>{t('folderRequired')}</small>}</label>
             <label><span>{t('code')}</span><input autoFocus required pattern="[A-Z][A-Z0-9_]{0,99}" placeholder="CUSTOMER_LOAD" value={input.code} onChange={(event) => setInput({ ...input, code: event.target.value.toLocaleUpperCase('en-US').replace(/[^A-Z0-9_]/g, '') })} /></label>
             <label><span>{t('name')}</span><input required value={input.name} onChange={(event) => setInput({ ...input, name: event.target.value })} /></label>
             <label className="definition-form-grid--wide"><span>{t('description')}</span><textarea rows={3} value={input.description} onChange={(event) => setInput({ ...input, description: event.target.value })} /></label>

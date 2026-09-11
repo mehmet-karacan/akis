@@ -196,6 +196,19 @@ try {
         name = "Development"
         type = "GELISTIRME"
     }
+    $nestedFolder = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/folders" @{
+        parentUuid = $folder.uuid
+        code = "FINANCE"
+        name = "Finance"
+        type = "GELISTIRME"
+    }
+    $movedFolder = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/folders/$($nestedFolder.uuid)/move" @{
+        parentUuid = $null
+        expectedVersion = $nestedFolder.version
+    }
+    if ($movedFolder.parentUuid -ne $null -or $movedFolder.version -ne ($nestedFolder.version + 1)) {
+        throw "Folder move did not preserve identity and increment its version."
+    }
 
     $secretReference = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/secret-references" @{
         code = "TEST_ORACLE_CREDENTIAL"
@@ -537,6 +550,16 @@ try {
             $mappingDefinition = $definition
             $mappingVersion = $version
         }
+    }
+
+    $currentMappingDefinition = Invoke-AkisJson GET "/api/v1/projects/$($project.uuid)/definitions/$($mappingDefinition.uuid)"
+    $movedMappingDefinition = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/definitions/$($mappingDefinition.uuid)/move" @{
+        folderUuid = $movedFolder.uuid
+        expectedVersion = $currentMappingDefinition.version
+    }
+    if ($movedMappingDefinition.folderUuid -ne $movedFolder.uuid `
+            -or $movedMappingDefinition.version -ne ($currentMappingDefinition.version + 1)) {
+        throw "Definition move did not preserve identity and increment its version."
     }
 
     $scenarioPath = "/api/v1/projects/$($project.uuid)/definitions/$($mappingDefinition.uuid)/versions/$($mappingVersion.uuid)/scenarios"

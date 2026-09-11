@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.Map;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -16,6 +17,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import tr.com.innova.akis.metadata.MetadataModels.DefinitionRow;
 import tr.com.innova.akis.metadata.MetadataModels.DraftRow;
+import tr.com.innova.akis.metadata.MetadataModels.FolderRow;
 import tr.com.innova.akis.metadata.MetadataModels.ProjectRow;
 import tr.com.innova.akis.projectbundle.SecretValueSanitizer;
 
@@ -143,6 +145,46 @@ class MetadataServiceTest {
         assertEquals(null, repository.draft);
     }
 
+    @Test
+    void rejectsMovingFolderBelowItsDescendant() {
+        FolderRepository repository = new FolderRepository(objectMapper);
+        MetadataService folderService = service(repository);
+
+        ApiException exception = assertThrows(ApiException.class, () -> folderService.moveFolder(
+                repository.projectUuid, repository.rootUuid, repository.grandchildUuid, 1L));
+
+        assertEquals("FOLDER_CYCLE", exception.code());
+    }
+
+    @Test
+    void movesFolderToRootWithOptimisticVersion() {
+        FolderRepository repository = new FolderRepository(objectMapper);
+        MetadataService folderService = service(repository);
+
+        FolderRow moved = folderService.moveFolder(
+                repository.projectUuid, repository.childUuid, null, 1L);
+
+        assertEquals(null, moved.parentUuid());
+        assertEquals(2, moved.version());
+    }
+
+    @Test
+    void rejectsMovingFolderRequiredDefinitionToProjectRoot() {
+        FolderRepository repository = new FolderRepository(objectMapper);
+        MetadataService folderService = service(repository);
+
+        ApiException exception = assertThrows(ApiException.class, () -> folderService.moveDefinition(
+                repository.projectUuid, repository.definitionUuid, null, 1L));
+
+        assertEquals("FOLDER_REQUIRED", exception.code());
+    }
+
+    private MetadataService service(MetadataRepository repository) {
+        return new MetadataService(
+                repository, objectMapper, new DefinitionContentValidator(),
+                new SecretValueSanitizer());
+    }
+
     private JsonNode json(String value) {
         return objectMapper.readTree(value);
     }
@@ -188,6 +230,68 @@ class MetadataServiceTest {
         @Override
         void lockDefinition(long definitionId) {
             // In-memory test double: no concurrent writer exists.
+        }
+    }
+
+    private static final class FolderRepository extends MetadataRepository {
+
+        private final UUID projectUuid = UUID.randomUUID();
+        private final UUID rootUuid = UUID.randomUUID();
+        private final UUID childUuid = UUID.randomUUID();
+        private final UUID grandchildUuid = UUID.randomUUID();
+        private final UUID definitionUuid = UUID.randomUUID();
+        private List<FolderRow> folders;
+
+        private FolderRepository(ObjectMapper objectMapper) {
+            super(null, objectMapper);
+            folders = List.of(
+                    new FolderRow(10, 1, rootUuid, null, "ROOT", "GELISTIRME", "AKTIF", "Root", null, 1),
+                    new FolderRow(11, 1, childUuid, rootUuid, "CHILD", "GELISTIRME", "AKTIF", "Child", null, 1),
+                    new FolderRow(12, 1, grandchildUuid, childUuid, "GRANDCHILD", "GELISTIRME", "AKTIF", "Grandchild", null, 1));
+        }
+
+        @Override
+        Optional<ProjectRow> findProject(UUID uuid) {
+            return projectUuid.equals(uuid)
+                    ? Optional.of(new ProjectRow(1, projectUuid, "TEST", "AKTIF", "Test", null, 1, null))
+                    : Optional.empty();
+        }
+
+        @Override
+        void lockFolderHierarchy(long projectId) {
+            // In-memory test double: no concurrent hierarchy writer exists.
+        }
+
+        @Override
+        List<FolderRow> listFolders(long projectId) {
+            return projectId == 1 ? folders : List.of();
+        }
+
+        @Override
+        Optional<FolderRow> findFolder(long projectId, UUID uuid) {
+            return folders.stream().filter(folder -> projectId == 1 && folder.uuid().equals(uuid)).findFirst();
+        }
+
+        @Override
+        FolderRow moveFolder(long projectId, long folderId, Long parentId, long expectedVersion) {
+            FolderRow current = folders.stream().filter(folder -> folder.id() == folderId).findFirst().orElseThrow();
+            UUID parentUuid = folders.stream().filter(folder -> parentId != null && folder.id() == parentId)
+                    .map(FolderRow::uuid).findFirst().orElse(null);
+            FolderRow moved = new FolderRow(
+                    current.id(), current.projectId(), current.uuid(), parentUuid,
+                    current.code(), current.type(), current.status(), current.name(),
+                    current.description(), current.version() + 1);
+            folders = folders.stream().map(folder -> folder.id() == folderId ? moved : folder).toList();
+            return moved;
+        }
+
+        @Override
+        Optional<DefinitionRow> findDefinition(long projectId, UUID uuid) {
+            return projectId == 1 && definitionUuid.equals(uuid)
+                    ? Optional.of(new DefinitionRow(
+                            20, 1L, definitionUuid, childUuid, DefinitionType.PROCEDURE,
+                            "PROCEDURE", "TASLAK", "Procedure", null, 1))
+                    : Optional.empty();
         }
     }
 }

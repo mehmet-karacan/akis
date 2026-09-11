@@ -8,6 +8,9 @@ import type {
   Draft,
   Folder,
   NewDefinitionInput,
+  NewFolderInput,
+  MoveDefinitionInput,
+  MoveFolderInput,
   Scenario,
 } from './types'
 
@@ -20,6 +23,18 @@ export const definitionsApi = {
   listFolders: (projectUuid: string) =>
     apiRequest<Folder[]>(`${base}/projects/${segment(projectUuid)}/folders`),
 
+  createFolder: (projectUuid: string, input: NewFolderInput) =>
+    apiRequest<Folder>(`${base}/projects/${segment(projectUuid)}/folders`, {
+      method: 'POST',
+      ...jsonBody(input),
+    }),
+
+  moveFolder: (projectUuid: string, folderUuid: string, input: MoveFolderInput) =>
+    apiRequest<Folder>(`${base}/projects/${segment(projectUuid)}/folders/${segment(folderUuid)}/move`, {
+      method: 'POST',
+      ...jsonBody(input),
+    }),
+
   listDefinitions: (projectUuid: string, type?: DefinitionType) =>
     apiRequest<Definition[]>(
       `${base}/projects/${segment(projectUuid)}/definitions${type ? `?type=${segment(type)}` : ''}`,
@@ -27,6 +42,12 @@ export const definitionsApi = {
 
   createDefinition: (projectUuid: string, input: NewDefinitionInput) =>
     apiRequest<Definition>(`${base}/projects/${segment(projectUuid)}/definitions`, {
+      method: 'POST',
+      ...jsonBody(input),
+    }),
+
+  moveDefinition: (projectUuid: string, definitionUuid: string, input: MoveDefinitionInput) =>
+    apiRequest<Definition>(`${base}/projects/${segment(projectUuid)}/definitions/${segment(definitionUuid)}/move`, {
       method: 'POST',
       ...jsonBody(input),
     }),
@@ -103,4 +124,3 @@ export const definitionsApi = {
       { method: 'POST', ...jsonBody(input) },
     ),
 }
-

@@ -144,6 +144,10 @@ label { display: grid; gap: 7px; color: var(--ink-soft); font-size: .77rem; font
 .user-menu button { width: 29px; height: 29px; display: grid; place-items: center; color: var(--ink-soft); border: 0; border-radius: 6px; background: transparent; cursor: pointer; }
 .user-menu button:hover { background: var(--surface-strong); }
 .main-content { padding: clamp(28px, 4vw, 54px); }
+.route-loading { min-height: 16rem; display: grid; place-items: center; align-content: center; gap: 12px; color: var(--ink-soft); font-size: .78rem; }
+.route-loading span { width: 28px; height: 28px; border: 3px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: route-spin .8s linear infinite; }
+@keyframes route-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .route-loading span { animation-duration: 1.8s; } }
 .page-stack { max-width: 1380px; margin: 0 auto; }
 .page-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 26px; margin-bottom: 30px; }
 .page-header > div:first-child { max-width: 730px; }

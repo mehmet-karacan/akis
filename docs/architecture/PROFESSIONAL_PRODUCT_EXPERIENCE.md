@@ -154,6 +154,20 @@ English is the default locale; Turkish is fully supported and the preference per
 - The dashboard never implies an object is runnable only because its publication is active; runtime capability must also be executable.
 - CI/CD remains disabled until explicitly enabled by the project owner.
 
+## 9. Implementation status
+
+As of 2026-09-11:
+
+- grouped project navigation and the adaptive project home are implemented,
+- Design uses a project-explorer rail backed by the existing relational folder hierarchy,
+- nested folder creation, definition placement and folder moves are project-scoped and optimistic-lock protected,
+- V015 prevents hierarchy cycles and enforces the 100-level bundle compatibility limit,
+- definition selection is deep-linkable with the `definition` query parameter,
+- unsaved draft switching is guarded and stale definition responses cannot overwrite a newer selection,
+- route-level code splitting keeps the initial application bundle independent from the large design and topology workspaces.
+
+Folder archive/delete is intentionally deferred. Its non-empty-folder and subtree behavior requires an explicit product decision; no silent cascade is permitted.
+
 ## References
 
 - [Apache Airflow UI](https://airflow.apache.org/docs/apache-airflow/stable/ui.html)
@@ -162,4 +176,3 @@ English is the default locale; Turkish is fully supported and the preference per
 - [Oracle Data Integrator packages](https://docs.oracle.com/en/middleware/fusion-middleware/data-integrator/12.2.1.4/odidg/creating-and-using-packages.html)
 - [Oracle JDBC data sources and URLs for 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/jjdbc/data-sources-and-URLs.html)
 - [Oracle Database 19c TLS](https://docs.oracle.com/en/database/oracle/oracle-database/19/dbseg/tls-and-oracle-database.html)
-

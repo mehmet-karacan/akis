@@ -145,3 +145,21 @@ export interface NewDefinitionInput {
   name: string
   description: string
 }
+
+export interface NewFolderInput {
+  parentUuid: string | null
+  code: string
+  type: 'GELISTIRME' | 'MODEL' | 'YUKLEME_PLANI'
+  name: string
+  description: string
+}
+
+export interface MoveDefinitionInput {
+  folderUuid: string | null
+  expectedVersion: number
+}
+
+export interface MoveFolderInput {
+  parentUuid: string | null
+  expectedVersion: number
+}

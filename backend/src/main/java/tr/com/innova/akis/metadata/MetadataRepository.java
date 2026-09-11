@@ -34,6 +34,13 @@ public class MetadataRepository {
                 .single();
     }
 
+    void lockFolderHierarchy(long projectId) {
+        jdbc.sql("select id from entegrasyon.proje where id = :projectId for update")
+                .param("projectId", projectId)
+                .query(Long.class)
+                .single();
+    }
+
     ProjectRow createProject(UUID uuid, String code, String name, String description) {
         return jdbc.sql("""
                         insert into entegrasyon.proje(uuid, kod, ad, aciklama)
@@ -135,6 +142,38 @@ public class MetadataRepository {
                 .optional();
     }
 
+    FolderRow moveFolder(
+            long projectId,
+            long folderId,
+            Long parentId,
+            long expectedVersion) {
+        int changed = jdbc.sql("""
+                        update entegrasyon.klasor
+                           set ust_klasor_id = :parentId,
+                               guncellenme_zamani = current_timestamp,
+                               versiyon_no = versiyon_no + 1
+                         where proje_id = :projectId
+                           and id = :folderId
+                           and versiyon_no = :expectedVersion
+                        """)
+                .param("projectId", projectId)
+                .param("folderId", folderId)
+                .param("parentId", parentId, Types.BIGINT)
+                .param("expectedVersion", expectedVersion)
+                .update();
+        if (changed != 1) {
+            throw new ApiException(
+                    org.springframework.http.HttpStatus.PRECONDITION_FAILED,
+                    "STALE_VERSION",
+                    "Klasör sürümü istekle uyuşmuyor.");
+        }
+        return jdbc.sql(folderSelect() + " where k.proje_id = :projectId and k.id = :folderId")
+                .param("projectId", projectId)
+                .param("folderId", folderId)
+                .query(this::mapFolder)
+                .single();
+    }
+
     DefinitionRow createDefinition(
             long projectId,
             UUID uuid,
@@ -200,6 +239,38 @@ public class MetadataRepository {
                 .param("uuid", uuid)
                 .query(this::mapDefinition)
                 .optional();
+    }
+
+    DefinitionRow moveDefinition(
+            long projectId,
+            long definitionId,
+            Long folderId,
+            long expectedVersion) {
+        int changed = jdbc.sql("""
+                        update entegrasyon.tanim
+                           set klasor_id = :folderId,
+                               guncellenme_zamani = current_timestamp,
+                               versiyon_no = versiyon_no + 1
+                         where proje_id = :projectId
+                           and id = :definitionId
+                           and versiyon_no = :expectedVersion
+                        """)
+                .param("projectId", projectId)
+                .param("definitionId", definitionId)
+                .param("folderId", folderId, Types.BIGINT)
+                .param("expectedVersion", expectedVersion)
+                .update();
+        if (changed != 1) {
+            throw new ApiException(
+                    org.springframework.http.HttpStatus.PRECONDITION_FAILED,
+                    "STALE_VERSION",
+                    "Tanım sürümü istekle uyuşmuyor.");
+        }
+        return jdbc.sql(definitionSelect() + " where t.proje_id = :projectId and t.id = :definitionId")
+                .param("projectId", projectId)
+                .param("definitionId", definitionId)
+                .query(this::mapDefinition)
+                .single();
     }
 
     List<DefinitionRow> listGlobalDefinitions(DefinitionType type) {

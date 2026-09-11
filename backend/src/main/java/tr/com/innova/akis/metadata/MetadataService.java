@@ -5,8 +5,12 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -74,11 +78,17 @@ public class MetadataService {
             String name,
             String description) {
         ProjectRow project = project(projectUuid);
+        repository.lockFolderHierarchy(project.id());
         Long parentId = parentUuid == null
                 ? null
                 : repository.findFolder(project.id(), parentUuid)
                         .orElseThrow(() -> notFound("Üst klasör bulunamadı."))
                         .id();
+        if (parentUuid != null) {
+            FolderRow parent = repository.findFolder(project.id(), parentUuid).orElseThrow();
+            requireActiveFolder(parent);
+            validateFolderPlacement(null, parentUuid, 1, repository.listFolders(project.id()));
+        }
         String normalizedType = type == null ? "GELISTIRME" : type.toUpperCase();
         if (!List.of("GELISTIRME", "MODEL", "YUKLEME_PLANI").contains(normalizedType)) {
             throw validation("Geçersiz klasör türü.");
@@ -95,6 +105,34 @@ public class MetadataService {
 
     List<FolderRow> listFolders(UUID projectUuid) {
         return repository.listFolders(project(projectUuid).id());
+    }
+
+    @Transactional
+    FolderRow moveFolder(
+            UUID projectUuid,
+            UUID folderUuid,
+            UUID parentUuid,
+            Long expectedVersion) {
+        requireExpectedVersion(expectedVersion);
+        ProjectRow project = project(projectUuid);
+        repository.lockFolderHierarchy(project.id());
+        FolderRow folder = repository.findFolder(project.id(), folderUuid)
+                .orElseThrow(() -> notFound("Klasör bulunamadı."));
+        if (folder.version() != expectedVersion) {
+            throw staleVersion("Klasör sürümü istekle uyuşmuyor.");
+        }
+        Long parentId = null;
+        if (parentUuid != null) {
+            FolderRow parent = repository.findFolder(project.id(), parentUuid)
+                    .orElseThrow(() -> notFound("Üst klasör bulunamadı."));
+            requireActiveFolder(parent);
+            parentId = parent.id();
+        }
+        List<FolderRow> folders = repository.listFolders(project.id());
+        int subtreeDepth = folderSubtreeDepth(folderUuid, folders, new HashSet<>());
+        validateFolderPlacement(folderUuid, parentUuid, subtreeDepth, folders);
+        return repository.moveFolder(
+                project.id(), folder.id(), parentId, expectedVersion);
     }
 
     @Transactional
@@ -127,6 +165,36 @@ public class MetadataService {
 
     List<DefinitionRow> listDefinitions(UUID projectUuid, DefinitionType type) {
         return repository.listDefinitions(project(projectUuid).id(), type);
+    }
+
+    @Transactional
+    DefinitionRow moveDefinition(
+            UUID projectUuid,
+            UUID definitionUuid,
+            UUID folderUuid,
+            Long expectedVersion) {
+        requireExpectedVersion(expectedVersion);
+        ProjectRow project = project(projectUuid);
+        DefinitionRow definition = repository.findDefinition(project.id(), definitionUuid)
+                .orElseThrow(() -> notFound("Tanım bulunamadı."));
+        if (definition.version() != expectedVersion) {
+            throw staleVersion("Tanım sürümü istekle uyuşmuyor.");
+        }
+        Long folderId = null;
+        if (folderUuid != null) {
+            FolderRow folder = repository.findFolder(project.id(), folderUuid)
+                    .orElseThrow(() -> notFound("Klasör bulunamadı."));
+            requireActiveFolder(folder);
+            folderId = folder.id();
+        }
+        if (definition.type().folderRequired() && folderId == null) {
+            throw new ApiException(
+                    HttpStatus.UNPROCESSABLE_CONTENT,
+                    "FOLDER_REQUIRED",
+                    definition.type().label() + " için klasör zorunludur.");
+        }
+        return repository.moveDefinition(
+                project.id(), definition.id(), folderId, expectedVersion);
     }
 
     DefinitionRow definition(UUID projectUuid, UUID definitionUuid) {
@@ -339,6 +407,74 @@ public class MetadataService {
                     "SENSITIVE_VALUE_REJECTED",
                     "Tanım JSON'u secret değer taşıyamaz; yalnız güvenli referans kullanın.");
         }
+    }
+
+    private void requireExpectedVersion(Long expectedVersion) {
+        if (expectedVersion == null) {
+            throw new ApiException(
+                    HttpStatus.PRECONDITION_REQUIRED,
+                    "EXPECTED_VERSION_REQUIRED",
+                    "Kayıt güncellemek için expectedVersion zorunludur.");
+        }
+    }
+
+    private void requireActiveFolder(FolderRow folder) {
+        if (!"AKTIF".equals(folder.status())) {
+            throw new ApiException(
+                    HttpStatus.UNPROCESSABLE_CONTENT,
+                    "TARGET_FOLDER_ARCHIVED",
+                    "Arşivlenmiş klasör hedef olarak kullanılamaz.");
+        }
+    }
+
+    private void validateFolderPlacement(
+            UUID movingFolderUuid,
+            UUID parentUuid,
+            int subtreeDepth,
+            List<FolderRow> folders) {
+        Map<UUID, FolderRow> byUuid = new HashMap<>();
+        folders.forEach(folder -> byUuid.put(folder.uuid(), folder));
+        Set<UUID> visited = new HashSet<>();
+        UUID current = parentUuid;
+        int ancestorDepth = 0;
+        while (current != null) {
+            if (current.equals(movingFolderUuid) || !visited.add(current)) {
+                throw new ApiException(
+                        HttpStatus.UNPROCESSABLE_CONTENT,
+                        "FOLDER_CYCLE",
+                        "Klasör kendi alt ağacına taşınamaz.");
+            }
+            ancestorDepth += 1;
+            FolderRow currentFolder = byUuid.get(current);
+            current = currentFolder == null ? null : currentFolder.parentUuid();
+        }
+        if (ancestorDepth + subtreeDepth > 100) {
+            throw new ApiException(
+                    HttpStatus.UNPROCESSABLE_CONTENT,
+                    "FOLDER_DEPTH_EXCEEDED",
+                    "Klasör ağacı 100 seviyeden derin olamaz.");
+        }
+    }
+
+    private int folderSubtreeDepth(UUID folderUuid, List<FolderRow> folders, Set<UUID> path) {
+        if (!path.add(folderUuid)) {
+            throw new ApiException(
+                    HttpStatus.UNPROCESSABLE_CONTENT,
+                    "FOLDER_CYCLE",
+                    "Klasör ağacında döngü bulundu.");
+        }
+        int maximum = 1;
+        for (FolderRow child : folders) {
+            if (folderUuid.equals(child.parentUuid())) {
+                maximum = Math.max(maximum, 1 + folderSubtreeDepth(child.uuid(), folders, path));
+            }
+        }
+        path.remove(folderUuid);
+        return maximum;
+    }
+
+    private ApiException staleVersion(String message) {
+        return new ApiException(HttpStatus.PRECONDITION_FAILED, "STALE_VERSION", message);
     }
 
     private String normalizeCode(String code) {

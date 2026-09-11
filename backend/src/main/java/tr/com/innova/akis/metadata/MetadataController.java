@@ -151,6 +151,16 @@ final class MetadataController {
         return service.listFolders(projectUuid).stream().map(FolderView::from).toList();
     }
 
+    @PostMapping("/projects/{projectUuid}/folders/{folderUuid}/move")
+    FolderView moveFolder(
+            @PathVariable UUID projectUuid,
+            @PathVariable UUID folderUuid,
+            @Valid @RequestBody MoveFolderRequest request) {
+        authorization.requireProjectPermission(projectUuid, PROJECT_WRITE);
+        return FolderView.from(service.moveFolder(
+                projectUuid, folderUuid, request.parentUuid(), request.expectedVersion()));
+    }
+
     @PostMapping("/projects/{projectUuid}/definitions")
     ResponseEntity<DefinitionView> createDefinition(
             @PathVariable UUID projectUuid,
@@ -184,6 +194,16 @@ final class MetadataController {
             @PathVariable UUID definitionUuid) {
         authorization.requireProjectPermission(projectUuid, PROJECT_READ);
         return DefinitionView.from(service.definition(projectUuid, definitionUuid));
+    }
+
+    @PostMapping("/projects/{projectUuid}/definitions/{definitionUuid}/move")
+    DefinitionView moveDefinition(
+            @PathVariable UUID projectUuid,
+            @PathVariable UUID definitionUuid,
+            @Valid @RequestBody MoveDefinitionRequest request) {
+        authorization.requireProjectPermission(projectUuid, PROJECT_WRITE);
+        return DefinitionView.from(service.moveDefinition(
+                projectUuid, definitionUuid, request.folderUuid(), request.expectedVersion()));
     }
 
     @GetMapping("/projects/{projectUuid}/definitions/{definitionUuid}/draft")
@@ -247,6 +267,12 @@ final class MetadataController {
             @NotBlank String code,
             @NotBlank String name,
             String description) {
+    }
+
+    record MoveFolderRequest(UUID parentUuid, Long expectedVersion) {
+    }
+
+    record MoveDefinitionRequest(UUID folderUuid, Long expectedVersion) {
     }
 
     record CreateGlobalDefinitionRequest(
