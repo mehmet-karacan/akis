@@ -2,6 +2,8 @@ package tr.com.innova.akis.projectbundle;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static tr.com.innova.akis.security.PermissionCodes.PROJECT_CREATE;
+import static tr.com.innova.akis.security.PermissionCodes.PROJECT_READ;
 
 import java.lang.reflect.Method;
 import java.time.OffsetDateTime;
@@ -53,7 +55,7 @@ class ProjectBundleControllerTest {
         var response = controller.export(projectUuid);
 
         assertEquals(projectUuid, authorization.projectUuid);
-        assertEquals("PROJECT_READ", authorization.permission);
+        assertEquals(PROJECT_READ, authorization.permission);
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertTrue(response.getHeaders().getContentDisposition().getFilename().startsWith("DEMO-bundle-v1"));
     }
@@ -66,11 +68,11 @@ class ProjectBundleControllerTest {
         ProjectBundle bundle = service.bundle();
 
         assertTrue(controller.validate(bundle).valid());
-        assertEquals("PROJECT_CREATE", authorization.permission);
+        assertEquals(PROJECT_CREATE, authorization.permission);
 
         var response = controller.importBundle(bundle, ConflictPolicy.RENAME, false);
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
-        assertEquals("PROJECT_CREATE", authorization.permission);
+        assertEquals(PROJECT_CREATE, authorization.permission);
         assertEquals("/api/v1/projects/" + service.importedProjectUuid,
                 response.getHeaders().getLocation().toString());
     }

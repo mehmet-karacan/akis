@@ -68,6 +68,30 @@ BEGIN
     END IF;
 
     SELECT COUNT(*) INTO actual
+      FROM information_schema.table_constraints tc
+      JOIN information_schema.key_column_usage kcu
+        ON kcu.constraint_schema = tc.constraint_schema
+       AND kcu.constraint_name = tc.constraint_name
+       AND kcu.table_name = tc.table_name
+     WHERE tc.table_schema = 'akis'
+       AND tc.constraint_type = 'FOREIGN KEY'
+       AND kcu.column_name IN ('olusturan_kullanici_id', 'guncelleyen_kullanici_id');
+    IF actual <> 16 THEN
+        RAISE EXCEPTION 'Her audit kullanıcı kolonu kullanici tablosuna FK olmalıdır; uygun kolon sayısı %.', actual;
+    END IF;
+
+    SELECT COUNT(*) INTO actual
+      FROM information_schema.tables
+     WHERE table_schema = 'akis'
+       AND table_type = 'BASE TABLE'
+       AND table_name NOT IN (
+           'kullanici', 'harici_kimlik', 'rol', 'yetki', 'rol_yetki',
+           'proje', 'proje_uyeligi', 'kullanici_rol');
+    IF actual <> 0 THEN
+        RAISE EXCEPTION 'İlk grupta sözleşme dışı tablo bulundu.';
+    END IF;
+
+    SELECT COUNT(*) INTO actual
       FROM information_schema.columns
      WHERE table_schema = 'akis'
        AND column_name = 'versiyon_no'
@@ -118,9 +142,29 @@ DO $$
 DECLARE
     system_role_id BIGINT;
     project_role_id BIGINT;
+    system_permission_id BIGINT;
+    project_permission_id BIGINT;
 BEGIN
     SELECT id INTO system_role_id FROM rol WHERE kod = 'SISTEM_YONETICISI';
     SELECT id INTO project_role_id FROM rol WHERE kod = 'GELISTIRICI';
+    SELECT id INTO system_permission_id FROM yetki WHERE kod = 'KULLANICI_YONET';
+    SELECT id INTO project_permission_id FROM yetki WHERE kod = 'TANIM_DUZENLE';
+
+    BEGIN
+        INSERT INTO rol_yetki(rol_id, yetki_id, kapsam)
+        VALUES (system_role_id, project_permission_id, 'SISTEM');
+        RAISE EXCEPTION 'Sistem rolüne proje yetkisi bağlandı.';
+    EXCEPTION
+        WHEN foreign_key_violation THEN NULL;
+    END;
+
+    BEGIN
+        INSERT INTO rol_yetki(rol_id, yetki_id, kapsam)
+        VALUES (project_role_id, system_permission_id, 'PROJE');
+        RAISE EXCEPTION 'Proje rolüne sistem yetkisi bağlandı.';
+    EXCEPTION
+        WHEN foreign_key_violation THEN NULL;
+    END;
 
     BEGIN
         INSERT INTO kullanici_rol(kullanici_id, rol_id, rol_kapsami, proje_id)
@@ -157,6 +201,17 @@ BEGIN
         project_role_id,
         'PROJE',
         900002);
+
+    BEGIN
+        INSERT INTO kullanici(id, gorunen_ad)
+        VALUES (900004, 'Membershipless User');
+
+        INSERT INTO kullanici_rol(kullanici_id, rol_id, rol_kapsami, proje_id)
+        VALUES (900004, project_role_id, 'PROJE', 900002);
+        RAISE EXCEPTION 'Üyeliği bulunmayan kullanıcıya proje rolü atandı.';
+    EXCEPTION
+        WHEN foreign_key_violation THEN NULL;
+    END;
 END
 $$;
 

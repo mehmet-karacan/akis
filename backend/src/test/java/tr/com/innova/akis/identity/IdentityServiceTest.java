@@ -95,16 +95,18 @@ class IdentityServiceTest {
     }
 
     @Test
-    void exposesRunnerAsAnAssignableDefaultProjectRole() {
-        assertEquals(DefaultProjectRole.CALISTIRICI,
-                DefaultProjectRole.valueOf("CALISTIRICI"));
+    void exposesOperationAndViewerAsAssignableDefaultProjectRoles() {
+        assertEquals(DefaultProjectRole.OPERASYON,
+                DefaultProjectRole.valueOf("OPERASYON"));
+        assertEquals(DefaultProjectRole.GORUNTULEYICI,
+                DefaultProjectRole.valueOf("GORUNTULEYICI"));
     }
 
     @Test
-    void rejectsRoleReturnedFromAnotherProject() {
+    void rejectsRoleReturnedWithAnotherCode() {
         FakeStore store = new FakeStore();
         store.role = new ProjectRoleRef(
-                30, UUID.randomUUID(), 999, "GELISTIRICI", "AKTIF");
+                30, UUID.randomUUID(), "OPERASYON", true);
         IdentityService service = service(store);
 
         ApiException error = assertThrows(ApiException.class, () -> service.createMembership(
@@ -120,14 +122,14 @@ class IdentityServiceTest {
         inactiveUserStore.user = user("PASIF");
         ApiException inactiveUser = assertThrows(ApiException.class,
                 () -> service(inactiveUserStore).createMembership(
-                        PROJECT_UUID, USER_UUID, DefaultProjectRole.IZLEYICI, null, null));
+                        PROJECT_UUID, USER_UUID, DefaultProjectRole.GORUNTULEYICI, null, null));
 
         FakeStore dateStore = new FakeStore();
         OffsetDateTime starts = OffsetDateTime.ofInstant(NOW.plusSeconds(3600), ZoneOffset.UTC);
         OffsetDateTime ends = starts.minusSeconds(1);
         ApiException invalidDates = assertThrows(ApiException.class,
                 () -> service(dateStore).createMembership(
-                        PROJECT_UUID, USER_UUID, DefaultProjectRole.IZLEYICI, starts, ends));
+                        PROJECT_UUID, USER_UUID, DefaultProjectRole.GORUNTULEYICI, starts, ends));
 
         assertEquals(HttpStatus.UNPROCESSABLE_CONTENT, inactiveUser.status());
         assertEquals(HttpStatus.UNPROCESSABLE_CONTENT, invalidDates.status());
@@ -173,7 +175,7 @@ class IdentityServiceTest {
         private final ProjectRef project = new ProjectRef(10, PROJECT_UUID, "AKTIF");
         private UserRow user = user("AKTIF");
         private ProjectRoleRef role = new ProjectRoleRef(
-                30, UUID.randomUUID(), 10, "GELISTIRICI", "AKTIF");
+                30, UUID.randomUUID(), "GELISTIRICI", true);
         private Optional<UserRow> userByIdentity = Optional.empty();
         private Optional<MembershipRow> membership = Optional.empty();
         private UUID createdUserUuid;
@@ -214,12 +216,9 @@ class IdentityServiceTest {
         }
 
         @Override
-        public Optional<ProjectRoleRef> findProjectRole(long projectId, String roleCode) {
-            if (role.projectId() != 10) {
-                return Optional.of(role);
-            }
+        public Optional<ProjectRoleRef> findProjectRole(String roleCode) {
             return Optional.of(new ProjectRoleRef(
-                    role.id(), role.uuid(), role.projectId(), roleCode, role.status()));
+                    role.id(), role.uuid(), role.code(), role.enabled()));
         }
 
         @Override

@@ -22,7 +22,7 @@ interface IdentityStore {
 
     Optional<ProjectRef> findProject(UUID projectUuid);
 
-    Optional<ProjectRoleRef> findProjectRole(long projectId, String roleCode);
+    Optional<ProjectRoleRef> findProjectRole(String roleCode);
 
     boolean membershipExists(long projectId, long userId);
 

@@ -8,7 +8,7 @@ import type { ProjectRole } from './types'
 import { apiErrorMessage, formatDate, toOffsetDateTime } from './utils'
 import { useRemoteData } from './useRemoteData'
 
-const roles: ProjectRole[] = ['PROJE_YONETICISI', 'GELISTIRICI', 'IZLEYICI']
+const roles: ProjectRole[] = ['PROJE_YONETICISI', 'GELISTIRICI', 'OPERASYON', 'YAYIN_ONAYLAYICI', 'GORUNTULEYICI']
 
 export function MembershipsPage() {
   const { projectUuid = '' } = useParams()

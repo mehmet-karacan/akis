@@ -18,6 +18,8 @@ import tr.com.innova.akis.identity.IdentityModels.UserRow;
 @Repository
 public class JdbcIdentityStore implements IdentityStore {
 
+    private static final String LOCAL_BASIC_PROVIDER = "LOCAL_BASIC";
+
     private final JdbcClient jdbc;
 
     public JdbcIdentityStore(JdbcClient jdbc) {
@@ -31,30 +33,42 @@ public class JdbcIdentityStore implements IdentityStore {
             String subject,
             String name,
             String email) {
-        jdbc.sql("""
-                        insert into entegrasyon.kullanici(
-                            uuid, oidc_saglayici, oidc_ozne, ad, eposta)
-                        values (:uuid, :issuer, :subject, :name, :email)
+        long userId = jdbc.sql("""
+                        insert into akis.kullanici(uuid, gorunen_ad, eposta)
+                        values (:uuid, :name, :email)
+                        returning id
                         """)
                 .param("uuid", uuid)
-                .param("issuer", issuer)
-                .param("subject", subject)
                 .param("name", name)
                 .param("email", email, Types.VARCHAR)
+                .query(Long.class)
+                .single();
+
+        boolean local = LOCAL_BASIC_PROVIDER.equals(issuer);
+        jdbc.sql("""
+                        insert into akis.harici_kimlik(
+                            kullanici_id, saglayici_turu, yayinlayici,
+                            harici_kullanici_anahtari)
+                        values (:userId, :providerType, :issuer, :subject)
+                        """)
+                .param("userId", userId)
+                .param("providerType", local ? "YEREL" : "OIDC")
+                .param("issuer", local ? null : issuer, Types.VARCHAR)
+                .param("subject", subject)
                 .update();
         return findUser(uuid).orElseThrow();
     }
 
     @Override
     public List<UserRow> listUsers() {
-        return jdbc.sql(userSelect() + " order by k.ad, k.uuid")
+        return jdbc.sql(userSelect() + " order by k.gorunen_ad, k.uuid, hk.id")
                 .query(this::mapUser)
                 .list();
     }
 
     @Override
     public Optional<UserRow> findUser(UUID userUuid) {
-        return jdbc.sql(userSelect() + " where k.uuid = :uuid")
+        return jdbc.sql(userSelect() + " where k.uuid = :uuid order by hk.id limit 1")
                 .param("uuid", userUuid)
                 .query(this::mapUser)
                 .optional();
@@ -62,10 +76,17 @@ public class JdbcIdentityStore implements IdentityStore {
 
     @Override
     public Optional<UserRow> findUser(String issuer, String subject) {
-        return jdbc.sql(userSelect()
-                        + " where k.oidc_saglayici = :issuer and k.oidc_ozne = :subject")
-                .param("issuer", issuer)
+        boolean local = LOCAL_BASIC_PROVIDER.equals(issuer);
+        return jdbc.sql(userSelect() + """
+                         where hk.harici_kullanici_anahtari = :subject
+                           and ((:local and hk.saglayici_turu = 'YEREL'
+                                 and hk.yayinlayici is null)
+                                or (not :local and hk.saglayici_turu = 'OIDC'
+                                    and hk.yayinlayici = :issuer))
+                        """)
                 .param("subject", subject)
+                .param("local", local)
+                .param("issuer", local ? null : issuer, Types.VARCHAR)
                 .query(this::mapUser)
                 .optional();
     }
@@ -73,33 +94,33 @@ public class JdbcIdentityStore implements IdentityStore {
     @Override
     public Optional<ProjectRef> findProject(UUID projectUuid) {
         return jdbc.sql("""
-                        select id, uuid, durum_kodu
-                          from entegrasyon.proje
+                        select id, uuid,
+                               case when arsivlenme_zamani is null
+                                    then 'AKTIF' else 'ARSIVLENDI' end as durum
+                          from akis.proje
                          where uuid = :uuid
                         """)
                 .param("uuid", projectUuid)
                 .query((rs, rowNum) -> new ProjectRef(
                         rs.getLong("id"),
                         rs.getObject("uuid", UUID.class),
-                        rs.getString("durum_kodu")))
+                        rs.getString("durum")))
                 .optional();
     }
 
     @Override
-    public Optional<ProjectRoleRef> findProjectRole(long projectId, String roleCode) {
+    public Optional<ProjectRoleRef> findProjectRole(String roleCode) {
         return jdbc.sql("""
-                        select id, uuid, proje_id, kod, durum_kodu
-                          from entegrasyon.proje_rolu
-                         where proje_id = :projectId and kod = :roleCode
+                        select id, uuid, kod, etkin_mi
+                          from akis.rol
+                         where kapsam = 'PROJE' and kod = :roleCode
                         """)
-                .param("projectId", projectId)
                 .param("roleCode", roleCode)
                 .query((rs, rowNum) -> new ProjectRoleRef(
                         rs.getLong("id"),
                         rs.getObject("uuid", UUID.class),
-                        rs.getLong("proje_id"),
                         rs.getString("kod"),
-                        rs.getString("durum_kodu")))
+                        rs.getBoolean("etkin_mi")))
                 .optional();
     }
 
@@ -107,7 +128,7 @@ public class JdbcIdentityStore implements IdentityStore {
     public boolean membershipExists(long projectId, long userId) {
         return jdbc.sql("""
                         select exists(
-                            select 1 from entegrasyon.proje_uyeligi
+                            select 1 from akis.proje_uyeligi
                              where proje_id = :projectId and kullanici_id = :userId)
                         """)
                 .param("projectId", projectId)
@@ -125,45 +146,39 @@ public class JdbcIdentityStore implements IdentityStore {
             UUID membershipRoleUuid,
             OffsetDateTime startsAt,
             OffsetDateTime endsAt) {
-        jdbc.sql("""
-                        insert into entegrasyon.proje_uyeligi(
-                            proje_id, kullanici_id, uuid, baslangic_zamani, bitis_zamani)
+        long membershipId = jdbc.sql("""
+                        insert into akis.proje_uyeligi(
+                            proje_id, kullanici_id, uuid,
+                            gecerlilik_baslangici, gecerlilik_sonu)
                         values (:projectId, :userId, :uuid, :startsAt, :endsAt)
+                        returning id
                         """)
                 .param("projectId", projectId)
                 .param("userId", userId)
                 .param("uuid", membershipUuid)
                 .param("startsAt", startsAt)
                 .param("endsAt", endsAt, Types.TIMESTAMP_WITH_TIMEZONE)
-                .update();
-
-        long membershipId = jdbc.sql("""
-                        select id from entegrasyon.proje_uyeligi
-                         where proje_id = :projectId and uuid = :uuid
-                        """)
-                .param("projectId", projectId)
-                .param("uuid", membershipUuid)
                 .query(Long.class)
                 .single();
 
         jdbc.sql("""
-                        insert into entegrasyon.proje_uyeligi_rolu(
-                            proje_id, proje_uyeligi_id, proje_rolu_id, uuid)
-                        values (:projectId, :membershipId, :projectRoleId, :uuid)
+                        insert into akis.kullanici_rol(
+                            kullanici_id, rol_id, rol_kapsami, proje_id, uuid)
+                        values (:userId, :projectRoleId, 'PROJE', :projectId, :uuid)
                         """)
-                .param("projectId", projectId)
-                .param("membershipId", membershipId)
+                .param("userId", userId)
                 .param("projectRoleId", projectRoleId)
+                .param("projectId", projectId)
                 .param("uuid", membershipRoleUuid)
                 .update();
 
-        return findMembership(projectId, membershipUuid).orElseThrow();
+        return findMembershipById(membershipId).orElseThrow();
     }
 
     @Override
     public List<MembershipRow> listMemberships(long projectId) {
         return jdbc.sql(membershipSelect()
-                        + " where pu.proje_id = :projectId order by k.ad, pu.uuid")
+                        + " where pu.proje_id = :projectId order by k.gorunen_ad, pu.uuid")
                 .param("projectId", projectId)
                 .query(this::mapMembershipBase)
                 .list()
@@ -183,11 +198,25 @@ public class JdbcIdentityStore implements IdentityStore {
                 .map(this::withRoles);
     }
 
+    private Optional<MembershipRow> findMembershipById(long membershipId) {
+        return jdbc.sql(membershipSelect() + " where pu.id = :membershipId")
+                .param("membershipId", membershipId)
+                .query(this::mapMembershipBase)
+                .optional()
+                .map(this::withRoles);
+    }
+
     private String userSelect() {
         return """
-                select k.id, k.uuid, k.oidc_saglayici, k.oidc_ozne,
-                       k.durum_kodu, k.ad, k.eposta, k.olusturulma_zamani
-                  from entegrasyon.kullanici k
+                select k.id, k.uuid,
+                       case when hk.saglayici_turu = 'YEREL'
+                            then 'LOCAL_BASIC' else hk.yayinlayici end as yayinlayici,
+                       hk.harici_kullanici_anahtari,
+                       case when k.devre_disi_birakilma_zamani is null
+                            then 'AKTIF' else 'DEVRE_DISI' end as durum,
+                       k.gorunen_ad, k.eposta, k.olusturulma_zamani
+                  from akis.kullanici k
+                  join akis.harici_kimlik hk on hk.kullanici_id = k.id
                 """;
     }
 
@@ -195,10 +224,10 @@ public class JdbcIdentityStore implements IdentityStore {
         return new UserRow(
                 rs.getLong("id"),
                 rs.getObject("uuid", UUID.class),
-                rs.getString("oidc_saglayici"),
-                rs.getString("oidc_ozne"),
-                rs.getString("durum_kodu"),
-                rs.getString("ad"),
+                rs.getString("yayinlayici"),
+                rs.getString("harici_kullanici_anahtari"),
+                rs.getString("durum"),
+                rs.getString("gorunen_ad"),
                 rs.getString("eposta"),
                 rs.getObject("olusturulma_zamani", OffsetDateTime.class));
     }
@@ -207,11 +236,11 @@ public class JdbcIdentityStore implements IdentityStore {
         return """
                 select pu.id, pu.uuid, pu.proje_id, p.uuid as proje_uuid,
                        pu.kullanici_id, k.uuid as kullanici_uuid,
-                       pu.durum_kodu, pu.baslangic_zamani, pu.bitis_zamani,
+                       pu.durum, pu.gecerlilik_baslangici, pu.gecerlilik_sonu,
                        pu.versiyon_no
-                  from entegrasyon.proje_uyeligi pu
-                  join entegrasyon.proje p on p.id = pu.proje_id
-                  join entegrasyon.kullanici k on k.id = pu.kullanici_id
+                  from akis.proje_uyeligi pu
+                  join akis.proje p on p.id = pu.proje_id
+                  join akis.kullanici k on k.id = pu.kullanici_id
                 """;
     }
 
@@ -224,26 +253,27 @@ public class JdbcIdentityStore implements IdentityStore {
                 rs.getObject("proje_uuid", UUID.class),
                 rs.getLong("kullanici_id"),
                 rs.getObject("kullanici_uuid", UUID.class),
-                rs.getString("durum_kodu"),
-                rs.getObject("baslangic_zamani", OffsetDateTime.class),
-                rs.getObject("bitis_zamani", OffsetDateTime.class),
+                rs.getString("durum"),
+                rs.getObject("gecerlilik_baslangici", OffsetDateTime.class),
+                rs.getObject("gecerlilik_sonu", OffsetDateTime.class),
                 rs.getLong("versiyon_no"),
                 List.of());
     }
 
     private MembershipRow withRoles(MembershipRow membership) {
         List<ProjectRoleView> roles = jdbc.sql("""
-                        select pr.uuid, pr.kod
-                          from entegrasyon.proje_uyeligi_rolu pur
-                          join entegrasyon.proje_rolu pr
-                            on pr.proje_id = pur.proje_id
-                           and pr.id = pur.proje_rolu_id
-                         where pur.proje_id = :projectId
-                           and pur.proje_uyeligi_id = :membershipId
-                         order by pr.kod
+                        select r.uuid, r.kod
+                          from akis.kullanici_rol kr
+                          join akis.rol r
+                            on r.id = kr.rol_id and r.kapsam = kr.rol_kapsami
+                         where kr.proje_id = :projectId
+                           and kr.kullanici_id = :userId
+                           and kr.rol_kapsami = 'PROJE'
+                           and kr.iptal_zamani is null
+                         order by r.kod
                         """)
                 .param("projectId", membership.projectId())
-                .param("membershipId", membership.id())
+                .param("userId", membership.userId())
                 .query((roleRs, roleRowNum) -> new ProjectRoleView(
                         roleRs.getObject("uuid", UUID.class), roleRs.getString("kod")))
                 .list();
@@ -251,7 +281,6 @@ public class JdbcIdentityStore implements IdentityStore {
                 membership.id(), membership.uuid(), membership.projectId(),
                 membership.projectUuid(), membership.userId(), membership.userUuid(),
                 membership.status(), membership.startsAt(), membership.endsAt(),
-                membership.version(),
-                roles);
+                membership.version(), roles);
     }
 }

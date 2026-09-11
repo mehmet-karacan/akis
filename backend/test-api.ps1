@@ -184,11 +184,11 @@ try {
     }
     $membership = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/memberships" @{
         userUuid = $oidcUser.uuid
-        role = "IZLEYICI"
+        role = "GORUNTULEYICI"
     }
     $memberships = Invoke-AkisJson GET "/api/v1/projects/$($project.uuid)/memberships"
     if ($membership.userUuid -ne $oidcUser.uuid -or $memberships.Count -ne 1 `
-            -or $membership.roles[0].code -ne "IZLEYICI") {
+            -or $membership.roles[0].code -ne "GORUNTULEYICI") {
         throw "OIDC user and project membership provisioning failed."
     }
     $folder = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/folders" @{

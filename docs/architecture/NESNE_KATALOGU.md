@@ -99,6 +99,11 @@ politikalarıyla düzenler.
 ## Paket sözleşmesi
 
 Paket bir yönlendirilmiş kontrol grafıdır ve tam olarak bir ilk adıma sahiptir.
+Editörde her adım bir düğüm, her geçiş yönlü bir ok olarak gösterilir. Başarı,
+hata ve koşullu geçişler yalnız renkle değil etiket ve çizgi biçimiyle de ayırt
+edilir. Düğüm konumları sunum bilgisidir; adım ve geçiş kimlikleri sabit kalır,
+bu nedenle otomatik yerleşim veya elle yeniden sıralama bağı koparmaz. Klavye ve
+ekran okuyucu kullanımı için aynı grafın sıralı bağlantı listesi görünümü bulunur.
 İlk sürüm adım türleri:
 
 - `MAPPING`: yayımlanabilir bir Mapping sürümüne referans.
@@ -193,4 +198,3 @@ Bunlar sessizce Prosedür içine kaçırılmaz.
 - [Oracle ODI Procedures, Variables, Sequences and User Functions](https://docs.oracle.com/en/middleware/fusion-middleware/data-integrator/12.2.1.4/odidg/creating-and-using-procedures-variables-sequences-and-user-functions.html)
 - [Oracle ODI Mappings](https://docs.oracle.com/en/middleware/fusion-middleware/data-integrator/12.2.1.4/quick-ref/mappings.html)
 - [Oracle ODI Knowledge Modules](https://docs.oracle.com/en/middleware/fusion-middleware/data-integrator/12.2.1.4/quick-ref/knowledge-modules.html)
-

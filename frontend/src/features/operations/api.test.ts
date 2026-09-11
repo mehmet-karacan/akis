@@ -31,14 +31,13 @@ describe('operations API contracts', () => {
 
     await operationsApi.createMembership('p', {
       userUuid: 'u',
-      role: 'IZLEYICI',
+      role: 'GORUNTULEYICI',
       startsAt: null,
       endsAt: null,
     })
 
     const [path, init] = fetchMock.mock.calls[0] as [string, RequestInit]
     expect(path).toBe('/api/v1/projects/p/memberships')
-    expect(JSON.parse(String(init.body)).role).toBe('IZLEYICI')
+    expect(JSON.parse(String(init.body)).role).toBe('GORUNTULEYICI')
   })
 })
-

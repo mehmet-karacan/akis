@@ -2,30 +2,30 @@ package tr.com.innova.akis.security;
 
 public final class PermissionCodes {
 
-    public static final String PROJECT_CREATE = "PROJECT_CREATE";
-    public static final String PROJECT_READ = "PROJECT_READ";
-    public static final String PROJECT_WRITE = "PROJECT_WRITE";
+    public static final String PROJECT_CREATE = "PROJE_OLUSTUR";
+    public static final String PROJECT_READ = "PROJE_GORUNTULE";
+    public static final String PROJECT_WRITE = "PROJE_YONET";
     public static final String GLOBAL_DEFINITION_READ = "GLOBAL_DEFINITION_READ";
     public static final String GLOBAL_DEFINITION_WRITE = "GLOBAL_DEFINITION_WRITE";
-    public static final String TOPOLOGY_READ = "TOPOLOGY_READ";
-    public static final String TOPOLOGY_WRITE = "TOPOLOGY_WRITE";
+    public static final String TOPOLOGY_READ = "BAGLANTI_GORUNTULE";
+    public static final String TOPOLOGY_WRITE = "BAGLANTI_YONET";
     public static final String SECRET_READ = "SECRET_READ";
     public static final String SECRET_WRITE = "SECRET_WRITE";
-    public static final String CATALOG_READ = "CATALOG_READ";
-    public static final String CATALOG_WRITE = "CATALOG_WRITE";
-    public static final String DISCOVERY_READ = "DISCOVERY_READ";
-    public static final String DISCOVERY_WRITE = "DISCOVERY_WRITE";
-    public static final String SCENARIO_READ = "SCENARIO_READ";
-    public static final String SCENARIO_COMPILE = "SCENARIO_COMPILE";
-    public static final String PUBLICATION_READ = "PUBLICATION_READ";
-    public static final String PUBLICATION_CREATE = "PUBLICATION_CREATE";
-    public static final String PUBLICATION_APPROVE = "PUBLICATION_APPROVE";
-    public static final String RUN_READ = "RUN_READ";
-    public static final String RUN_START = "RUN_START";
-    public static final String RUN_CANCEL = "RUN_CANCEL";
-    public static final String PRODUCTION_RUN = "PRODUCTION_RUN";
-    public static final String IDENTITY_USER_PROVISION = "IDENTITY_USER_PROVISION";
-    public static final String PROJECT_MEMBERSHIP_MANAGE = "PROJECT_MEMBERSHIP_MANAGE";
+    public static final String CATALOG_READ = "KATALOG_GORUNTULE";
+    public static final String CATALOG_WRITE = "KATALOG_KESFET";
+    public static final String DISCOVERY_READ = "KATALOG_GORUNTULE";
+    public static final String DISCOVERY_WRITE = "KATALOG_KESFET";
+    public static final String SCENARIO_READ = "CALISTIRILABILIR_SURUM_GORUNTULE";
+    public static final String SCENARIO_COMPILE = "CALISTIRILABILIR_SURUM_OLUSTUR";
+    public static final String PUBLICATION_READ = "CALISTIRILABILIR_SURUM_GORUNTULE";
+    public static final String PUBLICATION_CREATE = "CALISTIRILABILIR_SURUM_OLUSTUR";
+    public static final String PUBLICATION_APPROVE = "CALISTIRILABILIR_SURUM_ONAYLA";
+    public static final String RUN_READ = "CALISTIRMA_GORUNTULE";
+    public static final String RUN_START = "CALISTIRMA_BASLAT";
+    public static final String RUN_CANCEL = "CALISTIRMA_IPTAL_ET";
+    public static final String PRODUCTION_RUN = "CALISTIRMA_BASLAT";
+    public static final String IDENTITY_USER_PROVISION = "KULLANICI_YONET";
+    public static final String PROJECT_MEMBERSHIP_MANAGE = "UYE_YONET";
 
     private PermissionCodes() {
     }

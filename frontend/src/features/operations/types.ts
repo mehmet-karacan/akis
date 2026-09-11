@@ -1,6 +1,6 @@
 export type PublicationStatus = 'ONAY_BEKLIYOR' | 'AKTIF' | 'IPTAL' | string
 export type ApprovalDecision = 'ONAY' | 'RED' | 'GERI_CEK'
-export type ProjectRole = 'PROJE_YONETICISI' | 'GELISTIRICI' | 'IZLEYICI'
+export type ProjectRole = 'PROJE_YONETICISI' | 'GELISTIRICI' | 'OPERASYON' | 'YAYIN_ONAYLAYICI' | 'GORUNTULEYICI'
 
 export interface Publication {
   uuid: string

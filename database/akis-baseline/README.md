@@ -23,7 +23,10 @@ kullanici_rol
 kullanıcı ile proje arasındaki ilişkidir. `kullanici_rol`, sistem rolünü doğrudan
 kullanıcıya veya proje rolünü proje içindeki kullanıcıya atar. Birleşik foreign
 key, proje kapsamlı rol atamasının ilgili proje üyeliğine sahip olmasını zorunlu
-kılar.
+kılar. `rol_yetki` üzerindeki iki birleşik foreign key de sistem rolüne proje
+yetkisi veya proje rolüne sistem yetkisi bağlanmasını veritabanı düzeyinde engeller.
+Üyeliğin `gecerlilik_baslangici/gecerlilik_sonu` aralığı zaman yetkisini, `durum`
+alanı ise askıya alma ve sonlandırma iş akışını ifade eder; iki kavram karıştırılmaz.
 
 ## Zorunlu fiziksel tablo standardı
 
@@ -60,3 +63,13 @@ Yerel PostgreSQL container'ı çalışırken şu komut yürütülür:
 Betik benzersiz adlı geçici bir veritabanı oluşturur, temiz migration'ı uygular,
 olumlu ve olumsuz bütünlük kontrollerini çalıştırır ve yalnız bu geçici veritabanını
 siler. Geliştirme veritabanını değiştirmez ve Oracle sistemlerine bağlanmaz.
+
+Kimlik ve yetkilendirme repository sorgularının gerçek PostgreSQL üzerinde kullanıcı,
+dış kimlik, zamanlı üyelik, rol iptali, rol-yetki ve proje görünürlüğü kurallarını
+uyguladığını doğrulamak için:
+
+```powershell
+.\database\akis-baseline\test-authorization.ps1
+```
+
+Bu test de yalnız benzersiz adlı geçici veritabanını kullanır ve sonunda siler.

@@ -12,8 +12,9 @@ final class IdentityModels {
     enum DefaultProjectRole {
         PROJE_YONETICISI,
         GELISTIRICI,
-        CALISTIRICI,
-        IZLEYICI
+        OPERASYON,
+        YAYIN_ONAYLAYICI,
+        GORUNTULEYICI
     }
 
     record UserRow(
@@ -33,9 +34,8 @@ final class IdentityModels {
     record ProjectRoleRef(
             long id,
             UUID uuid,
-            long projectId,
             String code,
-            String status) {
+            boolean enabled) {
     }
 
     record MembershipRow(

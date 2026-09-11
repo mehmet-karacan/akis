@@ -100,7 +100,7 @@ class IdentityControllerTest {
                     OffsetDateTime.of(2026, 9, 11, 9, 0, 0, 0, ZoneOffset.UTC),
                     null,
                     1,
-                    List.of(new ProjectRoleView(UUID.randomUUID(), "IZLEYICI")));
+                    List.of(new ProjectRoleView(UUID.randomUUID(), "GORUNTULEYICI")));
         }
     }
 }

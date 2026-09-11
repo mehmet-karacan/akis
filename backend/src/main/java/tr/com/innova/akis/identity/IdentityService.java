@@ -83,13 +83,12 @@ public class IdentityService {
         if (role == null) {
             throw validation("Varsayılan proje rolü zorunludur.");
         }
-        ProjectRoleRef projectRole = store.findProjectRole(project.id(), role.name())
+        ProjectRoleRef projectRole = store.findProjectRole(role.name())
                 .orElseThrow(() -> validation("Varsayılan proje rolü oluşturulmamış."));
-        if (projectRole.projectId() != project.id()
-                || !role.name().equals(projectRole.code())) {
-            throw validation("Proje rolü üyelik projesine ait olmalıdır.");
+        if (!role.name().equals(projectRole.code())) {
+            throw validation("Seçilen proje rolü geçersizdir.");
         }
-        if (!"AKTIF".equals(projectRole.status())) {
+        if (!projectRole.enabled()) {
             throw validation("Pasif proje rolü üyeliğe atanamaz.");
         }
         if (store.membershipExists(project.id(), user.id())) {
