@@ -24,6 +24,10 @@ akis:
     accept-manual-requests: ${AKIS_EXECUTION_ACCEPT_MANUAL_REQUESTS:false}
     worker-enabled: ${AKIS_EXECUTION_WORKER_ENABLED:false}
     procedure-runtime-enabled: ${AKIS_EXECUTION_PROCEDURE_RUNTIME_ENABLED:false}
+    worker-reference: ${AKIS_EXECUTION_WORKER_REFERENCE:}
+    worker-profile-uuid: ${AKIS_EXECUTION_WORKER_PROFILE_UUID:}
+    worker-lease-seconds: ${AKIS_EXECUTION_WORKER_LEASE_SECONDS:60}
+    worker-poll-delay-ms: ${AKIS_EXECUTION_WORKER_POLL_DELAY_MS:2000}
   security:
     mode: ${AKIS_SECURITY_MODE:fail-closed}
     development:

@@ -89,7 +89,8 @@ final class RuntimeOracleConnectionProvider {
 
     RuntimeOracleSession openTargetData(
             DatasetBinding binding, TargetDataPermit permit) {
-        if (!(permit instanceof OracleAtomicPublishFacade.PublishPermit)) {
+        if (!(permit instanceof OracleAtomicPublishFacade.PublishPermit)
+                && !(permit instanceof JdbcOracleProcedureTaskExecutorSessionFactory.ProcedurePermit)) {
             throw failure(Failure.INVALID_CONTRACT);
         }
         requireRole(binding, DatasetRole.TARGET);
@@ -321,7 +322,8 @@ final class RuntimeOracleConnectionProvider {
 
     /** Compile-time capability; only the atomic facade can construct its permit. */
     sealed interface TargetDataPermit
-            permits OracleAtomicPublishFacade.PublishPermit {
+            permits OracleAtomicPublishFacade.PublishPermit,
+                    JdbcOracleProcedureTaskExecutorSessionFactory.ProcedurePermit {
     }
 
     @FunctionalInterface

@@ -54,12 +54,11 @@ class ExecutionApiContractTest {
     }
 
     @Test
-    void workerFlagFailsClosedUntilTargetFencingExists() {
+    void workerFlagRequiresProcedureRuntime() {
         IllegalStateException error = assertThrows(
                 IllegalStateException.class,
-                () -> new ExecutionFeatureFlags(false, true));
-        assertTrue(error.getMessage().contains("crash recovery"));
-        assertFalse(error.getMessage().contains("before target ledger"));
+                () -> new ExecutionFeatureFlags(false, true, false));
+        assertTrue(error.getMessage().contains("Procedure runtime"));
     }
 
     @Test
@@ -75,9 +74,7 @@ class ExecutionApiContractTest {
     }
 
     @Test
-    void phaseThreeARegistersNoWorkerPollerType() {
-        assertThrows(
-                ClassNotFoundException.class,
-                () -> Class.forName("tr.com.innova.akis.execution.WorkerPoller"));
+    void controlledWorkerPollerTypeExists() throws Exception {
+        assertNotNull(Class.forName("tr.com.innova.akis.execution.WorkerPoller"));
     }
 }

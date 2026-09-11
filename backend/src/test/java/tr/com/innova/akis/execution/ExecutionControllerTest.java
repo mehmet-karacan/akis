@@ -98,7 +98,7 @@ class ExecutionControllerTest {
     private static final class StubExecutionService extends ExecutionService {
 
         private StubExecutionService() {
-            super(null, null, new ExecutionFeatureFlags(true, false), new RunStateMachine());
+            super(null, null, new ExecutionFeatureFlags(true, false, false), new RunStateMachine());
         }
 
         @Override

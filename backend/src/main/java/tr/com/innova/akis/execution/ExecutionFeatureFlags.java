@@ -11,13 +11,13 @@ final class ExecutionFeatureFlags {
 
     ExecutionFeatureFlags(
             @Value("${akis.execution.accept-manual-requests:false}") boolean acceptManualRequests,
-            @Value("${akis.execution.worker-enabled:false}") boolean workerEnabled) {
+            @Value("${akis.execution.worker-enabled:false}") boolean workerEnabled,
+            @Value("${akis.execution.procedure-runtime-enabled:false}") boolean procedureRuntimeEnabled) {
         this.acceptManualRequests = acceptManualRequests;
         this.workerEnabled = workerEnabled;
-        if (workerEnabled) {
+        if (workerEnabled && !procedureRuntimeEnabled) {
             throw new IllegalStateException(
-                    "Execution worker cannot be enabled until controlled worker, crash recovery "
-                            + "and reconciliation gates are complete.");
+                    "Execution worker requires the controlled Procedure runtime.");
         }
     }
 

@@ -161,7 +161,7 @@ class ExecutionServiceTest {
             ExecutionPermissionGate permissionGate) {
         return new ExecutionService(
                 store, permissionGate,
-                new ExecutionFeatureFlags(acceptManualRequests, false),
+                new ExecutionFeatureFlags(acceptManualRequests, false, false),
                 new RunStateMachine());
     }
 
