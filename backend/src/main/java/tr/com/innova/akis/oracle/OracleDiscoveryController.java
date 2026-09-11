@@ -144,6 +144,8 @@ final class OracleDiscoveryController {
             String name,
             int jdbcType,
             String producerType,
+            String canonicalType,
+            String executionCapability,
             int ordinal,
             Integer precision,
             Integer scale,
@@ -151,8 +153,12 @@ final class OracleDiscoveryController {
             String defaultExpression) {
 
         static ColumnView from(ColumnMetadata column) {
+            OracleColumnCapability.Classification capability =
+                    OracleColumnCapability.classify(
+                            column.producerType(), column.precision(), column.scale());
             return new ColumnView(
-                    column.name(), column.jdbcType(), column.producerType(), column.ordinal(),
+                    column.name(), column.jdbcType(), column.producerType(),
+                    capability.canonicalType(), capability.executionCapability(), column.ordinal(),
                     column.precision(), column.scale(), column.nullable(),
                     column.defaultExpression());
         }

@@ -175,6 +175,8 @@ export interface DiscoveryColumn {
   name: string
   jdbcType: number
   producerType: string
+  canonicalType: 'INTEGER' | 'DECIMAL' | 'STRING' | 'TIMESTAMP' | 'TEXT' | 'BINARY' | 'OFFSET_TIMESTAMP' | 'UNKNOWN'
+  executionCapability: 'TRANSFER_SUPPORTED' | 'CATALOG_ONLY' | 'UNSUPPORTED'
   ordinal: number
   precision?: number | null
   scale?: number | null

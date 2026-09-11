@@ -24,7 +24,10 @@ const table: DiscoveryTable = {
   owner: 'TTBP',
   name: 'HAKEDIS_TIPI',
   type: 'TABLE',
-  columns: [{ name: 'ID', jdbcType: 2, producerType: 'NUMBER', ordinal: 1, nullable: false }],
+  columns: [{
+    name: 'ID', jdbcType: 2, producerType: 'NUMBER', canonicalType: 'INTEGER',
+    executionCapability: 'TRANSFER_SUPPORTED', ordinal: 1, nullable: false,
+  }],
   constraints: [],
 }
 
