@@ -255,6 +255,8 @@ span.explorer-toggle { pointer-events: none; }
 .definition-panel-heading select { min-width: 7rem; }
 .definition-scenario-list { display: grid; gap: .5rem; padding-top: .7rem; }
 .definition-scenario-list article { display: grid; grid-template-columns: minmax(9rem, .7fr) minmax(8rem, 1fr) auto; align-items: center; gap: .8rem; padding: .7rem; border: 1px solid var(--df-line); border-radius: .5rem; background: var(--df-bg); }
+.definition-runnable-actions { grid-column: 1 / -1; display: flex; align-items: end; justify-content: flex-end; gap: .55rem; padding-top: .6rem; border-top: 1px solid var(--df-line); }
+.definition-runnable-actions label { min-width: 15rem; }
 .definition-scenario-list article > div { display: grid; gap: .15rem; }
 .definition-scenario-list strong { font-size: .78rem; }
 .definition-scenario-list span, .definition-scenario-list time { color: var(--df-muted); font-size: .68rem; }
@@ -304,18 +306,24 @@ span.explorer-toggle { pointer-events: none; }
 }
 
 @media (max-width: 760px) {
+  .definitions-workspace { max-width: 100%; overflow-x: clip; }
   .definitions-titlebar { align-items: stretch; flex-direction: column; }
   .definitions-titlebar .definition-button { align-self: flex-start; }
   .definitions-shell { display: block; }
   .definitions-browser { position: static; max-height: 20rem; overflow: auto; border-right: 0; border-bottom: 1px solid var(--df-line); }
   .definition-workbench { padding: .8rem; }
-  .definition-tabs { overflow-x: auto; }
+  .definition-document-header { min-width: 0; flex-direction: column; }
+  .definition-document-header > div { min-width: 0; max-width: 100%; }
+  .definition-document-actions { width: 100%; flex-wrap: wrap; }
+  .definition-tabs { max-width: 100%; overflow-x: auto; }
+  .definition-editor-panel, .definition-version-layout, .definition-bindings-panel { max-width: 100%; }
   .definition-editor-actions { grid-template-columns: 1fr 1fr; }
   .definition-segmented { grid-column: 1 / -1; }
   .mapping-dataset { grid-template-columns: 5rem 1fr 2.35rem; }
   .mapping-dataset label:nth-of-type(2) { grid-column: 2 / 3; }
   .mapping-grid-toolbar, .mapping-strategy { align-items: stretch; flex-direction: column; }
   .procedure-editor-heading, .procedure-flow-options { align-items: stretch; flex-direction: column; }
+  .procedure-editor-heading .mapping-inline-actions { flex-wrap: wrap; }
   .procedure-task-grid { grid-template-columns: 1fr; }
   .definition-search--compact { min-width: 0; width: 100%; }
   .mapping-strategy h3 { margin: 0; }

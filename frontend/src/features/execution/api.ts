@@ -1,10 +1,13 @@
 import { ApiProblem, apiRequest, jsonBody } from '../../core/api/client'
-import type { RunEvent, RunRecord } from './types'
+import type { ProjectCapabilities, RunEvent, RunRecord, RunStep } from './types'
 
 const runsPath = (projectUuid: string) =>
   `/api/v1/projects/${encodeURIComponent(projectUuid)}/runs`
 
 export const executionApi = {
+  getCapabilities(projectUuid: string) {
+    return apiRequest<ProjectCapabilities>(`/api/v1/projects/${encodeURIComponent(projectUuid)}/capabilities`)
+  },
   listRuns(projectUuid: string) {
     return apiRequest<RunRecord[]>(runsPath(projectUuid))
   },
@@ -14,6 +17,11 @@ export const executionApi = {
   listEvents(projectUuid: string, runUuid: string) {
     return apiRequest<RunEvent[]>(
       `${runsPath(projectUuid)}/${encodeURIComponent(runUuid)}/events`,
+    )
+  },
+  listSteps(projectUuid: string, runUuid: string) {
+    return apiRequest<RunStep[]>(
+      `${runsPath(projectUuid)}/${encodeURIComponent(runUuid)}/steps`,
     )
   },
   startRun(projectUuid: string, publicationUuid: string, idempotencyKey: string) {

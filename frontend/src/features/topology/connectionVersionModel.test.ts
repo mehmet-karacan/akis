@@ -46,7 +46,10 @@ describe('Oracle connection version model', () => {
       mode: 'JNDI',
       jndi: { name: 'java:comp/env/jdbc/OracleMain' },
       policyVersion: 2,
-      executionPolicy: {},
+      executionPolicy: {
+        connectTimeoutMs: 10000, readTimeoutMs: 30000,
+        networkTimeoutMs: 30000, queryTimeoutSeconds: 300,
+      },
     })
     expect(request).not.toHaveProperty('jdbc')
   })

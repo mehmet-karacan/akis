@@ -162,7 +162,7 @@ export function BundleImportPage() {
   const counts = validation?.counts ?? dryRunResult?.counts ?? emptyCounts
 
   return (
-    <main className="bundle-page">
+    <section className="bundle-page">
       <header className="bundle-page-header">
         <div>
           <span className="bundle-eyebrow">{t('eyebrow')}</span>
@@ -273,7 +273,7 @@ export function BundleImportPage() {
         </dl>
         <footer className="bundle-confirm-actions"><button className="bundle-button bundle-button-secondary" type="button" onClick={() => setConfirmOpen(false)}>{t('cancel')}</button><button className="bundle-button bundle-button-primary" type="button" onClick={() => void importProject()}>{t('confirmImport')}</button></footer>
       </Dialog>
-    </main>
+    </section>
   )
 }
 

@@ -5,7 +5,7 @@ import { operationsApi } from './api'
 import { Dialog, EmptyState, ErrorState, Field, LoadingState, PageHeader, Panel, StatusBadge } from './OperationsUi'
 import { useOperationsI18n } from './i18n'
 import type { ProjectRole } from './types'
-import { apiErrorMessage, formatDate, isUuid, toOffsetDateTime } from './utils'
+import { apiErrorMessage, formatDate, toOffsetDateTime } from './utils'
 import { useRemoteData } from './useRemoteData'
 
 const roles: ProjectRole[] = ['PROJE_YONETICISI', 'GELISTIRICI', 'IZLEYICI']
@@ -26,12 +26,12 @@ export function MembershipsPage() {
   const [submitError, setSubmitError] = useState('')
 
   const periodInvalid = Boolean(startsAt && endsAt && new Date(endsAt) <= new Date(startsAt))
-  const userError = touched && !isUuid(userUuid) ? t('invalidUuid') : ''
+  const userError = touched && !userUuid ? t('required') : ''
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     setTouched(true)
-    if (!isUuid(userUuid) || periodInvalid) return
+    if (!userUuid || periodInvalid) return
     setSubmitting(true)
     setSubmitError('')
     try {
@@ -56,7 +56,7 @@ export function MembershipsPage() {
   }
 
   return (
-    <main className="ops-page">
+    <section className="ops-page">
       <PageHeader
         title={t('memberships')}
         description={t('membershipsHelp')}
@@ -73,7 +73,7 @@ export function MembershipsPage() {
               <tbody>
                 {memberships.data.map((membership) => (
                   <tr key={membership.uuid}>
-                    <td>{userNames.get(membership.userUuid) ?? t('unknownUser')}<span className="ops-cell-secondary"><code>{membership.userUuid}</code></span></td>
+                    <td>{userNames.get(membership.userUuid) ?? t('unknownUser')}</td>
                     <td>{membership.roles.map((item) => t(`role_${item.code}` as Parameters<typeof t>[0])).join(', ')}</td>
                     <td><StatusBadge value={membership.status} /></td>
                     <td>{formatDate(membership.startsAt, locale, t('immediately'))}<span className="ops-cell-secondary">{formatDate(membership.endsAt, locale, t('never'))}</span></td>
@@ -90,8 +90,10 @@ export function MembershipsPage() {
           <form className="ops-form" onSubmit={(event) => void submit(event)} noValidate>
             {submitError ? <div className="ops-alert ops-alert-error" role="alert">{submitError}</div> : null}
             <Field label={t('user')} error={userError}>
-              <input list="ops-identity-users" value={userUuid} onChange={(event) => setUserUuid(event.target.value)} required aria-invalid={Boolean(userError)} />
-              <datalist id="ops-identity-users">{users.data?.map((user) => <option key={user.uuid} value={user.uuid}>{user.name}</option>)}</datalist>
+              <select value={userUuid} onChange={(event) => setUserUuid(event.target.value)} required aria-invalid={Boolean(userError)} disabled={users.loading || !users.data?.length}>
+                <option value="">—</option>
+                {users.data?.map((user) => <option key={user.uuid} value={user.uuid}>{user.name}{user.email ? ` · ${user.email}` : ''}</option>)}
+              </select>
             </Field>
             <Field label={t('role')}>
               <select value={role} onChange={(event) => setRole(event.target.value as ProjectRole)}>
@@ -109,7 +111,6 @@ export function MembershipsPage() {
           </form>
         </Dialog>
       ) : null}
-    </main>
+    </section>
   )
 }
-

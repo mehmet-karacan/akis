@@ -57,6 +57,22 @@ final class ExecutionModels {
             JsonNode data) {
     }
 
+    record RunStepRow(
+            UUID uuid,
+            String code,
+            String type,
+            int ordinal,
+            String name,
+            String status,
+            String connectionRole,
+            String risk,
+            OffsetDateTime startedAt,
+            OffsetDateTime finishedAt,
+            Long rowCount,
+            Long byteCount,
+            String errorCode) {
+    }
+
     record StartResult(RunRow run, boolean created) {
     }
 }

@@ -46,6 +46,13 @@ export interface ConnectionVersion {
   runtimeCapability: 'EXECUTABLE' | 'TEST_DISCOVERY_ONLY'
 }
 
+export interface ConnectionExecutionPolicy {
+  connectTimeoutMs: number
+  readTimeoutMs: number
+  networkTimeoutMs: number
+  queryTimeoutSeconds: number
+}
+
 export type CreateConnectionVersionRequest = {
   mode: 'JDBC'
   jdbc: {
@@ -56,12 +63,12 @@ export type CreateConnectionVersionRequest = {
     credentialSecretReferenceUuid: string
   }
   policyVersion: 2
-  executionPolicy: Record<string, never>
+  executionPolicy: ConnectionExecutionPolicy
 } | {
   mode: 'JNDI'
   jndi: { name: string }
   policyVersion: 2
-  executionPolicy: Record<string, never>
+  executionPolicy: ConnectionExecutionPolicy
 }
 
 export interface PhysicalSchema {

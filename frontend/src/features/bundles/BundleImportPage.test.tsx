@@ -55,22 +55,22 @@ describe('bundle import gate', () => {
 
     render(<MemoryRouter><BundleImportPage /></MemoryRouter>)
     const file = new File([JSON.stringify(document)], 'demo.json', { type: 'application/json' })
-    fireEvent.change(screen.getByLabelText('Choose bundle file', { selector: 'input' }), {
+    fireEvent.change(screen.getByLabelText('Choose Bundle File', { selector: 'input' }), {
       target: { files: [file] },
     })
 
     expect(await screen.findByText('Server validation passed.')).toBeInTheDocument()
-    const importButton = screen.getByRole('button', { name: 'Import project' })
+    const importButton = screen.getByRole('button', { name: 'Import Project' })
     expect(importButton).toBeDisabled()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Run import preview' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Run Import Preview' }))
     await waitFor(() => expect(importButton).toBeEnabled())
     expect(bundleApi.importProject).toHaveBeenNthCalledWith(1, document, 'FAIL', true)
 
     fireEvent.click(importButton)
     expect(screen.getByRole('dialog', { name: 'Confirm project import' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm import' }))
-    expect(await screen.findByRole('link', { name: 'Open imported project' })).toHaveAttribute(
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm Import' }))
+    expect(await screen.findByRole('link', { name: 'Open Imported Project' })).toHaveAttribute(
       'href', '/projects/11111111-1111-1111-1111-111111111111',
     )
     expect(bundleApi.importProject).toHaveBeenNthCalledWith(2, document, 'FAIL', false)
@@ -94,19 +94,19 @@ describe('bundle import gate', () => {
 
     render(<MemoryRouter><BundleImportPage /></MemoryRouter>)
     const file = new File([JSON.stringify(document)], 'demo.json', { type: 'application/json' })
-    fireEvent.change(screen.getByLabelText('Choose bundle file', { selector: 'input' }), {
+    fireEvent.change(screen.getByLabelText('Choose Bundle File', { selector: 'input' }), {
       target: { files: [file] },
     })
     expect(await screen.findByText('Server validation passed.')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Run import preview' }))
-    const importButton = screen.getByRole('button', { name: 'Import project' })
+    fireEvent.click(screen.getByRole('button', { name: 'Run Import Preview' }))
+    const importButton = screen.getByRole('button', { name: 'Import Project' })
     await waitFor(() => expect(importButton).toBeEnabled())
     fireEvent.click(importButton)
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm import' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm Import' }))
 
     expect(await screen.findByText(/response was not confirmed/i)).toBeInTheDocument()
     expect(importButton).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Run import preview' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Run Import Preview' })).toBeDisabled()
   })
 })

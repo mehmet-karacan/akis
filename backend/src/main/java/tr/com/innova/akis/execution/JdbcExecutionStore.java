@@ -19,6 +19,7 @@ import tr.com.innova.akis.execution.ExecutionModels.IdempotencyReservation;
 import tr.com.innova.akis.execution.ExecutionModels.PublicationContext;
 import tr.com.innova.akis.execution.ExecutionModels.RunEventRow;
 import tr.com.innova.akis.execution.ExecutionModels.RunRow;
+import tr.com.innova.akis.execution.ExecutionModels.RunStepRow;
 
 @Repository
 public class JdbcExecutionStore implements ExecutionStore {
@@ -291,6 +292,38 @@ public class JdbcExecutionStore implements ExecutionStore {
                         rs.getString("tur_kodu"),
                         rs.getObject("olay_zamani", OffsetDateTime.class),
                         json(rs.getString("veri"))))
+                .list();
+    }
+
+    @Override
+    public List<RunStepRow> listSteps(UUID projectUuid, UUID runUuid) {
+        return jdbc.sql("""
+                        select a.uuid, a.adim_kodu, a.tur_kodu, a.sira_no, a.ad,
+                               coalesce(d.durum_kodu, 'KAYDEDILMEDI') as durum_kodu,
+                               k.baglanti_rolu, k.risk_kodu,
+                               d.baslama_zamani, d.bitis_zamani,
+                               d.satir_sayisi, d.bayt_sayisi, d.hata_kodu
+                          from entegrasyon.calistirma_adimi a
+                          join entegrasyon.calistirma r on r.id = a.calistirma_id
+                          join entegrasyon.proje p on p.id = r.proje_id
+                          left join entegrasyon.prosedur_adim_kaniti k
+                            on k.proje_id = a.proje_id and k.calistirma_adimi_id = a.id
+                          left join entegrasyon.prosedur_adim_durumu d
+                            on d.proje_id = a.proje_id and d.calistirma_adimi_id = a.id
+                         where p.uuid = :projectUuid and r.uuid = :runUuid
+                         order by a.sira_no, a.id
+                        """)
+                .param("projectUuid", projectUuid)
+                .param("runUuid", runUuid)
+                .query((rs, rowNum) -> new RunStepRow(
+                        rs.getObject("uuid", UUID.class), rs.getString("adim_kodu"),
+                        rs.getString("tur_kodu"), rs.getInt("sira_no"), rs.getString("ad"),
+                        rs.getString("durum_kodu"), rs.getString("baglanti_rolu"),
+                        rs.getString("risk_kodu"),
+                        rs.getObject("baslama_zamani", OffsetDateTime.class),
+                        rs.getObject("bitis_zamani", OffsetDateTime.class),
+                        rs.getObject("satir_sayisi", Long.class),
+                        rs.getObject("bayt_sayisi", Long.class), rs.getString("hata_kodu")))
                 .list();
     }
 

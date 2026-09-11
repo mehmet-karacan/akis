@@ -31,6 +31,7 @@ export function ProjectOverviewPage() {
     </header>
     {project && <nav className="project-entry-actions" aria-label={t('overview.workspaces')}>
       <Link className="button primary" to="development">{t('nav.development')}</Link>
+      <Link className="button secondary" to="operations">{t('nav.operations')}</Link>
       <Link className="button secondary" to="connections">{t('nav.connections')}</Link>
     </nav>}
   </section>

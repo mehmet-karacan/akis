@@ -22,7 +22,10 @@ describe('topology API contracts', () => {
       mode: 'JNDI' as const,
       jndi: { name: 'java:comp/env/jdbc/OracleMain' },
       policyVersion: 2 as const,
-      executionPolicy: {},
+      executionPolicy: {
+        connectTimeoutMs: 10000, readTimeoutMs: 30000,
+        networkTimeoutMs: 30000, queryTimeoutSeconds: 300,
+      },
     }
 
     await topologyApi.createVersion('project id', 'connection/id', body)

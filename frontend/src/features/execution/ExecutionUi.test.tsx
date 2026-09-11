@@ -12,6 +12,7 @@ vi.mock('./api', () => ({
   executionApi: {
     getRun: vi.fn(),
     listEvents: vi.fn(),
+    listSteps: vi.fn(),
     cancelRun: vi.fn(),
   },
   isExecutionDisabled: vi.fn(() => false),
@@ -30,6 +31,11 @@ const run: RunRecord = {
   startedAt: '2026-09-11T08:01:00Z',
   finishedAt: '2026-09-11T08:02:00Z',
   cancellationRequestedAt: null,
+  allowedActions: [
+    { action: 'CANCEL', allowed: false, reasonCode: 'RUN_NOT_QUEUED' },
+    { action: 'START_NEW_ATTEMPT', allowed: false, reasonCode: 'NOT_SUPPORTED' },
+    { action: 'RESUME', allowed: false, reasonCode: 'NOT_SUPPORTED' },
+  ],
 }
 
 function renderRunDetail() {
@@ -47,6 +53,7 @@ describe('execution UI states', () => {
     vi.clearAllMocks()
     vi.mocked(executionApi.getRun).mockResolvedValue(run)
     vi.mocked(executionApi.listEvents).mockResolvedValue([])
+    vi.mocked(executionApi.listSteps).mockResolvedValue([])
     await i18n.changeLanguage('en')
   })
 

@@ -14,11 +14,7 @@ export function redactSensitiveValues(value: unknown): unknown {
 }
 
 export function formatDate(value: string | null | undefined, locale: string, fallback = '—') {
-  if (!value) return fallback
-  const date = new Date(value)
-  return Number.isNaN(date.valueOf())
-    ? fallback
-    : new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(date)
+  return formatDateTime(value, locale, fallback)
 }
 
 export const isUuid = (value: string) =>
@@ -31,4 +27,5 @@ export function apiErrorMessage(error: unknown, fallback: string) {
 export function toOffsetDateTime(value: string) {
   return value ? new Date(value).toISOString() : null
 }
+import { formatDateTime } from '../../core/i18n/formatters'
 

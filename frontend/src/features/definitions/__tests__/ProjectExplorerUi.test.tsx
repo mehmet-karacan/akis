@@ -26,7 +26,7 @@ describe('project explorer UI', () => {
     expect(screen.getByRole('navigation', { name: 'Project explorer' })).toBeInTheDocument()
     expect(screen.getByText('Finance')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Load ledger/ }))
-    fireEvent.click(screen.getByRole('button', { name: 'New folder' }))
+    fireEvent.click(screen.getByRole('button', { name: 'New Folder' }))
 
     expect(select).toHaveBeenCalledWith('definition-1')
     expect(createFolder).toHaveBeenCalledOnce()
@@ -40,7 +40,7 @@ describe('project explorer UI', () => {
     view.rerender(<ProjectExplorer folders={[{ ...folder }]} definitions={[definition]} selectedUuid={null} onSelect={vi.fn()} onCreateFolder={vi.fn()} onMoveFolder={move} />)
     expect(screen.queryByRole('button', { name: /Load ledger/ })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Finance' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Move folder' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Move Folder' }))
     expect(move).toHaveBeenCalledWith(expect.objectContaining(folder))
   })
 })

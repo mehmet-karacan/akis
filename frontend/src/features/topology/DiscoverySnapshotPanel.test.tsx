@@ -85,7 +85,7 @@ describe('discovery schema snapshot flow', () => {
     vi.spyOn(topologyApi, 'listDataObjects').mockResolvedValue(objects)
 
     render(<DiscoverySnapshotPanel {...baseProps} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Save schema snapshot' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save Schema Snapshot' }))
 
     await waitFor(() => expect(topologyApi.listDataObjects).toHaveBeenCalledWith('project', 'linked-model'))
     expect(screen.getByLabelText('Model')).toHaveValue('linked-model')
@@ -103,8 +103,8 @@ describe('discovery schema snapshot flow', () => {
     )
 
     render(<DiscoverySnapshotPanel {...baseProps} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Save schema snapshot' }))
-    const confirm = await screen.findByRole('button', { name: 'Confirm and save' })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Schema Snapshot' }))
+    const confirm = await screen.findByRole('button', { name: 'Confirm and Save' })
     await waitFor(() => expect(confirm).toBeEnabled())
     fireEvent.click(confirm)
     fireEvent.click(confirm)
@@ -113,8 +113,10 @@ describe('discovery schema snapshot flow', () => {
     expect(capture).toHaveBeenCalledWith('project', 'connection', 'version', 'physical', 'exact-table')
     resolveCapture(snapshot)
 
-    expect(await screen.findByText('Schema snapshot saved')).toBeInTheDocument()
-    expect(screen.getByText('snapshot-uuid')).toBeInTheDocument()
+    const success = (await screen.findByText('Schema snapshot saved')).closest('[role="status"]')
+    expect(success).toBeInTheDocument()
+    expect(screen.queryByText('snapshot-uuid')).not.toBeInTheDocument()
+    expect(success).toHaveTextContent('Oracle 19c')
     expect(screen.getByTitle(snapshot.fingerprint)).toHaveTextContent('123456789012…34567890')
   })
 })

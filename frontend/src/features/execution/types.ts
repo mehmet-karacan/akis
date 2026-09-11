@@ -23,6 +23,7 @@ export interface RunRecord {
   startedAt: string | null
   finishedAt: string | null
   cancellationRequestedAt: string | null
+  allowedActions: Array<{ action: 'CANCEL' | 'START_NEW_ATTEMPT' | 'RESUME' | string; allowed: boolean; reasonCode: string | null }>
 }
 
 export type Run = RunRecord
@@ -33,6 +34,29 @@ export interface RunEvent {
   type: string
   eventTime: string
   data: unknown
+}
+
+export interface RunStep {
+  uuid: string
+  code: string
+  type: string
+  ordinal: number
+  name: string
+  status: string
+  connectionRole: string | null
+  risk: string | null
+  startedAt: string | null
+  finishedAt: string | null
+  rowCount: number | null
+  byteCount: number | null
+  errorCode: string | null
+}
+
+export interface ProjectCapabilities {
+  contractVersion: 1
+  procedure: { maximumTasks: number; maximumRowsetRows: number; maximumTimeoutSeconds: number }
+  runtime: { acceptsManualRequests: boolean; workerAvailable: boolean; runnable: boolean; unavailableReason: string | null }
+  supportedRuntimeCapabilities: string[]
 }
 
 const executableRuntimeCapabilities = new Set([

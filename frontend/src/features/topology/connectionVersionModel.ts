@@ -13,17 +13,36 @@ export interface ConnectionVersionDraft {
   transport: Transport
   credentialSecretReferenceUuid: string
   jndiName: string
+  connectTimeoutMs: string
+  readTimeoutMs: string
+  networkTimeoutMs: string
+  queryTimeoutSeconds: string
 }
 
 export const initialConnectionVersionDraft: ConnectionVersionDraft = {
   mode: 'JDBC', host: '', port: '1521', identifierType: 'SERVICE_NAME',
   identifier: '', transport: 'TCP', credentialSecretReferenceUuid: '', jndiName: '',
+  connectTimeoutMs: '10000', readTimeoutMs: '30000', networkTimeoutMs: '30000', queryTimeoutSeconds: '300',
+}
+
+function validInteger(value: string, minimum: number, maximum: number) {
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed >= minimum && parsed <= maximum
+}
+
+function policyErrors(draft: ConnectionVersionDraft) {
+  return [
+    ...(!validInteger(draft.connectTimeoutMs, 1_000, 120_000) ? ['connectTimeoutMs'] : []),
+    ...(!validInteger(draft.readTimeoutMs, 1_000, 300_000) ? ['readTimeoutMs'] : []),
+    ...(!validInteger(draft.networkTimeoutMs, 1_000, 300_000) ? ['networkTimeoutMs'] : []),
+    ...(!validInteger(draft.queryTimeoutSeconds, 1, 3_600) ? ['queryTimeoutSeconds'] : []),
+  ]
 }
 
 export function validateConnectionVersionDraft(draft: ConnectionVersionDraft): string[] {
   if (draft.mode === 'JNDI') {
     return /^java:comp\/env\/jdbc\/[A-Za-z0-9_.-]{1,180}$/.test(draft.jndiName)
-      ? []
+      ? policyErrors(draft)
       : ['jndiName']
   }
   const port = Number(draft.port)
@@ -32,14 +51,24 @@ export function validateConnectionVersionDraft(draft: ConnectionVersionDraft): s
     ...(!Number.isInteger(port) || port < 1 || port > 65535 ? ['port'] : []),
     ...(!/^[A-Za-z0-9_$#.-]{1,128}$/.test(draft.identifier) ? ['identifier'] : []),
     ...(!draft.credentialSecretReferenceUuid ? ['credential'] : []),
+    ...policyErrors(draft),
   ]
+}
+
+function executionPolicy(draft: ConnectionVersionDraft) {
+  return {
+    connectTimeoutMs: Number(draft.connectTimeoutMs),
+    readTimeoutMs: Number(draft.readTimeoutMs),
+    networkTimeoutMs: Number(draft.networkTimeoutMs),
+    queryTimeoutSeconds: Number(draft.queryTimeoutSeconds),
+  }
 }
 
 export function toCreateConnectionVersionRequest(draft: ConnectionVersionDraft): CreateConnectionVersionRequest {
   if (draft.mode === 'JNDI') {
     return {
       mode: 'JNDI', jndi: { name: draft.jndiName.trim() },
-      policyVersion: 2, executionPolicy: {},
+      policyVersion: 2, executionPolicy: executionPolicy(draft),
     }
   }
   return {
@@ -50,6 +79,6 @@ export function toCreateConnectionVersionRequest(draft: ConnectionVersionDraft):
       transport: draft.transport,
       credentialSecretReferenceUuid: draft.credentialSecretReferenceUuid,
     },
-    policyVersion: 2, executionPolicy: {},
+    policyVersion: 2, executionPolicy: executionPolicy(draft),
   }
 }

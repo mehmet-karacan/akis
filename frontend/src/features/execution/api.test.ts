@@ -28,15 +28,23 @@ describe('execution API contracts', () => {
     expect(JSON.parse(String(init.body))).toEqual({ publicationUuid: 'publication/id' })
   })
 
-  it('uses the run-specific cancel and events endpoints', async () => {
+  it('uses the run-specific cancel, event, and typed step endpoints', async () => {
     const fetchMock = fetchResponse([])
 
     await executionApi.listEvents('project', 'run/id')
+    await executionApi.listSteps('project', 'run/id')
     await executionApi.cancelRun('project', 'run/id')
 
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/projects/project/runs/run%2Fid/events')
-    expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/v1/projects/project/runs/run%2Fid/cancel')
-    expect((fetchMock.mock.calls[1]?.[1] as RequestInit).method).toBe('POST')
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/v1/projects/project/runs/run%2Fid/steps')
+    expect(fetchMock.mock.calls[2]?.[0]).toBe('/api/v1/projects/project/runs/run%2Fid/cancel')
+    expect((fetchMock.mock.calls[2]?.[1] as RequestInit).method).toBe('POST')
+  })
+
+  it('loads the project capability contract before enabling runtime actions', async () => {
+    const fetchMock = fetchResponse({ contractVersion: 1 })
+    await executionApi.getCapabilities('project/id')
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/projects/project%2Fid/capabilities')
   })
 
   it('recognizes only the explicit disabled-execution problem and generates the key client-side', () => {

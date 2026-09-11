@@ -1,5 +1,6 @@
 import { Check, Clipboard, LoaderCircle, RefreshCw, TriangleAlert } from 'lucide-react'
 import { useState, type PropsWithChildren, type ReactNode } from 'react'
+import { Dialog as CoreDialog } from '../../core/ui/Dialog'
 import { useOperationsI18n } from './i18n'
 import './operations.css'
 
@@ -107,22 +108,5 @@ export function Dialog({ title, onClose, children }: PropsWithChildren<{
   onClose: () => void
 }>) {
   const { t } = useOperationsI18n()
-  return (
-    <div className="ops-dialog-backdrop" role="presentation" onMouseDown={onClose}>
-      <div
-        className="ops-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="ops-dialog-title"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <div className="ops-dialog-header">
-          <h2 id="ops-dialog-title">{title}</h2>
-          <button className="ops-icon-button" type="button" onClick={onClose} aria-label={t('close')}>×</button>
-        </div>
-        {children}
-      </div>
-    </div>
-  )
+  return <CoreDialog open title={title} onClose={onClose} closeLabel={t('close')} className="ops-dialog">{children}</CoreDialog>
 }
-

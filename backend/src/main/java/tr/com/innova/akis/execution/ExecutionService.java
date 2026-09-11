@@ -16,6 +16,7 @@ import tr.com.innova.akis.execution.ExecutionModels.IdempotencyReservation;
 import tr.com.innova.akis.execution.ExecutionModels.PublicationContext;
 import tr.com.innova.akis.execution.ExecutionModels.RunEventRow;
 import tr.com.innova.akis.execution.ExecutionModels.RunRow;
+import tr.com.innova.akis.execution.ExecutionModels.RunStepRow;
 import tr.com.innova.akis.execution.ExecutionModels.StartResult;
 import tr.com.innova.akis.metadata.ApiException;
 
@@ -116,6 +117,12 @@ public class ExecutionService {
     List<RunEventRow> events(UUID projectUuid, UUID runUuid) {
         get(projectUuid, runUuid);
         return store.listEvents(projectUuid, runUuid);
+    }
+
+    @Transactional(readOnly = true)
+    List<RunStepRow> steps(UUID projectUuid, UUID runUuid) {
+        get(projectUuid, runUuid);
+        return store.listSteps(projectUuid, runUuid);
     }
 
     @Transactional

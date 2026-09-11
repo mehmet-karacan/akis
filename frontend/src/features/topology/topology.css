@@ -159,6 +159,8 @@
 .topology-drawer h2 { font-size: 1.2rem; margin: 0; }
 .topology-form { display: grid; gap: .8rem; }
 .topology-form-row { display: grid; gap: .7rem; grid-template-columns: 1fr 1fr; }
+.topology-timeout-grid { display: grid; gap: .7rem; grid-template-columns: 1fr 1fr; margin: .25rem 0 0; padding: .8rem; border: 1px solid var(--topology-border); border-radius: .6rem; }
+.topology-timeout-grid legend { padding: 0 .25rem; font-size: .8rem; font-weight: 700; }
 .topology-field { display: grid; gap: .3rem; }
 .topology-field > span { font-size: .8rem; font-weight: 700; }
 .topology-field > span small { color: var(--topology-muted); font-size: .7rem; font-weight: 500; }
@@ -262,7 +264,7 @@
 @media (max-width: 480px) {
   .topology-tabs button { justify-content: flex-start; }
   .topology-tabs button b { margin-left: auto; }
-  .topology-discovery, .topology-form-row { grid-template-columns: 1fr; }
+  .topology-discovery, .topology-form-row, .topology-timeout-grid { grid-template-columns: 1fr; }
   .topology-fingerprint { grid-template-columns: 1fr auto; }
   .topology-fingerprint > span { grid-column: 1 / -1; }
   .topology-snapshot-selectors, .topology-snapshot-evidence { grid-template-columns: 1fr; }

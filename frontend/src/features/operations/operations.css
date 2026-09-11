@@ -131,6 +131,9 @@
 .ops-kv dd { min-width: 0; overflow-wrap: anywhere; }
 .ops-kv > :nth-last-child(-n + 2) { border-bottom: 0; }
 .ops-code-block { max-height: 34rem; margin: 0; padding: 1rem; overflow: auto; border: 1px solid var(--color-border, var(--line, #dce3e0)); border-radius: 9px; background: var(--color-input, var(--surface-subtle, #f8faf9)); color: var(--color-text, var(--ink, #182226)); font-size: .78rem; line-height: 1.55; tab-size: 2; }
+.ops-technical-details { margin-top: .8rem; }
+.ops-technical-details > summary { color: var(--color-primary, var(--accent, #147d75)); font-size: .76rem; font-weight: 700; cursor: pointer; }
+.ops-technical-details > .ops-kv, .ops-technical-details > .ops-code-block { margin-top: .75rem; }
 
 .ops-dialog-backdrop { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 1rem; background: rgb(2 8 14 / .72); backdrop-filter: blur(3px); }
 .ops-dialog { width: min(620px, 100%); max-height: calc(100vh - 2rem); overflow: auto; padding: 1.1rem; border: 1px solid var(--color-border, var(--line, #dce3e0)); border-radius: 14px; background: var(--color-surface, var(--surface, #fff)); box-shadow: 0 30px 80px rgb(0 0 0 / .45); }

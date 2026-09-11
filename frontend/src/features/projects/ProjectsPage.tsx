@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { ApiProblem } from '../../core/api/client'
 import { Dialog } from '../../core/ui/Dialog'
+import { formatDate } from '../../core/i18n/formatters'
 import { createProject, listProjects, type Project } from './projectsApi'
 
 export function ProjectsPage() {
@@ -42,8 +43,6 @@ export function ProjectsPage() {
     } finally { setCreating(false) }
   }
 
-  const dateFormat = new Intl.DateTimeFormat(i18n.language === 'tr' ? 'tr-TR' : 'en-GB', { dateStyle: 'medium' })
-
   return (
     <section className="page-stack">
       <header className="page-header">
@@ -61,7 +60,7 @@ export function ProjectsPage() {
             <button className="project-card" key={project.uuid} onClick={() => navigate(`/projects/${project.uuid}`)}>
               <div className="project-card-top"><span className="code-badge">{project.code}</span><ArrowUpRight size={18} /></div>
               <h2>{project.name}</h2><p>{project.description || t('common.noDescription')}</p>
-              <footer><span className="status-dot"><i />{t('projects.active')}</span><time>{dateFormat.format(new Date(project.createdAt))}</time></footer>
+              <footer><time>{formatDate(project.createdAt, i18n.language)}</time></footer>
             </button>
           ))}</div>}
 

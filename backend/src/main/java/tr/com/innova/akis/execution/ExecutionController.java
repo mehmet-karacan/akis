@@ -20,6 +20,7 @@ import tools.jackson.databind.JsonNode;
 
 import tr.com.innova.akis.execution.ExecutionModels.RunEventRow;
 import tr.com.innova.akis.execution.ExecutionModels.RunRow;
+import tr.com.innova.akis.execution.ExecutionModels.RunStepRow;
 import tr.com.innova.akis.execution.ExecutionModels.StartResult;
 import tr.com.innova.akis.security.AuthorizationService;
 import static tr.com.innova.akis.security.PermissionCodes.RUN_CANCEL;
@@ -33,14 +34,17 @@ final class ExecutionController {
     private final ExecutionService service;
     private final RunActorResolver actorResolver;
     private final AuthorizationService authorization;
+    private final ExecutionFeatureFlags featureFlags;
 
     ExecutionController(
             ExecutionService service,
             RunActorResolver actorResolver,
-            AuthorizationService authorization) {
+            AuthorizationService authorization,
+            ExecutionFeatureFlags featureFlags) {
         this.service = service;
         this.actorResolver = actorResolver;
         this.authorization = authorization;
+        this.featureFlags = featureFlags;
     }
 
     @PostMapping
@@ -52,7 +56,7 @@ final class ExecutionController {
         StartResult result = service.start(
                 projectUuid, request.publicationUuid(), idempotencyKey,
                 actorResolver.currentActor());
-        RunView view = RunView.from(result.run());
+        RunView view = RunView.from(result.run(), featureFlags);
         if (!result.created()) {
             return ResponseEntity.ok(view);
         }
@@ -64,7 +68,7 @@ final class ExecutionController {
     @GetMapping
     List<RunView> list(@PathVariable UUID projectUuid) {
         authorization.requireProjectPermission(projectUuid, RUN_READ);
-        return service.list(projectUuid).stream().map(RunView::from).toList();
+        return service.list(projectUuid).stream().map(row -> RunView.from(row, featureFlags)).toList();
     }
 
     @GetMapping("/{runUuid}")
@@ -72,7 +76,7 @@ final class ExecutionController {
             @PathVariable UUID projectUuid,
             @PathVariable UUID runUuid) {
         authorization.requireProjectPermission(projectUuid, RUN_READ);
-        return RunView.from(service.get(projectUuid, runUuid));
+        return RunView.from(service.get(projectUuid, runUuid), featureFlags);
     }
 
     @GetMapping("/{runUuid}/events")
@@ -85,13 +89,23 @@ final class ExecutionController {
                 .toList();
     }
 
+    @GetMapping("/{runUuid}/steps")
+    List<RunStepView> steps(
+            @PathVariable UUID projectUuid,
+            @PathVariable UUID runUuid) {
+        authorization.requireProjectPermission(projectUuid, RUN_READ);
+        return service.steps(projectUuid, runUuid).stream()
+                .map(RunStepView::from)
+                .toList();
+    }
+
     @PostMapping("/{runUuid}/cancel")
     RunView cancel(
             @PathVariable UUID projectUuid,
             @PathVariable UUID runUuid) {
         authorization.requireProjectPermission(projectUuid, RUN_CANCEL);
         return RunView.from(service.cancel(
-                projectUuid, runUuid, actorResolver.currentActor()));
+                projectUuid, runUuid, actorResolver.currentActor()), featureFlags);
     }
 
     record StartRunRequest(@NotNull UUID publicationUuid) {
@@ -109,16 +123,27 @@ final class ExecutionController {
             OffsetDateTime createdAt,
             OffsetDateTime startedAt,
             OffsetDateTime finishedAt,
-            OffsetDateTime cancellationRequestedAt) {
+            OffsetDateTime cancellationRequestedAt,
+            List<ActionAvailability> allowedActions) {
 
-        static RunView from(RunRow row) {
+        static RunView from(RunRow row, ExecutionFeatureFlags flags) {
+            boolean canCancel = "BEKLIYOR".equals(row.status()) && flags.acceptManualRequests();
+            String cancelReason = canCancel ? null
+                    : !flags.acceptManualRequests() ? "RUNTIME_DISABLED" : "RUN_NOT_QUEUED";
             return new RunView(
                     row.jobRequestUuid(), row.runUuid(), row.publicationUuid(),
                     row.attemptNumber(), row.startType(), row.status(), row.releaseHash(),
                     row.planHash(),
                     row.createdAt(), row.startedAt(), row.finishedAt(),
-                    row.cancellationRequestedAt());
+                    row.cancellationRequestedAt(),
+                    List.of(
+                            new ActionAvailability("CANCEL", canCancel, cancelReason),
+                            new ActionAvailability("START_NEW_ATTEMPT", false, "NOT_SUPPORTED"),
+                            new ActionAvailability("RESUME", false, "NOT_SUPPORTED")));
         }
+    }
+
+    record ActionAvailability(String action, boolean allowed, String reasonCode) {
     }
 
     record RunEventView(
@@ -131,6 +156,29 @@ final class ExecutionController {
         static RunEventView from(RunEventRow row) {
             return new RunEventView(
                     row.uuid(), row.eventNumber(), row.type(), row.eventTime(), row.data());
+        }
+    }
+
+    record RunStepView(
+            UUID uuid,
+            String code,
+            String type,
+            int ordinal,
+            String name,
+            String status,
+            String connectionRole,
+            String risk,
+            OffsetDateTime startedAt,
+            OffsetDateTime finishedAt,
+            Long rowCount,
+            Long byteCount,
+            String errorCode) {
+
+        static RunStepView from(RunStepRow row) {
+            return new RunStepView(
+                    row.uuid(), row.code(), row.type(), row.ordinal(), row.name(),
+                    row.status(), row.connectionRole(), row.risk(), row.startedAt(),
+                    row.finishedAt(), row.rowCount(), row.byteCount(), row.errorCode());
         }
     }
 }

@@ -103,6 +103,12 @@ export function OracleConnectionVersionForm({ projectUuid, connectionUuid, secre
         <label className="topology-field"><span>{c.jndiName} *</span><input required value={draft.jndiName} onChange={(event) => update('jndiName', event.target.value)} placeholder="java:comp/env/jdbc/OracleMain" autoComplete="off" /></label>
         <p className="topology-security-note"><CircleAlert />{c.localJndiOnly} {c.jndiExecutionBlocked}</p>
       </>}
+      <fieldset className="topology-timeout-grid"><legend>{c.executionPolicy}</legend>
+        <label className="topology-field"><span>{c.connectTimeout} *</span><input required type="number" min="1000" max="120000" value={draft.connectTimeoutMs} onChange={(event) => update('connectTimeoutMs', event.target.value)} /></label>
+        <label className="topology-field"><span>{c.readTimeout} *</span><input required type="number" min="1000" max="300000" value={draft.readTimeoutMs} onChange={(event) => update('readTimeoutMs', event.target.value)} /></label>
+        <label className="topology-field"><span>{c.networkTimeout} *</span><input required type="number" min="1000" max="300000" value={draft.networkTimeoutMs} onChange={(event) => update('networkTimeoutMs', event.target.value)} /></label>
+        <label className="topology-field"><span>{c.queryTimeout} *</span><input required type="number" min="1" max="3600" value={draft.queryTimeoutSeconds} onChange={(event) => update('queryTimeoutSeconds', event.target.value)} /></label>
+      </fieldset>
     </div>}
 
     {step === 1 && <div className="topology-form">
@@ -116,6 +122,7 @@ export function OracleConnectionVersionForm({ projectUuid, connectionUuid, secre
     {step === 2 && <dl className="topology-review">
       <div><dt>{c.connectionMode}</dt><dd>{draft.mode}</dd></div>
       {draft.mode === 'JDBC' ? <><div><dt>{c.endpoint}</dt><dd>{draft.host}:{draft.port}</dd></div><div><dt>{c.connectIdentifier}</dt><dd>{draft.identifierType} · {draft.identifier}</dd></div><div><dt>{c.transport}</dt><dd>{draft.transport}</dd></div><div><dt>{c.credentialSecret}</dt><dd>{credential?.name ?? '—'}</dd></div><div><dt>{c.driver}</dt><dd>oracle.jdbc.OracleDriver · {c.systemManaged}</dd></div></> : <div><dt>{c.jndiName}</dt><dd>{draft.jndiName}</dd></div>}
+      <div><dt>{c.executionPolicy}</dt><dd>{draft.connectTimeoutMs} / {draft.readTimeoutMs} / {draft.networkTimeoutMs} ms · {draft.queryTimeoutSeconds} s</dd></div>
     </dl>}
 
     <div className="topology-form-actions">

@@ -22,6 +22,7 @@ import tr.com.innova.akis.execution.ExecutionModels.IdempotencyReservation;
 import tr.com.innova.akis.execution.ExecutionModels.PublicationContext;
 import tr.com.innova.akis.execution.ExecutionModels.RunEventRow;
 import tr.com.innova.akis.execution.ExecutionModels.RunRow;
+import tr.com.innova.akis.execution.ExecutionModels.RunStepRow;
 import tr.com.innova.akis.execution.ExecutionModels.StartResult;
 import tr.com.innova.akis.metadata.ApiException;
 
@@ -283,6 +284,11 @@ class ExecutionServiceTest {
             return run == null ? List.of() : List.of(new RunEventRow(
                     UUID.randomUUID(), 1, "RUN_REQUESTED", OffsetDateTime.now(),
                     objectMapper.createObjectNode()));
+        }
+
+        @Override
+        public List<RunStepRow> listSteps(UUID projectUuid, UUID runUuid) {
+            return List.of();
         }
 
         @Override

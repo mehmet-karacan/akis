@@ -22,6 +22,7 @@ import tr.com.innova.akis.execution.ExecutionModels.IdempotencyReservation;
 import tr.com.innova.akis.execution.ExecutionModels.PublicationContext;
 import tr.com.innova.akis.execution.ExecutionModels.RunEventRow;
 import tr.com.innova.akis.execution.ExecutionModels.RunRow;
+import tr.com.innova.akis.execution.ExecutionModels.RunStepRow;
 import tr.com.innova.akis.execution.ExecutionModels.StartResult;
 import tr.com.innova.akis.security.AuthorizationService;
 
@@ -69,6 +70,8 @@ class ExecutionControllerTest {
         assertEquals(RUN_READ, authorization.permission);
         controller.events(PROJECT_UUID, RUN_UUID);
         assertEquals(RUN_READ, authorization.permission);
+        controller.steps(PROJECT_UUID, RUN_UUID);
+        assertEquals(RUN_READ, authorization.permission);
     }
 
     @Test
@@ -85,7 +88,8 @@ class ExecutionControllerTest {
     private ExecutionController controller(CapturingAuthorization authorization) {
         ActorOnlyStore actorStore = new ActorOnlyStore();
         return new ExecutionController(
-                new StubExecutionService(), new RunActorResolver(actorStore), authorization);
+                new StubExecutionService(), new RunActorResolver(actorStore), authorization,
+                new ExecutionFeatureFlags(true, false, false));
     }
 
     private static RunRow run() {
@@ -122,6 +126,11 @@ class ExecutionControllerTest {
 
         @Override
         List<RunEventRow> events(UUID projectUuid, UUID runUuid) {
+            return List.of();
+        }
+
+        @Override
+        List<RunStepRow> steps(UUID projectUuid, UUID runUuid) {
             return List.of();
         }
 
@@ -166,6 +175,7 @@ class ExecutionControllerTest {
         @Override public Optional<RunRow> lock(UUID p, UUID r) { throw unsupported(); }
         @Override public List<RunRow> list(UUID p) { throw unsupported(); }
         @Override public List<RunEventRow> listEvents(UUID p, UUID r) { throw unsupported(); }
+        @Override public List<RunStepRow> listSteps(UUID p, UUID r) { throw unsupported(); }
         @Override public RunRow cancelQueued(RunRow r, Actor a, UUID e) { throw unsupported(); }
 
         private UnsupportedOperationException unsupported() {

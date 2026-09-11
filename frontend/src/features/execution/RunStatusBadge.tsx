@@ -6,6 +6,7 @@ export const canonicalRunStatuses = [
   'IPTAL_ISTENDI', 'SONUC_BELIRSIZ', 'MUTABAKAT',
   'YENIDEN_DENENEBILIR', 'MUDAHALE_GEREKLI',
   'BASARILI', 'BASARISIZ', 'IPTAL',
+  'HATA_DEVAM', 'ATLANDI', 'KAYDEDILMEDI',
 ] as const
 
 export function RunStatusBadge({ status }: { status: RunStatus }) {

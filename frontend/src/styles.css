@@ -196,7 +196,9 @@ label { display: grid; gap: 7px; color: var(--ink-soft); font-size: .77rem; font
 .project-switcher-list small { color: var(--ink-faint); font: .66rem "Cascadia Mono", Consolas, monospace; }
 .project-switcher-list em { color: var(--accent); font-size: .67rem; font-style: normal; font-weight: 700; }
 .project-switcher-list > p { padding: 18px 4px; color: var(--ink-soft); text-align: center; font-size: .76rem; }
-.project-switcher-dialog > footer { display: flex; justify-content: flex-end; margin-top: 14px; padding-top: 16px; border-top: 1px solid var(--line); }
+.project-switcher-dialog > footer { display: flex; align-items: flex-start; justify-content: flex-end; gap: 8px; margin-top: 14px; padding-top: 16px; border-top: 1px solid var(--line); }
+.project-switcher-dialog .bundle-export-control { margin-right: auto; }
+.project-card footer { justify-content: flex-end; }
 
 .project-heading { align-items: center; }
 .project-entry-page { min-height: calc(100vh - 176px); display: grid; place-content: center; justify-items: start; }
@@ -265,8 +267,9 @@ label { display: grid; gap: 7px; color: var(--ink-soft); font-size: .77rem; font
   .nav-group + .nav-group { margin: 0; }
   .sidebar nav > .nav-item { display: none; }
   .nav-section .nav-item { display: none; }
-  .nav-section .nav-item.mobile-primary { width: 48px; display: flex; justify-content: center; margin: 0; padding: 0; }
+  .nav-section .nav-item.mobile-primary { width: auto; min-width: 74px; height: 50px; display: flex; flex-direction: column; justify-content: center; gap: 2px; margin: 0; padding: 0 6px; }
   .nav-item span { display: none; }
+  .nav-section .nav-item.mobile-primary span { display: block; font-size: .58rem; }
   .topbar { height: 60px; padding: 0 14px; }
   .compact-select:nth-of-type(2), .user-menu > span { display: none; }
   .project-switcher { min-width: 0; }

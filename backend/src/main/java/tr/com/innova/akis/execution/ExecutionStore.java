@@ -9,6 +9,7 @@ import tr.com.innova.akis.execution.ExecutionModels.IdempotencyReservation;
 import tr.com.innova.akis.execution.ExecutionModels.PublicationContext;
 import tr.com.innova.akis.execution.ExecutionModels.RunEventRow;
 import tr.com.innova.akis.execution.ExecutionModels.RunRow;
+import tr.com.innova.akis.execution.ExecutionModels.RunStepRow;
 
 interface ExecutionStore {
 
@@ -51,6 +52,8 @@ interface ExecutionStore {
     List<RunRow> list(UUID projectUuid);
 
     List<RunEventRow> listEvents(UUID projectUuid, UUID runUuid);
+
+    List<RunStepRow> listSteps(UUID projectUuid, UUID runUuid);
 
     RunRow cancelQueued(RunRow run, Actor actor, UUID eventUuid);
 }

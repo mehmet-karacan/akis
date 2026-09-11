@@ -180,7 +180,6 @@ export function DiscoverySnapshotPanel({
       <CheckCircle2 aria-hidden="true" />
       <div>
         <strong>{c.snapshotSaved}</strong>
-        <span>{c.snapshotId}: <code>{snapshot.uuid}</code></span>
         <span>{c.databaseEngine}: {snapshot.engineVersion}</span>
         <span>{c.targetFingerprint}: <code title={snapshot.fingerprint}>{abbreviateFingerprint(snapshot.fingerprint)}</code>
           <button className="topology-icon-button" type="button" aria-label={copied ? c.fingerprintCopied : c.copyFingerprint} onClick={() => void copyFingerprint()}>

@@ -56,7 +56,7 @@ export function IdentityUsersPage() {
   }
 
   return (
-    <main className="ops-page">
+    <section className="ops-page">
       <PageHeader
         title={t('users')}
         description={t('usersHelp')}
@@ -103,7 +103,6 @@ export function IdentityUsersPage() {
           </form>
         </Dialog>
       ) : null}
-    </main>
+    </section>
   )
 }
-

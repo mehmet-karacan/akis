@@ -58,8 +58,8 @@ describe('connection version lifecycle panel', () => {
 
     render(<ConnectionVersionLifecyclePanel projectUuid="project" connectionUuid="connection" version={testedVersion} copy={getTopologyCopy('en')} locale="en-GB" onVersionChanged={changed} />)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Activate version' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm activation' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Activate Version' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm Activation' }))
 
     await waitFor(() => expect(activate).toHaveBeenCalledWith('project', 'connection', 'version-uuid', {
       testUuid: 'test-uuid',
@@ -74,7 +74,7 @@ describe('connection version lifecycle panel', () => {
     render(<ConnectionVersionLifecyclePanel projectUuid="project" connectionUuid="connection" version={{ ...testedVersion, mode: 'JNDI', runtimeCapability: 'TEST_DISCOVERY_ONLY' }} copy={getTopologyCopy('en')} locale="en-GB" onVersionChanged={vi.fn()} />)
 
     expect(await screen.findByText('Runtime limited')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Activate version' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Activate Version' })).not.toBeInTheDocument()
     expect(screen.getByText(/metadata\/test only/)).toBeInTheDocument()
   })
 

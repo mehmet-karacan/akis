@@ -3,9 +3,10 @@ import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router-dom'
 import {
   Boxes, Cable, ChevronRight, CircleAlert, Database,
-  KeyRound, Layers3, Link2, LoaderCircle, Network, Plus, RefreshCw,
+  Layers3, Link2, LoaderCircle, Network, Plus, RefreshCw,
   Search, ServerCog, TableProperties, X,
 } from 'lucide-react'
+import { Drawer } from '../../core/ui/Drawer'
 import {
   topologyApi,
   type Connection,
@@ -27,7 +28,7 @@ import { OracleConnectionVersionForm } from './OracleConnectionVersionForm'
 import './topology.css'
 
 type Tab = 'connections' | 'schemas' | 'bindings' | 'catalog'
-type FormName = 'secret' | 'connection' | 'version' | 'physical' | 'logical' | 'environment' | 'binding' | 'model' | 'submodel' | 'object' | null
+type FormName = 'connection' | 'version' | 'physical' | 'logical' | 'environment' | 'binding' | 'model' | 'submodel' | 'object' | null
 
 interface TopologyPageProps {
   projectUuid?: string
@@ -74,8 +75,10 @@ function Field({ label, name, children, optional = false }: { label: string; nam
 }
 
 function Status({ value }: { value: string }) {
+  const { i18n } = useTranslation()
   const normalized = value.toLowerCase()
-  return <span className={`topology-status topology-status--${normalized}`}>{value}</span>
+  const translated = value === 'AKTIF' ? (i18n.language.startsWith('tr') ? 'Etkin' : 'Active') : value === 'TASLAK' ? (i18n.language.startsWith('tr') ? 'Taslak' : 'Draft') : value
+  return <span className={`topology-status topology-status--${normalized}`}>{translated}</span>
 }
 
 function Empty({ children }: { children: ReactNode }) {
@@ -87,18 +90,6 @@ function PanelHeading({ icon, title, count, action }: { icon: ReactNode; title: 
     <div className="topology-panel-heading">
       <div><span className="topology-panel-icon">{icon}</span><h2>{title}</h2>{count !== undefined && <span className="topology-count">{count}</span>}</div>
       {action}
-    </div>
-  )
-}
-
-function Drawer({ title, closeLabel, onClose, children }: { title: string; closeLabel: string; onClose(): void; children: ReactNode }) {
-  return (
-    <div className="topology-drawer" role="dialog" aria-modal="true" aria-labelledby="topology-drawer-title">
-      <button className="topology-drawer-backdrop" aria-label={closeLabel} onClick={onClose} />
-      <section>
-        <header><h2 id="topology-drawer-title">{title}</h2><button className="topology-icon-button" onClick={onClose} aria-label={closeLabel}><X /></button></header>
-        {children}
-      </section>
     </div>
   )
 }
@@ -225,7 +216,7 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
     setDataObjects(nextObjects)
   }
   const formTitle: Record<Exclude<FormName, null>, string> = {
-    secret: tr('addSecret'), connection: tr('addConnection'), version: tr('addVersion'),
+    connection: tr('addConnection'), version: tr('addVersion'),
     physical: tr('addPhysical'), logical: tr('addLogical'), environment: tr('addEnvironment'),
     binding: tr('addBinding'), model: tr('addModel'), submodel: tr('addSubmodel'), object: tr('addDataObject'),
   }
@@ -268,7 +259,7 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
     finally { setBusy('') }
   }
 
-  if (!projectUuid) return <main className="topology-page"><div className="topology-alert" role="alert"><CircleAlert />Missing project UUID.</div></main>
+  if (!projectUuid) return <section className="topology-page"><div className="topology-alert" role="alert"><CircleAlert />{tr('missingProject')}</div></section>
 
   const tabs: Array<{ id: Tab; label: string; icon: ReactNode; count: number }> = [
     { id: 'connections', label: tr('connections'), icon: <Cable />, count: resources.connections.length },
@@ -278,22 +269,28 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
   ]
 
   return (
-    <main className="topology-page">
+    <section className="topology-page">
       <header className="topology-hero">
-        <div><span className="topology-eyebrow"><Network /> PROJECT TOPOLOGY</span><h1>{tr('title')}</h1><p>{tr('subtitle')}</p></div>
+        <div><span className="topology-eyebrow"><Network /> {tr('eyebrow')}</span><h1>{tr('title')}</h1><p>{tr('subtitle')}</p></div>
         <button className="topology-button topology-button--quiet" onClick={() => void loadAll()} disabled={loading}><RefreshCw className={loading ? 'is-spinning' : ''} />{tr('refresh')}</button>
       </header>
 
-      <nav className="topology-tabs" aria-label={tr('title')}>
-        {tabs.map((item) => <button key={item.id} role="tab" aria-selected={tab === item.id} onClick={() => setTab(item.id)}>{item.icon}<span>{item.label}</span><b>{item.count}</b></button>)}
-      </nav>
+      <div className="topology-tabs" role="tablist" aria-label={tr('title')} onKeyDown={(event) => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+        const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+        const current = buttons.indexOf(document.activeElement as HTMLButtonElement)
+        const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (current + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length
+        event.preventDefault(); buttons[next]?.focus(); buttons[next]?.click()
+      }}>
+        {tabs.map((item) => <button key={item.id} id={`topology-tab-${item.id}`} role="tab" tabIndex={tab === item.id ? 0 : -1} aria-selected={tab === item.id} aria-controls={`topology-panel-${item.id}`} onClick={() => setTab(item.id)}>{item.icon}<span>{item.label}</span><b>{item.count}</b></button>)}
+      </div>
 
       {loadError && <div className="topology-alert" role="alert"><CircleAlert /><span>{loadError}</span><button onClick={() => void loadAll()}>{tr('tryAgain')}</button></div>}
       {actionError && <div className="topology-alert" role="alert"><CircleAlert /><span>{actionError}</span><button aria-label={tr('close')} onClick={() => setActionError('')}><X /></button></div>}
       {loading ? <div className="topology-loading" role="status"><LoaderCircle className="is-spinning" />{tr('loading')}</div> : (
         <>
           {tab === 'connections' && (
-            <div className="topology-columns topology-columns--master-detail">
+            <div className="topology-columns topology-columns--master-detail" id="topology-panel-connections" role="tabpanel" aria-labelledby="topology-tab-connections">
               <section className="topology-panel">
                 <PanelHeading icon={<Cable />} title={tr('connections')} count={resources.connections.length} action={<button className="topology-button topology-button--small" onClick={() => setForm('connection')}><Plus />{tr('addConnection')}</button>} />
                 {resources.connections.length === 0 ? <Empty>{tr('noItems')}</Empty> : <div className="topology-cards">{resources.connections.map((item) => (
@@ -320,16 +317,11 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
                   onVersionChanged={() => refreshConnectionVersions(selectedVersion.uuid).then(() => undefined)}
                 />}
               </section>
-              <section className="topology-panel topology-panel--wide">
-                <PanelHeading icon={<KeyRound />} title={tr('secretRefs')} count={resources.secrets.length} action={<button className="topology-button topology-button--small" onClick={() => setForm('secret')}><Plus />{tr('addSecret')}</button>} />
-                <p className="topology-security-note"><KeyRound />{tr('noSecretValues')}</p>
-                {resources.secrets.length === 0 ? <Empty>{tr('noItems')}</Empty> : <div className="topology-table-wrap"><table><thead><tr><th>{tr('name')}</th><th>{tr('provider')}</th><th>{tr('referencePath')}</th><th>{tr('status')}</th></tr></thead><tbody>{resources.secrets.map((item) => <tr key={item.uuid}><td><strong>{item.name}</strong><small>{item.code}</small></td><td>{item.provider}</td><td><code>{item.referencePath}</code></td><td><Status value={item.status} /></td></tr>)}</tbody></table></div>}
-              </section>
             </div>
           )}
 
           {tab === 'schemas' && (
-            <div className="topology-columns topology-columns--three">
+            <div className="topology-columns topology-columns--three" id="topology-panel-schemas" role="tabpanel" aria-labelledby="topology-tab-schemas">
               <section className="topology-panel"><PanelHeading icon={<Database />} title={tr('physical')} count={resources.physicalSchemas.length} action={<button className="topology-button topology-button--icon" onClick={() => setForm('physical')} aria-label={tr('addPhysical')}><Plus /></button>} />
                 {resources.physicalSchemas.length === 0 ? <Empty>{tr('noItems')}</Empty> : <div className="topology-simple-list">{resources.physicalSchemas.map((item) => <article key={item.uuid}><div><strong>{item.name}</strong><small>{item.code} · {item.schemaReference}</small></div><Status value={item.status} /></article>)}</div>}
               </section>
@@ -378,7 +370,7 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
           )}
 
           {tab === 'bindings' && (
-            <section className="topology-panel">
+            <section className="topology-panel" id="topology-panel-bindings" role="tabpanel" aria-labelledby="topology-tab-bindings">
               <PanelHeading icon={<Link2 />} title={tr('bindings')} count={resources.bindings.length} action={<button className="topology-button topology-button--small" onClick={() => {
                 const physical = resources.physicalSchemas.find((item) => item.uuid === selectedPhysicalUuid) ?? resources.physicalSchemas[0]
                 if (physical) {
@@ -391,19 +383,19 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
                 const logical = resources.logicalSchemas.find((entry) => entry.uuid === item.logicalSchemaUuid)
                 const environment = resources.environments.find((entry) => entry.uuid === item.environmentUuid)
                 const physical = resources.physicalSchemas.find((entry) => entry.uuid === item.physicalSchemaUuid)
-                return <article key={item.uuid}><div className="topology-binding-node topology-binding-node--logical"><Layers3 /><span>{tr('logicalSchema')}</span><strong>{logical?.name ?? item.logicalSchemaUuid}</strong></div><ChevronRight /><div className="topology-binding-node"><ServerCog /><span>{environment?.name ?? item.environmentUuid}</span><strong>{physical?.name ?? item.physicalSchemaUuid}</strong></div><Status value={item.status} /></article>
+                return <article key={item.uuid}><div className="topology-binding-node topology-binding-node--logical"><Layers3 /><span>{tr('logicalSchema')}</span><strong>{logical?.name ?? tr('unavailable')}</strong></div><ChevronRight /><div className="topology-binding-node"><ServerCog /><span>{environment?.name ?? tr('unavailable')}</span><strong>{physical?.name ?? tr('unavailable')}</strong></div><Status value={item.status} /></article>
               })}</div>}
             </section>
           )}
 
           {tab === 'catalog' && (
-            <div className="topology-columns topology-columns--catalog">
+            <div className="topology-columns topology-columns--catalog" id="topology-panel-catalog" role="tabpanel" aria-labelledby="topology-tab-catalog">
               <section className="topology-panel"><PanelHeading icon={<TableProperties />} title={tr('models')} count={resources.models.length} action={<button className="topology-button topology-button--icon" onClick={() => setForm('model')} aria-label={tr('addModel')} disabled={!resources.logicalSchemas.length}><Plus /></button>} />
                 {resources.models.length === 0 ? <Empty>{tr('noItems')}</Empty> : <div className="topology-cards">{resources.models.map((item) => <button key={item.uuid} className="topology-card" aria-pressed={selectedModelUuid === item.uuid} onClick={() => setSelectedModelUuid(item.uuid)}><span className="topology-card-icon"><TableProperties /></span><span><strong>{item.name}</strong><small>{item.code}</small></span><Status value={item.status} /><ChevronRight /></button>)}</div>}
               </section>
               <div className="topology-catalog-detail">
                 {!selectedModel ? <section className="topology-panel"><Empty>{tr('chooseModel')}</Empty></section> : catalogLoading ? <section className="topology-panel"><div className="topology-loading"><LoaderCircle className="is-spinning" />{tr('loading')}</div></section> : <>
-                  <section className="topology-panel"><PanelHeading icon={<Network />} title={tr('submodels')} count={submodels.length} action={<button className="topology-button topology-button--small" onClick={() => setForm('submodel')}><Plus />{tr('addSubmodel')}</button>} />{submodels.length === 0 ? <Empty>{tr('noItems')}</Empty> : <div className="topology-simple-list">{submodels.map((item) => <article key={item.uuid}><div><strong>{item.name}</strong><small>{item.code}</small></div>{item.parentUuid && <span className="topology-muted">↳ {submodels.find((parent) => parent.uuid === item.parentUuid)?.name ?? item.parentUuid}</span>}</article>)}</div>}</section>
+                  <section className="topology-panel"><PanelHeading icon={<Network />} title={tr('submodels')} count={submodels.length} action={<button className="topology-button topology-button--small" onClick={() => setForm('submodel')}><Plus />{tr('addSubmodel')}</button>} />{submodels.length === 0 ? <Empty>{tr('noItems')}</Empty> : <div className="topology-simple-list">{submodels.map((item) => <article key={item.uuid}><div><strong>{item.name}</strong><small>{item.code}</small></div>{item.parentUuid && <span className="topology-muted">↳ {submodels.find((parent) => parent.uuid === item.parentUuid)?.name ?? tr('unavailable')}</span>}</article>)}</div>}</section>
                   <section className="topology-panel"><PanelHeading icon={<Boxes />} title={tr('dataObjects')} count={dataObjects.length} action={<button className="topology-button topology-button--small" onClick={() => setForm('object')}><Plus />{tr('addDataObject')}</button>} />{dataObjects.length === 0 ? <Empty>{tr('noItems')}</Empty> : <div className="topology-table-wrap"><table><thead><tr><th>{tr('name')}</th><th>{tr('objectReference')}</th><th>{tr('type')}</th><th>{tr('submodel')}</th><th>{tr('status')}</th></tr></thead><tbody>{dataObjects.map((item) => <tr key={item.uuid}><td><strong>{item.name}</strong><small>{item.code}</small></td><td><code>{item.objectReference}</code></td><td>{item.type}</td><td>{submodels.find((entry) => entry.uuid === item.submodelUuid)?.name ?? '—'}</td><td><Status value={item.status} /></td></tr>)}</tbody></table></div>}</section>
                 </>}
               </div>
@@ -412,8 +404,7 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
         </>
       )}
 
-      {form && <Drawer title={formTitle[form]} closeLabel={tr('close')} onClose={() => setForm(null)}>
-        {form === 'secret' && <form className="topology-form" onSubmit={(event) => void submit('secret', event, (data) => topologyApi.createSecret(projectUuid, { code: textValue(data, 'code'), name: textValue(data, 'name'), provider: textValue(data, 'provider'), referencePath: textValue(data, 'referencePath'), versionReference: optionalValue(data, 'versionReference') }))}><Field label={tr('name')} name="name" /><Field label={tr('code')} name="code" /><Field label={tr('provider')} name="provider" /><Field label={tr('referencePath')} name="referencePath" /><Field label={tr('versionReference')} name="versionReference" optional /> <p className="topology-security-note"><KeyRound />{tr('noSecretValues')}</p><Submit busy={busy === 'secret'} c={c} /></form>}
+      <Drawer open={form !== null} className="topology-drawer" closeButtonClassName="topology-icon-button" title={form ? formTitle[form] : ''} closeLabel={tr('close')} busy={Boolean(busy)} onClose={() => setForm(null)}>
         {form === 'connection' && <form className="topology-form" onSubmit={(event) => void submit('connection', event, (data) => topologyApi.createConnection(projectUuid, { code: textValue(data, 'code'), name: textValue(data, 'name'), databaseType: textValue(data, 'databaseType'), description: optionalValue(data, 'description') }))}><Field label={tr('name')} name="name" /><Field label={tr('code')} name="code" /><Field label={tr('databaseType')} name="databaseType"><select name="databaseType" defaultValue="ORACLE" required><option value="ORACLE">Oracle</option></select></Field><Field label={tr('description')} name="description" optional><textarea name="description" rows={3} /></Field><Submit busy={busy === 'connection'} c={c} /></form>}
         {form === 'version' && selectedConnection?.databaseType === 'ORACLE' && <OracleConnectionVersionForm projectUuid={projectUuid} connectionUuid={selectedConnection.uuid} secrets={resources.secrets} copy={c} locale={locale} onClose={() => setForm(null)} onVersionChanged={refreshConnectionVersions} />}
         {form === 'physical' && <form className="topology-form" onSubmit={(event) => void submit('physical', event, (data) => topologyApi.createPhysicalSchema(projectUuid, { connectionUuid: textValue(data, 'connectionUuid'), code: textValue(data, 'code'), schemaReference: textValue(data, 'schemaReference'), name: textValue(data, 'name') }))}><Field label={tr('name')} name="name" /><Field label={tr('code')} name="code" /><Field label={tr('connection')} name="connectionUuid"><select name="connectionUuid" required defaultValue={selectedConnectionUuid}><option value="">—</option>{resources.connections.map((item) => <option key={item.uuid} value={item.uuid}>{item.name}</option>)}</select></Field><Field label={tr('schemaReference')} name="schemaReference" /><Submit busy={busy === 'physical'} c={c} /></form>}
@@ -426,8 +417,8 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
         {form === 'model' && <form className="topology-form" onSubmit={(event) => void submit('model', event, (data) => topologyApi.createModel(projectUuid, { logicalSchemaUuid: textValue(data, 'logicalSchemaUuid'), code: textValue(data, 'code'), name: textValue(data, 'name'), description: optionalValue(data, 'description') }))}><Field label={tr('name')} name="name" /><Field label={tr('code')} name="code" /><Field label={tr('logicalSchema')} name="logicalSchemaUuid"><select name="logicalSchemaUuid" required>{resources.logicalSchemas.map((item) => <option key={item.uuid} value={item.uuid}>{item.name}</option>)}</select></Field><Field label={tr('description')} name="description" optional><textarea name="description" rows={3} /></Field><Submit busy={busy === 'model'} c={c} /></form>}
         {form === 'submodel' && selectedModel && <form className="topology-form" onSubmit={(event) => void submit('submodel', event, (data) => topologyApi.createSubmodel(projectUuid, selectedModel.uuid, { parentUuid: optionalValue(data, 'parentUuid'), code: textValue(data, 'code'), name: textValue(data, 'name') }), reloadSelectedCatalog)}><Field label={tr('name')} name="name" /><Field label={tr('code')} name="code" /><Field label={tr('parent')} name="parentUuid" optional><select name="parentUuid" defaultValue=""><option value="">—</option>{submodels.map((item) => <option key={item.uuid} value={item.uuid}>{item.name}</option>)}</select></Field><Submit busy={busy === 'submodel'} c={c} /></form>}
         {form === 'object' && selectedModel && <form className="topology-form" onSubmit={(event) => void submit('object', event, (data) => topologyApi.createDataObject(projectUuid, selectedModel.uuid, { submodelUuid: optionalValue(data, 'submodelUuid'), code: textValue(data, 'code'), name: textValue(data, 'name'), objectReference: textValue(data, 'objectReference'), type: textValue(data, 'type') }), reloadSelectedCatalog)}><Field label={tr('name')} name="name" /><Field label={tr('code')} name="code" /><Field label={tr('objectReference')} name="objectReference" /><Field label={tr('type')} name="type"><select name="type" defaultValue="TABLO" required><option value="TABLO">{tr('tableType')}</option><option value="VIEW">{tr('viewType')}</option></select></Field><Field label={tr('submodel')} name="submodelUuid" optional><select name="submodelUuid" defaultValue=""><option value="">—</option>{submodels.map((item) => <option key={item.uuid} value={item.uuid}>{item.name}</option>)}</select></Field><Submit busy={busy === 'object'} c={c} /></form>}
-      </Drawer>}
-    </main>
+      </Drawer>
+    </section>
   )
 }
 

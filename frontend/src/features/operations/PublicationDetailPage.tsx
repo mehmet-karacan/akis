@@ -84,7 +84,7 @@ export function PublicationDetailPage() {
   }
 
   return (
-    <main className="ops-page">
+    <section className="ops-page">
       <PageHeader
         title={t('publicationDetail')}
         description={publication ? `#${publication.publicationNumber} · ${publication.environmentCode}` : ''}
@@ -106,15 +106,17 @@ export function PublicationDetailPage() {
             <Panel title={t('publicationContext')}>
               <dl className="ops-kv">
                 <dt>{t('status')}</dt><dd><StatusBadge value={publication.status} /></dd>
+                <dt>{t('environment')}</dt><dd>{publication.environmentCode} · {publication.environmentRisk}</dd>
+                <dt>{t('createdAt')}</dt><dd>{formatDate(publication.createdAt, locale)}</dd>
+                <dt>{t('publishedAt')}</dt><dd>{formatDate(publication.publishedAt, locale)}</dd>
+              </dl>
+              <details className="ops-technical-details"><summary>{t('technicalDetails')}</summary><dl className="ops-kv">
                 <dt>{t('releaseHash')}</dt><dd><CopyValue value={publication.releaseHash} /></dd>
                 <dt>{t('scenarioUuid')}</dt><dd><CopyValue value={publication.scenarioUuid} /></dd>
                 <dt>{t('definitionUuid')}</dt><dd><CopyValue value={publication.definitionUuid} /></dd>
                 <dt>{t('definitionVersionUuid')}</dt><dd><CopyValue value={publication.definitionVersionUuid} /></dd>
-                <dt>{t('environment')}</dt><dd>{publication.environmentCode} · {publication.environmentRisk}</dd>
                 <dt>{t('environmentUuid')}</dt><dd><CopyValue value={publication.environmentUuid} /></dd>
-                <dt>{t('createdAt')}</dt><dd>{formatDate(publication.createdAt, locale)}</dd>
-                <dt>{t('publishedAt')}</dt><dd>{formatDate(publication.publishedAt, locale)}</dd>
-              </dl>
+              </dl></details>
             </Panel>
 
             <Panel title={t('approval')}>
@@ -198,17 +200,17 @@ export function PublicationDetailPage() {
                 </button>
               </section>
             ) : null}
-            {publication.status === 'AKTIF' ? <Link className="ops-button ops-runs-link" to={`/projects/${encodeURIComponent(projectUuid)}/runs`}>{t('openRuns')}</Link> : null}
+            {publication.status === 'AKTIF' ? <Link className="ops-button ops-runs-link" to={`/projects/${encodeURIComponent(projectUuid)}/operations`}>{t('openRuns')}</Link> : null}
           </Panel>
 
           <Panel title={t('dependencySummary')}>
             <code className="ops-summary-code">{publication.dependencySummary}</code>
           </Panel>
           <Panel title={t('manifest')}>
-            <pre className="ops-code-block" tabIndex={0}>{JSON.stringify(redactSensitiveValues(publication.physicalManifest), null, 2)}</pre>
+            <details className="ops-technical-details"><summary>{t('revealManifest')}</summary><pre className="ops-code-block" tabIndex={0}>{JSON.stringify(redactSensitiveValues(publication.physicalManifest), null, 2)}</pre></details>
           </Panel>
         </>
       ) : null}
-    </main>
+    </section>
   )
 }

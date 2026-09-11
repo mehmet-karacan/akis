@@ -10,6 +10,7 @@ import { useAuth } from '../core/auth/AuthContext'
 import { PendingChangesContext, type PendingChanges } from '../core/navigation/PendingChangesContext'
 import { useTheme, type ThemeMode } from '../core/theme/ThemeContext'
 import { Dialog } from '../core/ui/Dialog'
+import { ExportProjectButton } from '../features/bundles/ExportProjectButton'
 import { listProjects, type Project } from '../features/projects/projectsApi'
 
 const projectNavigation = [
@@ -84,6 +85,7 @@ export function AppShell() {
                 <NavLink
                   key={key}
                   title={collapsed ? t(key) : undefined}
+                  aria-label={t(key)}
                   to={`/projects/${projectUuid}${path}`}
                   onClick={(event) => { if (pendingChanges) { event.preventDefault(); requestNavigation(`/projects/${projectUuid}${path}`) } }}
                   className={({ isActive }) => `nav-item mobile-primary ${isActive ? 'active' : ''}`}
@@ -144,7 +146,10 @@ export function AppShell() {
           </button>)}
           {!switcherError && filteredProjects.length === 0 && <p>{t('projectSwitcher.empty')}</p>}
         </div>
-        <footer><button className="button secondary" type="button" onClick={() => { closeSwitcher(); requestNavigation('/projects') }}>{t('projectSwitcher.allProjects')}</button></footer>
+        <footer>
+          {projectUuid && project ? <ExportProjectButton projectUuid={projectUuid} projectCode={project.code} className="project-switcher-export" /> : null}
+          <button className="button secondary" type="button" onClick={() => { closeSwitcher(); requestNavigation('/projects') }}>{t('projectSwitcher.allProjects')}</button>
+        </footer>
       </Dialog>
       <Dialog open={pendingPath !== null} title={t('pendingChanges.title')} eyebrow={t('pendingChanges.eyebrow')} closeLabel={t('common.close')} busy={savingBeforeLeave} onClose={() => setPendingPath(null)}>
         <p className="dialog-description">{t('pendingChanges.description')}</p>
