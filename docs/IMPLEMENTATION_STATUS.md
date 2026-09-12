@@ -37,12 +37,15 @@ Status date: 2026-09-12
   fencing now use the clean schema and pass a generated-database acceptance test.
 - Pilot preflight, immutable publish intent, durable checkpoint and successful
   terminal transition now execute against the clean schema with exact evidence.
+- Procedure plan materialization, ordered task state, mutating operation intent,
+  exact retry acknowledgement and terminal success now execute on the clean
+  schema. Runtime evidence does not duplicate connection timeout policy.
 - The connection UI no longer loads or manages separate secret-reference
   objects. It records only the name of a server-side environment variable; its
   value stays outside PostgreSQL, API responses, bundles and Git.
-- Reconciliation and Procedure task journals still use the legacy schema until
-  their clean operations gate and acceptance tests are complete. The persistent
-  local database has not been destructively cut over.
+- Reconciliation still uses the legacy schema until its clean operations gate
+  and acceptance tests are complete. The persistent local database has not been
+  destructively cut over.
 
 ## Current completion estimate
 

@@ -167,3 +167,8 @@ uzatılmasını ve bir koşunun tek bir kanonik hedef kimliğine sabitlenmesini 
 PostgreSQL üzerinde doğrular. Aynı test preflight, değişmez yayın niyeti ve kesin
 başarı kontrol noktası geçişini de uçtan uca yürütür. Worker ve manuel çalıştırma
 bayrakları varsayılan olarak kapalı kalır.
+
+Aynı betik Prosedür çalışma günlüğünü de doğrular: sabit plandan adım üretme,
+mutating adım için işlem niyetini komuttan önce kalıcılaştırma, tekrarlanabilir
+tam-kanıt onayları ve başarılı koşu kapanışı. Adım sayısı sabit değildir; plan
+başına güvenlik üst sınırı 1000'dir.

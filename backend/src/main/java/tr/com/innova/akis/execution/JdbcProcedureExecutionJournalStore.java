@@ -56,7 +56,7 @@ public class JdbcProcedureExecutionJournalStore {
             ActiveExecutionToken token, ProcedureRuntimePlan plan) {
         ActiveExecutionToken safeToken = required(token);
         return invoke(() -> bindToken(jdbc.sql("""
-                select entegrasyon.prosedur_calistirmayi_baslat(
+                select akis.prosedur_calistirmayi_baslat(
                     :runUuid, :workerReference, :runGeneration,
                     :targetUuid, :targetGeneration, :runtimePlanHash)
                 """), safeToken)
@@ -69,7 +69,7 @@ public class JdbcProcedureExecutionJournalStore {
             ActiveExecutionToken token, ProcedureRuntimePlan plan) {
         ActiveExecutionToken safeToken = required(token);
         return invoke(() -> bindToken(jdbc.sql("""
-                select entegrasyon.prosedur_calistirmayi_basarili_tamamla(
+                select akis.prosedur_calistirmayi_basarili_tamamla(
                     :runUuid, :workerReference, :runGeneration,
                     :targetUuid, :targetGeneration, :runtimePlanHash)
                 """), safeToken)
@@ -86,7 +86,7 @@ public class JdbcProcedureExecutionJournalStore {
         String operationKey = safe.task().riskClass() == RiskClass.READ_ONLY
                 ? null : operationKeys.create(token, safe);
         return invoke(() -> bindTask(jdbc.sql("""
-                select entegrasyon.prosedur_adimini_baslat(
+                select akis.prosedur_adimini_baslat(
                     :runUuid, :workerReference, :runGeneration,
                     :targetUuid, :targetGeneration, :stepCode, :operationKeyHash)
                 """), token, safe)
@@ -103,7 +103,7 @@ public class JdbcProcedureExecutionJournalStore {
             throw new IllegalArgumentException("Procedure task counts are invalid.");
         }
         return invoke(() -> bindTask(jdbc.sql("""
-                select entegrasyon.prosedur_adimini_basarili_tamamla(
+                select akis.prosedur_adimini_basarili_tamamla(
                     :runUuid, :workerReference, :runGeneration,
                     :targetUuid, :targetGeneration, :stepCode, :rowCount, :byteCount)
                 """), token, safe)
@@ -131,7 +131,7 @@ public class JdbcProcedureExecutionJournalStore {
         // attempted distinguishes executor receipts, while the durable start event already
         // proves whether the Oracle boundary was entered. V013 therefore needs no extra bind.
         return invoke(() -> bindTask(jdbc.sql("""
-                select entegrasyon.prosedur_adimini_basarisiz_tamamla(
+                select akis.prosedur_adimini_basarisiz_tamamla(
                     :runUuid, :workerReference, :runGeneration,
                     :targetUuid, :targetGeneration, :stepCode, :errorCode)
                 """), token, safe)
@@ -152,7 +152,7 @@ public class JdbcProcedureExecutionJournalStore {
         }
         String safeError = requiredErrorCode(errorCode);
         return invoke(() -> bindTask(jdbc.sql("""
-                select entegrasyon.prosedur_adimini_sonuc_belirsiz_isaretle(
+                select akis.prosedur_adimini_sonuc_belirsiz_isaretle(
                     :runUuid, :workerReference, :runGeneration,
                     :targetUuid, :targetGeneration, :stepCode, :errorCode)
                 """), token, safe)
