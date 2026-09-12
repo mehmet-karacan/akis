@@ -102,6 +102,13 @@ test.describe('AKIŞ critical browser journeys', () => {
     await firstNode.dblclick({ force: true })
     await expect(page).not.toHaveURL(packageUrl)
     await expect(page).toHaveURL(/\/project\/objects\/definitions\//)
+    await expect(page.locator('.procedure-task').first()).toBeVisible()
+    await page.locator('.procedure-task-select').first().click()
+    await expect(page.locator('.procedure-sides')).toBeVisible()
+    await expect(page.locator('.procedure-side--source')).toBeVisible()
+    await expect(page.locator('.procedure-side--target')).toBeVisible()
+    await expect(page.getByText(/Step ID|Adım Kimliği/)).toHaveCount(0)
+    await expect(page.getByText(/Task type|Görev Türü|Connection role|Bağlantı Rolü|Risk class|Risk Sınıfı|On error|Hata Durumunda/)).toHaveCount(0)
   })
 
   test('opens available detail screens and reveals Oracle fields only after provider selection', async ({ page }) => {

@@ -3,7 +3,6 @@ import {
   ArrowUp,
   Copy,
   Plus,
-  Search,
   Trash2,
   Undo2,
 } from "lucide-react";
@@ -22,13 +21,11 @@ import {
   ResolvedContextSummary,
   resolveProcedureContext,
 } from "./ResolvedContextSummary";
-import { definitionCodeLabel, useDefinitionsI18n } from "./i18n";
+import { useDefinitionsI18n } from "./i18n";
 import type {
   ProcedureConnectionRole,
   ProcedureContent,
-  ProcedureRiskClass,
   ProcedureTask,
-  ProcedureTaskType,
 } from "./types";
 
 interface Props {
@@ -92,6 +89,54 @@ function nextTask(
     onError: "STOP",
   };
 }
+
+interface ProcedureStepUnit {
+  tasks: ProcedureTask[];
+  source?: ProcedureTask;
+  target?: ProcedureTask;
+  firstIndex: number;
+}
+
+export function groupProcedureTasks(tasks: ProcedureTask[]): ProcedureStepUnit[] {
+  const units: ProcedureStepUnit[] = [];
+  for (let index = 0; index < tasks.length; index += 1) {
+    const task = tasks[index]!;
+    const next = tasks[index + 1];
+    if (
+      task.connectionRole === "SOURCE" &&
+      next?.connectionRole === "TARGET" &&
+      (!next.input || next.input.fromTask === task.id)
+    ) {
+      units.push({ tasks: [task, next], source: task, target: next, firstIndex: index });
+      index += 1;
+    } else {
+      units.push({
+        tasks: [task],
+        source: task.connectionRole === "SOURCE" ? task : undefined,
+        target: task.connectionRole === "TARGET" ? task : undefined,
+        firstIndex: index,
+      });
+    }
+  }
+  return units;
+}
+
+export function inferProcedureTaskMetadata(task: ProcedureTask, command: string): Partial<ProcedureTask> {
+  const sql = command.trimStart().toLocaleUpperCase("en-US");
+  if (task.connectionRole === "SOURCE") {
+    return { type: "SQL", riskClass: "READ_ONLY", requiresApproval: undefined };
+  }
+  if (/^TRUNCATE\s+TABLE\b/.test(sql)) {
+    return { type: "SQL", riskClass: "DESTRUCTIVE", requiresApproval: true };
+  }
+  if (/^(BEGIN|DECLARE)\b/.test(sql) && sql.includes("DBMS_STATS.GATHER_TABLE_STATS")) {
+    return { type: "PLSQL", riskClass: "DESTRUCTIVE", requiresApproval: true };
+  }
+  if (/^(CREATE|ALTER|DROP|GRANT|REVOKE)\b/.test(sql)) {
+    return { type: "SQL", riskClass: "DDL", requiresApproval: true };
+  }
+  return { type: "SQL", riskClass: "DML", requiresApproval: undefined };
+}
 export function applyAutomaticRowHandoffs(
   tasks: ProcedureTask[],
   maximumRows: number,
@@ -135,11 +180,10 @@ export function ProcedureEditor({
     maximumTimeoutSeconds: 300,
   },
 }: Props) {
-  const { language, t } = useDefinitionsI18n();
+  const { t } = useDefinitionsI18n();
   const [selectedTaskId, setSelectedTaskId] = useState(
     value.tasks[0]?.id ?? "",
   );
-  const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
   const [undoTasks, setUndoTasks] = useState<ProcedureTask[] | null>(null);
   const [pendingDelete, setPendingDelete] = useState<number | null>(null);
@@ -210,30 +254,60 @@ export function ProcedureEditor({
       ),
     );
   };
-  const add = (role: ProcedureConnectionRole) => {
-    const task = nextTask(role, value.tasks);
+  const add = () => {
+    const task = nextTask("TARGET", value.tasks);
     replaceTasks([...value.tasks, task], true);
     setSelectedTaskId(task.id);
     setPage(Math.floor(value.tasks.length / PAGE_SIZE));
   };
+  const addSource = (unit: ProcedureStepUnit) => {
+    if (unit.source) return;
+    const source = nextTask("SOURCE", value.tasks);
+    const insertionIndex = unit.firstIndex;
+    const tasks = [...value.tasks];
+    tasks.splice(insertionIndex, 0, source);
+    replaceTasks(tasks, true);
+    setSelectedTaskId(source.id);
+  };
+  const addTarget = (unit: ProcedureStepUnit) => {
+    if (unit.target) return;
+    const target = nextTask("TARGET", value.tasks);
+    const tasks = [...value.tasks];
+    tasks.splice(unit.firstIndex + unit.tasks.length, 0, target);
+    replaceTasks(tasks, true);
+    setSelectedTaskId(target.id);
+  };
   const duplicate = (index: number) => {
     const source = value.tasks[index];
     if (!source) return;
-    const copy = {
-      ...structuredClone(source),
-      id: nextId(value.tasks),
-      name: `${source.name || source.id} (${t("copy")})`,
-    };
+    const unit = groupProcedureTasks(value.tasks).find((candidate) => candidate.tasks.includes(source));
+    if (!unit) return;
+    const reserved = [...value.tasks];
+    const idMap = new Map<string, string>();
+    unit.tasks.forEach((task) => {
+      const id = nextId(reserved);
+      idMap.set(task.id, id);
+      reserved.push({ ...task, id });
+    });
+    const copies = unit.tasks.map((task) => ({
+      ...structuredClone(task),
+      id: idMap.get(task.id)!,
+      name: `${task.name || task.id} (${t("copy")})`,
+      input: task.input ? { ...task.input, fromTask: idMap.get(task.input.fromTask) ?? task.input.fromTask } : undefined,
+    }));
     const tasks = [...value.tasks];
-    tasks.splice(index + 1, 0, copy);
+    tasks.splice(unit.firstIndex + unit.tasks.length, 0, ...copies);
     replaceTasks(tasks, true);
-    setSelectedTaskId(copy.id);
+    setSelectedTaskId(copies.at(-1)!.id);
   };
   const remove = (index: number) => {
     const source = value.tasks[index];
     if (!source) return;
+    const unit = groupProcedureTasks(value.tasks).find((candidate) => candidate.tasks.includes(source));
+    if (!unit) return;
+    const removedIds = new Set(unit.tasks.map((task) => task.id));
     const dependents = value.tasks.filter(
-      (task) => task.input?.fromTask === source.id,
+      (task) => !removedIds.has(task.id) && task.input?.fromTask && removedIds.has(task.input.fromTask),
     );
     if (dependents.length && pendingDelete !== index) {
       setPendingDelete(index);
@@ -241,16 +315,16 @@ export function ProcedureEditor({
       return;
     }
     const tasks = value.tasks
-      .filter((_, position) => position !== index)
+      .filter((task) => !removedIds.has(task.id))
       .map((task) =>
-        task.input?.fromTask === source.id
+        task.input?.fromTask && removedIds.has(task.input.fromTask)
           ? { ...task, input: undefined }
           : task,
       );
     replaceTasks(tasks, true);
     setPendingDelete(null);
     setMessage("");
-    setSelectedTaskId(tasks[Math.min(index, tasks.length - 1)]?.id ?? "");
+    setSelectedTaskId(tasks[Math.min(unit.firstIndex, tasks.length - 1)]?.id ?? "");
   };
   const move = (index: number, offset: number) => {
     const selected = value.tasks[index];
@@ -270,31 +344,58 @@ export function ProcedureEditor({
     [units[unit], units[target]] = [units[target]!, units[unit]!];
     replaceTasks(units.flat(), true);
   };
-  const windowed = useMemo(
-    () => pageProcedureTasks(value.tasks, query, page),
-    [page, query, value.tasks],
-  );
-  const { pages, page: safePage, items: visible } = windowed;
-  const selectedIndex = value.tasks.findIndex(
-    (task) => task.id === selectedTaskId,
-  );
-  const selected = value.tasks[selectedIndex];
-  const highRisk =
-    selected?.riskClass === "DDL" || selected?.riskClass === "DESTRUCTIVE";
-  const logical = logicalSchemas.find(
-    (item) => item.uuid === selected?.logicalSchemaUuid,
-  );
-  const environment = environments.find(
-    (item) => item.uuid === selected?.environmentUuid,
-  );
-  const context = resolveProcedureContext(
-    selected?.logicalSchemaUuid,
-    selected?.environmentUuid,
-    bindings,
-    physical,
-    connections,
-    versions,
-  );
+  const units = useMemo(() => groupProcedureTasks(value.tasks), [value.tasks]);
+  const pages = Math.max(1, Math.ceil(units.length / PAGE_SIZE));
+  const safePage = Math.min(Math.max(0, page), pages - 1);
+  const visible = units.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
+  const selectedUnit = units.find((unit) => unit.tasks.some((task) => task.id === selectedTaskId));
+  const updateTask = (task: ProcedureTask, patch: Partial<ProcedureTask>) => {
+    const index = value.tasks.findIndex((candidate) => candidate.id === task.id);
+    if (index >= 0) update(index, { ...task, ...patch });
+  };
+  const renderTaskSide = (role: ProcedureConnectionRole, task?: ProcedureTask) => {
+    const logical = logicalSchemas.find((item) => item.uuid === task?.logicalSchemaUuid);
+    const environment = environments.find((item) => item.uuid === task?.environmentUuid);
+    const context = resolveProcedureContext(
+      task?.logicalSchemaUuid,
+      task?.environmentUuid,
+      bindings,
+      physical,
+      connections,
+      versions,
+    );
+    return (
+      <section className={`procedure-side procedure-side--${role.toLowerCase()}`}>
+        <header><strong>{t(role === "SOURCE" ? "source" : "target")}</strong></header>
+        {task ? <>
+          <div className="procedure-side-context">
+            <label>
+              <span>{t("logicalSchema")}</span>
+              <select value={task.logicalSchemaUuid ?? ""} onChange={(event) => updateTask(task, { logicalSchemaUuid: event.target.value })}>
+                <option value="">—</option>
+                {logicalSchemas.map((item) => <option key={item.uuid} value={item.uuid}>{item.name}</option>)}
+              </select>
+            </label>
+            <label>
+              <span>{t("environment")}</span>
+              <select value={task.environmentUuid ?? ""} onChange={(event) => updateTask(task, { environmentUuid: event.target.value })}>
+                <option value="">—</option>
+                {environments.map((item) => <option key={item.uuid} value={item.uuid}>{item.name}</option>)}
+              </select>
+            </label>
+          </div>
+          <ResolvedContextSummary logicalSchema={logical} environment={environment} context={context} />
+          <label className="procedure-command">
+            <span>{t(role === "SOURCE" ? "sourceSql" : "targetSql")}</span>
+            <SqlEditor label={t(role === "SOURCE" ? "sourceSql" : "targetSql")} value={task.command} onChange={(command) => updateTask(task, { command, ...inferProcedureTaskMetadata(task, command) })} />
+          </label>
+        </> : <div className="procedure-side-empty">
+          <p>{t(role === "SOURCE" ? "noSourceInStep" : "noTargetInStep")}</p>
+          <button className="definition-button definition-button--quiet" type="button" onClick={() => role === "SOURCE" ? addSource(selectedUnit!) : addTarget(selectedUnit!)}><Plus size={15} />{t(role === "SOURCE" ? "addSource" : "addTarget")}</button>
+        </div>}
+      </section>
+    );
+  };
   return (
     <div className="procedure-editor">
       <header className="procedure-editor-heading">
@@ -320,27 +421,13 @@ export function ProcedureEditor({
           <button
             className="definition-button definition-button--quiet"
             type="button"
-            onClick={() => add("SOURCE")}
+            onClick={add}
           >
             <Plus size={15} />
-            {t("addSourceStep")}
-          </button>
-          <button
-            className="definition-button definition-button--quiet"
-            type="button"
-            onClick={() => add("TARGET")}
-          >
-            <Plus size={15} />
-            {t("addTargetStep")}
+            {t("addStep")}
           </button>
         </div>
       </header>
-      <p className="procedure-runtime-profile">
-        {t("procedureRuntimeProfile", {
-          tasks: limits.maximumTasks,
-          rows: limits.maximumRowsetRows,
-        })}
-      </p>
       {message ? (
         <div className="procedure-reorder-error" role="alert">
           {message}
@@ -364,41 +451,30 @@ export function ProcedureEditor({
       ) : null}
       <div className="procedure-workbench">
         <aside className="procedure-list-column">
-          <label className="procedure-search">
-            <Search size={15} />
-            <input
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setPage(0);
-              }}
-              placeholder={t("searchSteps")}
-            />
-          </label>
           <div
             className="procedure-task-list"
             role="list"
             aria-label={t("procedureSteps")}
           >
-            {visible.map(({ task, index }) => (
+            {visible.map((unit, pageIndex) => {
+              const index = safePage * PAGE_SIZE + pageIndex;
+              const task = unit.target ?? unit.source!;
+              const isSelected = unit.tasks.some((candidate) => candidate.id === selectedTaskId);
+              return (
               <article
-                className={`procedure-task ${task.id === selectedTaskId ? "is-selected" : ""}`}
+                className={`procedure-task ${isSelected ? "is-selected" : ""}`}
                 key={task.id}
               >
                 <button
                   className="procedure-task-select"
                   type="button"
                   onClick={() => setSelectedTaskId(task.id)}
-                  aria-pressed={task.id === selectedTaskId}
+                  aria-pressed={isSelected}
                 >
                   <span className="procedure-step-number">{index + 1}</span>
                   <div>
                     <strong>{task.name || task.id}</strong>
-                    <small>
-                      {definitionCodeLabel(task.connectionRole, language)} ·{" "}
-                      {definitionCodeLabel(task.type, language)} ·{" "}
-                      {definitionCodeLabel(task.riskClass, language)}
-                    </small>
+                    <small className="procedure-step-route"><span className={unit.source ? "is-ready" : ""}>{t("source")}</span><span aria-hidden="true">→</span><span className={unit.target ? "is-ready" : ""}>{t("target")}</span></small>
                   </div>
                 </button>
                 <div className="procedure-task-actions">
@@ -407,7 +483,7 @@ export function ProcedureEditor({
                     type="button"
                     aria-label={`${t("moveUp")}: ${task.name || task.id}`}
                     disabled={index === 0}
-                    onClick={() => move(index, -1)}
+                    onClick={() => move(unit.firstIndex, -1)}
                   >
                     <ArrowUp size={15} />
                   </button>
@@ -415,8 +491,8 @@ export function ProcedureEditor({
                     className="definition-icon-button"
                     type="button"
                     aria-label={`${t("moveDown")}: ${task.name || task.id}`}
-                    disabled={index === value.tasks.length - 1}
-                    onClick={() => move(index, 1)}
+                    disabled={index === units.length - 1}
+                    onClick={() => move(unit.firstIndex, 1)}
                   >
                     <ArrowDown size={15} />
                   </button>
@@ -424,7 +500,7 @@ export function ProcedureEditor({
                     className="definition-icon-button"
                     type="button"
                     aria-label={`${t("duplicate")}: ${task.name || task.id}`}
-                    onClick={() => duplicate(index)}
+                    onClick={() => duplicate(unit.firstIndex)}
                   >
                     <Copy size={15} />
                   </button>
@@ -432,13 +508,14 @@ export function ProcedureEditor({
                     className="definition-icon-button"
                     type="button"
                     aria-label={`${t("remove")}: ${task.name || task.id}`}
-                    onClick={() => remove(index)}
+                    onClick={() => remove(unit.firstIndex)}
                   >
                     <Trash2 size={15} />
                   </button>
                 </div>
               </article>
-            ))}
+              );
+            })}
           </div>
           {pages > 1 ? (
             <nav className="procedure-pagination" aria-label={t("stepPages")}>
@@ -460,193 +537,32 @@ export function ProcedureEditor({
             </nav>
           ) : null}
         </aside>
-        {selected ? (
+        {selectedUnit ? (
           <section
             className="procedure-task-editor"
-            aria-label={`${t("stepEditor")}: ${selected.name || selected.id}`}
+            aria-label={`${t("stepEditor")}: ${(selectedUnit.target ?? selectedUnit.source)?.name ?? ""}`}
           >
             <header>
               <div>
                 <p className="eyebrow">{t("selectedStep")}</p>
-                <h3>{selected.name || selected.id}</h3>
-              </div>
-              <span>
-                {selectedIndex + 1} / {value.tasks.length}
-              </span>
-            </header>
-            <div className="procedure-task-grid">
-              <label>
-                <span>{t("stepId")}</span>
                 <input
-                  value={selected.id}
+                  className="procedure-step-name"
+                  aria-label={t("stepName")}
+                  value={(selectedUnit.target ?? selectedUnit.source)?.name ?? ""}
                   onChange={(event) => {
-                    setSelectedTaskId(event.target.value);
-                    update(selectedIndex, {
-                      ...selected,
-                      id: event.target.value,
-                    });
+                    const ids = new Set(selectedUnit.tasks.map((task) => task.id));
+                    replaceTasks(value.tasks.map((task) => ids.has(task.id) ? { ...task, name: event.target.value } : task));
                   }}
                 />
-              </label>
-              <label>
-                <span>{t("stepName")}</span>
-                <input
-                  value={selected.name ?? ""}
-                  onChange={(event) =>
-                    update(selectedIndex, {
-                      ...selected,
-                      name: event.target.value,
-                    })
-                  }
-                />
-              </label>
-              <label>
-                <span>{t("taskType")}</span>
-                <select
-                  value={selected.type}
-                  onChange={(event) =>
-                    update(selectedIndex, {
-                      ...selected,
-                      type: event.target.value as ProcedureTaskType,
-                    })
-                  }
-                >
-                  {(["SQL", "PLSQL", "STORED_PROCEDURE"] as const).map(
-                    (code) => (
-                      <option key={code} value={code}>
-                        {definitionCodeLabel(code, language)}
-                      </option>
-                    ),
-                  )}
-                </select>
-              </label>
-              <label>
-                <span>{t("connectionRole")}</span>
-                <select
-                  value={selected.connectionRole}
-                  onChange={(event) =>
-                    update(selectedIndex, {
-                      ...selected,
-                      connectionRole: event.target
-                        .value as ProcedureConnectionRole,
-                    })
-                  }
-                >
-                  {(["SOURCE", "TARGET"] as const).map((code) => (
-                    <option key={code} value={code}>
-                      {definitionCodeLabel(code, language)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>{t("logicalSchema")}</span>
-                <select
-                  value={selected.logicalSchemaUuid ?? ""}
-                  onChange={(event) =>
-                    update(selectedIndex, {
-                      ...selected,
-                      logicalSchemaUuid: event.target.value,
-                    })
-                  }
-                >
-                  <option value="">—</option>
-                  {logicalSchemas.map((item) => (
-                    <option key={item.uuid} value={item.uuid}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>{t("environment")}</span>
-                <select
-                  value={selected.environmentUuid ?? ""}
-                  onChange={(event) =>
-                    update(selectedIndex, {
-                      ...selected,
-                      environmentUuid: event.target.value,
-                    })
-                  }
-                >
-                  <option value="">—</option>
-                  {environments.map((item) => (
-                    <option key={item.uuid} value={item.uuid}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>{t("riskClass")}</span>
-                <select
-                  value={selected.riskClass}
-                  onChange={(event) =>
-                    update(selectedIndex, {
-                      ...selected,
-                      riskClass: event.target.value as ProcedureRiskClass,
-                      requiresApproval: undefined,
-                    })
-                  }
-                >
-                  {(["READ_ONLY", "DML", "DDL", "DESTRUCTIVE"] as const).map(
-                    (code) => (
-                      <option key={code} value={code}>
-                        {definitionCodeLabel(code, language)}
-                      </option>
-                    ),
-                  )}
-                </select>
-              </label>
-              <label>
-                <span>{t("onError")}</span>
-                <select
-                  value={selected.onError ?? "STOP"}
-                  onChange={(event) =>
-                    update(selectedIndex, {
-                      ...selected,
-                      onError: event.target.value as "STOP" | "CONTINUE",
-                    })
-                  }
-                >
-                  {(["STOP", "CONTINUE"] as const).map((code) => (
-                    <option key={code} value={code}>
-                      {definitionCodeLabel(code, language)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {highRisk ? (
-                <label className="procedure-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={selected.requiresApproval === true}
-                    onChange={(event) =>
-                      update(selectedIndex, {
-                        ...selected,
-                        requiresApproval: event.target.checked,
-                      })
-                    }
-                  />
-                  <span>{t("requiresApproval")}</span>
-                </label>
-              ) : null}
+              </div>
+              <span>
+                {units.indexOf(selectedUnit) + 1} / {units.length}
+              </span>
+            </header>
+            <div className="procedure-sides">
+              {renderTaskSide("SOURCE", selectedUnit.source)}
+              {renderTaskSide("TARGET", selectedUnit.target)}
             </div>
-            <ResolvedContextSummary
-              logicalSchema={logical}
-              environment={environment}
-              context={context}
-            />
-            <label className="procedure-command">
-              <span>{t("sqlCommand")}</span>
-              <SqlEditor
-                label={t("sqlCommand")}
-                value={selected.command}
-                onChange={(command) =>
-                  update(selectedIndex, { ...selected, command })
-                }
-              />
-            </label>
           </section>
         ) : (
           <p className="definition-state">{t("noProcedureSteps")}</p>

@@ -70,7 +70,9 @@
 .definition-object-explorer .sidebar-object small,
 .definition-object-explorer .sidebar-group-empty { color: var(--df-muted); }
 .definition-object-explorer .sidebar-object-menu-button:hover { color: var(--df-text); background: var(--df-panel-muted); }
-.definition-object-explorer .sidebar-object-row.is-selected { background: var(--df-accent-soft); }
+.definition-object-explorer .sidebar-object-row.is-selected { color: var(--df-text); background: var(--df-accent-soft); }
+.definition-object-explorer .sidebar-object-row.is-selected .sidebar-object strong,
+.definition-object-explorer .sidebar-object-row:hover .sidebar-object strong { color: var(--df-text); }
 .definition-object-explorer .sidebar-type-cluster > .sidebar-folder-action-row { min-height: 2.35rem; margin: .2rem .15rem; border: 1px solid var(--df-line); border-radius: .48rem; background: var(--df-panel); }
 .definition-object-explorer .sidebar-type-cluster > .sidebar-folder-action-row:hover { border-color: color-mix(in srgb, var(--df-accent) 35%, var(--df-line)); background: var(--df-accent-soft); }
 .definition-object-explorer .sidebar-type-cluster .sidebar-folder-row > svg:first-child { color: var(--df-accent); }
@@ -295,13 +297,9 @@ span.explorer-toggle { pointer-events: none; }
 .procedure-editor-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: .8rem; }
 .procedure-editor-heading h3 { margin: 0 0 .25rem; font-size: .95rem; }
 .procedure-editor-heading p { max-width: 48rem; margin: 0; color: var(--df-muted); font-size: .74rem; line-height: 1.5; }
-.procedure-workbench { display: grid; grid-template-columns: minmax(15rem, 21rem) minmax(0, 1fr); min-height: 34rem; margin-top: .75rem; border: 1px solid var(--df-line); border-radius: .65rem; background: var(--df-bg); overflow: hidden; }
-.procedure-task-list { display: grid; align-content: start; gap: .35rem; padding: .45rem; border-right: 1px solid var(--df-line); background: var(--df-panel-muted); }
-.procedure-list-column { min-width: 0; border-right: 1px solid var(--df-line); background: var(--df-panel-muted); }
-.procedure-list-column .procedure-task-list { border-right: 0; }
-.procedure-search { position: relative; display: block; padding: .55rem; border-bottom: 1px solid var(--df-line); }
-.procedure-search svg { position: absolute; top: 50%; left: 1rem; transform: translateY(-50%); color: var(--df-muted); }
-.procedure-search input { width: 100%; padding-left: 2rem; }
+.procedure-workbench { display: grid; grid-template-rows: auto minmax(0, 1fr); height: clamp(25rem, calc(100dvh - 40rem), 42rem); min-height: 25rem; margin-top: .75rem; border: 1px solid var(--df-line); border-radius: .65rem; background: var(--df-bg); overflow: hidden; }
+.procedure-task-list { display: flex; align-items: stretch; gap: .4rem; padding: .5rem; background: var(--df-panel-muted); overflow-x: auto; }
+.procedure-list-column { min-width: 0; border-bottom: 1px solid var(--df-line); background: var(--df-panel-muted); }
 .procedure-pagination { display: flex; align-items: center; justify-content: space-between; gap: .4rem; padding: .5rem; border-top: 1px solid var(--df-line); font-size: .7rem; }
 .procedure-pagination button { border: 1px solid var(--df-line); border-radius: .35rem; padding: .3rem .5rem; background: var(--df-panel); color: var(--df-text); }
 .procedure-reorder-error span { display: inline-flex; gap: .4rem; margin-left: .7rem; }
@@ -315,20 +313,39 @@ span.explorer-toggle { pointer-events: none; }
 .ui-sql-editor .cm-editor { font-size: .8rem; }
 .ui-sql-editor .cm-focused { outline: 2px solid var(--df-accent); outline-offset: -2px; }
 .ui-sql-errors { margin: 0; padding: .5rem 1rem; list-style: none; color: var(--df-danger); }
-.procedure-task { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border: 1px solid transparent; border-radius: .52rem; background: transparent; overflow: hidden; }
+.procedure-task { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; min-width: 17rem; max-width: 23rem; flex: 0 0 auto; border: 1px solid var(--df-line); border-radius: .52rem; background: var(--df-panel); overflow: hidden; }
 .procedure-task:hover, .procedure-task.is-selected { border-color: var(--df-line-strong); background: var(--df-panel); }
 .procedure-task.is-selected { box-shadow: inset 3px 0 var(--df-accent); }
 .procedure-task-select { min-width: 0; display: flex; align-items: center; gap: .6rem; padding: .58rem; text-align: left; color: var(--df-text); border: 0; background: transparent; cursor: pointer; }
 .procedure-task-select > div { min-width: 0; display: grid; gap: .12rem; flex: 1; }
 .procedure-task strong { overflow: hidden; font-size: .78rem; text-overflow: ellipsis; white-space: nowrap; }
 .procedure-task small { color: var(--df-muted); font-size: .63rem; }
+.procedure-step-route { display: flex; align-items: center; gap: .3rem; }
+.procedure-step-route span:not(.is-ready) { opacity: .42; }
+.procedure-step-route span.is-ready { color: var(--df-accent); font-weight: 760; }
 .procedure-step-number { display: grid; place-items: center; width: 2rem; height: 2rem; flex: 0 0 auto; border-radius: .45rem; background: var(--df-accent-soft); color: var(--df-accent); font-family: "Cascadia Code", Consolas, monospace; font-size: .72rem; font-weight: 800; }
 .procedure-task-actions { display: flex; gap: .15rem; padding-right: .35rem; }
 .procedure-task-actions .definition-icon-button { width: 1.75rem; height: 1.75rem; border-color: transparent; }
-.procedure-task-editor { min-width: 0; }
+.procedure-task-editor { min-width: 0; overflow: auto; }
 .procedure-task-editor > header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .75rem; border-bottom: 1px solid var(--df-line); background: var(--df-panel-muted); }
 .procedure-task-editor > header h3, .procedure-task-editor > header p { margin: 0; }
 .procedure-task-editor > header > span { color: var(--df-muted); font: .68rem "Cascadia Code", Consolas, monospace; }
+.procedure-step-name { min-width: min(26rem, 65vw); padding: .3rem .45rem; border-color: transparent; background: transparent; color: var(--df-text); font-size: .95rem; font-weight: 780; }
+.procedure-step-name:hover, .procedure-step-name:focus { border-color: var(--df-line-strong); background: var(--df-panel); }
+.procedure-sides { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); min-height: 29rem; }
+.procedure-side { min-width: 0; padding: .75rem; }
+.procedure-side + .procedure-side { border-left: 1px solid var(--df-line); }
+.procedure-side > header { margin: -.75rem -.75rem .75rem; padding: .65rem .75rem; border-bottom: 1px solid var(--df-line); background: var(--df-panel-muted); }
+.procedure-side--source > header strong { color: #245fa1; }
+.procedure-side--target > header strong { color: #26724a; }
+.procedure-side-context { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; }
+.procedure-side-context label { display: grid; gap: .3rem; }
+.procedure-side-context label > span, .procedure-side .procedure-command > span { color: var(--df-muted); font-size: .68rem; font-weight: 720; }
+.procedure-side-context select { width: 100%; }
+.procedure-side .resolved-context dl { grid-template-columns: repeat(2, minmax(7rem, 1fr)); }
+.procedure-side .procedure-command { padding: 0; }
+.procedure-side-empty { display: grid; place-items: center; align-content: center; gap: .65rem; min-height: 22rem; color: var(--df-muted); text-align: center; }
+.procedure-side-empty p { margin: 0; font-size: .76rem; }
 .procedure-task-grid { display: grid; grid-template-columns: repeat(4, minmax(9rem, 1fr)); gap: .65rem; padding: .75rem; }
 .procedure-task-grid label, .procedure-command, .procedure-flow-options label { display: grid; gap: .3rem; }
 .procedure-task-grid label > span, .procedure-command > span, .procedure-flow-options label > span { color: var(--df-muted); font-size: .68rem; font-weight: 720; }
@@ -340,7 +357,8 @@ span.explorer-toggle { pointer-events: none; }
 .procedure-checkbox { display: flex !important; align-items: center; grid-template-columns: auto 1fr; align-self: center; gap: .45rem !important; }
 .procedure-checkbox input { width: auto; }
 .procedure-checkbox span { color: var(--df-text) !important; }
-@media (max-width: 900px) { .procedure-workbench { grid-template-columns: 1fr; } .procedure-task-list { max-height: 18rem; border-right: 0; border-bottom: 1px solid var(--df-line); overflow: auto; } .procedure-task-grid { grid-template-columns: repeat(2, minmax(9rem, 1fr)); } }
+@media (max-width: 1100px) { .procedure-sides { grid-template-columns: 1fr; } .procedure-side + .procedure-side { border-top: 1px solid var(--df-line); border-left: 0; } }
+@media (max-width: 900px) { .procedure-workbench { height: auto; min-height: 30rem; } .procedure-task-list { overflow-x: auto; } .procedure-task-grid { grid-template-columns: repeat(2, minmax(9rem, 1fr)); } }
 
 .definition-version-layout { display: grid; grid-template-columns: minmax(18rem, 24rem) minmax(0, 1fr); min-height: 28rem; }
 .definition-version-column { border-right: 1px solid var(--df-line); }

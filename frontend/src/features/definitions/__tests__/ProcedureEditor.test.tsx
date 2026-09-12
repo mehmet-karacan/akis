@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import i18n from '../../../core/i18n'
 import { DEFAULT_PROCEDURE, isProcedureContent } from '../defaults'
-import { applyAutomaticRowHandoffs, pageProcedureTasks, ProcedureEditor } from '../ProcedureEditor'
+import { applyAutomaticRowHandoffs, groupProcedureTasks, inferProcedureTaskMetadata, pageProcedureTasks, ProcedureEditor } from '../ProcedureEditor'
 import type { ProcedureContent } from '../types'
 
 function Harness() {
@@ -19,29 +19,29 @@ describe('ProcedureEditor', () => {
   it('adds, removes, and reorders an unrestricted ordered step list', () => {
     const { container } = render(<Harness />)
 
+    expect(container.querySelectorAll('.procedure-task')).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Add Step' }))
     expect(container.querySelectorAll('.procedure-task')).toHaveLength(2)
-    fireEvent.click(screen.getByRole('button', { name: 'Add Target Step' }))
-    expect(container.querySelectorAll('.procedure-task')).toHaveLength(3)
-    expect(screen.getByDisplayValue('STEP_3')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Target command')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Move Up: Target command' }))
     expect(container.querySelectorAll('.procedure-task')[0]).toHaveTextContent('Target command')
     fireEvent.click(screen.getByRole('button', { name: 'Remove: Target command' }))
-    expect(container.querySelectorAll('.procedure-task')).toHaveLength(2)
+    expect(container.querySelectorAll('.procedure-task')).toHaveLength(1)
   })
 
-  it('keeps row handoff references valid when source step IDs change', async () => {
+  it('keeps internal step IDs out of the form and edits the conceptual step name', async () => {
     render(<Harness />)
-    fireEvent.change(screen.getByDisplayValue('READ_SOURCE'), { target: { value: 'READ_SKY' } })
-    await waitFor(() => expect(screen.getByDisplayValue('READ_SKY')).toBeInTheDocument())
+    expect(screen.queryByLabelText('Step ID')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Step name'), { target: { value: 'Load Hakedis' } })
+    await waitFor(() => expect(screen.getByDisplayValue('Load Hakedis')).toBeInTheDocument())
   })
 
   it('moves an automatically paired row producer and consumer together', () => {
     const { container } = render(<Harness />)
-    fireEvent.click(screen.getByRole('button', { name: 'Add Target Step' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Move Down: Read source rows' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add Step' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Move Down: Insert target rows' }))
     expect(container.querySelectorAll('.procedure-task')[0]).toHaveTextContent('Target command')
-    expect(container.querySelectorAll('.procedure-task')[1]).toHaveTextContent('Read source rows')
-    expect(container.querySelectorAll('.procedure-task')[2]).toHaveTextContent('Insert target rows')
+    expect(container.querySelectorAll('.procedure-task')[1]).toHaveTextContent('Insert target rows')
   })
 
   it('keeps row transfer and timeout engine details out of the step form', () => {
@@ -50,12 +50,30 @@ describe('ProcedureEditor', () => {
     expect(screen.queryByLabelText('Maximum rows')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Consume rows from an earlier SELECT')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Timeout (seconds)')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Task type')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Connection role')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Risk class')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('On error')).not.toBeInTheDocument()
   })
 
   it('derives adjacent source-to-target row transfer with platform limits', () => {
     const tasks = applyAutomaticRowHandoffs(DEFAULT_PROCEDURE.tasks, 750)
     expect(tasks[0]?.output).toEqual({ kind: 'ROWSET', maxRows: 750 })
     expect(tasks[1]?.input).toEqual({ fromTask: 'READ_SOURCE', mode: 'BATCH', batchSize: 250 })
+  })
+
+  it('presents adjacent source and target tasks as one conceptual step', () => {
+    const units = groupProcedureTasks(DEFAULT_PROCEDURE.tasks.map((task) => ({ ...task, input: undefined, output: undefined })))
+    expect(units).toHaveLength(1)
+    expect(units[0]?.source?.connectionRole).toBe('SOURCE')
+    expect(units[0]?.target?.connectionRole).toBe('TARGET')
+  })
+
+  it('infers hidden execution metadata from free-form SQL', () => {
+    const target = DEFAULT_PROCEDURE.tasks[1]!
+    expect(inferProcedureTaskMetadata(target, 'truncate table INNOVA_ODI.STG_X')).toEqual({ type: 'SQL', riskClass: 'DESTRUCTIVE', requiresApproval: true })
+    expect(inferProcedureTaskMetadata(target, "begin dbms_stats.gather_table_stats('A', 'B'); end;")).toEqual({ type: 'PLSQL', riskClass: 'DESTRUCTIVE', requiresApproval: true })
+    expect(inferProcedureTaskMetadata(target, 'insert into T values (:ID)')).toEqual({ type: 'SQL', riskClass: 'DML', requiresApproval: undefined })
   })
 
   it('rejects malformed task arrays before the visual editor renders them', () => {
