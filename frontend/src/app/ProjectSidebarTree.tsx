@@ -43,9 +43,9 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
   const [compilingUuid, setCompilingUuid] = useState<string | null>(null)
   const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
   const locale = i18n.resolvedLanguage ?? i18n.language
-  const tree = useMemo(() => buildFolderTree(folders.filter((item) => item.status !== 'PASIF'), locale), [folders, locale])
+  const tree = useMemo(() => buildFolderTree(folders.filter((item) => !['PASIF', 'ARSIVLENDI'].includes(item.status)), locale), [folders, locale])
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
-  const activeDefinitions = useMemo(() => definitions.filter((item) => item.status !== 'PASIF' && item.type !== 'REUSABLE_MAPPING'), [definitions])
+  const activeDefinitions = useMemo(() => definitions.filter((item) => !['PASIF', 'ARSIVLENDI'].includes(item.status) && item.type !== 'REUSABLE_MAPPING'), [definitions])
   const flowDefinitions = useMemo(() => activeDefinitions.filter((item) => FLOW_TYPES.has(item.type)), [activeDefinitions])
   const definitionsByFolder = useMemo(() => {
     const grouped = new Map<string | null, Definition[]>()

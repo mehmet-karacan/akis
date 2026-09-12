@@ -137,6 +137,28 @@ class RuntimeOracleConnectionProviderTest {
     }
 
     @Test
+    void appliesOnlyTheSupportedOracleTransactionIsolationLevels() {
+        FakeConnection fake = new FakeConnection(false);
+        RuntimeOracleConnectionProvider provider = provider(
+                normalProfile(), name -> credential(),
+                (url, properties) -> fake.proxy());
+
+        try (RuntimeOracleSession session = provider.openTargetFence(
+                binding(DatasetRole.TARGET))) {
+            session.applyTransactionIsolation(
+                    ProcedureRuntimePlan.TransactionIsolation.DRIVER_DEFAULT);
+            assertNull(fake.transactionIsolation);
+            session.applyTransactionIsolation(
+                    ProcedureRuntimePlan.TransactionIsolation.READ_COMMITTED);
+            assertEquals(Connection.TRANSACTION_READ_COMMITTED, fake.transactionIsolation);
+            session.applyTransactionIsolation(
+                    ProcedureRuntimePlan.TransactionIsolation.SERIALIZABLE);
+            assertEquals(Connection.TRANSACTION_SERIALIZABLE, fake.transactionIsolation);
+            session.rollbackConfirmed();
+        }
+    }
+
+    @Test
     void dirtyTargetCloseReportsSanitizedRollbackFailureButStillCloses() {
         FakeConnection fake = new FakeConnection(true);
         RuntimeOracleConnectionProvider provider = provider(
@@ -307,6 +329,7 @@ class RuntimeOracleConnectionProviderTest {
         private boolean readOnly;
         private boolean autoCommit = true;
         private int networkTimeout;
+        private Integer transactionIsolation;
         private final FakeStatement preparedStatement = new FakeStatement();
         private final FakeStatement callableStatement = new FakeStatement();
         private final FakeStatement plainStatement = new FakeStatement();
@@ -341,6 +364,10 @@ class RuntimeOracleConnectionProviderTest {
                 case "getAutoCommit" -> autoCommit;
                 case "setNetworkTimeout" -> {
                     networkTimeout = (int) args[1];
+                    yield null;
+                }
+                case "setTransactionIsolation" -> {
+                    transactionIsolation = (int) args[0];
                     yield null;
                 }
                 case "rollback" -> {

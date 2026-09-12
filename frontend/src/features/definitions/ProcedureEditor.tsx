@@ -1,6 +1,7 @@
 import {
   ArrowDown,
   ArrowUp,
+  Check,
   Copy,
   Plus,
   Trash2,
@@ -15,9 +16,10 @@ import {
 } from "../topology/api";
 import { useDefinitionsI18n } from "./i18n";
 import {
-  inferProcedureLogCounter,
+  normalizeProcedureLogCounter,
   PROCEDURE_LOG_COUNTERS,
 } from "./procedureCatalog";
+import { validateProcedureSql } from "./procedureSqlValidation";
 import type {
   ProcedureConnectionRole,
   ProcedureContent,
@@ -26,6 +28,7 @@ import type {
 
 interface Props {
   projectUuid: string;
+  definition?: { code: string; name: string; description: string | null };
   value: ProcedureContent;
   onChange: (value: ProcedureContent) => void;
   limits?: {
@@ -40,8 +43,7 @@ const LOG_COUNTER_LABEL_KEYS = {
   INSERT: "logCounterINSERT",
   UPDATE: "logCounterUPDATE",
   DELETE: "logCounterDELETE",
-  STATISTICS: "logCounterSTATISTICS",
-  ANALYSIS: "logCounterANALYSIS",
+  ERRORS: "logCounterERRORS",
 } as const;
 
 export function pageProcedureTasks(
@@ -90,7 +92,10 @@ function nextTask(
       role === "SOURCE"
         ? "SELECT * FROM SOURCE_TABLE"
         : "INSERT INTO TARGET_TABLE (ID) VALUES (:ID)",
-    logCounter: role === "SOURCE" ? "ANALYSIS" : "INSERT",
+    logCounter: role === "SOURCE" ? "NONE" : "INSERT",
+    transactionMode: "AUTOCOMMIT",
+    transactionIsolation: "DRIVER_DEFAULT",
+    commitMode: "COMMIT",
     onError: "STOP",
   };
 }
@@ -180,6 +185,7 @@ export function applyAutomaticRowHandoffs(
 
 export function ProcedureEditor({
   projectUuid,
+  definition,
   value,
   onChange,
   limits = {
@@ -189,11 +195,14 @@ export function ProcedureEditor({
   },
 }: Props) {
   const { t } = useDefinitionsI18n();
+  const [section, setSection] = useState<"DEFINITION" | "TASKS">("TASKS");
   const [selectedTaskId, setSelectedTaskId] = useState(
     value.tasks[0]?.id ?? "",
   );
   const [selectedRole, setSelectedRole] = useState<ProcedureConnectionRole>("TARGET");
+  const [selectedDetail, setSelectedDetail] = useState<"GENERAL" | ProcedureConnectionRole>("GENERAL");
   const [page, setPage] = useState(0);
+  const [copiedRole, setCopiedRole] = useState<ProcedureConnectionRole | null>(null);
   const [undoTasks, setUndoTasks] = useState<ProcedureTask[] | null>(null);
   const [pendingDelete, setPendingDelete] = useState<number | null>(null);
   const [message, setMessage] = useState("");
@@ -240,6 +249,7 @@ export function ProcedureEditor({
     const task = nextTask("TARGET", value.tasks);
     replaceTasks([...value.tasks, task], true);
     setSelectedTaskId(task.id);
+    setSelectedDetail("GENERAL");
     setPage(Math.floor(value.tasks.length / PAGE_SIZE));
   };
   const duplicate = (index: number) => {
@@ -336,7 +346,11 @@ export function ProcedureEditor({
     setSelectedTaskId(created.id);
   };
   const renderTaskSide = (role: ProcedureConnectionRole, task?: ProcedureTask) => {
-    const configured = isProcedureSideConfigured(task);
+    const sqlIssues = validateProcedureSql(task?.command ?? "", role).map((issue) => ({
+      line: issue.line,
+      column: issue.column,
+      message: t(issue.code),
+    }));
     return (
       <section className={`procedure-side procedure-side--${role.toLowerCase()}`}>
         <div className="procedure-side-context">
@@ -354,38 +368,84 @@ export function ProcedureEditor({
                 {environments.map((item) => <option key={item.uuid} value={item.uuid}>{item.name}</option>)}
               </select>
             </label>
+            {role === "TARGET" ? <>
+              <label>
+                <span>{t("transactionMode")}</span>
+                <select value={task?.transactionMode ?? "AUTOCOMMIT"} onChange={(event) => updateSide(role, task, {
+                  transactionMode: event.target.value as ProcedureTask["transactionMode"],
+                  transactionChannel: event.target.value === "TRANSACTION" ? task?.transactionChannel ?? 0 : undefined,
+                  commitMode: event.target.value === "TRANSACTION" ? task?.commitMode ?? "NO_COMMIT" : "COMMIT",
+                })}>
+                  <option value="AUTOCOMMIT">{t("autocommit")}</option>
+                  {task?.riskClass === "DML" ? <option value="TRANSACTION">{t("managedTransaction")}</option> : null}
+                </select>
+              </label>
+              {(task?.transactionMode ?? "AUTOCOMMIT") === "TRANSACTION" ? <label>
+                <span>{t("transactionChannel")}</span>
+                <select value={task?.transactionChannel ?? 0} onChange={(event) => updateSide(role, task, { transactionChannel: Number(event.target.value) })}>
+                  {Array.from({ length: 10 }, (_, channel) => <option key={channel} value={channel}>{t("transactionChannelValue", { channel })}</option>)}
+                </select>
+              </label> : null}
+            </> : null}
             <label>
-              <span>{t("logCounter")}</span>
-              <select
-                value={task?.logCounter ?? inferProcedureLogCounter(task?.command ?? "")}
-                onChange={(event) => updateSide(role, task, { logCounter: event.target.value as ProcedureTask["logCounter"] })}
-              >
-                {PROCEDURE_LOG_COUNTERS.map((counter) => (
-                  <option key={counter} value={counter}>{t(LOG_COUNTER_LABEL_KEYS[counter])}</option>
-                ))}
+              <span>{t("transactionIsolation")}</span>
+              <select value={task?.transactionIsolation ?? "DRIVER_DEFAULT"} onChange={(event) => updateSide(role, task, { transactionIsolation: event.target.value as ProcedureTask["transactionIsolation"] })}>
+                <option value="DRIVER_DEFAULT">{t("driverDefault")}</option>
+                <option value="READ_COMMITTED">Read Committed</option>
+                <option value="SERIALIZABLE">Serializable</option>
               </select>
             </label>
-            <span className={`procedure-side-state ${configured ? "is-configured" : ""}`}>{t(configured ? "configured" : "notConfigured")}</span>
+            {role === "TARGET" && (task?.transactionMode ?? "AUTOCOMMIT") === "TRANSACTION" ? <label>
+              <span>{t("commitMode")}</span>
+              <select value={task?.commitMode ?? "NO_COMMIT"} onChange={(event) => updateSide(role, task, { commitMode: event.target.value as ProcedureTask["commitMode"] })}>
+                <option value="NO_COMMIT">{t("noCommit")}</option>
+                <option value="COMMIT">{t("commit")}</option>
+              </select>
+            </label> : null}
           </div>
           <label className="procedure-command">
-            <span>{t(role === "SOURCE" ? "sourceSql" : "targetSql")}</span>
+            <span className="procedure-command-header"><span>{t(role === "SOURCE" ? "sourceSql" : "targetSql")}</span><button type="button" disabled={!task?.command} onClick={async () => {
+              if (!task?.command) return;
+              await navigator.clipboard.writeText(task.command);
+              setCopiedRole(role);
+              window.setTimeout(() => setCopiedRole((current) => current === role ? null : current), 1600);
+            }}>{copiedRole === role ? <Check size={14} /> : <Copy size={14} />}{t(copiedRole === role ? "copied" : "copySql")}</button></span>
             <SqlEditor label={t(role === "SOURCE" ? "sourceSql" : "targetSql")} value={task?.command ?? ""} onChange={(command) => {
               const base = task ?? nextTask(role, value.tasks);
+              const metadata = inferProcedureTaskMetadata(base, command);
               updateSide(role, task, {
                 command,
-                logCounter:
-                  !task?.logCounter || task.logCounter === inferProcedureLogCounter(task.command)
-                    ? inferProcedureLogCounter(command)
-                    : task.logCounter,
-                ...inferProcedureTaskMetadata(base, command),
+                ...metadata,
+                ...(role === "TARGET" && metadata.riskClass !== "DML" ? {
+                  transactionMode: "AUTOCOMMIT" as const,
+                  transactionChannel: undefined,
+                  commitMode: "COMMIT" as const,
+                } : {}),
               });
-            }} />
+            }} errors={sqlIssues} />
           </label>
       </section>
     );
   };
   return (
     <div className="procedure-editor">
+      <nav className="procedure-section-tabs" role="tablist" aria-label={t("procedureSections")}>
+        <button type="button" role="tab" aria-selected={section === "DEFINITION"} onClick={() => setSection("DEFINITION")}>{t("definitionSection")}</button>
+        <button type="button" role="tab" aria-selected={section === "TASKS"} onClick={() => setSection("TASKS")}>{t("tasksSection")} <span>{units.length}</span></button>
+      </nav>
+      {section === "DEFINITION" ? (
+        <section className="procedure-definition-overview" role="tabpanel">
+          <header><div><p className="eyebrow">{t("procedureDefinition")}</p><h3>{definition?.name ?? t("procedure")}</h3></div><code>{definition?.code ?? "PROCEDURE"}</code></header>
+          <div className="procedure-definition-grid">
+            <label><span>{t("name")}</span><input value={definition?.name ?? ""} readOnly /></label>
+            <label><span>{t("connectionModel")}</span><input value={units.some((unit) => unit.source && unit.target) ? t("multiConnection") : t("singleConnection")} readOnly /></label>
+            <label><span>{t("sourceTechnology")}</span><input value="Oracle" readOnly /></label>
+            <label><span>{t("targetTechnology")}</span><input value="Oracle" readOnly /></label>
+            <label className="procedure-definition-description"><span>{t("description")}</span><textarea value={definition?.description ?? ""} rows={6} readOnly placeholder={t("noDescription")} /></label>
+          </div>
+          <p className="procedure-definition-note">{t("procedureDefinitionNote")}</p>
+        </section>
+      ) : <>
       <header className="procedure-editor-heading">
         <div>
           <h3>{t("procedureSteps")}</h3>
@@ -439,6 +499,7 @@ export function ProcedureEditor({
       ) : null}
       <div className="procedure-workbench">
         <aside className="procedure-list-column">
+          <div className="procedure-pane-label">{t("procedureSteps")}</div>
           <div
             className="procedure-task-list"
             role="list"
@@ -459,6 +520,7 @@ export function ProcedureEditor({
                   onClick={() => {
                     setSelectedTaskId(task.id);
                     setSelectedRole(unit.target ? "TARGET" : "SOURCE");
+                    setSelectedDetail("GENERAL");
                   }}
                   aria-pressed={isSelected}
                 >
@@ -467,7 +529,7 @@ export function ProcedureEditor({
                     <strong>{task.name || task.id}</strong>
                     <small className="procedure-step-route"><span className={isProcedureSideConfigured(unit.source) ? "is-ready" : ""}>{t("source")}</span><span aria-hidden="true">→</span><span className={isProcedureSideConfigured(unit.target) ? "is-ready" : ""}>{t("target")}</span></small>
                   </div>
-                  <small className="procedure-step-counter">{t("logCounter")}: {t(LOG_COUNTER_LABEL_KEYS[(unit.target ?? unit.source)?.logCounter ?? inferProcedureLogCounter((unit.target ?? unit.source)?.command ?? "")])}</small>
+                  <small className="procedure-step-counter">{t("logCounter")}: {t(LOG_COUNTER_LABEL_KEYS[normalizeProcedureLogCounter((unit.target ?? unit.source)?.logCounter)])}</small>
                 </button>
                 <div className="procedure-task-actions">
                   <button
@@ -534,35 +596,38 @@ export function ProcedureEditor({
             className="procedure-task-editor"
             aria-label={`${t("stepEditor")}: ${(selectedUnit.target ?? selectedUnit.source)?.name ?? ""}`}
           >
+            <div className="procedure-pane-label procedure-pane-label--detail">{t("stepDetails")}</div>
             <header>
-              <div>
-                <p className="eyebrow">{t("selectedStep")}</p>
-                <input
-                  className="procedure-step-name"
-                  aria-label={t("stepName")}
-                  value={(selectedUnit.target ?? selectedUnit.source)?.name ?? ""}
-                  onChange={(event) => {
-                    const ids = new Set(selectedUnit.tasks.map((task) => task.id));
-                    replaceTasks(value.tasks.map((task) => ids.has(task.id) ? { ...task, name: event.target.value } : task));
-                  }}
-                />
-              </div>
+              <div><p className="eyebrow">{t("selectedStep")}</p><strong>{(selectedUnit.target ?? selectedUnit.source)?.name ?? ""}</strong></div>
               <span>
                 {units.indexOf(selectedUnit) + 1} / {units.length}
               </span>
             </header>
             <div className="procedure-command-tabs" role="tablist" aria-label={t("commands")}>
-              <button type="button" role="tab" aria-selected={selectedRole === "SOURCE"} onClick={() => setSelectedRole("SOURCE")}>{t("sourceCommand")}<span className={isProcedureSideConfigured(selectedUnit.source) ? "is-configured" : ""}>{t(isProcedureSideConfigured(selectedUnit.source) ? "configured" : "notConfigured")}</span></button>
-              <button type="button" role="tab" aria-selected={selectedRole === "TARGET"} onClick={() => setSelectedRole("TARGET")}>{t("targetCommand")}<span className={isProcedureSideConfigured(selectedUnit.target) ? "is-configured" : ""}>{t(isProcedureSideConfigured(selectedUnit.target) ? "configured" : "notConfigured")}</span></button>
+              <button type="button" role="tab" aria-selected={selectedDetail === "GENERAL"} onClick={() => setSelectedDetail("GENERAL")}>{t("general")}</button>
+              <button type="button" role="tab" aria-selected={selectedDetail === "TARGET"} onClick={() => { setSelectedRole("TARGET"); setSelectedDetail("TARGET"); }}>{t("targetCommand")}</button>
+              <button type="button" role="tab" aria-selected={selectedDetail === "SOURCE"} onClick={() => { setSelectedRole("SOURCE"); setSelectedDetail("SOURCE"); }}>{t("sourceCommand")}</button>
             </div>
             <div className="procedure-command-detail">
-              {renderTaskSide(selectedRole, selectedRole === "SOURCE" ? selectedUnit.source : selectedUnit.target)}
+              {selectedDetail === "GENERAL" ? (() => {
+                const primary = selectedUnit.target ?? selectedUnit.source!;
+                return <section className="procedure-general-properties">
+                  <label className="procedure-general-name"><span>{t("stepName")}</span><input aria-label={t("stepName")} value={primary.name ?? ""} onChange={(event) => {
+                    const ids = new Set(selectedUnit.tasks.map((task) => task.id));
+                    replaceTasks(value.tasks.map((task) => ids.has(task.id) ? { ...task, name: event.target.value } : task));
+                  }} /></label>
+                  <label><span>{t("logCounter")}</span><select aria-label={t("logCounter")} value={normalizeProcedureLogCounter(primary.logCounter)} onChange={(event) => updateTask(primary, { logCounter: event.target.value as ProcedureTask["logCounter"] })}>{PROCEDURE_LOG_COUNTERS.map((counter) => <option key={counter} value={counter}>{t(LOG_COUNTER_LABEL_KEYS[counter])}</option>)}</select></label>
+                  <label className="procedure-checkbox"><input type="checkbox" checked={primary.onError === "CONTINUE"} disabled={Boolean(primary.input || primary.output)} onChange={(event) => updateTask(primary, { onError: event.target.checked ? "CONTINUE" : "STOP" })} /><span>{t("ignoreErrors")}</span></label>
+                  {primary.input || primary.output ? <p>{t("rowTransferStopsOnError")}</p> : null}
+                </section>;
+              })() : renderTaskSide(selectedRole, selectedRole === "SOURCE" ? selectedUnit.source : selectedUnit.target)}
             </div>
           </section>
         ) : (
           <p className="definition-state">{t("noProcedureSteps")}</p>
         )}
       </div>
+      </>}
     </div>
   );
 }

@@ -388,6 +388,26 @@ final class RuntimeOracleConnectionProvider {
             }
         }
 
+        void applyTransactionIsolation(
+                ProcedureRuntimePlan.TransactionIsolation isolation) {
+            ensureOpen();
+            if (isolation == null
+                    || isolation == ProcedureRuntimePlan.TransactionIsolation.DRIVER_DEFAULT) {
+                return;
+            }
+            int jdbcLevel = switch (isolation) {
+                case READ_COMMITTED -> Connection.TRANSACTION_READ_COMMITTED;
+                case SERIALIZABLE -> Connection.TRANSACTION_SERIALIZABLE;
+                case DRIVER_DEFAULT -> throw new IllegalStateException();
+            };
+            try {
+                connection.setTransactionIsolation(jdbcLevel);
+            }
+            catch (SQLException | RuntimeException exception) {
+                throw new RuntimeOracleConnectionException(Failure.SESSION_OPERATION_FAILED);
+            }
+        }
+
         void commitConfirmed() {
             requireTarget();
             try {

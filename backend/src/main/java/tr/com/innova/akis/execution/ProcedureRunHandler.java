@@ -49,16 +49,40 @@ final class ProcedureRunHandler {
 
         ProcedureStepEngine.RunResult engineResult;
         boolean engineReturned = false;
-        try (executor) {
+        boolean completingTransactions = false;
+        try {
             engineResult = new ProcedureStepEngine(executor, journal).execute(plan);
             engineReturned = true;
+            if (engineResult instanceof ProcedureStepEngine.Completed) {
+                completingTransactions = true;
+                executor.complete();
+            }
+            else {
+                executor.abort();
+            }
         }
         catch (RuntimeException exception) {
+            try { executor.abort(); } catch (RuntimeException ignored) { }
+            try { executor.close(); } catch (RuntimeException ignored) { }
+            if (completingTransactions) {
+                return new UnknownOutcome("TRANSACTION", "PROCEDURE_TRANSACTION_COMMIT_UNKNOWN");
+            }
             return stopped(
                     engineReturned
                             ? FailureCode.EXECUTOR_SESSION_CLOSE_UNCONFIRMED
                             : FailureCode.ENGINE_BOUNDARY_FAILED,
                     null);
+        }
+        catch (Error error) {
+            try { executor.abort(); } catch (RuntimeException ignored) { }
+            try { executor.close(); } catch (RuntimeException ignored) { }
+            throw error;
+        }
+        try {
+            executor.close();
+        }
+        catch (RuntimeException exception) {
+            return stopped(FailureCode.EXECUTOR_SESSION_CLOSE_UNCONFIRMED, null);
         }
         if (engineResult instanceof ProcedureStepEngine.Completed completed) {
             if (!exactAcknowledgement(journal::completeRun)) {

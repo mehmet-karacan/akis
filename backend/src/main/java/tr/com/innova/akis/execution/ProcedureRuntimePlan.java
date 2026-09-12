@@ -49,11 +49,19 @@ public record ProcedureRuntimePlan(
             RowsetOutput output,
             BatchInput input,
             List<String> namedBinds,
-            LogCounter logCounter) {
+            LogCounter logCounter,
+            TransactionMode transactionMode,
+            Integer transactionChannel,
+            TransactionIsolation transactionIsolation,
+            CommitMode commitMode) {
 
         public Task {
             namedBinds = List.copyOf(namedBinds);
             logCounter = logCounter == null ? LogCounter.NONE : logCounter;
+            transactionMode = transactionMode == null ? TransactionMode.AUTOCOMMIT : transactionMode;
+            transactionIsolation = transactionIsolation == null
+                    ? TransactionIsolation.DRIVER_DEFAULT : transactionIsolation;
+            commitMode = commitMode == null ? CommitMode.COMMIT : commitMode;
         }
 
         public Task(
@@ -72,7 +80,8 @@ public record ProcedureRuntimePlan(
                 List<String> namedBinds) {
             this(id, name, type, connectionRole, riskClass, command, commandHash,
                     requiresApproval, onError, timeoutSeconds, output, input,
-                    namedBinds, LogCounter.NONE);
+                    namedBinds, LogCounter.NONE, TransactionMode.AUTOCOMMIT, null,
+                    TransactionIsolation.DRIVER_DEFAULT, CommitMode.COMMIT);
         }
     }
 
@@ -127,7 +136,22 @@ public record ProcedureRuntimePlan(
         INSERT,
         UPDATE,
         DELETE,
-        STATISTICS,
-        ANALYSIS
+        ERRORS
+    }
+
+    public enum TransactionMode {
+        AUTOCOMMIT,
+        TRANSACTION
+    }
+
+    public enum TransactionIsolation {
+        DRIVER_DEFAULT,
+        READ_COMMITTED,
+        SERIALIZABLE
+    }
+
+    public enum CommitMode {
+        NO_COMMIT,
+        COMMIT
     }
 }

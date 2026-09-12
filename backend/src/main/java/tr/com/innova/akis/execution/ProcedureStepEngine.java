@@ -193,6 +193,18 @@ final class ProcedureStepEngine {
                 || task.connectionRole() != binding.role()) {
             return false;
         }
+        if (task.transactionMode() == ProcedureRuntimePlan.TransactionMode.TRANSACTION
+                && (task.connectionRole() != ProcedureRuntimePlan.ConnectionRole.TARGET
+                || task.transactionChannel() == null
+                || task.transactionChannel() < 0
+                || task.transactionChannel() > 9)) {
+            return false;
+        }
+        if (task.transactionMode() == ProcedureRuntimePlan.TransactionMode.AUTOCOMMIT
+                && (task.transactionChannel() != null
+                || task.commitMode() != ProcedureRuntimePlan.CommitMode.COMMIT)) {
+            return false;
+        }
         if (task.input() == null) {
             return pending == null;
         }

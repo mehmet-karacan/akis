@@ -23,7 +23,7 @@ export const DEFAULT_PROCEDURE: ProcedureContent = {
       connectionRole: 'SOURCE',
       riskClass: 'READ_ONLY',
       command: 'SELECT ID FROM SOURCE_TABLE',
-      logCounter: 'ANALYSIS',
+      logCounter: 'NONE',
       onError: 'STOP',
       timeoutSeconds: 300,
       output: { kind: 'ROWSET', maxRows: 1000 },
@@ -106,7 +106,7 @@ export function isProcedureContent(value: unknown): value is ProcedureContent {
       !['SOURCE', 'TARGET'].includes(String(candidate.connectionRole)) ||
       !['READ_ONLY', 'DML', 'DDL', 'DESTRUCTIVE'].includes(String(candidate.riskClass)) ||
       (candidate.logCounter !== undefined &&
-        !['NONE', 'INSERT', 'UPDATE', 'DELETE', 'STATISTICS', 'ANALYSIS'].includes(String(candidate.logCounter)))
+        !['NONE', 'INSERT', 'UPDATE', 'DELETE', 'ERRORS', 'STATISTICS', 'ANALYSIS'].includes(String(candidate.logCounter)))
     ) return false
     if (candidate.output !== undefined) {
       if (!candidate.output || typeof candidate.output !== 'object' || Array.isArray(candidate.output)) return false

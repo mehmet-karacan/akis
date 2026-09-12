@@ -89,6 +89,45 @@ class DefinitionContentValidatorTest {
     }
 
     @Test
+    void rejectsCommonProcedureSqlPunctuationErrors() {
+        assertValidationContains(DefinitionType.PROCEDURE, """
+                {"tasks":[{"id":"insert","type":"SQL","connectionRole":"TARGET",
+                            "riskClass":"DML","command":"INSERT INTO T (ID, ) VALUES (:ID)"}]}
+                """, "virgül");
+        assertValidationContains(DefinitionType.PROCEDURE, """
+                {"tasks":[{"id":"read","type":"SQL","connectionRole":"SOURCE",
+                            "riskClass":"READ_ONLY","command":"SELECT (ID FROM T"}]}
+                """, "parantez");
+        assertValidationContains(DefinitionType.PROCEDURE, """
+                {"tasks":[{"id":"read","type":"SQL","connectionRole":"SOURCE",
+                            "riskClass":"READ_ONLY","command":"SELECT 'broken FROM T"}]}
+                """, "tırnak");
+    }
+
+    @Test
+    void rejectsInvalidProcedureTransactionAndCounterContracts() {
+        assertValidationContains(DefinitionType.PROCEDURE, 2, """
+                {"tasks":[{"id":"read","type":"SQL","connectionRole":"SOURCE",
+                  "riskClass":"READ_ONLY","command":"SELECT ID FROM T",
+                  "transactionMode":"TRANSACTION","transactionChannel":0}]}
+                """, "yalnız hedef DML");
+        assertValidationContains(DefinitionType.PROCEDURE, 2, """
+                {"tasks":[{"id":"write","type":"SQL","connectionRole":"TARGET",
+                  "riskClass":"DML","command":"INSERT INTO T (ID) VALUES (1)",
+                  "transactionMode":"TRANSACTION","transactionChannel":10}]}
+                """, "0-9");
+        assertValidationContains(DefinitionType.PROCEDURE, 2, """
+                {"tasks":[{"id":"write","type":"SQL","connectionRole":"TARGET",
+                  "riskClass":"DML","command":"INSERT INTO T (ID) VALUES (1)",
+                  "transactionMode":"AUTOCOMMIT","commitMode":"NO_COMMIT"}]}
+                """, "COMMIT");
+        assertValidationContains(DefinitionType.PROCEDURE, 2, """
+                {"tasks":[{"id":"write","type":"SQL","connectionRole":"TARGET",
+                  "riskClass":"DML","command":"UPDATE T SET ID = 1","logCounter":"INSERT"}]}
+                """, "eşleşmiyor");
+    }
+
+    @Test
     void acceptsOrderedProcedureV2WithMaintenanceAndCrossConnectionRowTransfer() {
         assertDoesNotThrow(() -> validate(DefinitionType.PROCEDURE, 2, """
                 {"tasks":[
@@ -100,7 +139,9 @@ class DefinitionContentValidatorTest {
                    "command":"SELECT ID, ACIKLAMA FROM TTBP.HAKEDIS_TIPI",
                    "output":{"kind":"ROWSET","maxRows":10000}},
                   {"id":"WRITE_TARGET","type":"SQL","connectionRole":"TARGET",
-                   "riskClass":"DML","onError":"STOP",
+                   "riskClass":"DML","onError":"STOP","logCounter":"INSERT",
+                   "transactionMode":"TRANSACTION","transactionChannel":0,
+                   "transactionIsolation":"READ_COMMITTED","commitMode":"COMMIT",
                    "command":"INSERT INTO INNOVA_ODI.STG_HAKEDIS_TIPI (ID, ACIKLAMA) VALUES (:ID, :ACIKLAMA)",
                    "input":{"fromTask":"READ_SOURCE","mode":"BATCH","batchSize":250}},
                   {"id":"GATHER_STATS","type":"PLSQL","connectionRole":"TARGET",

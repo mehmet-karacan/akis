@@ -57,6 +57,8 @@ class ProcedureRunHandlerTest {
         assertSame(fixture.plan, fixture.executorFactoryPlan);
         assertEquals(1, fixture.executorFactoryCalls);
         assertEquals(1, fixture.executorCloseCalls);
+        assertEquals(1, fixture.executorCompleteCalls);
+        assertEquals(0, fixture.executorAbortCalls);
     }
 
     @Test
@@ -104,6 +106,8 @@ class ProcedureRunHandlerTest {
         assertEquals("PROCEDURE_EXECUTOR_DISABLED", result.errorCode());
         assertEquals(1, fixture.executorCalls.get());
         assertEquals(1, fixture.executorCloseCalls);
+        assertEquals(0, fixture.executorCompleteCalls);
+        assertEquals(1, fixture.executorAbortCalls);
         assertEquals(0, fixture.session.completeCalls);
         assertEquals(List.of(
                 "PREPARE", "START:TRUNCATE_TARGET",
@@ -216,6 +220,8 @@ class ProcedureRunHandlerTest {
         private final AtomicInteger executorCalls = new AtomicInteger();
         private int executorFactoryCalls;
         private int executorCloseCalls;
+        private int executorCompleteCalls;
+        private int executorAbortCalls;
         private final ProcedureRunHandler handler;
         private ActiveExecutionToken journalFactoryToken;
         private ProcedureRuntimePlan journalFactoryPlan;
@@ -242,6 +248,16 @@ class ProcedureRunHandlerTest {
                         executorCalls.incrementAndGet();
                         events.add("EXECUTE:" + command.task().id());
                         return executor.execute(command);
+                    }
+
+                    @Override
+                    public void complete() {
+                        executorCompleteCalls++;
+                    }
+
+                    @Override
+                    public void abort() {
+                        executorAbortCalls++;
                     }
 
                     @Override

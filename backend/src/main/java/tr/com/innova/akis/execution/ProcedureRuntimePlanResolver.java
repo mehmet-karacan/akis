@@ -25,6 +25,9 @@ import tr.com.innova.akis.execution.ProcedureRuntimePlan.BatchInput;
 import tr.com.innova.akis.execution.ProcedureRuntimePlan.ConnectionRole;
 import tr.com.innova.akis.execution.ProcedureRuntimePlan.ErrorPolicy;
 import tr.com.innova.akis.execution.ProcedureRuntimePlan.LogCounter;
+import tr.com.innova.akis.execution.ProcedureRuntimePlan.TransactionMode;
+import tr.com.innova.akis.execution.ProcedureRuntimePlan.TransactionIsolation;
+import tr.com.innova.akis.execution.ProcedureRuntimePlan.CommitMode;
 import tr.com.innova.akis.execution.ProcedureRuntimePlan.RiskClass;
 import tr.com.innova.akis.execution.ProcedureRuntimePlan.RowsetOutput;
 import tr.com.innova.akis.execution.ProcedureRuntimePlan.Task;
@@ -278,7 +281,8 @@ public final class ProcedureRuntimePlanResolver {
                     node,
                     Set.of("id", "name", "type", "connectionRole", "riskClass",
                             "command", "requiresApproval", "onError", "timeoutSeconds",
-                            "output", "input", "logCounter"),
+                            "output", "input", "logCounter", "transactionMode",
+                            "transactionChannel", "transactionIsolation", "commitMode"),
                     "Procedure task", ProcedurePlanFailure.UNSUPPORTED_PROCEDURE_SHAPE);
             String id = requireText(node, "id");
             String command = requireText(node, "command");
@@ -303,9 +307,20 @@ public final class ProcedureRuntimePlanResolver {
             ErrorPolicy errorPolicy = node.has("onError")
                     ? parseEnum(ErrorPolicy.class, requireText(node, "onError"))
                     : ErrorPolicy.STOP;
-            LogCounter logCounter = node.has("logCounter")
-                    ? parseEnum(LogCounter.class, requireText(node, "logCounter"))
-                    : LogCounter.NONE;
+            LogCounter logCounter = parseLogCounter(optionalText(node, "logCounter", "NONE"));
+            validateLogCounter(type, role, command, logCounter);
+            TransactionMode transactionMode = node.has("transactionMode")
+                    ? parseEnum(TransactionMode.class, requireText(node, "transactionMode"))
+                    : TransactionMode.AUTOCOMMIT;
+            TransactionIsolation transactionIsolation = node.has("transactionIsolation")
+                    ? parseEnum(TransactionIsolation.class, requireText(node, "transactionIsolation"))
+                    : TransactionIsolation.DRIVER_DEFAULT;
+            CommitMode commitMode = node.has("commitMode")
+                    ? parseEnum(CommitMode.class, requireText(node, "commitMode"))
+                    : CommitMode.COMMIT;
+            Integer transactionChannel = node.has("transactionChannel")
+                    ? requireInteger(node, "transactionChannel") : null;
+            validateTransactionContract(role, risk, transactionMode, transactionChannel, commitMode);
             if ((output != null || input != null) && errorPolicy != ErrorPolicy.STOP) {
                 throw shape("Row transfer tasks must use STOP in Procedure V1.");
             }
@@ -330,7 +345,11 @@ public final class ProcedureRuntimePlanResolver {
                     output,
                     input,
                     namedBinds,
-                    logCounter));
+                    logCounter,
+                    transactionMode,
+                    transactionChannel,
+                    transactionIsolation,
+                    commitMode));
         }
         for (int index = 0; index < tasks.size(); index++) {
             Task task = tasks.get(index);
@@ -356,6 +375,7 @@ public final class ProcedureRuntimePlanResolver {
             RiskClass risk,
             boolean requiresApproval,
             String command) {
+        validateCommonSqlSyntax(command);
         if (type != TaskType.SQL) {
             if (role != ConnectionRole.TARGET
                     || risk != RiskClass.DESTRUCTIVE
@@ -392,6 +412,67 @@ public final class ProcedureRuntimePlanResolver {
         }
     }
 
+    private void validateCommonSqlSyntax(String command) {
+        String executable = executableSql(command);
+        int parentheses = 0;
+        for (int index = 0; index < executable.length(); index++) {
+            char current = executable.charAt(index);
+            if (current == '(') parentheses++;
+            else if (current == ')' && --parentheses < 0) {
+                throw shape("Procedure command contains unbalanced parentheses.");
+            }
+        }
+        if (parentheses != 0) throw shape("Procedure command contains unbalanced parentheses.");
+        if (executable.matches("(?s).*(,\\s*[,)]|\\(\\s*,).*$")) {
+            throw shape("Procedure command contains invalid comma placement.");
+        }
+    }
+
+    private LogCounter parseLogCounter(String value) {
+        if ("ANALYSIS".equals(value) || "STATISTICS".equals(value)) {
+            return LogCounter.NONE;
+        }
+        return parseEnum(LogCounter.class, value);
+    }
+
+    private void validateLogCounter(
+            TaskType type,
+            ConnectionRole role,
+            String command,
+            LogCounter counter) {
+        if (counter == LogCounter.NONE) return;
+        if (type != TaskType.SQL || role != ConnectionRole.TARGET) {
+            throw shape("Log counters apply only to target SQL commands.");
+        }
+        String keyword = firstKeyword(executableSql(command));
+        boolean valid = switch (counter) {
+            case INSERT -> "INSERT".equals(keyword);
+            case UPDATE -> "UPDATE".equals(keyword);
+            case DELETE -> "DELETE".equals(keyword);
+            case ERRORS -> "INSERT".equals(keyword) || "UPDATE".equals(keyword);
+            case NONE -> true;
+        };
+        if (!valid) throw shape("The log counter does not match the target SQL command.");
+    }
+
+    private void validateTransactionContract(
+            ConnectionRole role,
+            RiskClass risk,
+            TransactionMode mode,
+            Integer channel,
+            CommitMode commitMode) {
+        if (mode == TransactionMode.AUTOCOMMIT) {
+            if (channel != null || commitMode != CommitMode.COMMIT) {
+                throw shape("Autocommit tasks cannot select a transaction channel or deferred commit.");
+            }
+            return;
+        }
+        if (role != ConnectionRole.TARGET || risk != RiskClass.DML
+                || channel == null || channel < 0 || channel > 9) {
+            throw shape("Managed transactions require a target DML command and channel 0-9.");
+        }
+    }
+
     /** Removes comments and literals while retaining executable punctuation and keywords. */
     private String executableSql(String sql) {
         StringBuilder result = new StringBuilder(sql.length());
@@ -422,12 +503,12 @@ public final class ProcedureRuntimePlanResolver {
             }
             if (qIndex >= 0) {
                 index = skipAlternativeQuote(sql, qIndex);
-                result.append(' ');
+                result.append('X');
                 continue;
             }
             if (current == '\'' || current == '"') {
                 index = skipQuoted(sql, index, current);
-                result.append(' ');
+                result.append('X');
                 continue;
             }
             result.append(Character.toUpperCase(current));
@@ -811,6 +892,14 @@ public final class ProcedureRuntimePlanResolver {
             node.put("id", task.id());
             if (task.logCounter() != LogCounter.NONE) {
                 node.put("logCounter", task.logCounter().name());
+            }
+            if (task.transactionMode() != TransactionMode.AUTOCOMMIT) {
+                node.put("transactionMode", task.transactionMode().name());
+                node.put("transactionChannel", task.transactionChannel());
+                node.put("commitMode", task.commitMode().name());
+            }
+            if (task.transactionIsolation() != TransactionIsolation.DRIVER_DEFAULT) {
+                node.put("transactionIsolation", task.transactionIsolation().name());
             }
             if (task.input() != null) {
                 ObjectNode input = objectMapper.createObjectNode();

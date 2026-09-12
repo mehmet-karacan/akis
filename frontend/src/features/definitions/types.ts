@@ -149,7 +149,12 @@ export interface ProcedureTask {
   connectionRole: ProcedureConnectionRole
   riskClass: ProcedureRiskClass
   command: string
-  logCounter?: ProcedureLogCounter
+  /** Legacy values are accepted only to migrate drafts created before the ODI counter contract was corrected. */
+  logCounter?: ProcedureLogCounter | 'ANALYSIS' | 'STATISTICS'
+  transactionMode?: 'AUTOCOMMIT' | 'TRANSACTION'
+  transactionChannel?: number
+  transactionIsolation?: 'DRIVER_DEFAULT' | 'READ_COMMITTED' | 'SERIALIZABLE'
+  commitMode?: 'NO_COMMIT' | 'COMMIT'
   logicalSchemaUuid?: string
   environmentUuid?: string
   requiresApproval?: boolean

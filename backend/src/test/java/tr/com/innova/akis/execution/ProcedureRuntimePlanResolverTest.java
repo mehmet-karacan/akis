@@ -41,8 +41,12 @@ class ProcedureRuntimePlanResolverTest {
                 plan.tasks().stream().map(ProcedureRuntimePlan.Task::id).toList());
         assertEquals(List.of("ID", "ACIKLAMA"), plan.tasks().get(2).namedBinds());
         assertEquals(ProcedureRuntimePlan.LogCounter.INSERT, plan.tasks().get(2).logCounter());
-        assertEquals("STATISTICS", plan.canonicalPlan().get("tasks").get(3)
-                .get("logCounter").stringValue());
+        assertEquals(ProcedureRuntimePlan.TransactionMode.TRANSACTION,
+                plan.tasks().get(2).transactionMode());
+        assertEquals(0, plan.tasks().get(2).transactionChannel());
+        assertEquals(ProcedureRuntimePlan.TransactionIsolation.READ_COMMITTED,
+                plan.tasks().get(2).transactionIsolation());
+        assertFalse(plan.canonicalPlan().get("tasks").get(3).has("logCounter"));
         assertEquals(4, plan.bindings().size());
         assertEquals(fixture.runtimeHash(), plan.runtimePlanHash());
         assertFalse(plan.canonicalPlan().toString().contains("TRUNCATE TABLE"));
@@ -201,7 +205,7 @@ class ProcedureRuntimePlanResolverTest {
                 {"tasks":[
                   {"id":"TRUNCATE_TARGET","name":"Clear","type":"SQL",
                    "connectionRole":"TARGET","riskClass":"DESTRUCTIVE",
-                   "logCounter":"DELETE",
+                   "logCounter":"NONE",
                    "requiresApproval":true,"onError":"STOP","timeoutSeconds":60,
                    "command":"TRUNCATE TABLE INNOVA_ODI.STG_HAKEDIS_TIPI"},
                   {"id":"READ_SOURCE","name":"Read","type":"SQL",
@@ -212,7 +216,9 @@ class ProcedureRuntimePlanResolverTest {
                    "output":{"kind":"ROWSET","maxRows":1000}},
                   {"id":"INSERT_TARGET","name":"Write","type":"SQL",
                    "connectionRole":"TARGET","riskClass":"DML",
-                   "logCounter":"INSERT",
+                   "logCounter":"INSERT","transactionMode":"TRANSACTION",
+                   "transactionChannel":0,"transactionIsolation":"READ_COMMITTED",
+                   "commitMode":"COMMIT",
                    "onError":"STOP","timeoutSeconds":300,
                    "command":"INSERT INTO INNOVA_ODI.STG_HAKEDIS_TIPI (ID, ACIKLAMA) VALUES (:ID, :ACIKLAMA)",
                    "input":{"fromTask":"READ_SOURCE","mode":"BATCH","batchSize":250}},

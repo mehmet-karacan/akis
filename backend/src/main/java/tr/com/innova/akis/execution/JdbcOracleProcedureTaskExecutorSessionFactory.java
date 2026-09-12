@@ -83,6 +83,7 @@ final class JdbcOracleProcedureTaskExecutorSessionFactory
         private final ProcedureRuntimePlan plan;
         private final ProcedureRunScopedRowsetStore rowsets;
         private final Map<UUID, Handle> handles = new LinkedHashMap<>();
+        private final Map<TransactionKey, ManagedTransaction> transactions = new LinkedHashMap<>();
         private boolean closed;
 
         private Session(ActiveExecutionToken token, ProcedureRuntimePlan plan) {
@@ -109,6 +110,7 @@ final class JdbcOracleProcedureTaskExecutorSessionFactory
                 PilotRuntimePlan.DatasetBinding binding =
                         ProcedureOracleBindingAdapter.source(command.binding());
                 session = connections.openSource(binding);
+                session.applyTransactionIsolation(command.task().transactionIsolation());
                 new JdbcOracleSchemaPreflight(objectMapper).verifySource(
                         sourcePlan(command.task(), binding), session.connection(),
                         new ExpectedSnapshot(pinned.snapshot().schemaSnapshotUuid(),
@@ -138,33 +140,83 @@ final class JdbcOracleProcedureTaskExecutorSessionFactory
         private TaskResult mutate(TaskCommand command) {
             RuntimeOracleSession session = null;
             boolean statementEntered = false;
+            boolean managed = command.task().transactionMode()
+                    == ProcedureRuntimePlan.TransactionMode.TRANSACTION;
+            TransactionKey transactionKey = managed ? transactionKey(command) : null;
             try {
                 PinnedProcedureTarget pinned = snapshots.loadProcedureTarget(
                         plan, command.task(), command.binding(), "AKTIF");
                 PilotRuntimePlan.DatasetBinding binding =
                         ProcedureOracleBindingAdapter.target(command.binding());
-                session = connections.openTargetData(binding, new ProcedurePermit());
+                session = managed
+                        ? managedTransaction(transactionKey, command, binding).session()
+                        : connections.openTargetData(binding, new ProcedurePermit());
+                if (!managed) {
+                    session.applyTransactionIsolation(command.task().transactionIsolation());
+                }
                 verifyTarget(command, binding, pinned, session);
                 statementEntered = true;
                 long affected = command.task().input() == null
                         ? executeStandalone(command, session)
                         : executeBatch(command, session);
-                session.commitConfirmed();
+                if (!managed || command.task().commitMode()
+                        == ProcedureRuntimePlan.CommitMode.COMMIT) {
+                    session.commitConfirmed();
+                    if (managed) transactions.remove(transactionKey);
+                    closeQuietly(session);
+                    session = null;
+                }
                 return new Succeeded(affected, 0, null);
             }
             catch (RuntimeException exception) {
+                if (managed) transactions.remove(transactionKey);
                 if (!statementEntered) {
                     rollbackQuietly(session);
+                    closeQuietly(session);
                     return new NotAttempted("PROCEDURE_TARGET_PREFLIGHT_FAILED");
                 }
                 if (command.task().riskClass() == ProcedureRuntimePlan.RiskClass.DML
                         && rollbackConfirmed(session)) {
+                    closeQuietly(session);
                     return new SafeFailure("PROCEDURE_TARGET_DML_FAILED", true);
                 }
+                closeQuietly(session);
                 return new OutcomeUnknown("PROCEDURE_TARGET_OUTCOME_UNKNOWN");
             }
             finally {
+                if (!managed) closeQuietly(session);
+            }
+        }
+
+        private TransactionKey transactionKey(TaskCommand command) {
+            return new TransactionKey(
+                    command.binding().connectionVersionUuid(),
+                    command.task().transactionChannel());
+        }
+
+        private ManagedTransaction managedTransaction(
+                TransactionKey key,
+                TaskCommand command,
+                PilotRuntimePlan.DatasetBinding binding) {
+            ManagedTransaction current = transactions.get(key);
+            if (current != null) {
+                if (current.isolation() != command.task().transactionIsolation()) {
+                    throw new IllegalArgumentException(
+                            "A transaction channel cannot change isolation level.");
+                }
+                return current;
+            }
+            RuntimeOracleSession session = connections.openTargetData(binding, new ProcedurePermit());
+            try {
+                session.applyTransactionIsolation(command.task().transactionIsolation());
+                ManagedTransaction created = new ManagedTransaction(
+                        session, command.task().transactionIsolation());
+                transactions.put(key, created);
+                return created;
+            }
+            catch (RuntimeException exception) {
                 closeQuietly(session);
+                throw exception;
             }
         }
 
@@ -361,12 +413,64 @@ final class JdbcOracleProcedureTaskExecutorSessionFactory
         }
 
         @Override
+        public void complete() {
+            ensureActive();
+            RuntimeException failure = null;
+            for (ManagedTransaction transaction : transactions.values()) {
+                try {
+                    if (failure == null) transaction.session().commitConfirmed();
+                    else transaction.session().rollbackConfirmed();
+                }
+                catch (RuntimeException exception) {
+                    if (failure == null) failure = exception;
+                }
+                finally {
+                    closeQuietly(transaction.session());
+                }
+            }
+            transactions.clear();
+            if (failure != null) throw failure;
+        }
+
+        @Override
+        public void abort() {
+            if (closed) return;
+            RuntimeException failure = null;
+            for (ManagedTransaction transaction : transactions.values()) {
+                try {
+                    transaction.session().rollbackConfirmed();
+                }
+                catch (RuntimeException exception) {
+                    failure = exception;
+                }
+                finally {
+                    closeQuietly(transaction.session());
+                }
+            }
+            transactions.clear();
+            if (failure != null) throw failure;
+        }
+
+        private void ensureActive() {
+            if (closed) throw new IllegalStateException("Procedure session is closed.");
+        }
+
+        @Override
         public void close() {
             if (!closed) {
+                abort();
                 closed = true;
                 handles.clear();
                 rowsets.close();
             }
+        }
+
+        private record TransactionKey(UUID connectionVersionUuid, int channel) {
+        }
+
+        private record ManagedTransaction(
+                RuntimeOracleSession session,
+                ProcedureRuntimePlan.TransactionIsolation isolation) {
         }
     }
 }

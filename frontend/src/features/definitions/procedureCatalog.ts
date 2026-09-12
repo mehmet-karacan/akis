@@ -3,8 +3,7 @@ export const PROCEDURE_LOG_COUNTERS = [
   'INSERT',
   'UPDATE',
   'DELETE',
-  'STATISTICS',
-  'ANALYSIS',
+  'ERRORS',
 ] as const
 
 export type ProcedureLogCounter = (typeof PROCEDURE_LOG_COUNTERS)[number]
@@ -13,8 +12,13 @@ export function inferProcedureLogCounter(command: string): ProcedureLogCounter {
   const sql = command.trimStart().toLocaleUpperCase('en-US')
   if (/^INSERT\b/.test(sql)) return 'INSERT'
   if (/^UPDATE\b/.test(sql)) return 'UPDATE'
-  if (/^(DELETE|TRUNCATE)\b/.test(sql)) return 'DELETE'
-  if (sql.includes('DBMS_STATS.GATHER_')) return 'STATISTICS'
-  if (/^(SELECT|WITH|ANALYZE)\b/.test(sql)) return 'ANALYSIS'
+  if (/^DELETE\b/.test(sql)) return 'DELETE'
   return 'NONE'
+}
+
+export function normalizeProcedureLogCounter(value: string | undefined): ProcedureLogCounter {
+  if (value === 'ANALYSIS' || value === 'STATISTICS') return 'NONE'
+  return PROCEDURE_LOG_COUNTERS.includes(value as ProcedureLogCounter)
+    ? value as ProcedureLogCounter
+    : 'NONE'
 }

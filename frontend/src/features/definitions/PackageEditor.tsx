@@ -60,7 +60,7 @@ function PackageEditorInner({ projectUuid, definitionUuid, value, onChange, onOp
     let active = true
     void definitionsApi.listDefinitions(projectUuid).then((items) => {
       if (!active) return
-      const allowed = items.filter((item) => allowedTypes.has(item.type) && item.uuid !== definitionUuid)
+      const allowed = items.filter((item) => !['PASIF', 'ARSIVLENDI'].includes(item.status) && allowedTypes.has(item.type) && item.uuid !== definitionUuid)
       setDefinitions(allowed)
     }).catch(() => { if (active) setDefinitions([]) })
     return () => { active = false }
@@ -79,6 +79,11 @@ function PackageEditorInner({ projectUuid, definitionUuid, value, onChange, onOp
     data: { label: <div className="package-node-label"><span className={content.firstStepId === step.id ? 'package-start-badge' : ''}>{content.firstStepId === step.id ? <><CirclePlay />{t('firstStep')}</> : definitionCodeLabel(step.type, language)}</span><strong>{step.name || step.id}</strong><small>{definitions.find((item) => item.uuid === step.definitionUuid)?.name ?? t('unlinkedStep')}</small></div> },
     selected: step.id === selectedStepId,
   })), [content.firstStepId, content.steps, definitions, language, positions, selectedStepId, t])
+  useEffect(() => {
+    if (!instance || nodes.length === 0) return
+    const frame = window.requestAnimationFrame(() => { void instance.fitView({ padding: .18 }) })
+    return () => window.cancelAnimationFrame(frame)
+  }, [instance, nodes.length])
   const edges = useMemo(() => content.transitions.map((edge, index) => ({
     id: `edge-${index}-${edge.fromStepId}-${edge.toStepId}`,
     source: edge.fromStepId,

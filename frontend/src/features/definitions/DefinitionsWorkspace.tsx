@@ -137,6 +137,7 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
     if (DEFINITION_TYPES.includes(requestedType as DefinitionType) && requestedType !== 'REUSABLE_MAPPING') {
       setCreateDefinitionType(requestedType as DefinitionType)
       setCreateDefinitionFolderUuid(searchParams.get('folder') || null)
+      setSelectedUuid(null)
       setShowCreate(true)
     }
     const nextParams = new URLSearchParams(searchParams)
@@ -362,6 +363,9 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
 
   function applyDefinitionSelection(uuid: string) {
     definitionRequest.current += 1
+    setShowCreate(false)
+    setCreateDefinitionType(null)
+    setCreateDefinitionFolderUuid(null)
     setSelectedUuid(uuid)
     setTab('draft')
     void navigate(`/project/objects/definitions/${encodeURIComponent(uuid)}`, { replace: true })
@@ -409,7 +413,37 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
               ) : null}
             </div>
           )}
-          {!selectedDefinition ? (
+          {showCreate && canWrite ? (
+            <CreateDefinitionEditor
+              projectUuid={projectUuid}
+              folders={folders}
+              types={types.filter((type) => type.code !== 'REUSABLE_MAPPING')}
+              initialType={createDefinitionType}
+              initialFolderUuid={createDefinitionFolderUuid}
+              creating={creating}
+              close={() => { setShowCreate(false); setCreateDefinitionType(null); setCreateDefinitionFolderUuid(null) }}
+              onCreate={async (input, initialContent) => {
+                setCreating(true)
+                setStatus(null)
+                try {
+                  const created = await definitionsApi.createDefinition(projectUuid, input)
+                  await definitionsApi.saveDraft(projectUuid, created.uuid, 0, input.type === 'PROCEDURE' ? 2 : 1, initialContent)
+                  setDefinitions((current) => [created, ...current])
+                  setSelectedUuid(created.uuid)
+                  setShowCreate(false)
+                  setCreateDefinitionType(null)
+                  setCreateDefinitionFolderUuid(null)
+                  setTab('draft')
+                  notifyProjectTreeChanged()
+                  navigate(`/project/objects/definitions/${encodeURIComponent(created.uuid)}`, { replace: true })
+                } catch (error) {
+                  setStatus({ tone: 'error', text: errorMessage(error, t('requestError')) })
+                } finally {
+                  setCreating(false)
+                }
+              }}
+            />
+          ) : !selectedDefinition ? (
             <div className="definition-empty-workbench">
               <Layers3 aria-hidden="true" />
               <h2>{t('selectDefinition')}</h2>
@@ -459,7 +493,7 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
                   <fieldset className="definition-readonly-gate" disabled={!canWrite}>{selectedDefinition.type === 'MAPPING' && isMappingContent(content) ? (
                     <MappingGrid projectUuid={projectUuid} value={content} onChange={updateContent} />
                   ) : selectedDefinition.type === 'PROCEDURE' && isProcedureContent(content) ? (
-                    <ProcedureEditor projectUuid={projectUuid} value={content} onChange={updateContent} limits={capabilities?.procedure} />
+                    <ProcedureEditor projectUuid={projectUuid} definition={selectedDefinition} value={content} onChange={updateContent} limits={capabilities?.procedure} />
                   ) : selectedDefinition.type === 'PACKAGE' ? (
                     <PackageEditor projectUuid={projectUuid} definitionUuid={selectedDefinition.uuid} value={content} onChange={updateContent} onOpenDefinition={(uuid) => navigateFromExplorer(`/project/objects/definitions/${encodeURIComponent(uuid)}`)} />
                   ) : !['MAPPING', 'PROCEDURE', 'REUSABLE_MAPPING'].includes(selectedDefinition.type) ? (
@@ -508,35 +542,6 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
         </section>
       </div>
 
-      {showCreate && canWrite && (
-        <CreateDefinitionDialog
-          projectUuid={projectUuid}
-          folders={folders}
-          types={types.filter((type) => type.code !== 'REUSABLE_MAPPING')}
-          initialType={createDefinitionType}
-          initialFolderUuid={createDefinitionFolderUuid}
-          creating={creating}
-          close={() => { setShowCreate(false); setCreateDefinitionType(null); setCreateDefinitionFolderUuid(null) }}
-          onCreate={async (input) => {
-            setCreating(true)
-            try {
-              const created = await definitionsApi.createDefinition(projectUuid, input)
-              setDefinitions((current) => [created, ...current])
-              setSelectedUuid(created.uuid)
-              navigate(`/project/objects/definitions/${encodeURIComponent(created.uuid)}`, { replace: true })
-              notifyProjectTreeChanged()
-              setShowCreate(false)
-              setCreateDefinitionType(null)
-              setCreateDefinitionFolderUuid(null)
-              setTab('draft')
-            } catch (error) {
-              setStatus({ tone: 'error', text: errorMessage(error, t('requestError')) })
-            } finally {
-              setCreating(false)
-            }
-          }}
-        />
-      )}
       {folderCreateContext && canWrite && (
         <CreateFolderDialog
           parentUuid={folderCreateContext.parentUuid}
@@ -920,7 +925,7 @@ function BindingsPanel(props: BindingsPanelProps) {
   )
 }
 
-interface CreateDefinitionDialogProps {
+interface CreateDefinitionEditorProps {
   projectUuid: string
   folders: Folder[]
   types: DefinitionTypeDescriptor[]
@@ -928,31 +933,40 @@ interface CreateDefinitionDialogProps {
   initialFolderUuid: string | null
   creating: boolean
   close: () => void
-  onCreate: (input: NewDefinitionInput) => Promise<void>
+  onCreate: (input: NewDefinitionInput, content: unknown) => Promise<void>
 }
 
-function CreateDefinitionDialog({ folders, types, initialType, initialFolderUuid, creating, close, onCreate }: CreateDefinitionDialogProps) {
+function CreateDefinitionEditor({ projectUuid, folders, types, initialType, initialFolderUuid, creating, close, onCreate }: CreateDefinitionEditorProps) {
   const { t } = useDefinitionsI18n()
   const [input, setInput] = useState<NewDefinitionInput>({ folderUuid: initialFolderUuid, type: initialType ?? 'MAPPING', code: '', name: '', description: '' })
+  const [initialContent, setInitialContent] = useState<unknown>(() => createDefaultContent(initialType ?? 'MAPPING'))
   const descriptor = types.find((type) => type.code === input.type)
   const fixedComponentType = initialType !== null && !descriptor?.folderRequired
   async function submit(event: FormEvent) {
     event.preventDefault()
     if (descriptor?.folderRequired && !input.folderUuid) return
-    await onCreate(input)
+    await onCreate(input, initialContent)
   }
   return (
-    <Dialog open title={initialType ? t('newDefinitionNamed', { name: t(definitionTypeKey[initialType]) }) : t('newDefinition')} eyebrow={t('designControl')} closeLabel={t('close')} onClose={close} busy={creating} className={`definition-dialog ${fixedComponentType ? 'definition-dialog--compact' : ''}`} backdropClassName="definition-dialog-backdrop">
-        <form onSubmit={submit}>
+    <section className="definition-new-editor" aria-label={initialType ? t('newDefinitionNamed', { name: t(definitionTypeKey[initialType]) }) : t('newDefinition')}>
+      <form onSubmit={submit}>
+        <header className="definition-document-header definition-new-editor-header"><div><div className="definition-document-meta"><span className="definition-type-chip">{t(definitionTypeKey[input.type])}</span><span>{t('newDefinition')}</span></div><h2>{input.name || t('newDefinitionNamed', { name: t(definitionTypeKey[input.type]) })}</h2></div><div className="definition-editor-actions"><button className="definition-button definition-button--quiet" type="button" onClick={close}>{t('cancel')}</button><button className="definition-button definition-button--primary" type="submit" disabled={creating || !input.code || !input.name || Boolean(descriptor?.folderRequired && !input.folderUuid)}>{creating ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Save size={16} aria-hidden="true" />}{creating ? t('creating') : t('saveDraft')}</button></div></header>
+        <fieldset disabled={creating} className="definition-new-editor-fields">
           <div className="definition-form-grid">
-            {!initialType && <label><span>{t('type')}</span><select value={input.type} onChange={(event) => setInput({ ...input, type: event.target.value as DefinitionType, folderUuid: null })}>{types.map((type) => <option key={type.code} value={type.code}>{t(definitionTypeKey[type.code])}</option>)}</select></label>}
+            {!initialType && <label><span>{t('type')}</span><select value={input.type} onChange={(event) => { const type = event.target.value as DefinitionType; setInput({ ...input, type, folderUuid: null }); setInitialContent(createDefaultContent(type)) }}>{types.map((type) => <option key={type.code} value={type.code}>{t(definitionTypeKey[type.code])}</option>)}</select></label>}
             {!fixedComponentType && <label><span>{t('folder')}</span><select required={descriptor?.folderRequired} value={input.folderUuid ?? ''} onChange={(event) => setInput({ ...input, folderUuid: event.target.value || null })}><option value="">{t('noFolder')}</option>{folders.filter((folder) => folder.status === 'AKTIF').map((folder) => <option key={folder.uuid} value={folder.uuid}>{folder.name} · {folder.code}</option>)}</select>{descriptor?.folderRequired && !input.folderUuid && <small>{t('folderRequired')}</small>}</label>}
             <label><span>{t('code')}</span><input autoFocus required pattern="[A-Z][A-Z0-9_]{0,99}" placeholder="CUSTOMER_LOAD" value={input.code} onChange={(event) => setInput({ ...input, code: event.target.value.toLocaleUpperCase('en-US').replace(/[^A-Z0-9_]/g, '') })} /></label>
             <label><span>{t('name')}</span><input required value={input.name} onChange={(event) => setInput({ ...input, name: event.target.value })} /></label>
             <label className="definition-form-grid--wide"><span>{t('description')}</span><textarea rows={3} value={input.description} onChange={(event) => setInput({ ...input, description: event.target.value })} /></label>
           </div>
-          <footer><button className="definition-button definition-button--quiet" type="button" onClick={close}>{t('cancel')}</button><button className="definition-button definition-button--primary" type="submit" disabled={creating || (descriptor?.folderRequired && !input.folderUuid)}>{creating ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}{creating ? t('creating') : t('createDefinition')}</button></footer>
-        </form>
-    </Dialog>
+        </fieldset>
+        <fieldset disabled={creating} className="definition-readonly-gate definition-new-editor-content">
+          {input.type === 'MAPPING' && isMappingContent(initialContent) ? <MappingGrid projectUuid={projectUuid} value={initialContent} onChange={setInitialContent} />
+            : input.type === 'PROCEDURE' && isProcedureContent(initialContent) ? <ProcedureEditor projectUuid={projectUuid} definition={{ code: input.code, name: input.name, description: input.description }} value={initialContent} onChange={setInitialContent} />
+              : input.type === 'PACKAGE' ? <PackageEditor projectUuid={projectUuid} definitionUuid="__new__" value={initialContent} onChange={setInitialContent} />
+                : <StructuredDraftEditor type={input.type} value={initialContent} onChange={setInitialContent} />}
+        </fieldset>
+      </form>
+    </section>
   )
 }

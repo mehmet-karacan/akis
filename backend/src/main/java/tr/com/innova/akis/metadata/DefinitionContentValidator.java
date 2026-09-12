@@ -38,7 +38,12 @@ public final class DefinitionContentValidator {
             "READ_ONLY", "DML", "DDL", "DESTRUCTIVE");
     private static final Set<String> PROCEDURE_ERROR_POLICIES = Set.of("STOP", "CONTINUE");
     private static final Set<String> PROCEDURE_LOG_COUNTERS = Set.of(
-            "NONE", "INSERT", "UPDATE", "DELETE", "STATISTICS", "ANALYSIS");
+            "NONE", "INSERT", "UPDATE", "DELETE", "ERRORS", "STATISTICS", "ANALYSIS");
+    private static final Set<String> PROCEDURE_TRANSACTION_MODES = Set.of(
+            "AUTOCOMMIT", "TRANSACTION");
+    private static final Set<String> PROCEDURE_TRANSACTION_ISOLATIONS = Set.of(
+            "DRIVER_DEFAULT", "READ_COMMITTED", "SERIALIZABLE");
+    private static final Set<String> PROCEDURE_COMMIT_MODES = Set.of("NO_COMMIT", "COMMIT");
     private static final Set<String> DATASET_ROLES = Set.of("SOURCE", "TARGET");
     private static final Set<String> V1_WRITE_STRATEGIES = Set.of(
             "APPEND", "STAGED_REPLACE", "MERGE", "TRUNCATE_LOAD");
@@ -235,9 +240,30 @@ public final class DefinitionContentValidator {
                     task, "connectionRole", PROCEDURE_CONNECTION_ROLES, path);
             String risk = requireAllowed(task, "riskClass", PROCEDURE_RISK_CLASSES, path);
             String command = requireText(task, "command", path);
+            validateCommonSqlSyntax(path, command);
             JsonNode logCounter = task.get("logCounter");
             if (logCounter != null && !logCounter.isNull()) {
-                requireAllowed(task, "logCounter", PROCEDURE_LOG_COUNTERS, path);
+                String counter = requireAllowed(task, "logCounter", PROCEDURE_LOG_COUNTERS, path);
+                validateLogCounter(path, type, connectionRole, command, counter);
+            }
+            String transactionMode = optionalAllowed(
+                    task, "transactionMode", PROCEDURE_TRANSACTION_MODES, path, "AUTOCOMMIT");
+            optionalAllowed(task, "transactionIsolation",
+                    PROCEDURE_TRANSACTION_ISOLATIONS, path, "DRIVER_DEFAULT");
+            String commitMode = optionalAllowed(
+                    task, "commitMode", PROCEDURE_COMMIT_MODES, path, "COMMIT");
+            JsonNode transactionChannel = task.get("transactionChannel");
+            if ("TRANSACTION".equals(transactionMode)) {
+                if (!"TARGET".equals(connectionRole) || !"DML".equals(risk)) {
+                    fail(path + " yalnız hedef DML komutunda yönetilen transaction kullanabilir.");
+                }
+                validateRequiredInteger(task, "transactionChannel", path, 0, 9);
+            }
+            else if (transactionChannel != null && !transactionChannel.isNull()) {
+                fail(path + ".transactionChannel Autocommit için tanımlanamaz.");
+            }
+            if ("AUTOCOMMIT".equals(transactionMode) && !"COMMIT".equals(commitMode)) {
+                fail(path + ".commitMode Autocommit için COMMIT olmalıdır.");
             }
             validateCommandRisk(path, command, risk);
             if (("DDL".equals(risk) || "DESTRUCTIVE".equals(risk))
@@ -355,6 +381,72 @@ public final class DefinitionContentValidator {
         }
         if (DML.matcher(trimmed).find() && "READ_ONLY".equals(risk)) {
             fail(path + " veri değiştiren komutu READ_ONLY olarak işaretleyemez.");
+        }
+    }
+
+    private void validateLogCounter(
+            String path, String type, String connectionRole, String command, String counter) {
+        if (Set.of("NONE", "ANALYSIS", "STATISTICS").contains(counter)) return;
+        if (!"SQL".equals(type) || !"TARGET".equals(connectionRole)) {
+            fail(path + ".logCounter yalnız hedef SQL komutlarında kullanılabilir.");
+        }
+        String keyword = stripLeadingSqlComments(command).stripLeading()
+                .split("\\s+", 2)[0].toUpperCase(Locale.ROOT);
+        boolean matches = switch (counter) {
+            case "INSERT" -> "INSERT".equals(keyword);
+            case "UPDATE" -> "UPDATE".equals(keyword);
+            case "DELETE" -> "DELETE".equals(keyword);
+            case "ERRORS" -> Set.of("INSERT", "UPDATE").contains(keyword);
+            default -> true;
+        };
+        if (!matches) fail(path + ".logCounter SQL komut türüyle eşleşmiyor.");
+    }
+
+    private void validateCommonSqlSyntax(String path, String command) {
+        StringBuilder executable = new StringBuilder(command.length());
+        int parentheses = 0;
+        boolean singleQuote = false;
+        boolean doubleQuote = false;
+        boolean lineComment = false;
+        boolean blockComment = false;
+        for (int index = 0; index < command.length(); index++) {
+            char current = command.charAt(index);
+            char next = index + 1 < command.length() ? command.charAt(index + 1) : '\0';
+            if (lineComment) {
+                if (current == '\n') { lineComment = false; executable.append('\n'); }
+                else executable.append(' ');
+                continue;
+            }
+            if (blockComment) {
+                executable.append(current == '\n' ? '\n' : ' ');
+                if (current == '*' && next == '/') { executable.append(' '); blockComment = false; index++; }
+                continue;
+            }
+            if (singleQuote || doubleQuote) {
+                executable.append(current == '\n' ? '\n' : ' ');
+                char quote = singleQuote ? '\'' : '"';
+                if (current == quote && next == quote) { executable.append(' '); index++; }
+                else if (current == quote) { singleQuote = false; doubleQuote = false; }
+                continue;
+            }
+            if (current == '-' && next == '-') { executable.append("  "); lineComment = true; index++; continue; }
+            if (current == '/' && next == '*') { executable.append("  "); blockComment = true; index++; continue; }
+            if (current == '\'' || current == '"') {
+                executable.append('X');
+                singleQuote = current == '\'';
+                doubleQuote = current == '"';
+                continue;
+            }
+            executable.append(current);
+            if (current == '(') parentheses++;
+            else if (current == ')' && --parentheses < 0) fail(path + ".command kapanış parantezi eşleşmiyor.");
+        }
+        if (singleQuote || doubleQuote) fail(path + ".command kapatılmamış tırnak içeriyor.");
+        if (blockComment) fail(path + ".command kapatılmamış blok yorumu içeriyor.");
+        if (parentheses != 0) fail(path + ".command parantezleri dengeli olmalıdır.");
+        String normalized = executable.toString();
+        if (normalized.matches("(?s).*(,\\s*[,)]|\\(\\s*,).*$")) {
+            fail(path + ".command geçersiz virgül kullanımı içeriyor.");
         }
     }
 
@@ -578,6 +670,19 @@ public final class DefinitionContentValidator {
             fail(path(parentPath, field) + " alanı desteklenmeyen değer içeriyor.");
         }
         return value;
+    }
+
+    private String optionalAllowed(
+            JsonNode node,
+            String field,
+            Set<String> allowed,
+            String parentPath,
+            String defaultValue) {
+        JsonNode value = node.get(field);
+        if (value == null || value.isNull()) {
+            return defaultValue;
+        }
+        return requireAllowed(node, field, allowed, parentPath);
     }
 
     private String path(String parent, String field) {

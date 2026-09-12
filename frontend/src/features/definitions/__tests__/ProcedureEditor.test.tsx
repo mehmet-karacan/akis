@@ -12,6 +12,10 @@ function Harness() {
   return <ProcedureEditor projectUuid="project" value={content} onChange={setContent} />
 }
 
+function openTasks() {
+  fireEvent.click(screen.getByRole('tab', { name: /Tasks/ }))
+}
+
 describe('ProcedureEditor', () => {
   beforeEach(async () => {
     await i18n.changeLanguage('en')
@@ -19,6 +23,7 @@ describe('ProcedureEditor', () => {
 
   it('adds, removes, and reorders an unrestricted ordered step list', () => {
     const { container } = render(<Harness />)
+    openTasks()
 
     expect(container.querySelectorAll('.procedure-task')).toHaveLength(1)
     fireEvent.click(screen.getByRole('button', { name: 'Add Step' }))
@@ -32,6 +37,7 @@ describe('ProcedureEditor', () => {
 
   it('keeps internal step IDs out of the form and edits the conceptual step name', async () => {
     render(<Harness />)
+    openTasks()
     expect(screen.queryByLabelText('Step ID')).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Step name'), { target: { value: 'Load Hakedis' } })
     await waitFor(() => expect(screen.getByDisplayValue('Load Hakedis')).toBeInTheDocument())
@@ -39,6 +45,7 @@ describe('ProcedureEditor', () => {
 
   it('moves an automatically paired row producer and consumer together', () => {
     const { container } = render(<Harness />)
+    openTasks()
     fireEvent.click(screen.getByRole('button', { name: 'Add Step' }))
     fireEvent.click(screen.getByRole('button', { name: 'Move Down: Insert target rows' }))
     expect(container.querySelectorAll('.procedure-task')[0]).toHaveTextContent('Target command')
@@ -47,6 +54,7 @@ describe('ProcedureEditor', () => {
 
   it('keeps row transfer and timeout engine details out of the step form', () => {
     render(<Harness />)
+    openTasks()
     expect(screen.queryByLabelText('Expose SELECT rows to a later step')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Maximum rows')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Consume rows from an earlier SELECT')).not.toBeInTheDocument()
@@ -81,13 +89,14 @@ describe('ProcedureEditor', () => {
     expect(inferProcedureLogCounter('insert into T values (1)')).toBe('INSERT')
     expect(inferProcedureLogCounter('update T set C = 1')).toBe('UPDATE')
     expect(inferProcedureLogCounter('delete from T')).toBe('DELETE')
-    expect(inferProcedureLogCounter('truncate table T')).toBe('DELETE')
-    expect(inferProcedureLogCounter("begin dbms_stats.gather_table_stats('A', 'B'); end;")).toBe('STATISTICS')
-    expect(inferProcedureLogCounter('select * from T')).toBe('ANALYSIS')
+    expect(inferProcedureLogCounter('truncate table T')).toBe('NONE')
+    expect(inferProcedureLogCounter("begin dbms_stats.gather_table_stats('A', 'B'); end;")).toBe('NONE')
+    expect(inferProcedureLogCounter('select * from T')).toBe('NONE')
   })
 
   it('renders added steps as full-width master rows above the selected detail', () => {
     const { container } = render(<Harness />)
+    openTasks()
     fireEvent.click(screen.getByRole('button', { name: 'Add Step' }))
     const rows = container.querySelectorAll('.procedure-task-list > .procedure-task')
     expect(rows).toHaveLength(2)
