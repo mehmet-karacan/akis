@@ -15,6 +15,7 @@ import { definitionsApi } from '../features/definitions/api'
 import type { Definition, Folder } from '../features/definitions/types'
 import { ProjectSidebarTree } from './ProjectSidebarTree'
 import { ProjectSwitcher } from './ProjectSwitcher'
+import { ConnectionsSubnavigation } from './ConnectionsSubnavigation'
 import { resolveWorkspace, WorkspaceNavigation } from './WorkspaceNavigation'
 
 export function AppShell() {
@@ -118,10 +119,7 @@ export function AppShell() {
                 <p className="nav-label">{t('nav.operationsContext')}</p>
                 <span>{t('nav.runs')}</span>
               </div> : null}
-              {!collapsed && activeWorkspace === 'connections' ? <div className="workspace-subnavigation workspace-summary">
-                <p className="nav-label">{t('nav.connectionsContext')}</p>
-                <span>{t('nav.connectionCatalog')}</span>
-              </div> : null}
+              {!collapsed && activeWorkspace === 'connections' ? <ConnectionsSubnavigation projectUuid={projectUuid} hasPendingChanges={Boolean(pendingChanges)} onNavigate={requestNavigation} /> : null}
             </div>
           )}
         </nav>

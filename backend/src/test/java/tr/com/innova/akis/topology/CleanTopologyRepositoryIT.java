@@ -2,6 +2,7 @@ package tr.com.innova.akis.topology;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.UUID;
 
@@ -70,7 +71,8 @@ class CleanTopologyRepositoryIT {
         assertEquals("ETL", stored.policy().get("purpose").stringValue());
         assertEquals("DISABLED", stored.tlsMode());
         assertEquals("AKTIF", repository.listConnections(projectId).getFirst().status());
-        assertEquals(binding.uuid(), repository.listSchemaBindings(projectId).getFirst().uuid());
+        assertEquals(binding.uuid(), repository.listSchemaBindings(projectId).stream()
+                .filter(item -> item.uuid().equals(binding.uuid())).findFirst().orElseThrow().uuid());
         assertTrue(repository.findPhysicalSchema(projectId, physical.uuid()).isPresent());
         var catalog = repository.listConnectionCatalog(projectId).stream()
                 .filter(item -> item.connection().uuid().equals(connection.uuid()))
@@ -79,6 +81,17 @@ class CleanTopologyRepositoryIT {
         assertEquals(1, catalog.latestVersionNumber());
         assertEquals(1, catalog.physicalSchemaCount());
         assertEquals(1, catalog.logicalSchemaCount());
+
+        var nextVersion = repository.createConnectionVersion(
+                projectId, connection.id(), UUID.randomUUID(), 2, "JDBC",
+                "oracle.jdbc.OracleDriver", "db-next.example", "ORCL", null, null,
+                null, "DISABLED", 1521, 2, policy);
+        var updatedBinding = service.updateSchemaBinding(
+                projectUuid, binding.uuid(), logical.uuid(), environment.uuid(),
+                physical.uuid(), nextVersion.uuid(), binding.version());
+        assertEquals(binding.uuid(), updatedBinding.uuid());
+        assertEquals(nextVersion.uuid(), updatedBinding.connectionVersionUuid());
+        assertEquals(2, updatedBinding.version());
     }
 
     @Test
@@ -109,7 +122,7 @@ class CleanTopologyRepositoryIT {
     }
 
     @Test
-    void updatesAndArchivesConnectionWithoutDeletingReusableLogicalSchema() {
+    void blocksArchivingAConnectionWithLogicalDependencies() {
         var connection = repository.createConnection(
                 projectId, UUID.randomUUID(), "ARCHIVE_ME", "ORACLE", "Archive Me", null);
         var version = repository.createConnectionVersion(
@@ -131,14 +144,18 @@ class CleanTopologyRepositoryIT {
         assertEquals("ARCHIVE_RENAMED", updated.code());
         assertEquals(2, updated.version());
 
-        service.archiveConnection(projectUuid, connection.uuid(), updated.version());
-
-        assertTrue(repository.findConnection(projectId, connection.uuid()).isEmpty());
-        assertTrue(repository.findPhysicalSchema(projectId, physical.uuid()).isEmpty());
+        var conflict = assertThrows(tr.com.innova.akis.metadata.ApiException.class,
+                () -> service.archiveConnection(projectUuid, connection.uuid(), updated.version()));
+        assertEquals("CONNECTION_IN_USE", conflict.code());
+        assertTrue(repository.findConnection(projectId, connection.uuid()).isPresent());
+        assertTrue(repository.findPhysicalSchema(projectId, physical.uuid()).isPresent());
         assertTrue(repository.findLogicalSchema(projectId, logical.uuid()).isPresent());
-        assertTrue(repository.findSchemaBinding(projectId,
-                jdbc.sql("select uuid from akis.sema_eslemesi where fiziksel_sema_id = :id")
-                        .param("id", physical.id()).query(UUID.class).single()).isEmpty());
+        assertEquals(logical.name(), service.listConnectionDependencies(projectUuid, connection.uuid()).getFirst().name());
+
+        var unused = repository.createConnection(
+                projectId, UUID.randomUUID(), "ARCHIVE_UNUSED", "ORACLE", "Archive Unused", null);
+        service.archiveConnection(projectUuid, unused.uuid(), unused.version());
+        assertTrue(repository.findConnection(projectId, unused.uuid()).isEmpty());
     }
 
     private static String required(String name) {

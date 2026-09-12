@@ -14,6 +14,7 @@ describe('WorkspaceNavigation', () => {
 
   it('maps legacy routes into the canonical workspace', () => {
     expect(resolveWorkspace('/projects/p-1/topology')).toBe('connections')
+    expect(resolveWorkspace('/projects/p-1/schema-bindings')).toBe('connections')
     expect(resolveWorkspace('/projects/p-1/runs')).toBe('operations')
     expect(resolveWorkspace('/projects/p-1/models')).toBe('development')
   })

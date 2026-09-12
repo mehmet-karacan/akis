@@ -16,6 +16,7 @@ import tr.com.innova.akis.metadata.ApiException;
 import tr.com.innova.akis.projectbundle.SecretValueSanitizer;
 import tr.com.innova.akis.topology.TopologyModels.ConnectionRow;
 import tr.com.innova.akis.topology.TopologyModels.ConnectionCatalogRow;
+import tr.com.innova.akis.topology.TopologyModels.ConnectionDependencyRow;
 import tr.com.innova.akis.topology.TopologyModels.ConnectionVersionRow;
 import tr.com.innova.akis.topology.TopologyModels.EnvironmentRow;
 import tr.com.innova.akis.topology.TopologyModels.LogicalSchemaRow;
@@ -137,7 +138,18 @@ public class TopologyService {
                     HttpStatus.CONFLICT, "CONNECTION_VERSION_CONFLICT",
                     "Bağlantı başka bir kullanıcı tarafından değiştirildi. Sayfayı yenileyip tekrar deneyin.");
         }
+        if (!repository.listConnectionDependencies(project.id(), connection.id()).isEmpty()) {
+            throw new ApiException(
+                    HttpStatus.CONFLICT, "CONNECTION_IN_USE",
+                    "Bağlantı etkin mantıksal şema eşlemelerinde kullanıldığı için silinemez.");
+        }
         repository.archiveConnection(project.id(), connection.id());
+    }
+
+    List<ConnectionDependencyRow> listConnectionDependencies(UUID projectUuid, UUID connectionUuid) {
+        ProjectRef project = project(projectUuid);
+        ConnectionRow connection = connection(project, connectionUuid);
+        return repository.listConnectionDependencies(project.id(), connection.id());
     }
 
     @Transactional
@@ -377,6 +389,29 @@ public class TopologyService {
     List<SchemaBindingRow> listSchemaBindings(UUID projectUuid) {
         ProjectRef project = project(projectUuid);
         return repository.listSchemaBindings(project.id());
+    }
+
+    SchemaBindingRow updateSchemaBinding(
+            UUID projectUuid, UUID bindingUuid, UUID logicalSchemaUuid,
+            UUID environmentUuid, UUID physicalSchemaUuid,
+            UUID connectionVersionUuid, long expectedVersion) {
+        ProjectRef project = project(projectUuid);
+        LogicalSchemaRow logical = repository.findLogicalSchema(project.id(), logicalSchemaUuid)
+                .orElseThrow(() -> notFound("Mantıksal şema bulunamadı."));
+        EnvironmentRow environment = repository.findEnvironment(project.id(), environmentUuid)
+                .orElseThrow(() -> notFound("Ortam bulunamadı."));
+        PhysicalSchemaRow physical = repository.findPhysicalSchema(project.id(), physicalSchemaUuid)
+                .orElseThrow(() -> notFound("Fiziksel şema bulunamadı."));
+        ConnectionVersionRow version = repository.findConnectionVersion(project.id(), connectionVersionUuid)
+                .orElseThrow(() -> notFound("Bağlantı sürümü bulunamadı."));
+        if (physical.connectionId() != version.connectionId() || "JNDI".equals(version.mode())) {
+            throw validation("Çalıştırılabilir bağlantı sürümü fiziksel şema ile aynı bağlantıya ait olmalıdır.");
+        }
+        return repository.updateSchemaBinding(
+                        project.id(), bindingUuid, logical.id(), environment.id(), physical.id(), version.id(), expectedVersion)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.CONFLICT, "SCHEMA_BINDING_VERSION_CONFLICT",
+                        "Şema eşlemesi değişti. Yenileyip tekrar deneyin."));
     }
 
     private ProjectRef project(UUID projectUuid) {

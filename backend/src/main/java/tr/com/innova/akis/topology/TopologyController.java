@@ -24,6 +24,7 @@ import tools.jackson.databind.JsonNode;
 
 import tr.com.innova.akis.topology.TopologyModels.ConnectionRow;
 import tr.com.innova.akis.topology.TopologyModels.ConnectionCatalogRow;
+import tr.com.innova.akis.topology.TopologyModels.ConnectionDependencyRow;
 import tr.com.innova.akis.topology.TopologyModels.ConnectionVersionRow;
 import tr.com.innova.akis.topology.TopologyModels.EnvironmentRow;
 import tr.com.innova.akis.topology.TopologyModels.LogicalSchemaRow;
@@ -77,6 +78,14 @@ final class TopologyController {
             @PathVariable UUID connectionUuid) {
         authorization.requireProjectPermission(projectUuid, TOPOLOGY_READ);
         return ConnectionView.from(service.connection(projectUuid, connectionUuid));
+    }
+
+    @GetMapping("/connections/{connectionUuid}/dependencies")
+    List<ConnectionDependencyView> connectionDependencies(
+            @PathVariable UUID projectUuid, @PathVariable UUID connectionUuid) {
+        authorization.requireProjectPermission(projectUuid, TOPOLOGY_READ);
+        return service.listConnectionDependencies(projectUuid, connectionUuid).stream()
+                .map(ConnectionDependencyView::from).toList();
     }
 
     @PatchMapping("/connections/{connectionUuid}")
@@ -203,6 +212,17 @@ final class TopologyController {
         return service.listSchemaBindings(projectUuid);
     }
 
+    @PatchMapping("/schema-bindings/{bindingUuid}")
+    SchemaBindingRow updateSchemaBinding(
+            @PathVariable UUID projectUuid,
+            @PathVariable UUID bindingUuid,
+            @Valid @RequestBody UpdateSchemaBindingRequest request) {
+        authorization.requireProjectPermission(projectUuid, TOPOLOGY_WRITE);
+        return service.updateSchemaBinding(
+                projectUuid, bindingUuid, request.logicalSchemaUuid(), request.environmentUuid(),
+                request.physicalSchemaUuid(), request.connectionVersionUuid(), request.expectedVersion());
+    }
+
     record CreateConnectionRequest(
             @NotBlank String code,
             @NotBlank String databaseType,
@@ -252,6 +272,18 @@ final class TopologyController {
             @NotNull UUID environmentUuid,
             @NotNull UUID physicalSchemaUuid,
             @NotNull UUID connectionVersionUuid) {
+    }
+
+    record UpdateSchemaBindingRequest(
+            @NotNull UUID logicalSchemaUuid, @NotNull UUID environmentUuid,
+            @NotNull UUID physicalSchemaUuid, @NotNull UUID connectionVersionUuid,
+            @Min(1) long expectedVersion) {
+    }
+
+    record ConnectionDependencyView(UUID uuid, String type, String name) {
+        static ConnectionDependencyView from(ConnectionDependencyRow row) {
+            return new ConnectionDependencyView(row.uuid(), row.type(), row.name());
+        }
     }
 
     record ConnectionView(

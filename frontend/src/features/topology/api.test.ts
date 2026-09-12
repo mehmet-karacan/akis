@@ -116,6 +116,18 @@ describe('topology API contracts', () => {
     expect(JSON.parse(String(activateInit.body))).toEqual({ testUuid: 'test-uuid', expectedStateVersion: 3 })
   })
 
+  it('updates a schema mapping with optimistic concurrency', async () => {
+    const fetchMock = mockResponse({ uuid: 'binding', version: 2 })
+    await topologyApi.updateBinding('project', 'binding/id', {
+      logicalSchemaUuid: 'logical', environmentUuid: 'environment',
+      physicalSchemaUuid: 'physical', connectionVersionUuid: 'version', expectedVersion: 1,
+    })
+    const [path, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(path).toBe('/api/v1/projects/project/schema-bindings/binding%2Fid')
+    expect(init.method).toBe('PATCH')
+    expect(JSON.parse(String(init.body))).toMatchObject({ connectionVersionUuid: 'version', expectedVersion: 1 })
+  })
+
   it('sends discovery filters to the physical-schema discovery endpoint', async () => {
     const fetchMock = mockResponse({ tables: [] })
 

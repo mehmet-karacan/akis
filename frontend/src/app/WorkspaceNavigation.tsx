@@ -12,7 +12,7 @@ const workspaces = [
 
 export function resolveWorkspace(pathname: string): WorkspaceId {
   if (pathname.includes('/operations') || pathname.includes('/runs') || pathname.includes('/publications')) return 'operations'
-  if (pathname.includes('/connections') || pathname.includes('/topology')) return 'connections'
+  if (pathname.includes('/connections') || pathname.includes('/topology') || pathname.includes('/logical-schemas') || pathname.includes('/environments') || pathname.includes('/schema-bindings')) return 'connections'
   return 'development'
 }
 

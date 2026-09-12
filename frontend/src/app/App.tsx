@@ -11,6 +11,12 @@ const ConnectionsPage = lazy(() => import('../features/connections').then((modul
 const ConnectionCreatePage = lazy(() => import('../features/connections').then((module) => ({ default: module.ConnectionCreatePage })))
 const ConnectionDetailPage = lazy(() => import('../features/connections').then((module) => ({ default: module.ConnectionDetailPage })))
 const ConnectionRevisionPage = lazy(() => import('../features/connections').then((module) => ({ default: module.ConnectionRevisionPage })))
+const PhysicalSchemasPage = lazy(() => import('../features/connections').then((module) => ({ default: module.PhysicalSchemasPage })))
+const LogicalSchemasPage = lazy(() => import('../features/schemas').then((module) => ({ default: module.LogicalSchemasPage })))
+const SchemaBindingsPage = lazy(() => import('../features/schemas').then((module) => ({ default: module.SchemaBindingsPage })))
+const LogicalSchemaDetailPage = lazy(() => import('../features/schemas').then((module) => ({ default: module.LogicalSchemaDetailPage })))
+const EnvironmentDetailPage = lazy(() => import('../features/schemas').then((module) => ({ default: module.EnvironmentDetailPage })))
+const EnvironmentsPage = lazy(() => import('../features/environments').then((module) => ({ default: module.EnvironmentsPage })))
 const RunDetailPage = lazy(() => import('../features/execution').then((module) => ({ default: module.RunDetailPage })))
 const RunsPage = lazy(() => import('../features/execution').then((module) => ({ default: module.RunsPage })))
 const IdentityUsersPage = lazy(() => import('../features/operations').then((module) => ({ default: module.IdentityUsersPage })))
@@ -66,6 +72,12 @@ export function App() {
         <Route path="/projects/:projectUuid/connections/new" element={<ConnectionCreatePage />} />
         <Route path="/projects/:projectUuid/connections/:connectionUuid" element={<ConnectionDetailPage />} />
         <Route path="/projects/:projectUuid/connections/:connectionUuid/revisions/:revisionUuid" element={<ConnectionRevisionPage />} />
+        <Route path="/projects/:projectUuid/connections/:connectionUuid/physical-schemas" element={<PhysicalSchemasPage />} />
+        <Route path="/projects/:projectUuid/logical-schemas" element={<LogicalSchemasPage />} />
+        <Route path="/projects/:projectUuid/logical-schemas/:logicalSchemaUuid" element={<LogicalSchemaDetailPage />} />
+        <Route path="/projects/:projectUuid/environments" element={<EnvironmentsPage />} />
+        <Route path="/projects/:projectUuid/environments/:environmentUuid" element={<EnvironmentDetailPage />} />
+        <Route path="/projects/:projectUuid/schema-bindings" element={<SchemaBindingsPage />} />
         <Route path="/identity/users" element={<IdentityUsersPage />} />
       </Route>
       <Route path="*" element={<Navigate to={username ? '/projects' : '/login'} replace />} />

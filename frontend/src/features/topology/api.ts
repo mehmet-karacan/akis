@@ -44,6 +44,12 @@ export interface ConnectionCatalogProjection {
   logicalSchemaCount: number
 }
 
+export interface ConnectionDependency {
+  uuid: string
+  type: 'LOGICAL_SCHEMA' | string
+  name: string
+}
+
 export interface ConnectionExecutionPolicy {
   connectTimeoutMs: number
   readTimeoutMs: number
@@ -328,6 +334,7 @@ export const topologyApi = {
   listConnections: (projectUuid: string) => get<Connection[]>(`${base(projectUuid)}/connections`),
   getConnection: (projectUuid: string, connectionUuid: string) => get<Connection>(`${base(projectUuid)}/connections/${encodeURIComponent(connectionUuid)}`),
   listConnectionCatalog: (projectUuid: string) => get<ConnectionCatalogProjection[]>(`${base(projectUuid)}/connections/catalog`),
+  listConnectionDependencies: (projectUuid: string, connectionUuid: string) => get<ConnectionDependency[]>(`${base(projectUuid)}/connections/${encodeURIComponent(connectionUuid)}/dependencies`),
   createConnection: (projectUuid: string, body: JsonRecord) => post<Connection>(`${base(projectUuid)}/connections`, body),
   updateConnection: (projectUuid: string, connectionUuid: string, body: JsonRecord) =>
     patch<Connection>(`${base(projectUuid)}/connections/${encodeURIComponent(connectionUuid)}`, body),
@@ -359,6 +366,7 @@ export const topologyApi = {
   createEnvironment: (projectUuid: string, body: CreateEnvironmentRequest) => post<Environment>(`${base(projectUuid)}/environments`, body),
   listBindings: (projectUuid: string) => get<SchemaBinding[]>(`${base(projectUuid)}/schema-bindings`),
   createBinding: (projectUuid: string, body: JsonRecord) => post<SchemaBinding>(`${base(projectUuid)}/schema-bindings`, body),
+  updateBinding: (projectUuid: string, bindingUuid: string, body: JsonRecord) => patch<SchemaBinding>(`${base(projectUuid)}/schema-bindings/${encodeURIComponent(bindingUuid)}`, body),
   listModels: (projectUuid: string) => get<Model[]>(`${base(projectUuid)}/models`),
   createModel: (projectUuid: string, body: JsonRecord) => post<Model>(`${base(projectUuid)}/models`, body),
   listSubmodels: (projectUuid: string, modelUuid: string) => get<Submodel[]>(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}/submodels`),

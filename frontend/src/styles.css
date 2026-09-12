@@ -244,6 +244,11 @@ label { display: grid; gap: 7px; color: var(--ink-soft); font-size: .77rem; font
 .workspace-subnavigation { min-height: 0; flex: 1; display: flex; flex-direction: column; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.07); }
 .workspace-subnavigation > .nav-label { margin: 0 0 7px; }
 .workspace-summary { flex: 0 0 auto; padding-inline: 11px; color: #7f9296; font-size: .7rem; }
+.workspace-link-list { flex: 0 0 auto; gap: 2px; }
+.workspace-subnav-link { min-height: 34px; display: flex; align-items: center; gap: 9px; padding: 0 11px; color: #829397; border-radius: 7px; font-size: .72rem; font-weight: 600; }
+.workspace-subnav-link svg { width: 15px; height: 15px; }
+.workspace-subnav-link:hover { color: white; background: rgba(255,255,255,.045); }
+.workspace-subnav-link.active { color: white; background: var(--nav-soft); box-shadow: inset 2px 0 #54b9af; }
 .shell-content { min-width: 0; }
 .topbar { height: 56px; position: sticky; z-index: 10; top: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(12px); }
 .project-switcher { min-width: 195px; display: flex; align-items: center; gap: 10px; padding: 6px 9px; text-align: left; border: 0; border-radius: 7px; background: transparent; cursor: pointer; }

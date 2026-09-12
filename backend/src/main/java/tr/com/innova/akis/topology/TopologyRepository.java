@@ -13,6 +13,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import tr.com.innova.akis.topology.TopologyModels.ConnectionRow;
 import tr.com.innova.akis.topology.TopologyModels.ConnectionCatalogRow;
+import tr.com.innova.akis.topology.TopologyModels.ConnectionDependencyRow;
 import tr.com.innova.akis.topology.TopologyModels.ConnectionVersionRow;
 import tr.com.innova.akis.topology.TopologyModels.EnvironmentRow;
 import tr.com.innova.akis.topology.TopologyModels.LogicalSchemaRow;
@@ -141,6 +142,23 @@ public class TopologyRepository {
                 .param("uuid", uuid)
                 .query(this::mapConnection)
                 .optional();
+    }
+
+    List<ConnectionDependencyRow> listConnectionDependencies(long projectId, long connectionId) {
+        return jdbc.sql("""
+                select distinct ms.uuid, 'LOGICAL_SCHEMA'::text as type, ms.ad as name
+                  from akis.sema_eslemesi se
+                  join akis.fiziksel_sema fs on fs.id = se.fiziksel_sema_id
+                  join akis.mantiksal_sema ms on ms.id = se.mantiksal_sema_id
+                 where se.proje_id = :projectId and fs.baglanti_id = :connectionId
+                   and fs.arsivlenme_zamani is null and ms.arsivlenme_zamani is null
+                 order by ms.ad
+                """)
+                .param("projectId", projectId)
+                .param("connectionId", connectionId)
+                .query((rs, rowNum) -> new ConnectionDependencyRow(
+                        rs.getObject("uuid", UUID.class), rs.getString("type"), rs.getString("name")))
+                .list();
     }
 
     Optional<ConnectionRow> updateConnection(
@@ -474,6 +492,30 @@ public class TopologyRepository {
                 .param("connectionVersionId", connectionVersionId)
                 .update();
         return findSchemaBinding(projectId, uuid).orElseThrow();
+    }
+
+    Optional<SchemaBindingRow> updateSchemaBinding(
+            long projectId, UUID uuid, long logicalSchemaId, long environmentId,
+            long physicalSchemaId, long connectionVersionId, long expectedVersion) {
+        int updated = jdbc.sql("""
+                update akis.sema_eslemesi se
+                   set mantiksal_sema_id = :logicalSchemaId,
+                       ortam_id = :environmentId,
+                       baglanti_id = f.baglanti_id,
+                       fiziksel_sema_id = :physicalSchemaId,
+                       baglanti_surumu_id = :connectionVersionId,
+                       guncellenme_zamani = current_timestamp,
+                       versiyon_no = se.versiyon_no + 1
+                  from akis.fiziksel_sema f
+                 where se.proje_id = :projectId and se.uuid = :uuid
+                   and se.versiyon_no = :expectedVersion
+                   and f.proje_id = :projectId and f.id = :physicalSchemaId
+                """)
+                .param("projectId", projectId).param("uuid", uuid)
+                .param("logicalSchemaId", logicalSchemaId).param("environmentId", environmentId)
+                .param("physicalSchemaId", physicalSchemaId).param("connectionVersionId", connectionVersionId)
+                .param("expectedVersion", expectedVersion).update();
+        return updated == 0 ? Optional.empty() : findSchemaBinding(projectId, uuid);
     }
 
     List<SchemaBindingRow> listSchemaBindings(long projectId) {

@@ -5,7 +5,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AsyncState, Button, Dialog, PageHeader, StatusBadge } from '../../core/ui'
 import { DatabaseProviderIcon } from '../topology/DatabaseProviderIcon'
 import { OracleConnectionEndpointEditForm } from '../topology/OracleConnectionEndpointEditForm'
-import { topologyApi, type Connection, type ConnectionVersion, type LogicalSchema, type PhysicalSchema, type SchemaBinding } from '../topology/api'
+import { topologyApi, type Connection, type ConnectionDependency, type ConnectionVersion, type LogicalSchema, type PhysicalSchema, type SchemaBinding } from '../topology/api'
 import { getTopologyCopy } from '../topology/copy'
 import { endpointLabel } from './catalog'
 import './connections.css'
@@ -20,6 +20,7 @@ export function ConnectionDetailPage() {
   const [physical, setPhysical] = useState<PhysicalSchema[]>([])
   const [logical, setLogical] = useState<LogicalSchema[]>([])
   const [bindings, setBindings] = useState<SchemaBinding[]>([])
+  const [dependencies, setDependencies] = useState<ConnectionDependency[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [dialog, setDialog] = useState<'identity' | 'revision' | 'delete' | null>(null)
@@ -28,10 +29,10 @@ export function ConnectionDetailPage() {
   const load = useCallback(async () => {
     setLoading(true); setError('')
     try {
-      const [nextConnection, nextVersions, nextPhysical, nextLogical, nextBindings] = await Promise.all([
-        topologyApi.getConnection(projectUuid, connectionUuid), topologyApi.listVersions(projectUuid, connectionUuid), topologyApi.listPhysicalSchemas(projectUuid), topologyApi.listLogicalSchemas(projectUuid), topologyApi.listBindings(projectUuid),
+      const [nextConnection, nextVersions, nextPhysical, nextLogical, nextBindings, nextDependencies] = await Promise.all([
+        topologyApi.getConnection(projectUuid, connectionUuid), topologyApi.listVersions(projectUuid, connectionUuid), topologyApi.listPhysicalSchemas(projectUuid), topologyApi.listLogicalSchemas(projectUuid), topologyApi.listBindings(projectUuid), topologyApi.listConnectionDependencies(projectUuid, connectionUuid),
       ])
-      setConnection(nextConnection); setVersions(nextVersions); setPhysical(nextPhysical.filter((item) => item.connectionUuid === connectionUuid)); setLogical(nextLogical); setBindings(nextBindings)
+      setConnection(nextConnection); setVersions(nextVersions); setPhysical(nextPhysical.filter((item) => item.connectionUuid === connectionUuid)); setLogical(nextLogical); setBindings(nextBindings); setDependencies(nextDependencies)
     } catch { setError(t('common.loadError')) }
     finally { setLoading(false) }
   }, [connectionUuid, projectUuid, t])
@@ -70,10 +71,10 @@ export function ConnectionDetailPage() {
     </article>
     <div className="connection-detail-tabs" role="navigation" aria-label={t('connections.detailNavigation')}><a href="#revisions">{t('connections.revisions')}</a><a href="#physical">{t('connections.physical')}</a><a href="#usage">{t('connections.usage')}</a></div>
     <section id="revisions" className="connection-detail-section"><header><div><h2>{t('connections.revisions')}</h2><p>{t('connections.revisionsHint')}</p></div><Button icon={<Plus size={16} />} onClick={() => setDialog('revision')}>{t('connections.newRevision')}</Button></header><div className="revision-list">{versions.map((version) => <Link key={version.uuid} to={`/projects/${projectUuid}/connections/${connectionUuid}/revisions/${version.uuid}`}><span><strong>r{version.versionNumber} · {version.mode}</strong><small>{endpointLabel(version)}</small></span><StatusBadge tone={version.lifecycleStatus === 'ACTIVE' ? 'success' : version.lifecycleStatus === 'TESTED' ? 'info' : 'warning'}>{lifecycleText(version.lifecycleStatus)}</StatusBadge></Link>)}</div></section>
-    <section id="physical" className="connection-detail-section"><header><div><h2>{t('connections.physical')}</h2><p>{t('connections.physicalHint')}</p></div></header>{physical.length ? <ul className="physical-schema-list">{physical.map((schema) => <li key={schema.uuid}><strong>{schema.name}</strong><code>{schema.schemaReference}</code></li>)}</ul> : <AsyncState state="empty" compact title={t('connections.noPhysical')} />}</section>
+    <section id="physical" className="connection-detail-section"><header><div><h2>{t('connections.physical')}</h2><p>{t('connections.physicalHint')}</p></div><Link className="button secondary" to={`/projects/${projectUuid}/connections/${connectionUuid}/physical-schemas`}><Plus size={16} />{t('connections.managePhysical')}</Link></header>{physical.length ? <ul className="physical-schema-list">{physical.map((schema) => <li key={schema.uuid}><strong>{schema.name}</strong><code>{schema.schemaReference}</code></li>)}</ul> : <AsyncState state="empty" compact title={t('connections.noPhysical')} />}</section>
     <section id="usage" className="connection-detail-section"><header><div><h2>{t('connections.usage')}</h2><p>{t('connections.usageHint')}</p></div></header><p>{t('connections.usageCount', { count: relatedLogical.size })}</p></section>
     <Dialog open={dialog === 'identity'} title={t('connections.edit')} closeLabel={t('common.close')} busy={busy} onClose={() => setDialog(null)} className="connection-edit-dialog"><form onSubmit={(event) => void updateIdentity(event)}><label>{t('connections.name')}<input name="name" defaultValue={connection.name} required /></label><label>{t('connections.code')}<input name="code" defaultValue={connection.code} pattern="[A-Za-z][A-Za-z0-9_]{0,99}" required /></label><label>{t('connections.descriptionField')}<textarea name="description" defaultValue={connection.description ?? ''} rows={3} /></label><footer><Button type="button" onClick={() => setDialog(null)}>{t('common.cancel')}</Button><Button type="submit" tone="primary" busy={busy} busyLabel={t('connections.saving')}>{t('connections.save')}</Button></footer></form></Dialog>
     <Dialog open={dialog === 'revision'} title={t('connections.endpointRevision')} closeLabel={t('common.close')} onClose={() => setDialog(null)} className="connection-edit-dialog">{active ? <OracleConnectionEndpointEditForm projectUuid={projectUuid} connectionUuid={connectionUuid} version={active} copy={copy} onSaved={async () => { await load(); setDialog(null) }} /> : null}</Dialog>
-    <Dialog open={dialog === 'delete'} title={t('connections.delete')} closeLabel={t('common.close')} busy={busy} onClose={() => setDialog(null)}><div className="connection-delete-impact"><ShieldAlert /><p>{t('connections.deleteWarning')}</p><dl><div><dt>{t('connections.physical')}</dt><dd>{physical.length}</dd></div><div><dt>{t('connections.logical')}</dt><dd>{relatedLogical.size}</dd></div></dl><footer><Button onClick={() => setDialog(null)}>{t('common.cancel')}</Button><Button tone="danger" busy={busy} busyLabel={t('connections.deleting')} onClick={() => void remove()}>{t('connections.confirmDelete')}</Button></footer></div></Dialog>
+    <Dialog open={dialog === 'delete'} title={t('connections.delete')} closeLabel={t('common.close')} busy={busy} onClose={() => setDialog(null)}><div className="connection-delete-impact"><ShieldAlert /><p>{dependencies.length ? t('connections.deleteBlocked') : t('connections.deleteWarning')}</p><dl><div><dt>{t('connections.physical')}</dt><dd>{physical.length}</dd></div><div><dt>{t('connections.logical')}</dt><dd>{dependencies.length}</dd></div></dl>{dependencies.length ? <ul>{dependencies.map((item) => <li key={item.uuid}><strong>{item.name}</strong><small>{t('connections.logical')}</small></li>)}</ul> : null}<footer><Button onClick={() => setDialog(null)}>{t('common.cancel')}</Button><Button tone="danger" busy={busy} disabled={dependencies.length > 0} busyLabel={t('connections.deleting')} onClick={() => void remove()}>{t('connections.confirmDelete')}</Button></footer></div></Dialog>
   </section>
 }

@@ -33,6 +33,9 @@ final class TopologyModels {
             int logicalSchemaCount) {
     }
 
+    record ConnectionDependencyRow(UUID uuid, String type, String name) {
+    }
+
     record ConnectionVersionRow(
             long id,
             UUID uuid,

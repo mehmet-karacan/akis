@@ -1,0 +1,21 @@
+import { ArrowLeft, Database, Plus } from 'lucide-react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useTranslation } from 'react-i18next'
+import { Link, useParams } from 'react-router-dom'
+import { AsyncState, Button, PageHeader } from '../../core/ui'
+import { topologyApi, type Connection, type ConnectionVersion, type PhysicalSchema } from '../topology/api'
+import '../schemas/schemas.css'
+import './connections.css'
+
+export function PhysicalSchemasPage() {
+  const { projectUuid = '', connectionUuid = '' } = useParams(); const { t } = useTranslation()
+  const [connection, setConnection] = useState<Connection | null>(null); const [versions, setVersions] = useState<ConnectionVersion[]>([]); const [items, setItems] = useState<PhysicalSchema[]>([]); const [schemas, setSchemas] = useState<string[]>([]); const [schema, setSchema] = useState(''); const [loading, setLoading] = useState(true); const [discovering, setDiscovering] = useState(false); const [busy, setBusy] = useState(false); const [error, setError] = useState('')
+  const load = useCallback(async () => { setLoading(true); setError(''); try { const [nextConnection, nextVersions, nextItems] = await Promise.all([topologyApi.getConnection(projectUuid, connectionUuid), topologyApi.listVersions(projectUuid, connectionUuid), topologyApi.listPhysicalSchemas(projectUuid)]); setConnection(nextConnection); setVersions(nextVersions); setItems(nextItems.filter((item) => item.connectionUuid === connectionUuid)) } catch { setError(t('common.loadError')) } finally { setLoading(false) } }, [connectionUuid, projectUuid, t])
+  useEffect(() => { void load() }, [load])
+  const usable = versions.find((item) => item.lifecycleStatus === 'ACTIVE') ?? versions.find((item) => item.lifecycleStatus === 'TESTED')
+  async function loadSchemas() { if (!usable) return; setDiscovering(true); setError(''); try { setSchemas(await topologyApi.listOracleSchemas(projectUuid, connectionUuid, usable.uuid)) } catch { setError(t('schemas.schemaDiscoveryFailed')) } finally { setDiscovering(false) } }
+  async function create(event: FormEvent) { event.preventDefault(); setBusy(true); setError(''); try { await topologyApi.createPhysicalSchema(projectUuid, { connectionUuid, schema: schema.trim().toUpperCase() }); setSchema(''); await load() } catch (reason) { setError(reason instanceof Error ? reason.message : t('common.saveError')) } finally { setBusy(false) } }
+  if (loading) return <AsyncState state="loading" title={t('common.loading')} />
+  if (!connection) return <AsyncState state="error" title={error || t('common.loadError')} retryLabel={t('common.retry')} onRetry={() => void load()} />
+  return <section className="page-stack schema-page"><Link className="connection-back-link" to={`/projects/${projectUuid}/connections/${connectionUuid}`}><ArrowLeft size={16} />{connection.name}</Link><PageHeader title={t('schemas.physicalTitle')} description={t('schemas.physicalDescription', { name: connection.name })} eyebrow={connection.code} />{error ? <div className="error-banner" role="alert">{error}</div> : null}<section className="physical-create-panel"><form onSubmit={(event) => void create(event)}><label>{t('schemas.oracleUser')}<input list="oracle-schema-options" value={schema} onChange={(event) => setSchema(event.target.value)} required placeholder="INNOVA_ODI" /><datalist id="oracle-schema-options">{schemas.map((item) => <option key={item} value={item} />)}</datalist></label><Button type="button" icon={<Database size={16} />} onClick={() => void loadSchemas()} busy={discovering} disabled={!usable}>{t('schemas.loadUsers')}</Button><Button type="submit" tone="primary" icon={<Plus size={16} />} busy={busy}>{t('schemas.addPhysical')}</Button></form><p>{usable ? t('schemas.manualUserHint') : t('schemas.testRequired')}</p><p>{t('schemas.metadataOnly')}</p></section>{items.length === 0 ? <AsyncState state="empty" title={t('schemas.noPhysical')} /> : <div className="schema-list-table"><table><thead><tr><th>{t('schemas.name')}</th><th>{t('schemas.oracleUser')}</th></tr></thead><tbody>{items.map((item) => <tr key={item.uuid}><td><strong>{item.name}</strong></td><td><code>{item.schemaReference}</code></td></tr>)}</tbody></table></div>}</section>
+}
