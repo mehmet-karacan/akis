@@ -321,11 +321,21 @@ public class TopologyService {
             UUID projectUuid,
             String code,
             String name,
-            String description) {
+            String description,
+            UUID environmentUuid,
+            UUID physicalSchemaUuid) {
+        boolean mappingRequested = environmentUuid != null || physicalSchemaUuid != null;
+        if (mappingRequested && (environmentUuid == null || physicalSchemaUuid == null)) {
+            throw validation("Ortam ve fiziksel şema birlikte seçilmelidir.");
+        }
         ProjectRef project = project(projectUuid);
-        return repository.createLogicalSchema(
+        LogicalSchemaRow logical = repository.createLogicalSchema(
                 project.id(), UUID.randomUUID(), normalizeCode(code), normalizeName(name),
                 trimToNull(description));
+        if (mappingRequested) {
+            createSchemaBinding(projectUuid, logical.uuid(), environmentUuid, physicalSchemaUuid);
+        }
+        return logical;
     }
 
     List<LogicalSchemaRow> listLogicalSchemas(UUID projectUuid) {
@@ -363,8 +373,7 @@ public class TopologyService {
             UUID projectUuid,
             UUID logicalSchemaUuid,
             UUID environmentUuid,
-            UUID physicalSchemaUuid,
-            UUID connectionVersionUuid) {
+            UUID physicalSchemaUuid) {
         ProjectRef project = project(projectUuid);
         LogicalSchemaRow logical = repository.findLogicalSchema(project.id(), logicalSchemaUuid)
                 .orElseThrow(() -> notFound("Mantıksal şema bulunamadı."));
@@ -372,15 +381,7 @@ public class TopologyService {
                 .orElseThrow(() -> notFound("Ortam bulunamadı."));
         PhysicalSchemaRow physical = repository.findPhysicalSchema(project.id(), physicalSchemaUuid)
                 .orElseThrow(() -> notFound("Fiziksel şema bulunamadı."));
-        ConnectionVersionRow version = repository.findConnectionVersion(
-                        project.id(), connectionVersionUuid)
-                .orElseThrow(() -> notFound("Bağlantı sürümü bulunamadı."));
-        if (physical.connectionId() != version.connectionId()) {
-            throw validation("Fiziksel şema ile bağlantı sürümü aynı bağlantıya ait olmalıdır.");
-        }
-        if ("JNDI".equals(version.mode())) {
-            throw validation("JNDI bağlantı sürümü çalıştırma bağında kullanılamaz.");
-        }
+        ConnectionVersionRow version = currentExecutableConnection(project.id(), physical);
         return repository.createSchemaBinding(
                 project.id(), UUID.randomUUID(), logical.id(), environment.id(),
                 physical.id(), version.id());
@@ -394,7 +395,7 @@ public class TopologyService {
     SchemaBindingRow updateSchemaBinding(
             UUID projectUuid, UUID bindingUuid, UUID logicalSchemaUuid,
             UUID environmentUuid, UUID physicalSchemaUuid,
-            UUID connectionVersionUuid, long expectedVersion) {
+            long expectedVersion) {
         ProjectRef project = project(projectUuid);
         LogicalSchemaRow logical = repository.findLogicalSchema(project.id(), logicalSchemaUuid)
                 .orElseThrow(() -> notFound("Mantıksal şema bulunamadı."));
@@ -402,16 +403,26 @@ public class TopologyService {
                 .orElseThrow(() -> notFound("Ortam bulunamadı."));
         PhysicalSchemaRow physical = repository.findPhysicalSchema(project.id(), physicalSchemaUuid)
                 .orElseThrow(() -> notFound("Fiziksel şema bulunamadı."));
-        ConnectionVersionRow version = repository.findConnectionVersion(project.id(), connectionVersionUuid)
-                .orElseThrow(() -> notFound("Bağlantı sürümü bulunamadı."));
-        if (physical.connectionId() != version.connectionId() || "JNDI".equals(version.mode())) {
-            throw validation("Çalıştırılabilir bağlantı sürümü fiziksel şema ile aynı bağlantıya ait olmalıdır.");
-        }
+        ConnectionVersionRow version = currentExecutableConnection(project.id(), physical);
         return repository.updateSchemaBinding(
                         project.id(), bindingUuid, logical.id(), environment.id(), physical.id(), version.id(), expectedVersion)
                 .orElseThrow(() -> new ApiException(
                         HttpStatus.CONFLICT, "SCHEMA_BINDING_VERSION_CONFLICT",
                         "Şema eşlemesi değişti. Yenileyip tekrar deneyin."));
+    }
+
+    private ConnectionVersionRow currentExecutableConnection(
+            long projectId, PhysicalSchemaRow physical) {
+        return repository.listConnectionVersions(projectId, physical.connectionId()).stream()
+                .filter(version -> "JDBC".equals(version.mode()))
+                .filter(version -> "ACTIVE".equals(version.lifecycleStatus())
+                        || "TESTED".equals(version.lifecycleStatus()))
+                .sorted((left, right) -> Boolean.compare(
+                        "ACTIVE".equals(right.lifecycleStatus()),
+                        "ACTIVE".equals(left.lifecycleStatus())))
+                .findFirst()
+                .orElseThrow(() -> validation(
+                        "Fiziksel şemanın bağlantısı önce başarıyla test edilip kaydedilmelidir."));
     }
 
     private ProjectRef project(UUID projectUuid) {

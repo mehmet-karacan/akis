@@ -70,12 +70,6 @@ test.describe('AKIŞ critical browser journeys', () => {
     await navigateInApp(page, connectionHref!)
     await expectHealthyScreen(page)
 
-    const revisionHref = await page.locator('.revision-list a').first().getAttribute('href')
-    expect(revisionHref, 'The baseline connection must contain a revision').toBeTruthy()
-    await navigateInApp(page, revisionHref!)
-    await expectHealthyScreen(page)
-
-    await navigateInApp(page, connectionHref!)
     const physicalHref = await page.locator(`a[href="${connectionHref}/physical-schemas"]`).getAttribute('href')
     expect(physicalHref, 'The connection must expose physical-schema management').toBeTruthy()
     await navigateInApp(page, physicalHref!)
@@ -86,6 +80,20 @@ test.describe('AKIŞ critical browser journeys', () => {
     expect(environmentHref, 'The baseline project must contain an environment').toBeTruthy()
     await navigateInApp(page, environmentHref!)
     await expectHealthyScreen(page)
+  })
+
+  test('requires an environment and physical schema while creating a logical schema', async ({ page }) => {
+    await login(page)
+    await page.getByRole('tab', { name: /connections|bağlantılar/i }).click()
+    await page.getByRole('link', { name: /logical schemas|mantıksal şemalar/i }).click()
+    await page.getByRole('button', { name: /add logical schema|mantıksal şema ekle/i }).click()
+
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByLabel(/environment|ortam/i)).toBeVisible()
+    const physicalSchema = dialog.getByLabel(/physical schema|fiziksel şema/i)
+    await expect(physicalSchema).toBeVisible()
+    await expect(physicalSchema.locator('option')).not.toHaveCount(1)
+    await expect(dialog.getByText(/revision|revizyon/i)).toHaveCount(0)
   })
 
   test('shows a forced connection-catalog failure and recovers through Retry', async ({ page }) => {

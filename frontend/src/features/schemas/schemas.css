@@ -6,6 +6,11 @@
 .schema-list-table code { color: var(--ink-soft); }
 .schema-name-link:hover { color: var(--accent); }
 .form-note { color: var(--ink-soft); font-size: .8125rem; line-height: 1.5; }
+.logical-schema-binding-fields { display: grid; gap: 14px; min-width: 0; margin: 2px 0 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-subtle); }
+.logical-schema-binding-fields legend { padding: 0 7px; color: var(--ink); font-size: .875rem; font-weight: 750; }
+.logical-schema-binding-fields > p { margin: -2px 0 2px; color: var(--ink-soft); font-size: .8125rem; line-height: 1.45; }
+.logical-schema-prerequisite { display: grid; gap: 4px; padding: 12px; border: 1px solid color-mix(in srgb, var(--amber) 34%, var(--line)); border-radius: 10px; background: color-mix(in srgb, var(--amber) 8%, transparent); color: var(--ink-soft); font-size: .8125rem; }
+.logical-schema-prerequisite strong { color: var(--ink); }
 .physical-create-panel { margin-bottom: 16px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
 .physical-create-panel form { display: grid; grid-template-columns: minmax(240px, 1fr) auto auto; align-items: end; gap: 10px; }
 .physical-create-panel p { margin: 10px 0 0; color: var(--ink-soft); font-size: .75rem; }

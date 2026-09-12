@@ -161,7 +161,8 @@ final class TopologyController {
             @Valid @RequestBody CreateLogicalSchemaRequest request) {
         authorization.requireProjectPermission(projectUuid, TOPOLOGY_WRITE);
         LogicalSchemaRow row = service.createLogicalSchema(
-                projectUuid, request.code(), request.name(), request.description());
+                projectUuid, request.code(), request.name(), request.description(),
+                request.environmentUuid(), request.physicalSchemaUuid());
         return ResponseEntity.created(URI.create(
                 "/api/v1/projects/" + projectUuid + "/logical-schemas/" + row.uuid()))
                 .body(LogicalSchemaView.from(row));
@@ -202,7 +203,7 @@ final class TopologyController {
         authorization.requireProjectPermission(projectUuid, TOPOLOGY_WRITE);
         SchemaBindingRow row = service.createSchemaBinding(
                 projectUuid, request.logicalSchemaUuid(), request.environmentUuid(),
-                request.physicalSchemaUuid(), request.connectionVersionUuid());
+                request.physicalSchemaUuid());
         return ResponseEntity.status(201).body(row);
     }
 
@@ -220,7 +221,7 @@ final class TopologyController {
         authorization.requireProjectPermission(projectUuid, TOPOLOGY_WRITE);
         return service.updateSchemaBinding(
                 projectUuid, bindingUuid, request.logicalSchemaUuid(), request.environmentUuid(),
-                request.physicalSchemaUuid(), request.connectionVersionUuid(), request.expectedVersion());
+                request.physicalSchemaUuid(), request.expectedVersion());
     }
 
     record CreateConnectionRequest(
@@ -259,7 +260,9 @@ final class TopologyController {
     record CreateLogicalSchemaRequest(
             @NotBlank String code,
             @NotBlank String name,
-            String description) {
+            String description,
+            UUID environmentUuid,
+            UUID physicalSchemaUuid) {
     }
 
     record CreateEnvironmentRequest(
@@ -270,13 +273,12 @@ final class TopologyController {
     record CreateSchemaBindingRequest(
             @NotNull UUID logicalSchemaUuid,
             @NotNull UUID environmentUuid,
-            @NotNull UUID physicalSchemaUuid,
-            @NotNull UUID connectionVersionUuid) {
+            @NotNull UUID physicalSchemaUuid) {
     }
 
     record UpdateSchemaBindingRequest(
             @NotNull UUID logicalSchemaUuid, @NotNull UUID environmentUuid,
-            @NotNull UUID physicalSchemaUuid, @NotNull UUID connectionVersionUuid,
+            @NotNull UUID physicalSchemaUuid,
             @Min(1) long expectedVersion) {
     }
 

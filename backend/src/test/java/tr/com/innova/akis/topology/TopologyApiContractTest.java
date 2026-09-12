@@ -26,4 +26,26 @@ class TopologyApiContractTest {
 
         assertEquals(Set.of("connectionUuid", "schema"), fields);
     }
+
+    @Test
+    void logicalSchemaCreationAcceptsPhysicalMappingWithoutTechnicalConnectionRevision() {
+        Set<String> fields = Arrays.stream(TopologyController.CreateLogicalSchemaRequest.class.getRecordComponents())
+                .map(component -> component.getName())
+                .collect(Collectors.toSet());
+
+        assertEquals(Set.of("code", "name", "description", "environmentUuid", "physicalSchemaUuid"), fields);
+    }
+
+    @Test
+    void schemaMappingAcceptsOnlyTheUserFacingContext() {
+        Set<String> createFields = Arrays.stream(TopologyController.CreateSchemaBindingRequest.class.getRecordComponents())
+                .map(component -> component.getName())
+                .collect(Collectors.toSet());
+        Set<String> updateFields = Arrays.stream(TopologyController.UpdateSchemaBindingRequest.class.getRecordComponents())
+                .map(component -> component.getName())
+                .collect(Collectors.toSet());
+
+        assertEquals(Set.of("logicalSchemaUuid", "environmentUuid", "physicalSchemaUuid"), createFields);
+        assertEquals(Set.of("logicalSchemaUuid", "environmentUuid", "physicalSchemaUuid", "expectedVersion"), updateFields);
+    }
 }

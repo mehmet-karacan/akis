@@ -110,7 +110,6 @@ export function AppShell() {
             <div className="nav-section">
               <WorkspaceNavigation projectUuid={projectUuid} collapsed={collapsed} hasPendingChanges={Boolean(pendingChanges)} operatorOnly={projectAccess?.roles.includes('OPERASYON') === true && !projectAccess.permissions.includes('TANIM_DUZENLE')} onNavigate={requestNavigation} />
               {!collapsed && activeWorkspace === 'development' ? <div className="workspace-subnavigation">
-                <p className="nav-label">{t('nav.projectObjects')}</p>
                 <ProjectSidebarTree
                   projectUuid={projectUuid}
                   folders={folders}

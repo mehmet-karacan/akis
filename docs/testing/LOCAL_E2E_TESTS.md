@@ -44,7 +44,8 @@ npm run test:e2e
 - varsayılan İngilizce, Türkçe ve tema kalıcılığı;
 - geçersiz kimlik bilgisi;
 - ana proje ekranlarının gerçek API ile açılması;
-- baseline verisiyle bağlantı, revizyon, fiziksel şema ve ortam ayrıntılarının açılması;
+- baseline verisiyle bağlantı, fiziksel şema ve ortam ayrıntılarının açılması;
+- mantıksal şema oluştururken ortam ve fiziksel şema eşlemesinin zorunlu olması;
 - kayıt bulunmayan mantıksal şema, model, yayın ve çalıştırma listelerinin boş durumları;
 - sağlayıcı seçilmeden Oracle alanlarının gizli, seçimden sonra kullanıcı adı ve şifre alanlarının görünür olması;
 - zorlanmış bağlantı kataloğu 500 hatası ve **Tekrar Dene** ile kurtarma;

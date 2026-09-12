@@ -1,43 +1,657 @@
-import { ArrowDown, ArrowUp, Copy, Plus, Search, Trash2, Undo2 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
-import { SqlEditor } from '../../core/ui'
-import { topologyApi, type Connection, type ConnectionVersion, type Environment, type LogicalSchema, type PhysicalSchema, type SchemaBinding } from '../topology/api'
-import { ResolvedContextSummary, resolveProcedureContext } from './ResolvedContextSummary'
-import { definitionCodeLabel, useDefinitionsI18n } from './i18n'
-import type { ProcedureConnectionRole, ProcedureContent, ProcedureRiskClass, ProcedureTask, ProcedureTaskType } from './types'
+import {
+  ArrowDown,
+  ArrowUp,
+  Copy,
+  Plus,
+  Search,
+  Trash2,
+  Undo2,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { SqlEditor } from "../../core/ui";
+import {
+  topologyApi,
+  type Connection,
+  type ConnectionVersion,
+  type Environment,
+  type LogicalSchema,
+  type PhysicalSchema,
+  type SchemaBinding,
+} from "../topology/api";
+import {
+  ResolvedContextSummary,
+  resolveProcedureContext,
+} from "./ResolvedContextSummary";
+import { definitionCodeLabel, useDefinitionsI18n } from "./i18n";
+import type {
+  ProcedureConnectionRole,
+  ProcedureContent,
+  ProcedureRiskClass,
+  ProcedureTask,
+  ProcedureTaskType,
+} from "./types";
 
-interface Props { projectUuid: string; value: ProcedureContent; onChange: (value: ProcedureContent) => void; limits?: { maximumTasks: number; maximumRowsetRows: number; maximumTimeoutSeconds: number } }
-const PAGE_SIZE = 100
+interface Props {
+  projectUuid: string;
+  value: ProcedureContent;
+  onChange: (value: ProcedureContent) => void;
+  limits?: {
+    maximumTasks: number;
+    maximumRowsetRows: number;
+    maximumTimeoutSeconds: number;
+  };
+}
+const PAGE_SIZE = 100;
 
-export function pageProcedureTasks(tasks: ProcedureTask[], query: string, page: number, pageSize = PAGE_SIZE) {
-  const normalized = query.trim().toLocaleLowerCase()
-  const filtered = tasks.map((task, index) => ({ task, index })).filter(({ task }) => !normalized || `${task.name ?? ''} ${task.id} ${task.command}`.toLocaleLowerCase().includes(normalized))
-  const pages = Math.max(1, Math.ceil(filtered.length / pageSize)); const safePage = Math.min(Math.max(0, page), pages - 1)
-  return { total: filtered.length, pages, page: safePage, items: filtered.slice(safePage * pageSize, (safePage + 1) * pageSize) }
+export function pageProcedureTasks(
+  tasks: ProcedureTask[],
+  query: string,
+  page: number,
+  pageSize = PAGE_SIZE,
+) {
+  const normalized = query.trim().toLocaleLowerCase();
+  const filtered = tasks
+    .map((task, index) => ({ task, index }))
+    .filter(
+      ({ task }) =>
+        !normalized ||
+        `${task.name ?? ""} ${task.id} ${task.command}`
+          .toLocaleLowerCase()
+          .includes(normalized),
+    );
+  const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(Math.max(0, page), pages - 1);
+  return {
+    total: filtered.length,
+    pages,
+    page: safePage,
+    items: filtered.slice(safePage * pageSize, (safePage + 1) * pageSize),
+  };
 }
 
-function nextId(tasks: ProcedureTask[]) { let number = tasks.length + 1; while (tasks.some((task) => task.id === `STEP_${number}`)) number += 1; return `STEP_${number}` }
-function nextTask(role: ProcedureConnectionRole, tasks: ProcedureTask[]): ProcedureTask { const id = nextId(tasks); return { id, name: role === 'SOURCE' ? 'Read source' : 'Target command', type: 'SQL', connectionRole: role, riskClass: role === 'SOURCE' ? 'READ_ONLY' : 'DML', command: role === 'SOURCE' ? 'SELECT * FROM SOURCE_TABLE' : 'INSERT INTO TARGET_TABLE (ID) VALUES (:ID)', onError: 'STOP' } }
-function sanitizeTask(task: ProcedureTask, earlier: ProcedureTask[]) { const canOutput = task.connectionRole === 'SOURCE' && task.type === 'SQL' && task.riskClass === 'READ_ONLY'; const canConsume = task.connectionRole === 'TARGET' && task.type === 'SQL' && task.riskClass === 'DML'; return { ...task, output: canOutput ? task.output : undefined, input: canConsume && task.input && earlier.some((item) => item.id === task.input?.fromTask && item.output) ? task.input : undefined } }
+function nextId(tasks: ProcedureTask[]) {
+  let number = tasks.length + 1;
+  while (tasks.some((task) => task.id === `STEP_${number}`)) number += 1;
+  return `STEP_${number}`;
+}
+function nextTask(
+  role: ProcedureConnectionRole,
+  tasks: ProcedureTask[],
+): ProcedureTask {
+  const id = nextId(tasks);
+  return {
+    id,
+    name: role === "SOURCE" ? "Read source" : "Target command",
+    type: "SQL",
+    connectionRole: role,
+    riskClass: role === "SOURCE" ? "READ_ONLY" : "DML",
+    command:
+      role === "SOURCE"
+        ? "SELECT * FROM SOURCE_TABLE"
+        : "INSERT INTO TARGET_TABLE (ID) VALUES (:ID)",
+    onError: "STOP",
+  };
+}
+export function applyAutomaticRowHandoffs(
+  tasks: ProcedureTask[],
+  maximumRows: number,
+) {
+  const normalized: ProcedureTask[] = tasks.map((task) => ({
+    ...task,
+    output: undefined,
+    input: undefined,
+  }));
+  for (let index = 0; index < normalized.length - 1; index += 1) {
+    const source = normalized[index]!;
+    const target = normalized[index + 1]!;
+    const producesRows =
+      source.connectionRole === "SOURCE" &&
+      source.type === "SQL" &&
+      source.riskClass === "READ_ONLY";
+    const consumesRows =
+      target.connectionRole === "TARGET" &&
+      target.type === "SQL" &&
+      target.riskClass === "DML";
+    if (producesRows && consumesRows) {
+      source.output = { kind: "ROWSET", maxRows: maximumRows };
+      target.input = {
+        fromTask: source.id,
+        mode: "BATCH",
+        batchSize: Math.min(250, maximumRows),
+      };
+      index += 1;
+    }
+  }
+  return normalized;
+}
 
-export function ProcedureEditor({ projectUuid, value, onChange, limits = { maximumTasks: 1000, maximumRowsetRows: 1000, maximumTimeoutSeconds: 300 } }: Props) {
-  const { language, t } = useDefinitionsI18n()
-  const [selectedTaskId, setSelectedTaskId] = useState(value.tasks[0]?.id ?? ''); const [query, setQuery] = useState(''); const [page, setPage] = useState(0); const [undoTasks, setUndoTasks] = useState<ProcedureTask[] | null>(null); const [pendingDelete, setPendingDelete] = useState<number | null>(null); const [message, setMessage] = useState('')
-  const [logicalSchemas, setLogicalSchemas] = useState<LogicalSchema[]>([]); const [environments, setEnvironments] = useState<Environment[]>([]); const [bindings, setBindings] = useState<SchemaBinding[]>([]); const [physical, setPhysical] = useState<PhysicalSchema[]>([]); const [connections, setConnections] = useState<Connection[]>([]); const [versions, setVersions] = useState<ConnectionVersion[]>([])
-  useEffect(() => { let active = true; void Promise.all([topologyApi.listLogicalSchemas(projectUuid), topologyApi.listEnvironments(projectUuid), topologyApi.listBindings(projectUuid), topologyApi.listPhysicalSchemas(projectUuid), topologyApi.listConnections(projectUuid)]).then(([l, e, b, p, c]) => { if (active) { setLogicalSchemas(l); setEnvironments(e); setBindings(b); setPhysical(p); setConnections(c) } }).catch(() => { if (active) setMessage(t('contextLoadFailed')) }); return () => { active = false } }, [projectUuid, t])
-  useEffect(() => { let active = true; void Promise.all(connections.map((connection) => topologyApi.listVersions(projectUuid, connection.uuid))).then((rows) => { if (active) setVersions(rows.flat()) }).catch(() => { if (active) setVersions([]) }); return () => { active = false } }, [connections, projectUuid])
-  useEffect(() => { if (!value.tasks.some((task) => task.id === selectedTaskId)) setSelectedTaskId(value.tasks[0]?.id ?? '') }, [selectedTaskId, value.tasks])
-  const replaceTasks = (tasks: ProcedureTask[], undo = false) => { if (undo) setUndoTasks(value.tasks); onChange({ ...value, tasks }) }
-  const update = (index: number, task: ProcedureTask) => { const previousId = value.tasks[index]?.id; replaceTasks(value.tasks.map((current, position) => position === index ? sanitizeTask(task, value.tasks.slice(0, index)) : previousId !== task.id && current.input?.fromTask === previousId ? { ...current, input: { ...current.input!, fromTask: task.id } } : current)) }
-  const add = (role: ProcedureConnectionRole) => { const task = nextTask(role, value.tasks); replaceTasks([...value.tasks, task], true); setSelectedTaskId(task.id); setPage(Math.floor(value.tasks.length / PAGE_SIZE)) }
-  const duplicate = (index: number) => { const source = value.tasks[index]; if (!source) return; const copy = { ...structuredClone(source), id: nextId(value.tasks), name: `${source.name || source.id} (${t('copy')})` }; const tasks = [...value.tasks]; tasks.splice(index + 1, 0, copy); replaceTasks(tasks, true); setSelectedTaskId(copy.id) }
-  const remove = (index: number) => { const source = value.tasks[index]; if (!source) return; const dependents = value.tasks.filter((task) => task.input?.fromTask === source.id); if (dependents.length && pendingDelete !== index) { setPendingDelete(index); setMessage(t('deleteStepImpact', { count: dependents.length })); return } const tasks = value.tasks.filter((_, position) => position !== index).map((task) => task.input?.fromTask === source.id ? { ...task, input: undefined } : task); replaceTasks(tasks, true); setPendingDelete(null); setMessage(''); setSelectedTaskId(tasks[Math.min(index, tasks.length - 1)]?.id ?? '') }
-  const move = (index: number, offset: number) => { const selected = value.tasks[index]; if (!selected) return; const units: ProcedureTask[][] = []; for (let i = 0; i < value.tasks.length; i += 1) { const current = value.tasks[i]!; const next = value.tasks[i + 1]; if (current.output && next?.input?.fromTask === current.id) { units.push([current, next]); i += 1 } else units.push([current]) } const unit = units.findIndex((entry) => entry.includes(selected)); const target = unit + offset; if (target < 0 || target >= units.length) return; [units[unit], units[target]] = [units[target]!, units[unit]!]; replaceTasks(units.flat(), true) }
-  const windowed = useMemo(() => pageProcedureTasks(value.tasks, query, page), [page, query, value.tasks]); const { pages, page: safePage, items: visible } = windowed
-  const selectedIndex = value.tasks.findIndex((task) => task.id === selectedTaskId); const selected = value.tasks[selectedIndex]; const rowsets = selectedIndex < 0 ? [] : value.tasks.slice(0, selectedIndex).filter((task) => task.output); const highRisk = selected?.riskClass === 'DDL' || selected?.riskClass === 'DESTRUCTIVE'; const logical = logicalSchemas.find((item) => item.uuid === selected?.logicalSchemaUuid); const environment = environments.find((item) => item.uuid === selected?.environmentUuid); const context = resolveProcedureContext(selected?.logicalSchemaUuid, selected?.environmentUuid, bindings, physical, connections, versions)
-  return <div className="procedure-editor"><header className="procedure-editor-heading"><div><h3>{t('procedureSteps')}</h3><p>{t('procedureHint')}</p></div><div className="mapping-inline-actions"><button className="definition-button definition-button--quiet" type="button" disabled={!undoTasks} onClick={() => { if (undoTasks) { onChange({ ...value, tasks: undoTasks }); setUndoTasks(null) } }}><Undo2 size={15} />{t('undo')}</button><button className="definition-button definition-button--quiet" type="button" onClick={() => add('SOURCE')}><Plus size={15} />{t('addSourceStep')}</button><button className="definition-button definition-button--quiet" type="button" onClick={() => add('TARGET')}><Plus size={15} />{t('addTargetStep')}</button></div></header>
-    <p className="procedure-runtime-profile">{t('procedureRuntimeProfile', { tasks: limits.maximumTasks, rows: limits.maximumRowsetRows })}</p>{message ? <div className="procedure-reorder-error" role="alert">{message}{pendingDelete != null ? <span><button type="button" onClick={() => remove(pendingDelete)}>{t('confirmRemove')}</button><button type="button" onClick={() => { setPendingDelete(null); setMessage('') }}>{t('cancel')}</button></span> : null}</div> : null}
-    <div className="procedure-workbench"><aside className="procedure-list-column"><label className="procedure-search"><Search size={15} /><input value={query} onChange={(event) => { setQuery(event.target.value); setPage(0) }} placeholder={t('searchSteps')} /></label><div className="procedure-task-list" role="list" aria-label={t('procedureSteps')}>{visible.map(({ task, index }) => <article className={`procedure-task ${task.id === selectedTaskId ? 'is-selected' : ''}`} key={task.id}><button className="procedure-task-select" type="button" onClick={() => setSelectedTaskId(task.id)} aria-pressed={task.id === selectedTaskId}><span className="procedure-step-number">{index + 1}</span><div><strong>{task.name || task.id}</strong><small>{definitionCodeLabel(task.connectionRole, language)} · {definitionCodeLabel(task.type, language)} · {definitionCodeLabel(task.riskClass, language)}</small></div></button><div className="procedure-task-actions"><button className="definition-icon-button" type="button" aria-label={`${t('moveUp')}: ${task.name || task.id}`} disabled={index === 0} onClick={() => move(index, -1)}><ArrowUp size={15} /></button><button className="definition-icon-button" type="button" aria-label={`${t('moveDown')}: ${task.name || task.id}`} disabled={index === value.tasks.length - 1} onClick={() => move(index, 1)}><ArrowDown size={15} /></button><button className="definition-icon-button" type="button" aria-label={`${t('duplicate')}: ${task.name || task.id}`} onClick={() => duplicate(index)}><Copy size={15} /></button><button className="definition-icon-button" type="button" aria-label={`${t('remove')}: ${task.name || task.id}`} onClick={() => remove(index)}><Trash2 size={15} /></button></div></article>)}</div>{pages > 1 ? <nav className="procedure-pagination" aria-label={t('stepPages')}><button type="button" disabled={safePage === 0} onClick={() => setPage((current) => current - 1)}>{t('previous')}</button><span>{t('page', { page: safePage + 1, pages })}</span><button type="button" disabled={safePage >= pages - 1} onClick={() => setPage((current) => current + 1)}>{t('next')}</button></nav> : null}</aside>
-      {selected ? <section className="procedure-task-editor" aria-label={`${t('stepEditor')}: ${selected.name || selected.id}`}><header><div><p className="eyebrow">{t('selectedStep')}</p><h3>{selected.name || selected.id}</h3></div><span>{selectedIndex + 1} / {value.tasks.length}</span></header><div className="procedure-task-grid"><label><span>{t('stepId')}</span><input value={selected.id} onChange={(event) => { setSelectedTaskId(event.target.value); update(selectedIndex, { ...selected, id: event.target.value }) }} /></label><label><span>{t('stepName')}</span><input value={selected.name ?? ''} onChange={(event) => update(selectedIndex, { ...selected, name: event.target.value })} /></label><label><span>{t('taskType')}</span><select value={selected.type} onChange={(event) => update(selectedIndex, { ...selected, type: event.target.value as ProcedureTaskType })}>{(['SQL', 'PLSQL', 'STORED_PROCEDURE'] as const).map((code) => <option key={code} value={code}>{definitionCodeLabel(code, language)}</option>)}</select></label><label><span>{t('connectionRole')}</span><select value={selected.connectionRole} onChange={(event) => update(selectedIndex, { ...selected, connectionRole: event.target.value as ProcedureConnectionRole })}>{(['SOURCE', 'TARGET'] as const).map((code) => <option key={code} value={code}>{definitionCodeLabel(code, language)}</option>)}</select></label><label><span>{t('logicalSchema')}</span><select value={selected.logicalSchemaUuid ?? ''} onChange={(event) => update(selectedIndex, { ...selected, logicalSchemaUuid: event.target.value })}><option value="">—</option>{logicalSchemas.map((item) => <option key={item.uuid} value={item.uuid}>{item.name}</option>)}</select></label><label><span>{t('environment')}</span><select value={selected.environmentUuid ?? ''} onChange={(event) => update(selectedIndex, { ...selected, environmentUuid: event.target.value })}><option value="">—</option>{environments.map((item) => <option key={item.uuid} value={item.uuid}>{item.name}</option>)}</select></label><label><span>{t('riskClass')}</span><select value={selected.riskClass} onChange={(event) => update(selectedIndex, { ...selected, riskClass: event.target.value as ProcedureRiskClass, requiresApproval: undefined })}>{(['READ_ONLY', 'DML', 'DDL', 'DESTRUCTIVE'] as const).map((code) => <option key={code} value={code}>{definitionCodeLabel(code, language)}</option>)}</select></label><label><span>{t('onError')}</span><select value={selected.onError ?? 'STOP'} onChange={(event) => update(selectedIndex, { ...selected, onError: event.target.value as 'STOP' | 'CONTINUE' })}>{(['STOP', 'CONTINUE'] as const).map((code) => <option key={code} value={code}>{definitionCodeLabel(code, language)}</option>)}</select></label>{highRisk ? <label className="procedure-checkbox"><input type="checkbox" checked={selected.requiresApproval === true} onChange={(event) => update(selectedIndex, { ...selected, requiresApproval: event.target.checked })} /><span>{t('requiresApproval')}</span></label> : null}</div><ResolvedContextSummary logicalSchema={logical} environment={environment} context={context} /><label className="procedure-command"><span>{t('sqlCommand')}</span><SqlEditor label={t('sqlCommand')} value={selected.command} onChange={(command) => update(selectedIndex, { ...selected, command })} /></label><div className="procedure-flow-options"><label className="procedure-checkbox"><input type="checkbox" checked={selected.output?.kind === 'ROWSET'} disabled={selected.connectionRole !== 'SOURCE' || selected.type !== 'SQL' || selected.riskClass !== 'READ_ONLY'} onChange={(event) => update(selectedIndex, { ...selected, output: event.target.checked ? { kind: 'ROWSET', maxRows: limits.maximumRowsetRows } : undefined })} /><span>{t('captureRows')}</span></label>{selected.output ? <label><span>{t('maxRows')}</span><input type="number" min="1" max={limits.maximumRowsetRows} value={selected.output.maxRows} onChange={(event) => update(selectedIndex, { ...selected, output: { kind: 'ROWSET', maxRows: Number(event.target.value) } })} /></label> : null}<label className="procedure-checkbox"><input type="checkbox" checked={!!selected.input} disabled={selected.connectionRole !== 'TARGET' || selected.type !== 'SQL' || selected.riskClass !== 'DML' || rowsets.length === 0} onChange={(event) => update(selectedIndex, { ...selected, input: event.target.checked ? { fromTask: rowsets[0]!.id, mode: 'BATCH', batchSize: 250 } : undefined })} /><span>{t('consumeRows')}</span></label>{selected.input ? <><label><span>{t('fromTask')}</span><select value={selected.input.fromTask} onChange={(event) => update(selectedIndex, { ...selected, input: { ...selected.input!, fromTask: event.target.value } })}>{rowsets.map((task) => <option key={task.id} value={task.id}>{task.id}</option>)}</select></label><label><span>{t('batchSize')}</span><input type="number" min="1" max={limits.maximumRowsetRows} value={selected.input.batchSize} onChange={(event) => update(selectedIndex, { ...selected, input: { ...selected.input!, batchSize: Number(event.target.value) } })} /></label></> : null}</div></section> : <p className="definition-state">{t('noProcedureSteps')}</p>}
-    </div></div>
+export function ProcedureEditor({
+  projectUuid,
+  value,
+  onChange,
+  limits = {
+    maximumTasks: 1000,
+    maximumRowsetRows: 1000,
+    maximumTimeoutSeconds: 300,
+  },
+}: Props) {
+  const { language, t } = useDefinitionsI18n();
+  const [selectedTaskId, setSelectedTaskId] = useState(
+    value.tasks[0]?.id ?? "",
+  );
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
+  const [undoTasks, setUndoTasks] = useState<ProcedureTask[] | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<number | null>(null);
+  const [message, setMessage] = useState("");
+  const [logicalSchemas, setLogicalSchemas] = useState<LogicalSchema[]>([]);
+  const [environments, setEnvironments] = useState<Environment[]>([]);
+  const [bindings, setBindings] = useState<SchemaBinding[]>([]);
+  const [physical, setPhysical] = useState<PhysicalSchema[]>([]);
+  const [connections, setConnections] = useState<Connection[]>([]);
+  const [versions, setVersions] = useState<ConnectionVersion[]>([]);
+  useEffect(() => {
+    let active = true;
+    void Promise.all([
+      topologyApi.listLogicalSchemas(projectUuid),
+      topologyApi.listEnvironments(projectUuid),
+      topologyApi.listBindings(projectUuid),
+      topologyApi.listPhysicalSchemas(projectUuid),
+      topologyApi.listConnections(projectUuid),
+    ])
+      .then(([l, e, b, p, c]) => {
+        if (active) {
+          setLogicalSchemas(l);
+          setEnvironments(e);
+          setBindings(b);
+          setPhysical(p);
+          setConnections(c);
+        }
+      })
+      .catch(() => {
+        if (active) setMessage(t("contextLoadFailed"));
+      });
+    return () => {
+      active = false;
+    };
+  }, [projectUuid, t]);
+  useEffect(() => {
+    let active = true;
+    void Promise.all(
+      connections.map((connection) =>
+        topologyApi.listVersions(projectUuid, connection.uuid),
+      ),
+    )
+      .then((rows) => {
+        if (active) setVersions(rows.flat());
+      })
+      .catch(() => {
+        if (active) setVersions([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [connections, projectUuid]);
+  useEffect(() => {
+    if (!value.tasks.some((task) => task.id === selectedTaskId))
+      setSelectedTaskId(value.tasks[0]?.id ?? "");
+  }, [selectedTaskId, value.tasks]);
+  const replaceTasks = (tasks: ProcedureTask[], undo = false) => {
+    if (undo) setUndoTasks(value.tasks);
+    onChange({
+      ...value,
+      tasks: applyAutomaticRowHandoffs(tasks, limits.maximumRowsetRows),
+    });
+  };
+  const update = (index: number, task: ProcedureTask) => {
+    replaceTasks(
+      value.tasks.map((current, position) =>
+        position === index ? task : current,
+      ),
+    );
+  };
+  const add = (role: ProcedureConnectionRole) => {
+    const task = nextTask(role, value.tasks);
+    replaceTasks([...value.tasks, task], true);
+    setSelectedTaskId(task.id);
+    setPage(Math.floor(value.tasks.length / PAGE_SIZE));
+  };
+  const duplicate = (index: number) => {
+    const source = value.tasks[index];
+    if (!source) return;
+    const copy = {
+      ...structuredClone(source),
+      id: nextId(value.tasks),
+      name: `${source.name || source.id} (${t("copy")})`,
+    };
+    const tasks = [...value.tasks];
+    tasks.splice(index + 1, 0, copy);
+    replaceTasks(tasks, true);
+    setSelectedTaskId(copy.id);
+  };
+  const remove = (index: number) => {
+    const source = value.tasks[index];
+    if (!source) return;
+    const dependents = value.tasks.filter(
+      (task) => task.input?.fromTask === source.id,
+    );
+    if (dependents.length && pendingDelete !== index) {
+      setPendingDelete(index);
+      setMessage(t("deleteStepImpact", { count: dependents.length }));
+      return;
+    }
+    const tasks = value.tasks
+      .filter((_, position) => position !== index)
+      .map((task) =>
+        task.input?.fromTask === source.id
+          ? { ...task, input: undefined }
+          : task,
+      );
+    replaceTasks(tasks, true);
+    setPendingDelete(null);
+    setMessage("");
+    setSelectedTaskId(tasks[Math.min(index, tasks.length - 1)]?.id ?? "");
+  };
+  const move = (index: number, offset: number) => {
+    const selected = value.tasks[index];
+    if (!selected) return;
+    const units: ProcedureTask[][] = [];
+    for (let i = 0; i < value.tasks.length; i += 1) {
+      const current = value.tasks[i]!;
+      const next = value.tasks[i + 1];
+      if (current.output && next?.input?.fromTask === current.id) {
+        units.push([current, next]);
+        i += 1;
+      } else units.push([current]);
+    }
+    const unit = units.findIndex((entry) => entry.includes(selected));
+    const target = unit + offset;
+    if (target < 0 || target >= units.length) return;
+    [units[unit], units[target]] = [units[target]!, units[unit]!];
+    replaceTasks(units.flat(), true);
+  };
+  const windowed = useMemo(
+    () => pageProcedureTasks(value.tasks, query, page),
+    [page, query, value.tasks],
+  );
+  const { pages, page: safePage, items: visible } = windowed;
+  const selectedIndex = value.tasks.findIndex(
+    (task) => task.id === selectedTaskId,
+  );
+  const selected = value.tasks[selectedIndex];
+  const highRisk =
+    selected?.riskClass === "DDL" || selected?.riskClass === "DESTRUCTIVE";
+  const logical = logicalSchemas.find(
+    (item) => item.uuid === selected?.logicalSchemaUuid,
+  );
+  const environment = environments.find(
+    (item) => item.uuid === selected?.environmentUuid,
+  );
+  const context = resolveProcedureContext(
+    selected?.logicalSchemaUuid,
+    selected?.environmentUuid,
+    bindings,
+    physical,
+    connections,
+    versions,
+  );
+  return (
+    <div className="procedure-editor">
+      <header className="procedure-editor-heading">
+        <div>
+          <h3>{t("procedureSteps")}</h3>
+          <p>{t("procedureHint")}</p>
+        </div>
+        <div className="mapping-inline-actions">
+          <button
+            className="definition-button definition-button--quiet"
+            type="button"
+            disabled={!undoTasks}
+            onClick={() => {
+              if (undoTasks) {
+                onChange({ ...value, tasks: undoTasks });
+                setUndoTasks(null);
+              }
+            }}
+          >
+            <Undo2 size={15} />
+            {t("undo")}
+          </button>
+          <button
+            className="definition-button definition-button--quiet"
+            type="button"
+            onClick={() => add("SOURCE")}
+          >
+            <Plus size={15} />
+            {t("addSourceStep")}
+          </button>
+          <button
+            className="definition-button definition-button--quiet"
+            type="button"
+            onClick={() => add("TARGET")}
+          >
+            <Plus size={15} />
+            {t("addTargetStep")}
+          </button>
+        </div>
+      </header>
+      <p className="procedure-runtime-profile">
+        {t("procedureRuntimeProfile", {
+          tasks: limits.maximumTasks,
+          rows: limits.maximumRowsetRows,
+        })}
+      </p>
+      {message ? (
+        <div className="procedure-reorder-error" role="alert">
+          {message}
+          {pendingDelete != null ? (
+            <span>
+              <button type="button" onClick={() => remove(pendingDelete)}>
+                {t("confirmRemove")}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingDelete(null);
+                  setMessage("");
+                }}
+              >
+                {t("cancel")}
+              </button>
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+      <div className="procedure-workbench">
+        <aside className="procedure-list-column">
+          <label className="procedure-search">
+            <Search size={15} />
+            <input
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setPage(0);
+              }}
+              placeholder={t("searchSteps")}
+            />
+          </label>
+          <div
+            className="procedure-task-list"
+            role="list"
+            aria-label={t("procedureSteps")}
+          >
+            {visible.map(({ task, index }) => (
+              <article
+                className={`procedure-task ${task.id === selectedTaskId ? "is-selected" : ""}`}
+                key={task.id}
+              >
+                <button
+                  className="procedure-task-select"
+                  type="button"
+                  onClick={() => setSelectedTaskId(task.id)}
+                  aria-pressed={task.id === selectedTaskId}
+                >
+                  <span className="procedure-step-number">{index + 1}</span>
+                  <div>
+                    <strong>{task.name || task.id}</strong>
+                    <small>
+                      {definitionCodeLabel(task.connectionRole, language)} ·{" "}
+                      {definitionCodeLabel(task.type, language)} ·{" "}
+                      {definitionCodeLabel(task.riskClass, language)}
+                    </small>
+                  </div>
+                </button>
+                <div className="procedure-task-actions">
+                  <button
+                    className="definition-icon-button"
+                    type="button"
+                    aria-label={`${t("moveUp")}: ${task.name || task.id}`}
+                    disabled={index === 0}
+                    onClick={() => move(index, -1)}
+                  >
+                    <ArrowUp size={15} />
+                  </button>
+                  <button
+                    className="definition-icon-button"
+                    type="button"
+                    aria-label={`${t("moveDown")}: ${task.name || task.id}`}
+                    disabled={index === value.tasks.length - 1}
+                    onClick={() => move(index, 1)}
+                  >
+                    <ArrowDown size={15} />
+                  </button>
+                  <button
+                    className="definition-icon-button"
+                    type="button"
+                    aria-label={`${t("duplicate")}: ${task.name || task.id}`}
+                    onClick={() => duplicate(index)}
+                  >
+                    <Copy size={15} />
+                  </button>
+                  <button
+                    className="definition-icon-button"
+                    type="button"
+                    aria-label={`${t("remove")}: ${task.name || task.id}`}
+                    onClick={() => remove(index)}
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+          {pages > 1 ? (
+            <nav className="procedure-pagination" aria-label={t("stepPages")}>
+              <button
+                type="button"
+                disabled={safePage === 0}
+                onClick={() => setPage((current) => current - 1)}
+              >
+                {t("previous")}
+              </button>
+              <span>{t("page", { page: safePage + 1, pages })}</span>
+              <button
+                type="button"
+                disabled={safePage >= pages - 1}
+                onClick={() => setPage((current) => current + 1)}
+              >
+                {t("next")}
+              </button>
+            </nav>
+          ) : null}
+        </aside>
+        {selected ? (
+          <section
+            className="procedure-task-editor"
+            aria-label={`${t("stepEditor")}: ${selected.name || selected.id}`}
+          >
+            <header>
+              <div>
+                <p className="eyebrow">{t("selectedStep")}</p>
+                <h3>{selected.name || selected.id}</h3>
+              </div>
+              <span>
+                {selectedIndex + 1} / {value.tasks.length}
+              </span>
+            </header>
+            <div className="procedure-task-grid">
+              <label>
+                <span>{t("stepId")}</span>
+                <input
+                  value={selected.id}
+                  onChange={(event) => {
+                    setSelectedTaskId(event.target.value);
+                    update(selectedIndex, {
+                      ...selected,
+                      id: event.target.value,
+                    });
+                  }}
+                />
+              </label>
+              <label>
+                <span>{t("stepName")}</span>
+                <input
+                  value={selected.name ?? ""}
+                  onChange={(event) =>
+                    update(selectedIndex, {
+                      ...selected,
+                      name: event.target.value,
+                    })
+                  }
+                />
+              </label>
+              <label>
+                <span>{t("taskType")}</span>
+                <select
+                  value={selected.type}
+                  onChange={(event) =>
+                    update(selectedIndex, {
+                      ...selected,
+                      type: event.target.value as ProcedureTaskType,
+                    })
+                  }
+                >
+                  {(["SQL", "PLSQL", "STORED_PROCEDURE"] as const).map(
+                    (code) => (
+                      <option key={code} value={code}>
+                        {definitionCodeLabel(code, language)}
+                      </option>
+                    ),
+                  )}
+                </select>
+              </label>
+              <label>
+                <span>{t("connectionRole")}</span>
+                <select
+                  value={selected.connectionRole}
+                  onChange={(event) =>
+                    update(selectedIndex, {
+                      ...selected,
+                      connectionRole: event.target
+                        .value as ProcedureConnectionRole,
+                    })
+                  }
+                >
+                  {(["SOURCE", "TARGET"] as const).map((code) => (
+                    <option key={code} value={code}>
+                      {definitionCodeLabel(code, language)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>{t("logicalSchema")}</span>
+                <select
+                  value={selected.logicalSchemaUuid ?? ""}
+                  onChange={(event) =>
+                    update(selectedIndex, {
+                      ...selected,
+                      logicalSchemaUuid: event.target.value,
+                    })
+                  }
+                >
+                  <option value="">—</option>
+                  {logicalSchemas.map((item) => (
+                    <option key={item.uuid} value={item.uuid}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>{t("environment")}</span>
+                <select
+                  value={selected.environmentUuid ?? ""}
+                  onChange={(event) =>
+                    update(selectedIndex, {
+                      ...selected,
+                      environmentUuid: event.target.value,
+                    })
+                  }
+                >
+                  <option value="">—</option>
+                  {environments.map((item) => (
+                    <option key={item.uuid} value={item.uuid}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>{t("riskClass")}</span>
+                <select
+                  value={selected.riskClass}
+                  onChange={(event) =>
+                    update(selectedIndex, {
+                      ...selected,
+                      riskClass: event.target.value as ProcedureRiskClass,
+                      requiresApproval: undefined,
+                    })
+                  }
+                >
+                  {(["READ_ONLY", "DML", "DDL", "DESTRUCTIVE"] as const).map(
+                    (code) => (
+                      <option key={code} value={code}>
+                        {definitionCodeLabel(code, language)}
+                      </option>
+                    ),
+                  )}
+                </select>
+              </label>
+              <label>
+                <span>{t("onError")}</span>
+                <select
+                  value={selected.onError ?? "STOP"}
+                  onChange={(event) =>
+                    update(selectedIndex, {
+                      ...selected,
+                      onError: event.target.value as "STOP" | "CONTINUE",
+                    })
+                  }
+                >
+                  {(["STOP", "CONTINUE"] as const).map((code) => (
+                    <option key={code} value={code}>
+                      {definitionCodeLabel(code, language)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {highRisk ? (
+                <label className="procedure-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={selected.requiresApproval === true}
+                    onChange={(event) =>
+                      update(selectedIndex, {
+                        ...selected,
+                        requiresApproval: event.target.checked,
+                      })
+                    }
+                  />
+                  <span>{t("requiresApproval")}</span>
+                </label>
+              ) : null}
+            </div>
+            <ResolvedContextSummary
+              logicalSchema={logical}
+              environment={environment}
+              context={context}
+            />
+            <label className="procedure-command">
+              <span>{t("sqlCommand")}</span>
+              <SqlEditor
+                label={t("sqlCommand")}
+                value={selected.command}
+                onChange={(command) =>
+                  update(selectedIndex, { ...selected, command })
+                }
+              />
+            </label>
+          </section>
+        ) : (
+          <p className="definition-state">{t("noProcedureSteps")}</p>
+        )}
+      </div>
+    </div>
+  );
 }

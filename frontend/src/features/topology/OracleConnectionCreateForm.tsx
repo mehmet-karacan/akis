@@ -58,6 +58,9 @@ export function OracleConnectionCreateForm({ projectUuid, copy: c, onConnectionC
         name: name.trim(), code: code.trim(), description: description.trim() || undefined,
         initialVersion, credentials,
       })
+      if (result.initialVersion.mode === 'JDBC') {
+        await topologyApi.makeConnectionCurrent(projectUuid, result.connection.uuid, result.initialVersion.uuid)
+      }
       await onConnectionCreated(result.connection.uuid); onClose()
     } catch (reason) { setError(reason instanceof Error ? reason.message : c.saveFailed) }
     finally { setBusy('') }

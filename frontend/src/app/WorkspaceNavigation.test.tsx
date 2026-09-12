@@ -9,7 +9,7 @@ describe('WorkspaceNavigation', () => {
 
   it('always exposes the three primary workspaces', () => {
     render(<MemoryRouter initialEntries={['/projects/p-1/development']}><WorkspaceNavigation projectUuid="p-1" collapsed={false} hasPendingChanges={false} onNavigate={() => undefined} /></MemoryRouter>)
-    expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['Development', 'Operations', 'Connections'])
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Project', 'Operations', 'Connections'])
   })
 
   it('maps legacy routes into the canonical workspace', () => {
@@ -21,6 +21,6 @@ describe('WorkspaceNavigation', () => {
 
   it('keeps all workspaces available but puts operations first for an operator-only role', () => {
     render(<MemoryRouter><WorkspaceNavigation projectUuid="p-1" collapsed={false} hasPendingChanges={false} operatorOnly onNavigate={() => undefined} /></MemoryRouter>)
-    expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['Operations', 'Development', 'Connections'])
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Operations', 'Project', 'Connections'])
   })
 })

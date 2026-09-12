@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { CheckCircle2, CircleAlert, LoaderCircle, Save, ShieldCheck } from 'lucide-react'
-import { topologyApi, type ConnectionVersion, type DraftConnectionTestResult } from './api'
+import { topologyApi, type Connection, type ConnectionVersion, type DraftConnectionTestResult } from './api'
 import { toOracleConnectionInput, validateOracleConnectionInput, type ConnectionVersionDraft } from './connectionVersionModel'
 import type { getTopologyCopy } from './copy'
 import './topology.css'
@@ -8,6 +8,7 @@ import './topology.css'
 interface Props {
   projectUuid: string
   connectionUuid: string
+  connection: Connection
   version: ConnectionVersion
   copy: ReturnType<typeof getTopologyCopy>
   onSaved(): Promise<void>
@@ -28,7 +29,10 @@ function draftFrom(version: ConnectionVersion): ConnectionVersionDraft {
 
 const fingerprint = (draft: ConnectionVersionDraft) => JSON.stringify(draft)
 
-export function OracleConnectionEndpointEditForm({ projectUuid, connectionUuid, version, copy: c, onSaved }: Props) {
+export function OracleConnectionEndpointEditForm({ projectUuid, connectionUuid, connection, version, copy: c, onSaved }: Props) {
+  const [name, setName] = useState(connection.name)
+  const [code, setCode] = useState(connection.code)
+  const [description, setDescription] = useState(connection.description ?? '')
   const [draft, setDraft] = useState(() => draftFrom(version))
   const [busy, setBusy] = useState<'test' | 'save' | ''>('')
   const [error, setError] = useState('')
@@ -40,7 +44,8 @@ export function OracleConnectionEndpointEditForm({ projectUuid, connectionUuid, 
     setDraft((current) => ({ ...current, [key]: value })); setTestResult(null); setTestedFingerprint(''); setError('')
   }
   const valid = () => {
-    if (validateOracleConnectionInput(draft).length) { setError(c.invalidConnectionFields); return false }
+    if (!name.trim() || !/^[A-Za-z][A-Za-z0-9_]{0,99}$/.test(code)
+        || validateOracleConnectionInput(draft).length) { setError(c.invalidConnectionFields); return false }
     return true
   }
   const test = async () => {
@@ -57,12 +62,22 @@ export function OracleConnectionEndpointEditForm({ projectUuid, connectionUuid, 
     if (!valid() || !tested) { setError(c.testBeforeSave); return }
     setBusy('save'); setError('')
     try {
-      await topologyApi.createVersion(projectUuid, connectionUuid, toOracleConnectionInput(draft))
+      const next = await topologyApi.createVersion(projectUuid, connectionUuid, toOracleConnectionInput(draft))
+      if (next.mode === 'JDBC') await topologyApi.makeConnectionCurrent(projectUuid, connectionUuid, next.uuid)
+      await topologyApi.updateConnection(projectUuid, connectionUuid, {
+        code: code.trim().toUpperCase(),
+        name: name.trim(),
+        description: description.trim() || undefined,
+        expectedVersion: connection.version,
+      })
       await onSaved()
     } catch (reason) { setError(reason instanceof Error ? reason.message : c.saveFailed) }
     finally { setBusy('') }
   }
   return <form className="topology-form topology-endpoint-edit" onSubmit={(event) => void save(event)}>
+    <h3>{c.connectionDefinition}</h3>
+    <div className="topology-form-row"><label className="topology-field"><span>{c.name} *</span><input required value={name} onChange={(event) => setName(event.target.value)} /></label><label className="topology-field"><span>{c.code} *</span><input required pattern="[A-Za-z][A-Za-z0-9_]{0,99}" value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} /></label></div>
+    <label className="topology-field"><span>{c.description}</span><textarea rows={2} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
     <h3>{c.oracleConnectionDetails}</h3>
     <label className="topology-field"><span>{c.connectionMode} *</span><select value={draft.mode} onChange={(event) => update('mode', event.target.value as ConnectionVersionDraft['mode'])}><option value="JDBC">JDBC</option><option value="JNDI">JNDI</option></select></label>
     {draft.mode === 'JDBC' ? <>

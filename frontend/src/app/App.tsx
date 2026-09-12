@@ -11,7 +11,6 @@ const DefinitionsWorkspace = lazy(() => import('../features/definitions').then((
 const ConnectionsPage = lazy(() => import('../features/connections').then((module) => ({ default: module.ConnectionsPage })))
 const ConnectionCreatePage = lazy(() => import('../features/connections').then((module) => ({ default: module.ConnectionCreatePage })))
 const ConnectionDetailPage = lazy(() => import('../features/connections').then((module) => ({ default: module.ConnectionDetailPage })))
-const ConnectionRevisionPage = lazy(() => import('../features/connections').then((module) => ({ default: module.ConnectionRevisionPage })))
 const PhysicalSchemasPage = lazy(() => import('../features/connections').then((module) => ({ default: module.PhysicalSchemasPage })))
 const LogicalSchemasPage = lazy(() => import('../features/schemas').then((module) => ({ default: module.LogicalSchemasPage })))
 const SchemaBindingsPage = lazy(() => import('../features/schemas').then((module) => ({ default: module.SchemaBindingsPage })))
@@ -95,7 +94,6 @@ export function App() {
         <Route path="/projects/:projectUuid/connections" element={<ConnectionsPage />} />
         <Route path="/projects/:projectUuid/connections/new" element={<ProjectPermissionRoute permission="BAGLANTI_YONET" fallback="/projects/:projectUuid/connections"><ConnectionCreatePage /></ProjectPermissionRoute>} />
         <Route path="/projects/:projectUuid/connections/:connectionUuid" element={<ConnectionDetailPage />} />
-        <Route path="/projects/:projectUuid/connections/:connectionUuid/revisions/:revisionUuid" element={<ConnectionRevisionPage />} />
         <Route path="/projects/:projectUuid/connections/:connectionUuid/physical-schemas" element={<PhysicalSchemasPage />} />
         <Route path="/projects/:projectUuid/logical-schemas" element={<LogicalSchemasPage />} />
         <Route path="/projects/:projectUuid/logical-schemas/:logicalSchemaUuid" element={<LogicalSchemaDetailPage />} />

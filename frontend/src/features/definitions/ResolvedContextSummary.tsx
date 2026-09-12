@@ -14,6 +14,6 @@ export function ResolvedContextSummary({ logicalSchema, environment, context }: 
 }) {
   const { t } = useDefinitionsI18n()
   return <section className={`resolved-context ${context.binding ? '' : 'is-missing'}`} aria-label={t('resolvedContext')}><header><strong>{t('resolvedContext')}</strong><span>{context.binding ? t('contextResolved') : t('contextMissing')}</span></header><dl>
-    <div><dt>{t('logicalSchema')}</dt><dd>{logicalSchema?.name ?? '—'}</dd></div><div><dt>{t('environment')}</dt><dd>{environment?.name ?? '—'}</dd></div><div><dt>{t('resolvedConnection')}</dt><dd>{context.connection?.name ?? '—'}</dd></div><div><dt>{t('resolvedPhysicalSchema')}</dt><dd>{context.physicalSchema?.schemaReference ?? '—'}</dd></div><div><dt>{t('pinnedRevision')}</dt><dd>{context.version ? `r${context.version.versionNumber}` : '—'}</dd></div>
+    <div><dt>{t('logicalSchema')}</dt><dd>{logicalSchema?.name ?? '—'}</dd></div><div><dt>{t('environment')}</dt><dd>{environment?.name ?? '—'}</dd></div><div><dt>{t('resolvedConnection')}</dt><dd>{context.connection?.name ?? '—'}</dd></div><div><dt>{t('resolvedPhysicalSchema')}</dt><dd>{context.physicalSchema?.schemaReference ?? '—'}</dd></div>
   </dl></section>
 }

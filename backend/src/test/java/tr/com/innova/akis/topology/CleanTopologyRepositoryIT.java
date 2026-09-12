@@ -86,12 +86,47 @@ class CleanTopologyRepositoryIT {
                 projectId, connection.id(), UUID.randomUUID(), 2, "JDBC",
                 "oracle.jdbc.OracleDriver", "db-next.example", "ORCL", null, null,
                 null, "DISABLED", 1521, 2, policy);
+        UUID successfulTestUuid = UUID.randomUUID();
+        jdbc.sql("""
+                insert into akis.baglanti_testi(
+                    proje_id, baglanti_surumu_id, deneme_no, sonuc,
+                    urun_adi, urun_surumu, hedef_kimlik_surumu, hedef_parmak_izi,
+                    baslama_zamani, tamamlanma_zamani, sure_milisaniye, uuid)
+                values (:projectId, :versionId, 1, 'BASARILI',
+                        'Oracle', '19c', 1, repeat('a', 64),
+                        current_timestamp, current_timestamp, 0, :uuid)
+                """)
+                .param("projectId", projectId)
+                .param("versionId", nextVersion.id())
+                .param("uuid", successfulTestUuid)
+                .update();
+        jdbc.sql("""
+                update akis.baglanti_surumu
+                   set durum = 'TEST_EDILDI',
+                       son_basarili_test_uuid = :testUuid,
+                       hedef_kimlik_surumu = 1,
+                       hedef_parmak_izi = repeat('a', 64),
+                       test_edilme_zamani = current_timestamp
+                 where id = :id
+                """)
+                .param("id", nextVersion.id())
+                .param("testUuid", successfulTestUuid)
+                .update();
         var updatedBinding = service.updateSchemaBinding(
                 projectUuid, binding.uuid(), logical.uuid(), environment.uuid(),
-                physical.uuid(), nextVersion.uuid(), binding.version());
+                physical.uuid(), binding.version());
         assertEquals(binding.uuid(), updatedBinding.uuid());
         assertEquals(nextVersion.uuid(), updatedBinding.connectionVersionUuid());
         assertEquals(2, updatedBinding.version());
+
+        var createdLogical = service.createLogicalSchema(
+                projectUuid, "CURRENT_TARGET", "Current Target", null,
+                environment.uuid(), physical.uuid());
+        var createdMapping = repository.listSchemaBindings(projectId).stream()
+                .filter(item -> item.logicalSchemaUuid().equals(createdLogical.uuid()))
+                .findFirst().orElseThrow();
+        assertEquals(physical.uuid(), createdMapping.physicalSchemaUuid());
+        assertEquals(nextVersion.uuid(), createdMapping.connectionVersionUuid());
     }
 
     @Test

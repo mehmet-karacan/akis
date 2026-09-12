@@ -1,9 +1,9 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import i18n from '../../../core/i18n'
 import { DEFAULT_PROCEDURE, isProcedureContent } from '../defaults'
-import { pageProcedureTasks, ProcedureEditor } from '../ProcedureEditor'
+import { applyAutomaticRowHandoffs, pageProcedureTasks, ProcedureEditor } from '../ProcedureEditor'
 import type { ProcedureContent } from '../types'
 
 function Harness() {
@@ -29,28 +29,33 @@ describe('ProcedureEditor', () => {
     expect(container.querySelectorAll('.procedure-task')).toHaveLength(2)
   })
 
-  it('keeps row handoff references valid when source step IDs change', () => {
+  it('keeps row handoff references valid when source step IDs change', async () => {
     render(<Harness />)
     fireEvent.change(screen.getByDisplayValue('READ_SOURCE'), { target: { value: 'READ_SKY' } })
-    fireEvent.click(document.querySelectorAll<HTMLButtonElement>('.procedure-task-select')[1]!)
-    expect(screen.getByDisplayValue('READ_SKY')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByDisplayValue('READ_SKY')).toBeInTheDocument())
   })
 
-  it('moves a row producer and its consumer together without changing the handoff', () => {
+  it('moves an automatically paired row producer and consumer together', () => {
     const { container } = render(<Harness />)
     fireEvent.click(screen.getByRole('button', { name: 'Add Target Step' }))
     fireEvent.click(screen.getByRole('button', { name: 'Move Down: Read source rows' }))
     expect(container.querySelectorAll('.procedure-task')[0]).toHaveTextContent('Target command')
-    fireEvent.click(document.querySelectorAll<HTMLButtonElement>('.procedure-task-select')[2]!)
-    expect(screen.getByLabelText('Consume rows from an earlier SELECT')).toBeChecked()
-    expect(screen.getByDisplayValue('READ_SOURCE')).toBeInTheDocument()
+    expect(container.querySelectorAll('.procedure-task')[1]).toHaveTextContent('Read source rows')
+    expect(container.querySelectorAll('.procedure-task')[2]).toHaveTextContent('Insert target rows')
   })
 
-  it('uses the current runtime row limit and keeps timeout policy out of the step form', () => {
+  it('keeps row transfer and timeout engine details out of the step form', () => {
     render(<Harness />)
-    expect(screen.getByLabelText('Maximum rows')).toHaveValue(1000)
-    expect(screen.getByLabelText('Maximum rows')).toHaveAttribute('max', '1000')
+    expect(screen.queryByLabelText('Expose SELECT rows to a later step')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Maximum rows')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Consume rows from an earlier SELECT')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Timeout (seconds)')).not.toBeInTheDocument()
+  })
+
+  it('derives adjacent source-to-target row transfer with platform limits', () => {
+    const tasks = applyAutomaticRowHandoffs(DEFAULT_PROCEDURE.tasks, 750)
+    expect(tasks[0]?.output).toEqual({ kind: 'ROWSET', maxRows: 750 })
+    expect(tasks[1]?.input).toEqual({ fromTask: 'READ_SOURCE', mode: 'BATCH', batchSize: 250 })
   })
 
   it('rejects malformed task arrays before the visual editor renders them', () => {

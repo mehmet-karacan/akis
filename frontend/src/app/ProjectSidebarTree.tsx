@@ -181,7 +181,7 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
           </div>
           {componentsOpen && <ul>{COMPONENT_TYPES.map(componentGroup)}</ul>}
         </li>
-        <li className="sidebar-folder sidebar-virtual-root">
+        <li className="sidebar-folder sidebar-model-link">
           <button type="button" className="sidebar-folder-row sidebar-folder-row--link" onClick={() => onNavigate(`/projects/${encodeURIComponent(projectUuid)}/models`)}><span className="sidebar-folder-spacer" /><Database /><span>{shellT('nav.models')}</span><ChevronRight /></button>
         </li>
       </ul>}

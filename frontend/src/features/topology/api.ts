@@ -358,6 +358,18 @@ export const topologyApi = {
     versionUuid: string,
     body: { testUuid: string; expectedStateVersion: number },
   ) => post<ConnectionVersionLifecycle>(`${connectionVersionV2(projectUuid, connectionUuid, versionUuid)}/activate`, body),
+  makeConnectionCurrent: async (projectUuid: string, connectionUuid: string, versionUuid: string) => {
+    const attempt = await post<ConnectionTestAttempt>(`${connectionVersionV2(projectUuid, connectionUuid, versionUuid)}/tests`)
+    const current = (await get<ConnectionVersion[]>(connectionVersionsV2(projectUuid, connectionUuid)))
+      .find((version) => version.uuid === versionUuid)
+    if (!current || current.lifecycleStatus !== 'TESTED') {
+      throw new Error('The tested connection information could not be prepared for use.')
+    }
+    return post<ConnectionVersionLifecycle>(`${connectionVersionV2(projectUuid, connectionUuid, versionUuid)}/activate`, {
+      testUuid: attempt.uuid,
+      expectedStateVersion: current.lifecycleVersion,
+    })
+  },
   listOracleSchemas: (projectUuid: string, connectionUuid: string, versionUuid: string) =>
     get<string[]>(`${base(projectUuid)}/connections/${encodeURIComponent(connectionUuid)}/versions/${encodeURIComponent(versionUuid)}/schemas`),
   listPhysicalSchemas: (projectUuid: string) => get<PhysicalSchema[]>(`${base(projectUuid)}/physical-schemas`),

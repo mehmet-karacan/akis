@@ -120,12 +120,15 @@ describe('topology API contracts', () => {
     const fetchMock = mockResponse({ uuid: 'binding', version: 2 })
     await topologyApi.updateBinding('project', 'binding/id', {
       logicalSchemaUuid: 'logical', environmentUuid: 'environment',
-      physicalSchemaUuid: 'physical', connectionVersionUuid: 'version', expectedVersion: 1,
+      physicalSchemaUuid: 'physical', expectedVersion: 1,
     })
     const [path, init] = fetchMock.mock.calls[0] as [string, RequestInit]
     expect(path).toBe('/api/v1/projects/project/schema-bindings/binding%2Fid')
     expect(init.method).toBe('PATCH')
-    expect(JSON.parse(String(init.body))).toMatchObject({ connectionVersionUuid: 'version', expectedVersion: 1 })
+    expect(JSON.parse(String(init.body))).toEqual({
+      logicalSchemaUuid: 'logical', environmentUuid: 'environment',
+      physicalSchemaUuid: 'physical', expectedVersion: 1,
+    })
   })
 
   it('sends discovery filters to the physical-schema discovery endpoint', async () => {

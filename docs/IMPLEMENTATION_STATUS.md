@@ -10,8 +10,8 @@ kullanmaz; üretim Flyway konumu yalnız temiz V001-V012 zinciridir.
 
 - Kimlik, kullanıcı, sistem/proje rolleri, yetkiler ve zamanlı proje üyeliği
 - Zorunlu proje seçimi ve boş ilk proje ekranı
-- Oracle/PostgreSQL/MySQL sağlayıcı kartları; JDBC/JNDI bağlantı sürümleri
-- Fiziksel/mantıksal şemalar, ortamlar ve eşlemeler
+- Oracle/PostgreSQL/MySQL sağlayıcı kartları; kullanıcıya tek güncel bağlantı olarak sunulan JDBC/JNDI ayarları
+- Fiziksel/mantıksal şemalar, ortamlar ve mantıksal şema oluştururken atomik ilk eşleme
 - Klasör ağacı; Mapping, Paket, Prosedür, Değişken, Sekans, kullanıcı fonksiyonu,
   knowledge module ve load plan tanım/sürüm sözleşmeleri
 - Model, alt model, veri nesnesi ve değişmez metadata snapshot'ları
@@ -22,6 +22,7 @@ kullanmaz; üretim Flyway konumu yalnız temiz V001-V012 zinciridir.
 - Mutating işlem niyeti, kesin retry kanıtı ve belirsiz commit mutabakat bariyeri
 - Secretsız tam Proje Paketi V2 içe/dışa aktarımı
 - İngilizce varsayılan, Türkçe destekli responsive UI
+- Proje, Operasyonlar ve Bağlantılar çalışma sekmeleri; Proje altında kalıcı nesne ağacı
 
 ## Kalıcı yerel veritabanı durumu
 
