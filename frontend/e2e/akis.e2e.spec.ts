@@ -53,6 +53,41 @@ test.describe('AKIŞ critical browser journeys', () => {
     }
   })
 
+  test('opens available detail screens and reveals Oracle fields only after provider selection', async ({ page }) => {
+    const projectUuid = await login(page)
+
+    await navigateInApp(page, `/projects/${projectUuid}/connections/new`)
+    await expectHealthyScreen(page)
+    const createForm = page.locator('.topology-connection-form')
+    await expect(createForm.locator('input[autocomplete="username"]')).toHaveCount(0)
+    await createForm.locator('select').first().selectOption('ORACLE')
+    await expect(createForm.locator('input[autocomplete="username"]')).toBeVisible()
+    await expect(createForm.locator('input[autocomplete="new-password"]')).toBeVisible()
+
+    await navigateInApp(page, `/projects/${projectUuid}/connections`)
+    const connectionHref = await page.locator('.connection-name-link').first().getAttribute('href')
+    expect(connectionHref, 'The baseline project must contain a connection').toBeTruthy()
+    await navigateInApp(page, connectionHref!)
+    await expectHealthyScreen(page)
+
+    const revisionHref = await page.locator('.revision-list a').first().getAttribute('href')
+    expect(revisionHref, 'The baseline connection must contain a revision').toBeTruthy()
+    await navigateInApp(page, revisionHref!)
+    await expectHealthyScreen(page)
+
+    await navigateInApp(page, connectionHref!)
+    const physicalHref = await page.locator(`a[href="${connectionHref}/physical-schemas"]`).getAttribute('href')
+    expect(physicalHref, 'The connection must expose physical-schema management').toBeTruthy()
+    await navigateInApp(page, physicalHref!)
+    await expectHealthyScreen(page)
+
+    await navigateInApp(page, `/projects/${projectUuid}/environments`)
+    const environmentHref = await page.locator('.schema-name-link').first().getAttribute('href')
+    expect(environmentHref, 'The baseline project must contain an environment').toBeTruthy()
+    await navigateInApp(page, environmentHref!)
+    await expectHealthyScreen(page)
+  })
+
   test('shows a forced connection-catalog failure and recovers through Retry', async ({ page }) => {
     const projectUuid = await login(page)
     const catalogPattern = '**/api/v1/projects/*/connections/catalog'
@@ -64,7 +99,8 @@ test.describe('AKIŞ critical browser journeys', () => {
       })
     })
 
-    await navigateInApp(page, `/projects/${projectUuid}/connections`)
+    await page.locator(`.sidebar a[href="/projects/${projectUuid}/connections"]`).click()
+    await expect(page).toHaveURL(new RegExp(`/projects/${projectUuid}/connections$`))
     const failure = page.locator('.ui-async-state.error')
     await expect(failure).toBeVisible()
     await page.unroute(catalogPattern)
