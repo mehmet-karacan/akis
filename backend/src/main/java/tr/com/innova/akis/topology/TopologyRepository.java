@@ -133,6 +133,7 @@ public class TopologyRepository {
                                 :port, :connectTimeoutMs, :readTimeoutMs,
                                 :networkTimeoutMs, :queryTimeoutSeconds, :purpose)
                         returning id, uuid, baglanti_id, surum_no, baglanti_modu, surucu_sinifi,
+                                  null::varchar as kullanici_adi,
                                   sunucu_adi, servis_adi, sid, veritabani_adi, jndi_adi, tls_modu,
                                   port, baglanti_zaman_asimi_ms, okuma_zaman_asimi_ms,
                                   ag_zaman_asimi_ms, sorgu_zaman_asimi_saniye, kullanim_amaci,
@@ -172,18 +173,20 @@ public class TopologyRepository {
             long connectionVersionId,
             String provider,
             String referencePath,
-            String role) {
+            String role,
+            String username) {
         jdbc.sql("""
                         insert into akis.baglanti_kimligi(
                             proje_id, baglanti_surumu_id, kullanim_amaci,
-                            gizli_deger_saglayicisi, gizli_deger_konumu)
-                        values (:projectId, :connectionVersionId, :role, :provider, :referencePath)
+                            gizli_deger_saglayicisi, gizli_deger_konumu, kullanici_adi)
+                        values (:projectId, :connectionVersionId, :role, :provider, :referencePath, :username)
                         """)
                 .param("projectId", projectId)
                 .param("connectionVersionId", connectionVersionId)
                 .param("provider", provider)
                 .param("referencePath", referencePath)
                 .param("role", storedCredentialPurpose(role))
+                .param("username", username)
                 .update();
     }
 
@@ -391,7 +394,7 @@ public class TopologyRepository {
     private String connectionVersionSelect() {
         return """
                 select bs.id, bs.uuid, bs.baglanti_id, bs.surum_no, bs.baglanti_modu,
-                       bs.surucu_sinifi, bs.sunucu_adi, bs.servis_adi, bs.sid,
+                       bs.surucu_sinifi, bk.kullanici_adi, bs.sunucu_adi, bs.servis_adi, bs.sid,
                        bs.veritabani_adi, bs.jndi_adi, bs.tls_modu, bs.port,
                        bs.baglanti_zaman_asimi_ms, bs.okuma_zaman_asimi_ms,
                        bs.ag_zaman_asimi_ms, bs.sorgu_zaman_asimi_saniye,
@@ -406,6 +409,8 @@ public class TopologyRepository {
                        bs.test_edilme_zamani as tested_at,
                        bs.etkinlestirilme_zamani as activated_at
                   from akis.baglanti_surumu bs
+                  left join akis.baglanti_kimligi bk
+                    on bk.baglanti_surumu_id = bs.id and bk.kullanim_amaci = 'VERITABANI'
                 """;
     }
 
@@ -414,7 +419,7 @@ public class TopologyRepository {
         return new ConnectionVersionRow(
                 rs.getLong("id"), rs.getObject("uuid", UUID.class),
                 rs.getLong("baglanti_id"), rs.getInt("surum_no"),
-                rs.getString("baglanti_modu"), rs.getString("surucu_sinifi"), rs.getString("sunucu_adi"),
+                rs.getString("baglanti_modu"), rs.getString("surucu_sinifi"), rs.getString("kullanici_adi"), rs.getString("sunucu_adi"),
                 rs.getString("servis_adi"), rs.getString("sid"),
                 rs.getString("veritabani_adi"), rs.getString("jndi_adi"), apiTlsMode(rs.getString("tls_modu")),
                 rs.getObject("port", Integer.class), 2,

@@ -53,7 +53,7 @@ class CleanTopologyRepositoryIT {
                 projectId, connection.id(), UUID.randomUUID(), 1, "JDBC",
                 "oracle.jdbc.OracleDriver", "db.example", "ORCL", null, null,
                 null, "DISABLED", 1521, 2, policy);
-        repository.bindCredential(projectId, version.id(), "ENV", "AKIS_TEST_PASSWORD", "KIMLIK");
+        repository.bindCredential(projectId, version.id(), "ENV", "AKIS_TEST_PASSWORD", "KIMLIK", "reader");
         var physical = repository.createPhysicalSchema(
                 projectId, connection.id(), UUID.randomUUID(), "MAIN_APP", "APP", "App Schema");
         var logical = repository.createLogicalSchema(
@@ -85,17 +85,19 @@ class CleanTopologyRepositoryIT {
         var created = service.createOracleConnectionWithInitialVersion(
                 projectUuid, "ORACLE_ATOMIC", "Oracle Atomic", null,
                 "JDBC", "oracle.example", "ORCL", null, 1521, null,
-                2, policy, "ENV", "AKIS_ORACLE_ATOMIC_CREDENTIAL");
+                2, policy, "ENV", "AKIS_ORACLE_ATOMIC_CREDENTIAL", "reader");
 
         assertEquals(created.connection().id(), created.initialVersion().connectionId());
         assertEquals("oracle.example", created.initialVersion().host());
+        assertEquals("reader", repository.listConnectionVersions(
+                projectId, created.connection().id()).getFirst().username());
         assertEquals(1, repository.listConnectionVersions(
                 projectId, created.connection().id()).size());
         assertTrue(TopologyService.class.getDeclaredMethod(
                         "createOracleConnectionWithInitialVersion",
                         UUID.class, String.class, String.class, String.class, String.class,
                         String.class, String.class, String.class, Integer.class, String.class,
-                        int.class, tools.jackson.databind.JsonNode.class, String.class, String.class)
+                        int.class, tools.jackson.databind.JsonNode.class, String.class, String.class, String.class)
                 .isAnnotationPresent(Transactional.class));
     }
 

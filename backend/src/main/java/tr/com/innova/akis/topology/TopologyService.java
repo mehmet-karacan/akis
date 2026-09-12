@@ -82,13 +82,14 @@ public class TopologyService {
             int policyVersion,
             JsonNode policy,
             String credentialProvider,
-            String credentialReferencePath) {
+            String credentialReferencePath,
+            String username) {
         ConnectionRow connection = createConnection(
                 projectUuid, code, "ORACLE", name, description);
         ConnectionVersionRow version = createConnectionVersionWithCredential(
                 projectUuid, connection.uuid(), mode, null, host,
                 serviceName, sid, null, "DISABLED", port, jndiName,
-                policyVersion, policy, credentialProvider, credentialReferencePath);
+                policyVersion, policy, credentialProvider, credentialReferencePath, username);
         return new ConnectionWithInitialVersion(connection, version);
     }
 
@@ -124,6 +125,29 @@ public class TopologyService {
             JsonNode policy,
             String credentialProvider,
             String credentialReferencePath) {
+        return createConnectionVersionWithCredential(
+                projectUuid, connectionUuid, mode, driverReference, host, serviceName, sid,
+                databaseName, tlsMode, port, jndiName, policyVersion, policy,
+                credentialProvider, credentialReferencePath, null);
+    }
+
+    private ConnectionVersionRow createConnectionVersionWithCredential(
+            UUID projectUuid,
+            UUID connectionUuid,
+            String mode,
+            String driverReference,
+            String host,
+            String serviceName,
+            String sid,
+            String databaseName,
+            String tlsMode,
+            Integer port,
+            String jndiName,
+            int policyVersion,
+            JsonNode policy,
+            String credentialProvider,
+            String credentialReferencePath,
+            String username) {
         ProjectRef project = project(projectUuid);
         ConnectionRow connection = connection(project, connectionUuid);
         if ("PASIF".equals(connection.status())) {
@@ -217,7 +241,7 @@ public class TopologyService {
         if (normalizedCredentialProvider != null) {
             repository.bindCredential(
                     project.id(), version.id(), normalizedCredentialProvider,
-                    normalizedCredentialPath, "KIMLIK");
+                    normalizedCredentialPath, "KIMLIK", trimToNull(username));
         }
         return version;
     }

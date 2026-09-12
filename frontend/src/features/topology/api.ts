@@ -15,6 +15,7 @@ export interface ConnectionVersion {
   versionNumber: number
   mode: 'JDBC' | 'JNDI'
   driverReference?: string | null
+  username?: string | null
   host?: string | null
   serviceName?: string | null
   sid?: string | null
@@ -65,7 +66,29 @@ export interface CreateOracleConnectionRequest {
   code: string
   name: string
   description?: string
-  initialVersion: CreateConnectionVersionRequest
+  initialVersion: OracleConnectionEndpointRequest
+  credentials?: { username: string; password: string }
+}
+
+export type OracleConnectionEndpointRequest = {
+  mode: 'JDBC'
+  jdbc: {
+    host: string
+    port: number
+    connectIdentifier: { type: 'SERVICE_NAME' | 'SID'; value: string }
+    transport: 'TCP'
+  }
+  policyVersion: 2
+  executionPolicy: ConnectionExecutionPolicy
+} | {
+  mode: 'JNDI'
+  jndi: { name: string }
+  policyVersion: 2
+  executionPolicy: ConnectionExecutionPolicy
+}
+
+export type OracleDraftConnectionTestRequest = OracleConnectionEndpointRequest & {
+  credentials?: { username: string; password: string }
 }
 
 export interface OracleConnectionCreated {
@@ -282,7 +305,7 @@ export const topologyApi = {
   createConnection: (projectUuid: string, body: JsonRecord) => post<Connection>(`${base(projectUuid)}/connections`, body),
   createOracleConnection: (projectUuid: string, body: CreateOracleConnectionRequest) =>
     post<OracleConnectionCreated>(`${v2Base(projectUuid)}/connections`, body as unknown as JsonRecord),
-  testOracleDraftConnection: (projectUuid: string, body: CreateConnectionVersionRequest) =>
+  testOracleDraftConnection: (projectUuid: string, body: OracleDraftConnectionTestRequest) =>
     post<DraftConnectionTestResult>(`${v2Base(projectUuid)}/connections/test`, body as unknown as JsonRecord),
   listVersions: (projectUuid: string, connectionUuid: string) => get<ConnectionVersion[]>(connectionVersionsV2(projectUuid, connectionUuid)),
   createVersion: (projectUuid: string, connectionUuid: string, body: CreateConnectionVersionRequest) => post<ConnectionVersion>(connectionVersionsV2(projectUuid, connectionUuid), body),

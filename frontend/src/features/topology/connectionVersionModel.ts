@@ -1,4 +1,4 @@
-import type { CreateConnectionVersionRequest } from './api'
+import type { CreateConnectionVersionRequest, OracleDraftConnectionTestRequest } from './api'
 
 export type ConnectionMode = 'JDBC' | 'JNDI'
 export type IdentifierType = 'SERVICE_NAME' | 'SID'
@@ -12,6 +12,8 @@ export interface ConnectionVersionDraft {
   identifier: string
   transport: Transport
   credentialReferencePath: string
+  username: string
+  password: string
   jndiName: string
   connectTimeoutMs: string
   readTimeoutMs: string
@@ -21,7 +23,7 @@ export interface ConnectionVersionDraft {
 
 export const initialConnectionVersionDraft: ConnectionVersionDraft = {
   mode: 'JDBC', host: '', port: '1521', identifierType: 'SERVICE_NAME',
-  identifier: '', transport: 'TCP', credentialReferencePath: '', jndiName: '',
+  identifier: '', transport: 'TCP', credentialReferencePath: '', username: '', password: '', jndiName: '',
   connectTimeoutMs: '10000', readTimeoutMs: '30000', networkTimeoutMs: '30000', queryTimeoutSeconds: '300',
 }
 
@@ -55,6 +57,15 @@ export function validateConnectionVersionDraft(draft: ConnectionVersionDraft): s
   ]
 }
 
+export function validateOracleConnectionInput(draft: ConnectionVersionDraft): string[] {
+  if (draft.mode === 'JNDI') return validateConnectionVersionDraft(draft)
+  return [
+    ...validateConnectionVersionDraft(draft).filter((field) => field !== 'credential'),
+    ...(!draft.username.trim() ? ['username'] : []),
+    ...(!draft.password ? ['password'] : []),
+  ]
+}
+
 function executionPolicy(draft: ConnectionVersionDraft) {
   return {
     connectTimeoutMs: Number(draft.connectTimeoutMs),
@@ -81,5 +92,20 @@ export function toCreateConnectionVersionRequest(draft: ConnectionVersionDraft):
       credentialReferencePath: draft.credentialReferencePath.trim(),
     },
     policyVersion: 2, executionPolicy: executionPolicy(draft),
+  }
+}
+
+export function toOracleConnectionInput(draft: ConnectionVersionDraft): OracleDraftConnectionTestRequest {
+  const policy = { policyVersion: 2 as const, executionPolicy: executionPolicy(draft) }
+  if (draft.mode === 'JNDI') return { mode: 'JNDI', jndi: { name: draft.jndiName.trim() }, ...policy }
+  return {
+    mode: 'JDBC',
+    jdbc: {
+      host: draft.host.trim(), port: Number(draft.port),
+      connectIdentifier: { type: draft.identifierType, value: draft.identifier.trim() },
+      transport: 'TCP',
+    },
+    credentials: { username: draft.username.trim(), password: draft.password },
+    ...policy,
   }
 }

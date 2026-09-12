@@ -24,8 +24,6 @@ describe('topology API contracts', () => {
         host: 'oracle.example', port: 1521,
         connectIdentifier: { type: 'SERVICE_NAME' as const, value: 'ORCL' },
         transport: 'TCP' as const,
-        credentialProvider: 'ENV' as const,
-        credentialReferencePath: 'AKIS_ORACLE_MAIN_CREDENTIAL',
       },
       policyVersion: 2 as const,
       executionPolicy: {
@@ -36,12 +34,14 @@ describe('topology API contracts', () => {
 
     await topologyApi.createOracleConnection('project id', {
       code: 'ORACLE_MAIN', name: 'Oracle Main', initialVersion,
+      credentials: { username: 'reader', password: 'local-secret' },
     })
 
     const [path, init] = fetchMock.mock.calls[0] as [string, RequestInit]
     expect(path).toBe('/api/v2/projects/project%20id/connections')
     expect(JSON.parse(String(init.body))).toEqual({
       code: 'ORACLE_MAIN', name: 'Oracle Main', initialVersion,
+      credentials: { username: 'reader', password: 'local-secret' },
     })
   })
 
@@ -49,7 +49,8 @@ describe('topology API contracts', () => {
     const fetchMock = mockResponse({ connected: true, oracle19cCompatible: true })
     const draft = {
       mode: 'JDBC' as const,
-      jdbc: { host: '10.0.0.1', port: 1521, connectIdentifier: { type: 'SID' as const, value: 'ORCL' }, transport: 'TCP' as const, credentialProvider: 'ENV' as const, credentialReferencePath: 'AKIS_ORACLE_TEST_CREDENTIAL' },
+      jdbc: { host: '10.0.0.1', port: 1521, connectIdentifier: { type: 'SID' as const, value: 'ORCL' }, transport: 'TCP' as const },
+      credentials: { username: 'reader', password: 'local-secret' },
       policyVersion: 2 as const,
       executionPolicy: { connectTimeoutMs: 10000, readTimeoutMs: 30000, networkTimeoutMs: 30000, queryTimeoutSeconds: 300 },
     }

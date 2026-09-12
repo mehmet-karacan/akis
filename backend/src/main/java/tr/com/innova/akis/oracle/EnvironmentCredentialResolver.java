@@ -25,8 +25,11 @@ final class EnvironmentCredentialResolver {
     private final Function<String, String> environment;
 
     @Autowired
-    EnvironmentCredentialResolver(ObjectMapper objectMapper) {
-        this(objectMapper, System::getenv);
+    EnvironmentCredentialResolver(ObjectMapper objectMapper, OracleLocalCredentialStore localStore) {
+        this(objectMapper, name -> {
+            String environmentValue = System.getenv(name);
+            return environmentValue != null ? environmentValue : localStore.lookup(name);
+        });
     }
 
     EnvironmentCredentialResolver(

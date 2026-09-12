@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
 
 import tr.com.innova.akis.metadata.ApiException;
+import tr.com.innova.akis.oracle.OracleLocalCredentialStore;
 import tr.com.innova.akis.security.AuthorizationService;
 import tr.com.innova.akis.topology.TopologyModels.ConnectionRow;
 import tr.com.innova.akis.topology.TopologyModels.ConnectionVersionRow;
@@ -42,11 +43,14 @@ final class OracleConnectionV2Controller {
 
     private final TopologyService service;
     private final AuthorizationService authorization;
+    private final OracleLocalCredentialStore credentialStore;
 
     OracleConnectionV2Controller(
-            TopologyService service, AuthorizationService authorization) {
+            TopologyService service, AuthorizationService authorization,
+            OracleLocalCredentialStore credentialStore) {
         this.service = service;
         this.authorization = authorization;
+        this.credentialStore = credentialStore;
     }
 
     @PostMapping
@@ -55,11 +59,29 @@ final class OracleConnectionV2Controller {
             @Valid @RequestBody CreateOracleConnectionV2Request request) {
         authorization.requireProjectPermission(projectUuid, TOPOLOGY_WRITE);
         VersionFields fields = versionFields(request.initialVersion());
+        OracleLocalCredentialStore.StoredCredential stored = null;
+        if ("JDBC".equals(fields.mode())) {
+            if (request.credentials() == null) throw validation("JDBC credentials are required.");
+            if (fields.credentialProvider() != null || fields.credentialReferencePath() != null) {
+                throw validation("Credential references are managed by the platform.");
+            }
+            char[] password = request.credentials().password().toCharArray();
+            try {
+                stored = credentialStore.store(request.credentials().username(), password);
+            }
+            finally {
+                java.util.Arrays.fill(password, '\0');
+            }
+        }
+        else if (request.credentials() != null) {
+            throw validation("JNDI credentials are managed by the application server.");
+        }
         ConnectionWithInitialVersion created = service.createOracleConnectionWithInitialVersion(
                 projectUuid, request.code(), request.name(), request.description(),
                 fields.mode(), fields.host(), fields.serviceName(), fields.sid(), fields.port(),
                 fields.jndiName(), fields.policyVersion(), fields.executionPolicy(),
-                fields.credentialProvider(), fields.credentialReferencePath());
+                stored == null ? null : "ENV", stored == null ? null : stored.reference(),
+                stored == null ? null : stored.username());
         return ResponseEntity.status(HttpStatus.CREATED).body(
                 OracleConnectionWithInitialVersionV2View.from(created));
     }
@@ -72,6 +94,10 @@ final class OracleConnectionV2Controller {
         authorization.requireProjectPermission(projectUuid, TOPOLOGY_WRITE);
         requireOracle(projectUuid, connectionUuid);
         VersionFields fields = versionFields(request);
+        if ("JDBC".equals(fields.mode())
+                && (fields.credentialProvider() == null || fields.credentialReferencePath() == null)) {
+            throw validation("JDBC credential reference is required.");
+        }
         ConnectionVersionRow row = service.createConnectionVersionWithCredential(
                 projectUuid, connectionUuid, fields.mode(), null, fields.host(),
                 fields.serviceName(), fields.sid(), null, "DISABLED", fields.port(),
@@ -162,7 +188,8 @@ final class OracleConnectionV2Controller {
             @NotBlank String code,
             @NotBlank String name,
             String description,
-            @Valid @NotNull CreateOracleConnectionVersionV2Request initialVersion) {
+            @Valid @NotNull CreateOracleConnectionVersionV2Request initialVersion,
+            @Valid CredentialsRequest credentials) {
         @JsonAnySetter
         void rejectUnknown(String field, JsonNode value) {
             throw new IllegalArgumentException("Unknown Oracle connection V2 field: " + field);
@@ -212,11 +239,18 @@ final class OracleConnectionV2Controller {
             @NotNull @Min(1) @Max(65535) Integer port,
             @Valid @NotNull ConnectIdentifierRequest connectIdentifier,
             @NotBlank String transport,
-            @NotBlank String credentialProvider,
-            @NotBlank String credentialReferencePath) {
+            String credentialProvider,
+            String credentialReferencePath) {
         @JsonAnySetter
         void rejectUnknown(String field, JsonNode value) {
             throw new IllegalArgumentException("Unknown Oracle JDBC V2 field: " + field);
+        }
+    }
+
+    record CredentialsRequest(@NotBlank String username, @NotBlank String password) {
+        @JsonAnySetter
+        void rejectUnknown(String field, JsonNode value) {
+            throw new IllegalArgumentException("Unknown Oracle credential field: " + field);
         }
     }
 
@@ -241,6 +275,7 @@ final class OracleConnectionV2Controller {
             int versionNumber,
             String mode,
             String driverReference,
+            String username,
             String host,
             String serviceName,
             String sid,
@@ -262,7 +297,7 @@ final class OracleConnectionV2Controller {
 
         static ConnectionVersionV2View from(ConnectionVersionRow row) {
             return new ConnectionVersionV2View(
-                    row.uuid(), row.versionNumber(), row.mode(), row.driverReference(), row.host(),
+                    row.uuid(), row.versionNumber(), row.mode(), row.driverReference(), row.username(), row.host(),
                     row.serviceName(), row.sid(), row.databaseName(), row.jndiName(), row.tlsMode(),
                     row.port(), row.policyVersion(), row.policy(), row.createdAt(),
                     row.lifecycleStatus(), row.lifecycleVersion(), row.targetIdentityVersion(),

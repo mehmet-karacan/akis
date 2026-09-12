@@ -1,5 +1,6 @@
 package tr.com.innova.akis.oracle;
 
+import java.util.Arrays;
 import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonAnySetter;
@@ -43,37 +44,44 @@ final class OracleDraftConnectionTestController {
         boolean jdbc = "JDBC".equals(request.mode());
         boolean jndi = "JNDI".equals(request.mode());
         if (!jdbc && !jndi || jdbc && (request.jdbc() == null || request.jndi() != null)
-                || jndi && (request.jndi() == null || request.jdbc() != null)) {
+                || jndi && (request.jndi() == null || request.jdbc() != null)
+                || jdbc && request.credentials() == null
+                || jndi && request.credentials() != null) {
             throw new ApiException(
                     org.springframework.http.HttpStatus.UNPROCESSABLE_CONTENT,
                     "VALIDATION_FAILED", "Oracle taslak bağlantı modu geçersiz.");
         }
         JdbcDraft jdbcDraft = request.jdbc();
         if (jdbc && (!"TCP".equals(jdbcDraft.transport())
-                || !"ENV".equals(jdbcDraft.credentialProvider())
                 || !("SERVICE_NAME".equals(jdbcDraft.connectIdentifier().type())
                 || "SID".equals(jdbcDraft.connectIdentifier().type())))) {
             throw new ApiException(
                     org.springframework.http.HttpStatus.UNPROCESSABLE_CONTENT,
                     "VALIDATION_FAILED", "Oracle JDBC taslak bağlantı alanları geçersiz.");
         }
-        ConnectionProbe probe = service.testDraftConnection(
-                request.mode(), jndi ? request.jndi().name() : null,
-                jdbc ? jdbcDraft.host() : null,
-                jdbc && "SERVICE_NAME".equals(jdbcDraft.connectIdentifier().type())
-                        ? jdbcDraft.connectIdentifier().value() : null,
-                jdbc && "SID".equals(jdbcDraft.connectIdentifier().type())
-                        ? jdbcDraft.connectIdentifier().value() : null,
-                jdbc ? jdbcDraft.port() : null,
-                request.executionPolicy(),
-                jdbc ? jdbcDraft.credentialReferencePath() : null);
-        return DraftConnectionTestView.from(probe);
+        char[] password = jdbc ? request.credentials().password().toCharArray() : new char[0];
+        try {
+            ConnectionProbe probe = service.testDraftConnection(
+                    request.mode(), jndi ? request.jndi().name() : null,
+                    jdbc ? jdbcDraft.host() : null,
+                    jdbc && "SERVICE_NAME".equals(jdbcDraft.connectIdentifier().type())
+                            ? jdbcDraft.connectIdentifier().value() : null,
+                    jdbc && "SID".equals(jdbcDraft.connectIdentifier().type())
+                            ? jdbcDraft.connectIdentifier().value() : null,
+                    jdbc ? jdbcDraft.port() : null, request.executionPolicy(),
+                    jdbc ? request.credentials().username() : "", password);
+            return DraftConnectionTestView.from(probe);
+        }
+        finally {
+            Arrays.fill(password, '\0');
+        }
     }
 
     record DraftConnectionTestRequest(
             @NotBlank String mode,
             @Valid JdbcDraft jdbc,
             @Valid JndiDraft jndi,
+            @Valid CredentialsDraft credentials,
             @NotNull @Min(2) @Max(2) Integer policyVersion,
             @NotNull JsonNode executionPolicy) {
         @JsonAnySetter
@@ -86,9 +94,7 @@ final class OracleDraftConnectionTestController {
             @NotBlank String host,
             @NotNull @Min(1) @Max(65535) Integer port,
             @Valid @NotNull ConnectIdentifierDraft connectIdentifier,
-            @NotBlank String transport,
-            @NotBlank String credentialProvider,
-            @NotBlank String credentialReferencePath) {
+            @NotBlank String transport) {
         @JsonAnySetter
         void rejectUnknown(String field, JsonNode value) {
             throw new IllegalArgumentException("Unknown Oracle JDBC draft field: " + field);
@@ -106,6 +112,13 @@ final class OracleDraftConnectionTestController {
         @JsonAnySetter
         void rejectUnknown(String field, JsonNode value) {
             throw new IllegalArgumentException("Unknown Oracle JNDI draft field: " + field);
+        }
+    }
+
+    record CredentialsDraft(@NotBlank String username, @NotBlank String password) {
+        @JsonAnySetter
+        void rejectUnknown(String field, JsonNode value) {
+            throw new IllegalArgumentException("Unknown Oracle credential field: " + field);
         }
     }
 

@@ -32,6 +32,7 @@ final class TopologyModels {
             int versionNumber,
             String mode,
             String driverReference,
+            String username,
             String host,
             String serviceName,
             String sid,

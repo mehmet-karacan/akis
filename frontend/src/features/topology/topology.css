@@ -68,6 +68,21 @@
 .topology-card strong, .topology-card small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .topology-card small, .topology-simple-list small, td small { color: var(--topology-muted); display: block; font-size: .75rem; margin-top: .12rem; }
 .topology-card > svg { color: var(--topology-muted); height: 1rem; width: 1rem; }
+.topology-panel--connections { min-height: 22rem; }
+.topology-connection-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr)); }
+.topology-connection-card { background: var(--topology-surface); border: 1px solid var(--topology-border); border-radius: .85rem; display: grid; overflow: hidden; }
+.topology-connection-card > header { align-items: center; border-bottom: 1px solid var(--topology-border); display: flex; gap: .75rem; padding: 1rem; }
+.topology-connection-card > header > div:nth-child(2) { display: grid; flex: 1; gap: .1rem; min-width: 0; }
+.topology-connection-card h3, .topology-connection-card p { margin: 0; }
+.topology-connection-card header small, .topology-connection-card > p, .topology-connection-card footer > span { color: var(--topology-muted); font-size: .75rem; }
+.topology-connection-card > p { border-top: 1px solid var(--topology-border); padding: .75rem 1rem; }
+.topology-connection-facts { display: grid; gap: .55rem; grid-template-columns: 1fr 1fr; padding: 1rem; }
+.topology-connection-facts > div { align-items: center; background: var(--topology-subtle); border: 1px solid var(--topology-border); border-radius: .65rem; display: flex; gap: .55rem; min-width: 0; padding: .65rem; }
+.topology-connection-facts svg { color: var(--topology-accent); flex: none; height: 1rem; width: 1rem; }
+.topology-connection-facts span { display: grid; min-width: 0; }
+.topology-connection-facts small { color: var(--topology-muted); font-size: .68rem; }
+.topology-connection-facts strong { font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topology-connection-card > footer { align-items: center; background: var(--topology-subtle); border-top: 1px solid var(--topology-border); display: flex; gap: .7rem; justify-content: space-between; padding: .75rem 1rem; }
 .topology-card-icon { align-items: center; background: var(--topology-subtle); border-radius: .5rem; color: var(--topology-accent); display: flex; padding: .45rem; }
 .topology-card-icon svg { height: 1rem; width: 1rem; }
 .database-provider-icon { --provider-color: var(--topology-accent); align-items: center; background: color-mix(in srgb, var(--provider-color) 11%, var(--topology-surface)); border: 1px solid color-mix(in srgb, var(--provider-color) 22%, var(--topology-border)); border-radius: .58rem; color: var(--provider-color); display: grid; flex: none; height: 2.35rem; place-items: center; position: relative; width: 2.35rem; }
@@ -176,6 +191,11 @@
 .topology-form { display: grid; gap: .8rem; }
 .topology-form-row { display: grid; gap: .7rem; grid-template-columns: 1fr 1fr; }
 .topology-connection-form { display: grid; gap: .9rem; }
+.topology-dialog { max-height: calc(100vh - 2rem); overflow: auto; width: min(760px, 100%); }
+.topology-connection-form--simple { gap: .7rem; }
+.topology-advanced { border: 1px solid var(--topology-border); border-radius: .65rem; padding: .7rem; }
+.topology-advanced summary { color: var(--topology-accent); cursor: pointer; font-size: .8rem; font-weight: 750; }
+.topology-advanced[open] summary { margin-bottom: .75rem; }
 .topology-form-section { border: 1px solid var(--topology-border); border-radius: .75rem; display: grid; gap: .8rem; padding: .9rem; }
 .topology-form-section > header { align-items: flex-start; display: flex; gap: .65rem; }
 .topology-form-section > header > span { background: var(--topology-accent); border-radius: 50%; color: white; display: grid; flex: none; font-size: .72rem; font-weight: 900; height: 1.5rem; place-items: center; width: 1.5rem; }
@@ -303,6 +323,7 @@
   .topology-tabs button b { margin-left: auto; }
   .topology-discovery, .topology-form-row, .topology-form--grid, .topology-timeout-grid { grid-template-columns: 1fr; }
   .topology-field--wide { grid-column: auto; }
+  .topology-connection-grid, .topology-connection-facts { grid-template-columns: 1fr; }
   .topology-fingerprint { grid-template-columns: 1fr auto; }
   .topology-fingerprint > span { grid-column: 1 / -1; }
   .topology-snapshot-selectors, .topology-snapshot-evidence { grid-template-columns: 1fr; }

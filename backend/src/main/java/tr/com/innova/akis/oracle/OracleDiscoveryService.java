@@ -83,6 +83,25 @@ public class OracleDiscoveryService {
         }
     }
 
+    public ConnectionProbe testDraftConnection(
+            String mode, String jndiName, String host, String serviceName, String sid,
+            Integer port, JsonNode policy, String username, char[] password) {
+        String normalizedMode = mode == null ? "" : mode.trim().toUpperCase(Locale.ROOT);
+        ConnectionProfile profile = validatedProfile(new ConnectionProfile(
+                0L, 0L, new UUID(0L, 0L), new UUID(0L, 0L), "ORACLE",
+                normalizedMode, jndiName, "JDBC".equals(normalizedMode) ? ORACLE_DRIVER : null,
+                host, serviceName, sid, "DISABLED", port == null ? 0 : port,
+                policy, null, null, null));
+        try (Credentials credentials = "JNDI".equals(normalizedMode)
+                ? new Credentials("", new char[0])
+                : new Credentials(username, password)) {
+            ConnectionProbe probe = gateway.test(profile, credentials);
+            requireOracle19c(probe);
+            requireTargetIdentity(probe);
+            return probe;
+        }
+    }
+
     public DiscoveryResult discover(
             UUID projectUuid,
             UUID connectionUuid,

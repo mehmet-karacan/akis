@@ -66,6 +66,22 @@ class OracleDiscoveryServiceTest {
     }
 
     @Test
+    void draftConnectionTestAcceptsFormCredentialsAndWipesPassword() {
+        StubRepository repository = repository(7L);
+        CapturingGateway gateway = new CapturingGateway();
+        gateway.probe = oracle19c();
+        char[] password = PASSWORD.toCharArray();
+
+        ConnectionProbe result = service(repository, gateway).testDraftConnection(
+                "JDBC", null, "10.0.0.1", "ORCL", null, 1521,
+                new ObjectMapper().createObjectNode(), "reader", password);
+
+        assertEquals(19, result.databaseMajorVersion());
+        assertArrayEquals(new char[PASSWORD.length()], password);
+        assertArrayEquals(new char[PASSWORD.length()], gateway.passwordReference);
+    }
+
+    @Test
     void connectionTestRejectsOtherDatabaseVersionsWithoutLeakingTheCredential() {
         StubRepository repository = repository(7L);
         CapturingGateway gateway = new CapturingGateway();
