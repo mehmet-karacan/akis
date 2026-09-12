@@ -109,6 +109,32 @@ public class TopologyService {
     }
 
     @Transactional
+    ConnectionRow updateConnection(
+            UUID projectUuid, UUID connectionUuid, String code, String name,
+            String description, long expectedVersion) {
+        ProjectRef project = project(projectUuid);
+        connection(project, connectionUuid);
+        return repository.updateConnection(
+                        project.id(), connectionUuid, normalizeCode(code), normalizeName(name),
+                        trimToNull(description), expectedVersion)
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.CONFLICT, "CONNECTION_VERSION_CONFLICT",
+                        "Bağlantı başka bir kullanıcı tarafından değiştirildi. Sayfayı yenileyip tekrar deneyin."));
+    }
+
+    @Transactional
+    void archiveConnection(UUID projectUuid, UUID connectionUuid, long expectedVersion) {
+        ProjectRef project = project(projectUuid);
+        ConnectionRow connection = connection(project, connectionUuid);
+        if (connection.version() != expectedVersion) {
+            throw new ApiException(
+                    HttpStatus.CONFLICT, "CONNECTION_VERSION_CONFLICT",
+                    "Bağlantı başka bir kullanıcı tarafından değiştirildi. Sayfayı yenileyip tekrar deneyin.");
+        }
+        repository.archiveConnection(project.id(), connection.id());
+    }
+
+    @Transactional
     ConnectionVersionRow createConnectionVersionWithCredential(
             UUID projectUuid,
             UUID connectionUuid,
@@ -131,7 +157,7 @@ public class TopologyService {
                 credentialProvider, credentialReferencePath, null);
     }
 
-    private ConnectionVersionRow createConnectionVersionWithCredential(
+    ConnectionVersionRow createConnectionVersionWithCredential(
             UUID projectUuid,
             UUID connectionUuid,
             String mode,

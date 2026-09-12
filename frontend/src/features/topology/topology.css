@@ -29,6 +29,7 @@
 .topology-columns { display: grid; gap: 1rem; }
 .topology-columns--master-detail { grid-template-columns: minmax(17rem, .8fr) minmax(22rem, 1.2fr); }
 .topology-columns--three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.topology-columns--two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .topology-columns--catalog { grid-template-columns: minmax(17rem, .7fr) minmax(25rem, 1.3fr); }
 .topology-catalog-detail { display: grid; gap: 1rem; align-content: start; }
 .topology-panel--wide { grid-column: 1 / -1; }
@@ -48,6 +49,9 @@
 .topology-button--quiet:hover:not(:disabled) { background: var(--topology-subtle); }
 .topology-button--small { font-size: .8rem; min-height: 2.15rem; padding: .42rem .62rem; }
 .topology-button--icon { border-radius: 50%; height: 2.15rem; min-height: 2.15rem; padding: 0; width: 2.15rem; }
+.topology-button--danger { background: #b42318; border-color: #b42318; color: #fff; }
+.topology-button--danger-quiet { background: transparent; border-color: transparent; color: #b42318; }
+.topology-button--danger-quiet:hover:not(:disabled) { background: color-mix(in srgb, #b42318 8%, transparent); border-color: color-mix(in srgb, #b42318 24%, var(--topology-border)); }
 .topology-button--submit { margin-top: .35rem; width: 100%; }
 .topology-icon-button { align-items: center; background: transparent; border: 0; border-radius: .4rem; color: var(--topology-muted); cursor: pointer; display: inline-flex; padding: .35rem; }
 .topology-icon-button svg { height: 1.25rem; width: 1.25rem; }
@@ -83,6 +87,14 @@
 .topology-connection-facts small { color: var(--topology-muted); font-size: .68rem; }
 .topology-connection-facts strong { font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .topology-connection-card > footer { align-items: center; background: var(--topology-subtle); border-top: 1px solid var(--topology-border); display: flex; gap: .7rem; justify-content: space-between; padding: .75rem 1rem; }
+.topology-card-actions { align-items: center; display: flex; flex-wrap: wrap; gap: .35rem; justify-content: flex-end; }
+.topology-card-actions .topology-button svg { height: .9rem; width: .9rem; }
+.topology-connection-metrics { border-top: 1px solid var(--topology-border); display: grid; grid-template-columns: 1fr 1fr; margin: 0; }
+.topology-connection-metrics div { align-items: center; display: flex; justify-content: space-between; padding: .7rem 1rem; }
+.topology-connection-metrics div + div { border-left: 1px solid var(--topology-border); }
+.topology-connection-metrics dt { color: var(--topology-muted); font-size: .72rem; }
+.topology-connection-metrics dd { color: var(--topology-accent-strong); font-size: 1rem; font-weight: 850; margin: 0; }
+.topology-context-layout { display: grid; gap: 1rem; grid-template-columns: minmax(16rem, .75fr) minmax(0, 2fr); }
 .topology-card-icon { align-items: center; background: var(--topology-subtle); border-radius: .5rem; color: var(--topology-accent); display: flex; padding: .45rem; }
 .topology-card-icon svg { height: 1rem; width: 1rem; }
 .database-provider-icon { --provider-color: var(--topology-accent); align-items: center; background: color-mix(in srgb, var(--provider-color) 11%, var(--topology-surface)); border: 1px solid color-mix(in srgb, var(--provider-color) 22%, var(--topology-border)); border-radius: .58rem; color: var(--provider-color); display: grid; flex: none; height: 2.35rem; place-items: center; position: relative; width: 2.35rem; }
@@ -192,6 +204,20 @@
 .topology-form-row { display: grid; gap: .7rem; grid-template-columns: 1fr 1fr; }
 .topology-connection-form { display: grid; gap: .9rem; }
 .topology-dialog { max-height: calc(100vh - 2rem); overflow: auto; width: min(760px, 100%); }
+.topology-dialog--compact { width: min(560px, 100%); }
+.topology-edit-sections { display: grid; gap: 1rem; }
+.topology-endpoint-edit { border-top: 1px solid var(--topology-border); padding-top: 1rem; }
+.topology-endpoint-edit h3 { font-size: .95rem; margin: 0; }
+.topology-form-actions--right { justify-content: flex-end; }
+.topology-delete-confirmation { display: grid; gap: 1rem; grid-template-columns: auto 1fr; }
+.topology-delete-confirmation > svg { color: #b42318; height: 1.7rem; width: 1.7rem; }
+.topology-delete-confirmation p { color: var(--topology-muted); font-size: .83rem; line-height: 1.5; margin: .25rem 0 0; }
+.topology-delete-confirmation dl { border: 1px solid var(--topology-border); border-radius: .7rem; display: grid; grid-column: 1 / -1; grid-template-columns: repeat(3, 1fr); margin: 0; overflow: hidden; }
+.topology-delete-confirmation dl div { display: grid; gap: .3rem; padding: .75rem; }
+.topology-delete-confirmation dl div + div { border-left: 1px solid var(--topology-border); }
+.topology-delete-confirmation dt { color: var(--topology-muted); font-size: .7rem; }
+.topology-delete-confirmation dd { font-size: 1.1rem; font-weight: 850; margin: 0; }
+.topology-delete-actions { display: flex; gap: .6rem; grid-column: 1 / -1; justify-content: flex-end; }
 .topology-connection-form--simple { gap: .7rem; }
 .topology-advanced { border: 1px solid var(--topology-border); border-radius: .65rem; padding: .7rem; }
 .topology-advanced summary { color: var(--topology-accent); cursor: pointer; font-size: .8rem; font-weight: 750; }
@@ -295,7 +321,7 @@
 @media (prefers-reduced-motion: reduce) { .is-spinning { animation: none; } }
 
 @media (max-width: 1000px) {
-  .topology-columns--three { grid-template-columns: 1fr 1fr; }
+  .topology-columns--three, .topology-columns--two { grid-template-columns: 1fr 1fr; }
   .topology-discovery { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
@@ -303,7 +329,9 @@
   .topology-hero { align-items: stretch; flex-direction: column; }
   .topology-hero .topology-button { align-self: flex-start; }
   .topology-tabs { grid-template-columns: 1fr 1fr; }
-  .topology-columns--master-detail, .topology-columns--catalog, .topology-columns--three { grid-template-columns: 1fr; }
+  .topology-columns--master-detail, .topology-columns--catalog, .topology-columns--three, .topology-columns--two, .topology-context-layout { grid-template-columns: 1fr; }
+  .topology-connection-card > footer { align-items: flex-start; flex-direction: column; }
+  .topology-card-actions { justify-content: flex-start; }
   .topology-discovery { grid-template-columns: 1fr 1fr; }
   .topology-discovery .topology-button { grid-column: 1 / -1; }
   .topology-binding-grid { grid-template-columns: 1fr; }

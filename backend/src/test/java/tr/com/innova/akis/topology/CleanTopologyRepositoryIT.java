@@ -101,6 +101,39 @@ class CleanTopologyRepositoryIT {
                 .isAnnotationPresent(Transactional.class));
     }
 
+    @Test
+    void updatesAndArchivesConnectionWithoutDeletingReusableLogicalSchema() {
+        var connection = repository.createConnection(
+                projectId, UUID.randomUUID(), "ARCHIVE_ME", "ORACLE", "Archive Me", null);
+        var version = repository.createConnectionVersion(
+                projectId, connection.id(), UUID.randomUUID(), 1, "JDBC",
+                "oracle.jdbc.OracleDriver", "archive.example", "ORCL", null, null,
+                null, "DISABLED", 1521, 2, new ObjectMapper().createObjectNode());
+        var physical = repository.createPhysicalSchema(
+                projectId, connection.id(), UUID.randomUUID(), "ARCHIVE_APP", "APP", "App");
+        var logical = repository.createLogicalSchema(
+                projectId, UUID.randomUUID(), "ARCHIVE_LOGICAL", "Archive Logical", null);
+        var environment = repository.createEnvironment(
+                projectId, UUID.randomUUID(), "ARCHIVE_TEST", "DUSUK", 1,
+                new ObjectMapper().createObjectNode(), "Archive Test");
+        repository.createSchemaBinding(
+                projectId, UUID.randomUUID(), logical.id(), environment.id(), physical.id(), version.id());
+
+        var updated = service.updateConnection(
+                projectUuid, connection.uuid(), "ARCHIVE_RENAMED", "Renamed", "Description", connection.version());
+        assertEquals("ARCHIVE_RENAMED", updated.code());
+        assertEquals(2, updated.version());
+
+        service.archiveConnection(projectUuid, connection.uuid(), updated.version());
+
+        assertTrue(repository.findConnection(projectId, connection.uuid()).isEmpty());
+        assertTrue(repository.findPhysicalSchema(projectId, physical.uuid()).isEmpty());
+        assertTrue(repository.findLogicalSchema(projectId, logical.uuid()).isPresent());
+        assertTrue(repository.findSchemaBinding(projectId,
+                jdbc.sql("select uuid from akis.sema_eslemesi where fiziksel_sema_id = :id")
+                        .param("id", physical.id()).query(UUID.class).single()).isEmpty());
+    }
+
     private static String required(String name) {
         String value = System.getenv(name);
         if (value == null || value.isBlank()) throw new IllegalStateException(name + " is required.");

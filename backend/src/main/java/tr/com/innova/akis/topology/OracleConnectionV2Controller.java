@@ -94,15 +94,34 @@ final class OracleConnectionV2Controller {
         authorization.requireProjectPermission(projectUuid, TOPOLOGY_WRITE);
         requireOracle(projectUuid, connectionUuid);
         VersionFields fields = versionFields(request);
-        if ("JDBC".equals(fields.mode())
-                && (fields.credentialProvider() == null || fields.credentialReferencePath() == null)) {
-            throw validation("JDBC credential reference is required.");
+        OracleLocalCredentialStore.StoredCredential stored = null;
+        if ("JDBC".equals(fields.mode())) {
+            if (request.credentials() != null) {
+                if (fields.credentialProvider() != null || fields.credentialReferencePath() != null) {
+                    throw validation("Use credentials or a credential reference, not both.");
+                }
+                char[] password = request.credentials().password().toCharArray();
+                try {
+                    stored = credentialStore.store(request.credentials().username(), password);
+                }
+                finally {
+                    java.util.Arrays.fill(password, '\0');
+                }
+            }
+            else if (fields.credentialProvider() == null || fields.credentialReferencePath() == null) {
+                throw validation("JDBC credentials are required.");
+            }
+        }
+        else if (request.credentials() != null) {
+            throw validation("JNDI credentials are managed by the application server.");
         }
         ConnectionVersionRow row = service.createConnectionVersionWithCredential(
                 projectUuid, connectionUuid, fields.mode(), null, fields.host(),
                 fields.serviceName(), fields.sid(), null, "DISABLED", fields.port(),
                 fields.jndiName(), fields.policyVersion(), fields.executionPolicy(),
-                fields.credentialProvider(), fields.credentialReferencePath());
+                stored == null ? fields.credentialProvider() : "ENV",
+                stored == null ? fields.credentialReferencePath() : stored.reference(),
+                stored == null ? null : stored.username());
         return ResponseEntity.status(HttpStatus.CREATED).body(ConnectionVersionV2View.from(row));
     }
 
@@ -177,7 +196,8 @@ final class OracleConnectionV2Controller {
             @Valid JdbcRequest jdbc,
             @Valid JndiRequest jndi,
             @Min(1) Integer policyVersion,
-            JsonNode executionPolicy) {
+            JsonNode executionPolicy,
+            @Valid CredentialsRequest credentials) {
         @JsonAnySetter
         void rejectUnknown(String field, JsonNode value) {
             throw new IllegalArgumentException("Unknown Oracle connection V2 field: " + field);

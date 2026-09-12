@@ -63,18 +63,72 @@ public class TopologyRepository {
     }
 
     List<ConnectionRow> listConnections(long projectId) {
-        return jdbc.sql(connectionSelect() + " where proje_id = :projectId order by kod")
+        return jdbc.sql(connectionSelect() + " where proje_id = :projectId and arsivlenme_zamani is null order by kod")
                 .param("projectId", projectId)
                 .query(this::mapConnection)
                 .list();
     }
 
     Optional<ConnectionRow> findConnection(long projectId, UUID uuid) {
-        return jdbc.sql(connectionSelect() + " where proje_id = :projectId and uuid = :uuid")
+        return jdbc.sql(connectionSelect() + " where proje_id = :projectId and uuid = :uuid and arsivlenme_zamani is null")
                 .param("projectId", projectId)
                 .param("uuid", uuid)
                 .query(this::mapConnection)
                 .optional();
+    }
+
+    Optional<ConnectionRow> updateConnection(
+            long projectId, UUID uuid, String code, String name, String description,
+            long expectedVersion) {
+        return jdbc.sql("""
+                        update akis.baglanti
+                           set kod = :code,
+                               ad = :name,
+                               aciklama = :description,
+                               guncellenme_zamani = current_timestamp,
+                               versiyon_no = versiyon_no + 1
+                         where proje_id = :projectId
+                           and uuid = :uuid
+                           and arsivlenme_zamani is null
+                           and versiyon_no = :expectedVersion
+                        returning id, proje_id, uuid, kod, saglayici_turu,
+                                  'AKTIF'::text as durum, ad, aciklama, versiyon_no
+                        """)
+                .param("projectId", projectId)
+                .param("uuid", uuid)
+                .param("code", code)
+                .param("name", name)
+                .param("description", description, Types.VARCHAR)
+                .param("expectedVersion", expectedVersion)
+                .query(this::mapConnection)
+                .optional();
+    }
+
+    void archiveConnection(long projectId, long connectionId) {
+        jdbc.sql("""
+                        update akis.fiziksel_sema
+                           set arsivlenme_zamani = current_timestamp,
+                               guncellenme_zamani = current_timestamp,
+                               versiyon_no = versiyon_no + 1
+                         where proje_id = :projectId
+                           and baglanti_id = :connectionId
+                           and arsivlenme_zamani is null
+                        """)
+                .param("projectId", projectId)
+                .param("connectionId", connectionId)
+                .update();
+        jdbc.sql("""
+                        update akis.baglanti
+                           set arsivlenme_zamani = current_timestamp,
+                               guncellenme_zamani = current_timestamp,
+                               versiyon_no = versiyon_no + 1
+                         where proje_id = :projectId
+                           and id = :connectionId
+                           and arsivlenme_zamani is null
+                        """)
+                .param("projectId", projectId)
+                .param("connectionId", connectionId)
+                .update();
     }
 
     void lockConnection(long connectionId) {
@@ -232,7 +286,7 @@ public class TopologyRepository {
     }
 
     List<PhysicalSchemaRow> listPhysicalSchemas(long projectId) {
-        return jdbc.sql(physicalSchemaSelect() + " where f.proje_id = :projectId order by f.kod")
+        return jdbc.sql(physicalSchemaSelect() + " where f.proje_id = :projectId and f.arsivlenme_zamani is null and c.arsivlenme_zamani is null order by f.kod")
                 .param("projectId", projectId)
                 .query(this::mapPhysicalSchema)
                 .list();
@@ -240,7 +294,7 @@ public class TopologyRepository {
 
     Optional<PhysicalSchemaRow> findPhysicalSchema(long projectId, UUID uuid) {
         return jdbc.sql(physicalSchemaSelect()
-                        + " where f.proje_id = :projectId and f.uuid = :uuid")
+                        + " where f.proje_id = :projectId and f.uuid = :uuid and f.arsivlenme_zamani is null and c.arsivlenme_zamani is null")
                 .param("projectId", projectId)
                 .param("uuid", uuid)
                 .query(this::mapPhysicalSchema)
@@ -270,7 +324,7 @@ public class TopologyRepository {
     }
 
     List<LogicalSchemaRow> listLogicalSchemas(long projectId) {
-        return jdbc.sql(logicalSchemaSelect() + " where proje_id = :projectId order by kod")
+        return jdbc.sql(logicalSchemaSelect() + " where proje_id = :projectId and arsivlenme_zamani is null order by kod")
                 .param("projectId", projectId)
                 .query(this::mapLogicalSchema)
                 .list();
@@ -278,7 +332,7 @@ public class TopologyRepository {
 
     Optional<LogicalSchemaRow> findLogicalSchema(long projectId, UUID uuid) {
         return jdbc.sql(logicalSchemaSelect()
-                        + " where proje_id = :projectId and uuid = :uuid")
+                        + " where proje_id = :projectId and uuid = :uuid and arsivlenme_zamani is null")
                 .param("projectId", projectId)
                 .param("uuid", uuid)
                 .query(this::mapLogicalSchema)
@@ -316,14 +370,14 @@ public class TopologyRepository {
     }
 
     List<EnvironmentRow> listEnvironments(long projectId) {
-        return jdbc.sql(environmentSelect() + " where proje_id = :projectId order by kod")
+        return jdbc.sql(environmentSelect() + " where proje_id = :projectId and arsivlenme_zamani is null order by kod")
                 .param("projectId", projectId)
                 .query(this::mapEnvironment)
                 .list();
     }
 
     Optional<EnvironmentRow> findEnvironment(long projectId, UUID uuid) {
-        return jdbc.sql(environmentSelect() + " where proje_id = :projectId and uuid = :uuid")
+        return jdbc.sql(environmentSelect() + " where proje_id = :projectId and uuid = :uuid and arsivlenme_zamani is null")
                 .param("projectId", projectId)
                 .param("uuid", uuid)
                 .query(this::mapEnvironment)
@@ -358,7 +412,7 @@ public class TopologyRepository {
 
     List<SchemaBindingRow> listSchemaBindings(long projectId) {
         return jdbc.sql(schemaBindingSelect()
-                        + " where b.proje_id = :projectId order by o.kod, l.kod")
+                        + " where b.proje_id = :projectId and l.arsivlenme_zamani is null and o.arsivlenme_zamani is null and f.arsivlenme_zamani is null order by o.kod, l.kod")
                 .param("projectId", projectId)
                 .query(this::mapSchemaBinding)
                 .list();
@@ -366,7 +420,7 @@ public class TopologyRepository {
 
     Optional<SchemaBindingRow> findSchemaBinding(long projectId, UUID uuid) {
         return jdbc.sql(schemaBindingSelect()
-                        + " where b.proje_id = :projectId and b.uuid = :uuid")
+                        + " where b.proje_id = :projectId and b.uuid = :uuid and l.arsivlenme_zamani is null and o.arsivlenme_zamani is null and f.arsivlenme_zamani is null")
                 .param("projectId", projectId)
                 .param("uuid", uuid)
                 .query(this::mapSchemaBinding)

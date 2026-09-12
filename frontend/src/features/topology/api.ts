@@ -50,9 +50,10 @@ export type CreateConnectionVersionRequest = {
     port: number
     connectIdentifier: { type: 'SERVICE_NAME' | 'SID'; value: string }
     transport: 'TCP'
-    credentialProvider: 'ENV' | 'VAULT'
-    credentialReferencePath: string
+    credentialProvider?: 'ENV' | 'VAULT'
+    credentialReferencePath?: string
   }
+  credentials?: { username: string; password: string }
   policyVersion: 2
   executionPolicy: ConnectionExecutionPolicy
 } | {
@@ -309,10 +310,19 @@ const post = <T>(path: string, body?: JsonRecord) => apiRequest<T>(path, {
   method: 'POST',
   ...(body ? jsonBody(body) : {}),
 })
+const patch = <T>(path: string, body: JsonRecord) => apiRequest<T>(path, {
+  method: 'PATCH',
+  ...jsonBody(body),
+})
+const remove = (path: string) => apiRequest<void>(path, { method: 'DELETE' })
 
 export const topologyApi = {
   listConnections: (projectUuid: string) => get<Connection[]>(`${base(projectUuid)}/connections`),
   createConnection: (projectUuid: string, body: JsonRecord) => post<Connection>(`${base(projectUuid)}/connections`, body),
+  updateConnection: (projectUuid: string, connectionUuid: string, body: JsonRecord) =>
+    patch<Connection>(`${base(projectUuid)}/connections/${encodeURIComponent(connectionUuid)}`, body),
+  deleteConnection: (projectUuid: string, connectionUuid: string, expectedVersion: number) =>
+    remove(`${base(projectUuid)}/connections/${encodeURIComponent(connectionUuid)}?expectedVersion=${encodeURIComponent(String(expectedVersion))}`),
   createOracleConnection: (projectUuid: string, body: CreateOracleConnectionRequest) =>
     post<OracleConnectionCreated>(`${v2Base(projectUuid)}/connections`, body as unknown as JsonRecord),
   testOracleDraftConnection: (projectUuid: string, body: OracleDraftConnectionTestRequest) =>

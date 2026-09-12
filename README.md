@@ -134,7 +134,9 @@ Transaction protokolü, nesneler ve negatif test kapıları
 Gelecekteki Oracle staging/geçici nesneleri bağlantı ayarı değildir; çalışma
 şeması ve yürütme stratejisi bağlamında platform tarafından adlandırılır.
 `AKIS_C$`, `AKIS_I$` ve `AKIS_E$` sahiplik sözleşmesi
-`docs/architecture/ORACLE_WORK_OBJECT_NAMING.md` belgesindedir.
+`docs/architecture/ORACLE_WORK_OBJECT_NAMING.md` belgesindedir. Bağlantı kartları,
+bağlam ayrımı ve güvenli silme davranışı
+`docs/architecture/CONNECTION_WORKSPACE_UX.md` belgesindedir.
 
 Container'ları durdurmak için:
 

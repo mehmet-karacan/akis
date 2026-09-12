@@ -1,7 +1,7 @@
 const copy = {
   en: {
     eyebrow: 'CONNECTION DEFINITIONS', title: 'Connections', subtitle: 'Manage providers, versioned endpoints, physical schemas, and logical environment mappings for this project.',
-    connections: 'Connections', schemas: 'Schemas', bindings: 'Schema mappings', catalog: 'Catalog',
+    connections: 'Connections', schemas: 'Schemas', bindings: 'Schema mappings', contexts: 'Contexts', catalog: 'Catalog',
     secretRefs: 'Secret references', versions: 'Revision history', physical: 'Physical schemas', logical: 'Logical schemas', environments: 'Environments',
     models: 'Models', submodels: 'Submodels', dataObjects: 'Data objects', create: 'Create', creating: 'Creating…', refresh: 'Refresh',
     name: 'Name', code: 'Code', status: 'Status', description: 'Description', actions: 'Actions', select: 'Select', selected: 'Selected', unavailable: 'Unavailable',
@@ -53,10 +53,16 @@ const copy = {
     testDraftConnection: 'Test Connection', saveConnection: 'Save Connection', testBeforeSave: 'Test the current information successfully before saving.',
     draftTestPassed: 'Connection verified. You can now save this definition.',
     connectionDetails: 'Connection details', currentConnection: 'Current connection information',
+    oracleConnections: 'Oracle connections', linkedLogical: 'Linked logical schemas', edit: 'Edit', delete: 'Delete',
+    editConnection: 'Edit Connection', deleteConnection: 'Delete Connection', saveChanges: 'Save Changes', saving: 'Saving…',
+    deleteFailed: 'The connection could not be deleted.', deleting: 'Deleting…', confirmDelete: 'Delete Connection',
+    endpointRevisionHint: 'Name and code describe the connection. Endpoint and credentials remain protected as an auditable technical revision.',
+    deleteConnectionWarning: 'This connection and its physical schemas will be archived. Historical executions and reusable logical schemas will be preserved.',
+    physicalToArchive: 'Physical schemas archived', bindingsToDeactivate: 'Mappings deactivated', logicalToPreserve: 'Logical schemas preserved',
   },
   tr: {
     eyebrow: 'BAĞLANTI TANIMLARI', title: 'Bağlantılar', subtitle: 'Bu projenin sağlayıcı, sürümlü uç nokta, fiziksel şema ve mantıksal ortam eşlemelerini yönetin.',
-    connections: 'Bağlantılar', schemas: 'Şemalar', bindings: 'Şema Eşlemeleri', catalog: 'Katalog',
+    connections: 'Bağlantılar', schemas: 'Şemalar', bindings: 'Şema Eşlemeleri', contexts: 'Bağlamlar', catalog: 'Katalog',
     secretRefs: 'Gizli bilgi referansları', versions: 'Sürüm geçmişi', physical: 'Fiziksel şemalar', logical: 'Mantıksal şemalar', environments: 'Ortamlar',
     models: 'Modeller', submodels: 'Alt modeller', dataObjects: 'Veri nesneleri', create: 'Oluştur', creating: 'Oluşturuluyor…', refresh: 'Yenile',
     name: 'Ad', code: 'Kod', status: 'Durum', description: 'Açıklama', actions: 'İşlemler', select: 'Seç', selected: 'Seçili', unavailable: 'Kullanılamıyor',
@@ -108,6 +114,12 @@ const copy = {
     testDraftConnection: 'Bağlantıyı Test Et', saveConnection: 'Bağlantıyı Kaydet', testBeforeSave: 'Kaydetmeden önce mevcut bilgileri başarıyla test edin.',
     draftTestPassed: 'Bağlantı doğrulandı. Bu tanımı artık kaydedebilirsiniz.',
     connectionDetails: 'Bağlantı ayrıntıları', currentConnection: 'Güncel bağlantı bilgileri',
+    oracleConnections: 'Oracle Bağlantıları', linkedLogical: 'Bağlı Mantıksal Şemalar', edit: 'Düzenle', delete: 'Sil',
+    editConnection: 'Bağlantıyı Düzenle', deleteConnection: 'Bağlantıyı Sil', saveChanges: 'Değişiklikleri Kaydet', saving: 'Kaydediliyor…',
+    deleteFailed: 'Bağlantı silinemedi.', deleting: 'Siliniyor…', confirmDelete: 'Bağlantıyı Sil',
+    endpointRevisionHint: 'Ad ve kod bağlantıyı tanımlar. Uç nokta ve kimlik bilgileri denetlenebilir teknik kayıt olarak korunur.',
+    deleteConnectionWarning: 'Bu bağlantı ve fiziksel şemaları arşivlenecek. Geçmiş çalıştırmalar ile yeniden kullanılabilir mantıksal şemalar korunacak.',
+    physicalToArchive: 'Arşivlenecek Fiziksel Şema', bindingsToDeactivate: 'Devre Dışı Kalacak Eşleme', logicalToPreserve: 'Korunacak Mantıksal Şema',
   },
 } as const
 
