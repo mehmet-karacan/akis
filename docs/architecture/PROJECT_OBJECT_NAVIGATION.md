@@ -21,6 +21,14 @@ Proje
 - Klasörler daraltılıp genişletilebilir.
 - Bir nesne seçildiğinde doğrudan o nesnenin editörü açılır; ayrı bir
   `Geliştirme` menü adımı gerekmez.
+- Nesneye sağ tıklama ve satırdaki üç nokta düğmesi aynı bağlamsal işlem
+  menüsünü açar. Menü nesne türüne göre `Aç`, `Senaryo Oluştur` ve `Çalıştır`
+  eylemlerini gösterir.
+- `Çalıştır` doğrudan çalıştırma başlatmaz; seçili nesnenin etkin yayınlarını
+  süzerek operasyon ekranındaki onay penceresini açar. Böylece yanlışlıkla
+  üretim çalıştırması başlatılmaz.
+- `Senaryo Oluştur`, çalıştırılabilir nesnenin son değişmez sürümünü derler.
+  Henüz sürüm yoksa kullanıcıya bağlamsal uyarı verilir.
 - Seçili nesne URL'deki `definition` parametresiyle temsil edilir. Böylece geri
   gezinme, yenileme ve doğrudan bağlantı davranışı korunur.
 - Kaydedilmemiş değişiklik varsa uygulama kabuğundaki mevcut güvenli gezinme

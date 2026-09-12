@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronRight, FileCode2, Play, Plus, Search } from 'lucide-react'
-import { useMemo, useState, type FormEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { definitionsApi } from '../definitions/api'
 import { operationsApi } from '../operations/api'
 import type { Publication } from '../operations/types'
@@ -17,6 +17,7 @@ import './execution.css'
 export function RunsPage() {
   const { projectUuid = '' } = useParams()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { t, locale } = useExecutionI18n()
   const runs = useRemoteData(() => executionApi.listRuns(projectUuid), [projectUuid])
   const publications = useRemoteData(() => operationsApi.listPublications(projectUuid), [projectUuid])
@@ -29,6 +30,8 @@ export function RunsPage() {
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [executionDisabled, setExecutionDisabled] = useState(false)
+  const [runDefinitionUuid, setRunDefinitionUuid] = useState('')
+  const handledStart = useRef('')
   const [expandedObjects, setExpandedObjects] = useState<Set<string>>(new Set())
   const [query, setQuery] = useState('')
   const [visibleCount, setVisibleCount] = useState(50)
@@ -50,7 +53,16 @@ export function RunsPage() {
     return [...grouped.entries()].filter(([, item]) => !normalized || `${item.name} ${item.code}`.toLocaleLowerCase(locale).includes(normalized))
   }, [definitionByUuid, locale, publicationByUuid, query, runs.data, t])
 
-  const openDialog = () => { setPublicationUuid(runnablePublications[0]?.uuid ?? ''); setIdempotencyKey(createIdempotencyKey()); setSubmitError(''); setDialogOpen(true) }
+  const dialogPublications = useMemo(() => runDefinitionUuid ? runnablePublications.filter((item) => item.definitionUuid === runDefinitionUuid) : runnablePublications, [runDefinitionUuid, runnablePublications])
+  const openDialog = (definitionUuid = '') => { const candidates = definitionUuid ? runnablePublications.filter((item) => item.definitionUuid === definitionUuid) : runnablePublications; setRunDefinitionUuid(definitionUuid); setPublicationUuid(candidates[0]?.uuid ?? ''); setIdempotencyKey(createIdempotencyKey()); setSubmitError(''); setDialogOpen(true) }
+  useEffect(() => {
+    const requested = searchParams.get('definition') ?? ''
+    const key = searchParams.get('start') === '1' ? `${requested}:${runnablePublications.length}` : ''
+    if (!key || publications.loading || handledStart.current === key) return
+    handledStart.current = key
+    openDialog(requested)
+    const next = new URLSearchParams(searchParams); next.delete('start'); setSearchParams(next, { replace: true })
+  }, [publications.loading, runnablePublications, searchParams, setSearchParams])
   const submit = async (event: FormEvent) => {
     event.preventDefault(); if (!publicationUuid || !idempotencyKey) return
     setSubmitting(true); setSubmitError('')
@@ -61,7 +73,7 @@ export function RunsPage() {
   const publicationLabel = (publication: Publication) => `${definitionByUuid.get(publication.definitionUuid)?.name ?? t('unnamedObject')} · #${publication.publicationNumber} · ${publication.environmentCode}`
 
   return <section className="ops-page execution-page">
-    <PageHeader title={t('runs')} description={t('runsHelp')} actions={<button className="ops-button" type="button" onClick={openDialog} disabled={runtimeUnavailable || capabilities.loading || Boolean(capabilities.error) || publications.loading || runnablePublications.length === 0}><Plus aria-hidden="true" /> {t('startRun')}</button>} />
+    <PageHeader title={t('runs')} description={t('runsHelp')} actions={<button className="ops-button" type="button" onClick={() => openDialog()} disabled={runtimeUnavailable || capabilities.loading || Boolean(capabilities.error) || publications.loading || runnablePublications.length === 0}><Plus aria-hidden="true" /> {t('startRun')}</button>} />
     {runtimeUnavailable && <ExecutionDisabledNotice reason={runtimeUnavailableReason} />}
     {!capabilities.loading && Boolean(capabilities.error) && <ErrorState message={t('capabilityUnavailable')} onRetry={() => void capabilities.reload()} />}
     {!publications.loading && Boolean(publications.error) && <ErrorState message={apiErrorMessage(publications.error, t('requestFailed'))} onRetry={() => void publications.reload()} />}
@@ -82,7 +94,7 @@ export function RunsPage() {
     </Panel>
     {dialogOpen && <Dialog title={t('startRun')} onClose={() => !submitting && setDialogOpen(false)}><form className="ops-form" onSubmit={(event) => void submit(event)}>
       {submitError && <div className="ops-alert ops-alert-error" role="alert">{submitError}</div>}
-      <Field label={t('publication')} hint={t('choosePublication')}><select value={publicationUuid} onChange={(event) => setPublicationUuid(event.target.value)} required>{runnablePublications.map((publication) => <option key={publication.uuid} value={publication.uuid}>{publicationLabel(publication)}</option>)}</select></Field>
+      {dialogPublications.length === 0 ? <div className="ops-alert ops-alert-error" role="alert">{t('noActivePublication')}</div> : <Field label={t('publication')} hint={t('choosePublication')}><select value={publicationUuid} onChange={(event) => setPublicationUuid(event.target.value)} required>{dialogPublications.map((publication) => <option key={publication.uuid} value={publication.uuid}>{publicationLabel(publication)}</option>)}</select></Field>}
       <div className="execution-idempotency-note">{t('idempotencyPrepared')}</div>
       <div className="ops-form-actions"><button className="ops-button ops-button-secondary" type="button" onClick={() => setDialogOpen(false)} disabled={submitting}>{t('close')}</button><button className="ops-button" type="submit" disabled={submitting || !publicationUuid}>{submitting ? t('starting') : t('startRun')}</button></div>
     </form></Dialog>}

@@ -147,15 +147,21 @@ label { display: grid; gap: 7px; color: var(--ink-soft); font-size: .77rem; font
 .sidebar-tree, .sidebar-tree ul { margin: 0; padding: 0; list-style: none; }
 .sidebar-tree ul { margin-left: 13px; padding-left: 7px; border-left: 1px solid rgba(255,255,255,.07); }
 .sidebar-folder-row, .sidebar-object { width: 100%; min-height: 32px; display: flex; align-items: center; gap: 6px; padding: 4px 7px; color: #93a3a6; text-align: left; border: 0; border-radius: 5px; background: transparent; cursor: pointer; }
-.sidebar-folder-row:hover, .sidebar-object:hover { color: #edf3f2; background: rgba(255,255,255,.045); }
+.sidebar-folder-row:hover, .sidebar-object-row:hover { color: #edf3f2; background: rgba(255,255,255,.045); }
 .sidebar-folder-row > svg:first-child { width: 12px; height: 12px; color: #617579; }
 .sidebar-folder-row > svg:nth-child(2), .sidebar-folder-row--static > svg { width: 15px; height: 15px; color: #c39a4a; }
 .sidebar-folder-row > span { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .72rem; font-weight: 650; }
 .sidebar-folder-row > small { color: #5f7276; font-size: .6rem; }
 .sidebar-folder-row--static { cursor: default; }
 .sidebar-folder-spacer { flex: 0 0 12px !important; }
-.sidebar-object { min-height: 36px; gap: 8px; }
-.sidebar-object.is-selected { color: white; background: var(--nav-soft); box-shadow: inset 2px 0 #54b9af; }
+.sidebar-object-row { position: relative; min-height: 36px; display: flex; align-items: center; border-radius: 5px; }
+.sidebar-object-row.is-selected { color: white; background: var(--nav-soft); box-shadow: inset 2px 0 #54b9af; }
+.sidebar-object { min-width: 0; min-height: 36px; flex: 1; gap: 8px; color: inherit; }
+.sidebar-object-row:hover .sidebar-object, .sidebar-object-row.is-selected .sidebar-object { color: inherit; }
+.sidebar-object-menu-button { width: 27px; height: 27px; display: grid; flex: 0 0 auto; place-items: center; margin-right: 3px; color: #718589; border: 0; border-radius: 5px; background: transparent; cursor: pointer; opacity: 0; }
+.sidebar-object-row:hover .sidebar-object-menu-button, .sidebar-object-menu-button:focus, .sidebar-object-menu-button[aria-expanded="true"] { opacity: 1; }
+.sidebar-object-menu-button:hover { color: white; background: rgba(255,255,255,.07); }
+.sidebar-object-menu-button svg { width: 14px; height: 14px; }
 .sidebar-object-icon { width: 22px; height: 22px; display: grid; flex: 0 0 auto; place-items: center; color: #61bfb6; border-radius: 5px; background: rgba(97,196,186,.08); }
 .sidebar-object-icon svg { width: 13px; height: 13px; }
 .sidebar-object > span:last-child { min-width: 0; display: grid; }
@@ -165,6 +171,22 @@ label { display: grid; gap: 7px; color: var(--ink-soft); font-size: .77rem; font
 .sidebar-tree-state svg { width: 17px; }
 .sidebar-tree-retry { margin: 8px; display: flex; align-items: center; gap: 6px; color: #aebbbc; border: 0; background: transparent; cursor: pointer; font-size: .67rem; }
 .sidebar-tree-retry svg { width: 14px; }
+.sidebar-tree-notice { display: flex; align-items: flex-start; gap: 6px; margin: 0 6px 8px; padding: 7px 8px; border-radius: 6px; font-size: .61rem; line-height: 1.4; }
+.sidebar-tree-notice--success { color: #8fd6ba; background: rgba(39,146,102,.14); }
+.sidebar-tree-notice--error { color: #efaaa5; background: rgba(180,35,24,.14); }
+.sidebar-tree-notice span { min-width: 0; flex: 1; }
+.sidebar-tree-notice button { display: grid; place-items: center; padding: 0; color: inherit; border: 0; background: transparent; cursor: pointer; }
+.sidebar-tree-notice svg { width: 12px; height: 12px; }
+.sidebar-object-context-menu { position: fixed; z-index: 90; width: 210px; padding: 6px; color: var(--ink); border: 1px solid var(--line); border-radius: 9px; background: var(--surface); box-shadow: 0 14px 38px rgba(0,0,0,.22); }
+.sidebar-object-context-menu header { display: flex; align-items: center; gap: 8px; margin: -1px -1px 5px; padding: 8px; border-bottom: 1px solid var(--line); }
+.sidebar-object-context-menu header > svg { width: 16px; color: var(--accent); }
+.sidebar-object-context-menu header span { min-width: 0; display: grid; }
+.sidebar-object-context-menu header strong { overflow: hidden; font-size: .7rem; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-object-context-menu header small { color: var(--ink-faint); font-size: .58rem; }
+.sidebar-object-context-menu > button { width: 100%; min-height: 33px; display: flex; align-items: center; gap: 8px; padding: 6px 8px; color: var(--ink-soft); text-align: left; border: 0; border-radius: 6px; background: transparent; cursor: pointer; font-size: .7rem; }
+.sidebar-object-context-menu > button:hover:not(:disabled) { color: var(--ink); background: var(--surface-subtle); }
+.sidebar-object-context-menu > button:disabled { cursor: wait; opacity: .55; }
+.sidebar-object-context-menu > button svg { width: 15px; height: 15px; color: var(--accent); }
 .shell-content { min-width: 0; }
 .topbar { height: 68px; position: sticky; z-index: 10; top: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 clamp(20px, 3vw, 38px); border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(12px); }
 .project-switcher { min-width: 195px; display: flex; align-items: center; gap: 10px; padding: 6px 9px; text-align: left; border: 0; border-radius: 7px; background: transparent; cursor: pointer; }

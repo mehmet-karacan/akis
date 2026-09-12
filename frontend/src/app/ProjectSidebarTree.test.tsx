@@ -21,9 +21,23 @@ describe('persistent project sidebar tree', () => {
     render(<ProjectSidebarTree projectUuid="project-1" folders={[folder]} definitions={[definition]} selectedUuid="procedure-1" loading={false} failed={false} onNavigate={navigate} onRetry={vi.fn()} />)
 
     expect(screen.getByRole('region', { name: 'PROJECT OBJECTS' })).toBeInTheDocument()
-    const object = screen.getByRole('button', { name: /Load Daily/ })
-    expect(object).toHaveClass('is-selected')
+    const object = screen.getByTitle('Load Daily · Procedure')
+    expect(object.parentElement).toHaveClass('is-selected')
     fireEvent.click(object)
     expect(navigate).toHaveBeenCalledWith('/projects/project-1/development?definition=procedure-1')
+  })
+
+  it('opens the same object action menu from right click and the three-dot button', () => {
+    const navigate = vi.fn()
+    render(<ProjectSidebarTree projectUuid="project-1" folders={[folder]} definitions={[definition]} selectedUuid={null} loading={false} failed={false} onNavigate={navigate} onRetry={vi.fn()} />)
+
+    const object = screen.getByTitle('Load Daily · Procedure')
+    fireEvent.contextMenu(object.parentElement!)
+    expect(screen.getByRole('menuitem', { name: 'Create Scenario' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Run' }))
+    expect(navigate).toHaveBeenCalledWith('/projects/project-1/operations?definition=procedure-1&start=1')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Load Daily' }))
+    expect(screen.getByRole('menuitem', { name: 'Open' })).toBeInTheDocument()
   })
 })
