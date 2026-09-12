@@ -155,3 +155,14 @@ Bu kapı proje, klasör, tanım, taslak ve sürüm verilerinin UUID tabanlı pak
 sözleşmesine çevrilebildiğini; denetim olaylarının da `akis.denetim_olayi`
 üzerinde sonradan değiştirilemeden saklandığını kanıtlar. Bu aşamadaki paket V1
 yalnız tanım metadata'sıdır; tam proje paketi ayrı kabul kapısında tamamlanır.
+
+Worker profili, koşu lease'i, yaşam sinyali ve hedef fencing işlemleri için:
+
+```powershell
+.\database\akis-baseline\test-worker.ps1
+```
+
+Bu kapı aynı koşunun iki kez sahiplenilememesini, süresi dolmamış lease'in
+uzatılmasını ve bir koşunun tek bir kanonik hedef kimliğine sabitlenmesini gerçek
+PostgreSQL üzerinde doğrular. Worker ve manuel çalıştırma bayrakları varsayılan
+olarak kapalı kalır.

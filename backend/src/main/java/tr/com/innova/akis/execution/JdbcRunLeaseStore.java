@@ -40,7 +40,7 @@ public class JdbcRunLeaseStore implements RunLeasePort {
         return jdbc.sql("""
                         select calistirma_uuid, nesil_no, yayin_ozeti,
                                plan_ozeti, kiralama_bitis_zamani
-                          from entegrasyon.calistirma_sahiplen(
+                          from akis.calistirma_sahiplen(
                                :profileUuid, :workerReference, :leaseSeconds)
                         """)
                 .param("profileUuid", safeWorker.profileUuid())
@@ -56,7 +56,7 @@ public class JdbcRunLeaseStore implements RunLeasePort {
         RunLeaseToken safeToken = token(token);
         int leaseSeconds = leaseSeconds(lease);
         Boolean accepted = jdbc.sql("""
-                        select entegrasyon.calistirma_yasam_sinyali(
+                        select akis.calistirma_yasam_sinyali(
                             :runUuid, :workerReference, :generation, :leaseSeconds)
                         """)
                 .param("runUuid", safeToken.runUuid())
@@ -70,8 +70,8 @@ public class JdbcRunLeaseStore implements RunLeasePort {
         }
         OffsetDateTime refreshedDeadline = jdbc.sql("""
                         select cd.kiralama_bitis_zamani
-                          from entegrasyon.calistirma_durumu cd
-                          join entegrasyon.calistirma c
+                          from akis.calistirma_durumu cd
+                          join akis.calistirma c
                             on c.proje_id = cd.proje_id and c.id = cd.calistirma_id
                          where c.uuid = :runUuid
                            and cd.isleyici_referansi = :workerReference
@@ -100,7 +100,7 @@ public class JdbcRunLeaseStore implements RunLeasePort {
         }
         return jdbc.sql("""
                         select hedef_kaynagi_uuid, hedef_nesil_no
-                          from entegrasyon.hedef_kaynagi_sahiplen(
+                          from akis.hedef_kaynagi_sahiplen(
                                :runUuid, :workerReference, :runGeneration,
                                :targetHash, :identityVersion)
                         """)

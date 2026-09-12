@@ -33,6 +33,8 @@ Status date: 2026-09-12
 - Project bundle definition queries and the append-only audit log now run on the
   clean schema. Their temporary-database acceptance gate covers project/folder/
   definition round-tripping and immutable audit evidence.
+- Worker profiles, single-flight run claims, bounded heartbeats and target
+  fencing now use the clean schema and pass a generated-database acceptance test.
 - The connection UI no longer loads or manages separate secret-reference
   objects. It records only the name of a server-side environment variable; its
   value stays outside PostgreSQL, API responses, bundles and Git.
