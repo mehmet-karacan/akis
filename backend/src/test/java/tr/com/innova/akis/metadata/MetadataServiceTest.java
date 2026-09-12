@@ -245,9 +245,9 @@ class MetadataServiceTest {
         private FolderRepository(ObjectMapper objectMapper) {
             super(null, objectMapper);
             folders = List.of(
-                    new FolderRow(10, 1, rootUuid, null, "ROOT", "GELISTIRME", "AKTIF", "Root", null, 1),
-                    new FolderRow(11, 1, childUuid, rootUuid, "CHILD", "GELISTIRME", "AKTIF", "Child", null, 1),
-                    new FolderRow(12, 1, grandchildUuid, childUuid, "GRANDCHILD", "GELISTIRME", "AKTIF", "Grandchild", null, 1));
+                    new FolderRow(10, 1, rootUuid, null, "ROOT", "AKTIF", "Root", null, 1),
+                    new FolderRow(11, 1, childUuid, rootUuid, "CHILD", "AKTIF", "Child", null, 1),
+                    new FolderRow(12, 1, grandchildUuid, childUuid, "GRANDCHILD", "AKTIF", "Grandchild", null, 1));
         }
 
         @Override
@@ -279,7 +279,7 @@ class MetadataServiceTest {
                     .map(FolderRow::uuid).findFirst().orElse(null);
             FolderRow moved = new FolderRow(
                     current.id(), current.projectId(), current.uuid(), parentUuid,
-                    current.code(), current.type(), current.status(), current.name(),
+                    current.code(), current.status(), current.name(),
                     current.description(), current.version() + 1);
             folders = folders.stream().map(folder -> folder.id() == folderId ? moved : folder).toList();
             return moved;

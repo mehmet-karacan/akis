@@ -13,7 +13,7 @@ function mockResponse(body: unknown = {}) {
 describe('definition organization API contracts', () => {
   it('creates a nested folder through the project-scoped endpoint', async () => {
     const fetchMock = mockResponse({ uuid: 'folder-1' })
-    const input = { parentUuid: 'parent/1', type: 'GELISTIRME' as const, code: 'FINANCE', name: 'Finance', description: '' }
+    const input = { parentUuid: 'parent/1', code: 'FINANCE', name: 'Finance', description: '' }
 
     await definitionsApi.createFolder('project id', input)
 

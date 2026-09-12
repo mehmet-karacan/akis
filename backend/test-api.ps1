@@ -194,13 +194,11 @@ try {
     $folder = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/folders" @{
         code = "DEVELOPMENT"
         name = "Development"
-        type = "GELISTIRME"
     }
     $nestedFolder = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/folders" @{
         parentUuid = $folder.uuid
         code = "FINANCE"
         name = "Finance"
-        type = "GELISTIRME"
     }
     $movedFolder = Invoke-AkisJson POST "/api/v1/projects/$($project.uuid)/folders/$($nestedFolder.uuid)/move" @{
         parentUuid = $null

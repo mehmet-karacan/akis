@@ -19,6 +19,10 @@ Proje
 
 - Her nesne kendi tür ikonuyla gösterilir.
 - Klasörler daraltılıp genişletilebilir.
+- Klasörler nötr hiyerarşi düğümleridir; geliştirme, model veya yükleme planı
+  gibi bir klasör türü taşımaz. Anlam, klasörün içindeki nesnelerden gelir.
+- Kök klasör oluştururken proje, alt klasör oluştururken üst klasör mevcut
+  bağlamdan alınır. Form yalnız ad, kod ve açıklama ister.
 - Bir nesne seçildiğinde doğrudan o nesnenin editörü açılır; ayrı bir
   `Geliştirme` menü adımı gerekmez.
 - Nesneye sağ tıklama ve satırdaki üç nokta düğmesi aynı bağlamsal işlem

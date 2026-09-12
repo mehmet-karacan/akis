@@ -65,7 +65,6 @@ public class ProjectBundleService {
     static final int MAX_JSON_DEPTH = 100;
     static final int MAX_JSON_NODES = 100_000;
     static final int MAX_BUNDLE_JSON_NODES = 1_000_000;
-    private static final Set<String> FOLDER_TYPES = Set.of("GELISTIRME", "MODEL", "YUKLEME_PLANI");
     private static final Set<String> FOLDER_STATUSES = Set.of("AKTIF", "ARSIV");
     private static final Set<String> DEFINITION_STATUSES = Set.of("TASLAK", "AKTIF", "ARSIV");
 
@@ -107,7 +106,7 @@ public class ProjectBundleService {
                 .map(folder -> new FolderEntry(
                         pathsByFolderId.get(folder.id()),
                         folder.parentId() == null ? null : pathsByFolderId.get(folder.parentId()),
-                        folder.code(), folder.type(), folder.status(), folder.name(), folder.description()))
+                        folder.code(), folder.status(), folder.name(), folder.description()))
                 .sorted(Comparator.comparing(FolderEntry::path))
                 .toList();
 
@@ -191,7 +190,7 @@ public class ProjectBundleService {
                     Long parentId = folder.parentPath() == null
                             ? null : folderIdsByPath.get(folder.parentPath());
                     long id = repository.insertFolder(
-                            project.id(), parentId, folder.code(), folder.type(), folder.status(),
+                            project.id(), parentId, folder.code(), folder.status(),
                             folder.name(), folder.description());
                     folderIdsByPath.put(folder.path(), id);
                 });
@@ -379,9 +378,6 @@ public class ProjectBundleService {
             }
             validateCode(folder.code(), base + ".code", issues);
             validateName(folder.name(), base + ".name", issues);
-            if (!FOLDER_TYPES.contains(folder.type())) {
-                issue(issues, base + ".type", "INVALID_FOLDER_TYPE", "Unsupported folder type.");
-            }
             if (!FOLDER_STATUSES.contains(folder.status())) {
                 issue(issues, base + ".status", "INVALID_STATUS", "Unsupported folder status.");
             }

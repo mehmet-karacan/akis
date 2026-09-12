@@ -25,7 +25,6 @@ export interface Folder {
   uuid: string
   parentUuid: string | null
   code: string
-  type: string | null
   status: string
   name: string
   description: string | null
@@ -168,7 +167,6 @@ export interface NewDefinitionInput {
 export interface NewFolderInput {
   parentUuid: string | null
   code: string
-  type: 'GELISTIRME' | 'MODEL' | 'YUKLEME_PLANI'
   name: string
   description: string
 }

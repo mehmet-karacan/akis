@@ -5,7 +5,7 @@ import { ProjectExplorer } from '../ProjectExplorer'
 import type { Definition, Folder } from '../types'
 
 const folder: Folder = {
-  uuid: 'folder-1', parentUuid: null, code: 'FINANCE', type: 'GELISTIRME',
+  uuid: 'folder-1', parentUuid: null, code: 'FINANCE',
   status: 'AKTIF', name: 'Finance', description: null, version: 1,
 }
 const definition: Definition = {

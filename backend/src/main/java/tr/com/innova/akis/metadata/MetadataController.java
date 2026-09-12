@@ -140,7 +140,6 @@ final class MetadataController {
                 projectUuid,
                 request.parentUuid(),
                 request.code(),
-                request.type(),
                 request.name(),
                 request.description());
         return ResponseEntity.created(URI.create(
@@ -259,7 +258,6 @@ final class MetadataController {
     record CreateFolderRequest(
             UUID parentUuid,
             @NotBlank String code,
-            String type,
             @NotBlank String name,
             String description) {
     }
@@ -333,7 +331,6 @@ final class MetadataController {
             UUID uuid,
             UUID parentUuid,
             String code,
-            String type,
             String status,
             String name,
             String description,
@@ -341,7 +338,7 @@ final class MetadataController {
 
         static FolderView from(FolderRow row) {
             return new FolderView(
-                    row.uuid(), row.parentUuid(), row.code(), row.type(), row.status(),
+                    row.uuid(), row.parentUuid(), row.code(), row.status(),
                     row.name(), row.description(), row.version());
         }
     }

@@ -33,9 +33,9 @@ class CleanDefinitionRepositoryIT {
     @Test
     void createsMovesDraftsAndVersionsProjectDefinitions() {
         var root = repository.createFolder(
-                projectId, UUID.randomUUID(), null, "ROOT", "GELISTIRME", "Root", null);
+                projectId, UUID.randomUUID(), null, "ROOT", "Root", null);
         var child = repository.createFolder(
-                projectId, UUID.randomUUID(), root.id(), "CHILD", "GELISTIRME", "Child", null);
+                projectId, UUID.randomUUID(), root.id(), "CHILD", "Child", null);
         var definition = repository.createDefinition(
                 projectId, UUID.randomUUID(), child.id(), DefinitionType.PROCEDURE,
                 "LOAD_ORDERS", "Load Orders", null);

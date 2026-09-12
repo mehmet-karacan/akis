@@ -309,11 +309,9 @@ class ProjectBundleServiceTest {
                 new ProjectEntry("DEMO", "AKTIF", "Demo", null),
                 List.of(
                         new FolderEntry(
-                                "ROOT/CHILD", "ROOT", "CHILD", "GELISTIRME",
-                                "AKTIF", "Child", null),
+                                "ROOT/CHILD", "ROOT", "CHILD", "AKTIF", "Child", null),
                         new FolderEntry(
-                                "ROOT", null, "ROOT", "GELISTIRME",
-                                "AKTIF", "Root", null)),
+                                "ROOT", null, "ROOT", "AKTIF", "Root", null)),
                 List.of(definition),
                 new TopologyEntry(true, emptyTopology()));
     }
@@ -388,7 +386,7 @@ class ProjectBundleServiceTest {
 
         @Override
         long insertFolder(
-                long projectId, Long parentId, String code, String type,
+                long projectId, Long parentId, String code,
                 String status, String name, String description) {
             writeCount++;
             long id = nextId++;

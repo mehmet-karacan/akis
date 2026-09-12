@@ -1,4 +1,4 @@
-import { ArrowUpRight, Database, FolderInput, Plus, RotateCcw } from 'lucide-react'
+import { Check, Database, FolderInput, Plus, RotateCcw } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -25,6 +25,9 @@ export function ProjectsPage() {
   }
 
   useEffect(() => { void load() }, [])
+  useEffect(() => {
+    if (!loading && projects.length === 1) navigate(`/projects/${projects[0]!.uuid}`, { replace: true })
+  }, [loading, navigate, projects])
 
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -44,25 +47,16 @@ export function ProjectsPage() {
   }
 
   return (
-    <section className="page-stack">
-      <header className="page-header">
-        <div><p className="eyebrow">{t('projects.eyebrow')}</p><h1>{t('projects.title')}</h1><p>{t('projects.description')}</p></div>
-        <div className="page-actions">
-          <button className="button secondary" onClick={() => navigate('/projects/import')}><FolderInput size={17} />{t('projects.import')}</button>
-          <button className="button primary" onClick={() => setShowCreate(true)}><Plus size={17} />{t('projects.new')}</button>
-        </div>
-      </header>
-
+    <section className="project-choice-page">
       {error && <div className="error-banner action-banner" role="alert"><span>{error}</span><button onClick={() => void load()}><RotateCcw size={15} />{t('common.retry')}</button></div>}
-      {loading ? <div className="project-grid" aria-label={t('common.loading')}>{[1, 2, 3].map((item) => <div className="project-card skeleton" key={item} />)}</div> :
-        projects.length === 0 ? <div className="empty-state"><Database size={30} /><h2>{t('projects.empty')}</h2><button className="button secondary" onClick={() => setShowCreate(true)}>{t('projects.new')}</button></div> :
-          <div className="project-grid">{projects.map((project) => (
-            <button className="project-card" key={project.uuid} onClick={() => navigate(`/projects/${project.uuid}`)}>
-              <div className="project-card-top"><span className="code-badge">{project.code}</span><ArrowUpRight size={18} /></div>
-              <h2>{project.name}</h2><p>{project.description || t('common.noDescription')}</p>
-              <footer><time>{formatDate(project.createdAt, i18n.language)}</time></footer>
-            </button>
-          ))}</div>}
+      <div className="project-choice-panel">
+        <header><span className="project-choice-icon"><Database /></span><div><p className="eyebrow">{t('projects.eyebrow')}</p><h1>{t('projects.title')}</h1><p>{t('projects.description')}</p></div></header>
+        {loading ? <div className="project-choice-loading" aria-label={t('common.loading')}><span /><span /><span /></div> : projects.length === 0 ? <div className="project-choice-empty"><p>{t('projects.empty')}</p><div><button className="button secondary" onClick={() => navigate('/projects/import')}><FolderInput size={17} />{t('projects.import')}</button><button className="button primary" onClick={() => setShowCreate(true)}><Plus size={17} />{t('projects.new')}</button></div></div> : <div className="project-choice-list" role="list">{projects.map((project) => (
+          <button type="button" key={project.uuid} onClick={() => navigate(`/projects/${project.uuid}`)}>
+            <span><strong>{project.name}</strong><small>{project.code} · {formatDate(project.createdAt, i18n.language)}</small></span><Check aria-hidden="true" />
+          </button>
+        ))}</div>}
+      </div>
 
       <Dialog open={showCreate} title={t('projects.new')} eyebrow={t('projects.eyebrow')} closeLabel={t('common.close')} busy={creating} onClose={() => setShowCreate(false)}>
           <form onSubmit={create}>

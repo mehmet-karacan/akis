@@ -44,7 +44,6 @@ public final class ProjectBundleModels {
             String path,
             String parentPath,
             String code,
-            String type,
             String status,
             String name,
             String description) {

@@ -116,7 +116,7 @@ class MetadataControllerTest {
         @Override
         FolderRow moveFolder(UUID projectUuid, UUID folderUuid, UUID parentUuid, Long expectedVersion) {
             return new FolderRow(
-                    1, 1, folderUuid, parentUuid, "FOLDER", "GELISTIRME",
+                    1, 1, folderUuid, parentUuid, "FOLDER",
                     "AKTIF", "Folder", null, expectedVersion + 1);
         }
 

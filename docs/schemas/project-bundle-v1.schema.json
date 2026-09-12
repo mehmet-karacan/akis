@@ -67,7 +67,7 @@
     },
     "folder": {
       "type": "object",
-      "required": ["path", "parentPath", "code", "type", "status", "name", "description"],
+      "required": ["path", "parentPath", "code", "status", "name", "description"],
       "properties": {
         "path": { "$ref": "#/$defs/folderPath" },
         "parentPath": {
@@ -77,7 +77,6 @@
           ]
         },
         "code": { "$ref": "#/$defs/code" },
-        "type": { "enum": ["GELISTIRME", "MODEL", "YUKLEME_PLANI"] },
         "status": { "enum": ["AKTIF", "ARSIV"] },
         "name": { "$ref": "#/$defs/name" },
         "description": { "$ref": "#/$defs/nullableText" }

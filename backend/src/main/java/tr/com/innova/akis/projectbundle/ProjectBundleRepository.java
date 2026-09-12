@@ -63,7 +63,7 @@ class ProjectBundleRepository {
     ExportSnapshot loadSnapshot(UUID projectUuid) {
         ProjectRow project = findProject(projectUuid).orElseThrow();
         List<FolderRow> folders = jdbc.sql("""
-                        select id, ust_klasor_id, kod, amac as tur_kodu,
+                        select id, ust_klasor_id, kod,
                                case when arsivlenme_zamani is null then 'AKTIF' else 'ARSIV' end as durum_kodu,
                                ad, aciklama
                           from akis.klasor
@@ -75,7 +75,6 @@ class ProjectBundleRepository {
                         rs.getLong("id"),
                         rs.getObject("ust_klasor_id", Long.class),
                         rs.getString("kod"),
-                        rs.getString("tur_kodu"),
                         rs.getString("durum_kodu"),
                         rs.getString("ad"),
                         rs.getString("aciklama")))
@@ -210,19 +209,18 @@ class ProjectBundleRepository {
     }
 
     long insertFolder(
-            long projectId, Long parentId, String code, String type,
+            long projectId, Long parentId, String code,
             String status, String name, String description) {
         return jdbc.sql("""
                         insert into akis.klasor(
-                            proje_id, ust_klasor_id, kod, amac, ad, aciklama, arsivlenme_zamani)
-                        values (:projectId, :parentId, :code, :type, :name, :description,
+                            proje_id, ust_klasor_id, kod, ad, aciklama, arsivlenme_zamani)
+                        values (:projectId, :parentId, :code, :name, :description,
                                 case when :status='AKTIF' then null else current_timestamp end)
                         returning id
                         """)
                 .param("projectId", projectId)
                 .param("parentId", parentId, Types.BIGINT)
                 .param("code", code)
-                .param("type", type)
                 .param("status", status)
                 .param("name", name)
                 .param("description", description, Types.VARCHAR)
@@ -316,7 +314,7 @@ class ProjectBundleRepository {
     }
 
     record FolderRow(
-            long id, Long parentId, String code, String type,
+            long id, Long parentId, String code,
             String status, String name, String description) {
     }
 

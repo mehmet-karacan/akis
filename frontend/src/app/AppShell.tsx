@@ -1,5 +1,5 @@
 import {
-  ChevronDown, CircleUserRound, DatabaseZap, FolderKanban, Gauge,
+  ChevronDown, CircleUserRound, DatabaseZap, Gauge,
   Languages, LogOut, Moon, Network, PanelLeftClose, PanelLeftOpen, Sun,
 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
@@ -101,24 +101,8 @@ export function AppShell() {
           {!collapsed && <div><strong>Akış</strong><span>{t('brand.tagline')}</span></div>}
         </div>
         <nav aria-label={t('nav.workspace')}>
-          <NavLink to="/projects" onClick={(event) => { if (pendingChanges) { event.preventDefault(); requestNavigation('/projects') } }} className={({ isActive }) => `nav-item ${isActive && !projectUuid ? 'active' : ''}`}>
-            <FolderKanban size={18} /><span>{t('nav.projects')}</span>
-          </NavLink>
           {projectUuid && (
             <div className="nav-section">
-              {!collapsed && <p className="nav-label nav-project-label">{project?.code ?? t('nav.project')}</p>}
-              {projectNavigation.map(({ path, key, icon: Icon }) => (
-                <NavLink
-                  key={key}
-                  title={collapsed ? t(key) : undefined}
-                  aria-label={t(key)}
-                  to={`/projects/${projectUuid}${path}`}
-                  onClick={(event) => { if (pendingChanges) { event.preventDefault(); requestNavigation(`/projects/${projectUuid}${path}`) } }}
-                  className={({ isActive }) => `nav-item mobile-primary ${isActive ? 'active' : ''}`}
-                >
-                  <Icon size={18} /><span>{t(key)}</span>
-                </NavLink>
-              ))}
               {!collapsed && <ProjectSidebarTree
                 projectUuid={projectUuid}
                 folders={folders}
@@ -129,6 +113,20 @@ export function AppShell() {
                 onNavigate={requestNavigation}
                 onRetry={() => void loadProjectObjects()}
               />}
+              <div className="project-navigation-links">
+                {projectNavigation.map(({ path, key, icon: Icon }) => (
+                  <NavLink
+                    key={key}
+                    title={collapsed ? t(key) : undefined}
+                    aria-label={t(key)}
+                    to={`/projects/${projectUuid}${path}`}
+                    onClick={(event) => { if (pendingChanges) { event.preventDefault(); requestNavigation(`/projects/${projectUuid}${path}`) } }}
+                    className={({ isActive }) => `nav-item mobile-primary ${isActive ? 'active' : ''}`}
+                  >
+                    <Icon size={18} /><span>{t(key)}</span>
+                  </NavLink>
+                ))}
+              </div>
             </div>
           )}
         </nav>
@@ -184,7 +182,6 @@ export function AppShell() {
         </div>
         <footer>
           {projectUuid && project ? <ExportProjectButton projectUuid={projectUuid} projectCode={project.code} className="project-switcher-export" /> : null}
-          <button className="button secondary" type="button" onClick={() => { closeSwitcher(); requestNavigation('/projects') }}>{t('projectSwitcher.allProjects')}</button>
         </footer>
       </Dialog>
       <Dialog open={pendingPath !== null} title={t('pendingChanges.title')} eyebrow={t('pendingChanges.eyebrow')} closeLabel={t('common.close')} busy={savingBeforeLeave} onClose={() => setPendingPath(null)}>

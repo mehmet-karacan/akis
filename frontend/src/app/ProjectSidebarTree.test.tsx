@@ -5,7 +5,7 @@ import { ProjectSidebarTree } from './ProjectSidebarTree'
 import type { Definition, Folder } from '../features/definitions/types'
 
 const folder: Folder = {
-  uuid: 'folder-1', parentUuid: null, code: 'LOADS', type: 'GELISTIRME',
+  uuid: 'folder-1', parentUuid: null, code: 'LOADS',
   status: 'AKTIF', name: 'Loads', description: null, version: 1,
 }
 const definition: Definition = {
@@ -39,5 +39,15 @@ describe('persistent project sidebar tree', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Load Daily' }))
     expect(screen.getByRole('menuitem', { name: 'Open' })).toBeInTheDocument()
+  })
+
+  it('creates a subfolder from the selected folder context', () => {
+    const navigate = vi.fn()
+    render(<ProjectSidebarTree projectUuid="project-1" folders={[folder]} definitions={[definition]} selectedUuid={null} loading={false} failed={false} onNavigate={navigate} onRetry={vi.fn()} />)
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Actions for Loads' }).parentElement!)
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Create Subfolder' }))
+
+    expect(navigate).toHaveBeenCalledWith('/projects/project-1/development?createFolder=folder-1')
   })
 })

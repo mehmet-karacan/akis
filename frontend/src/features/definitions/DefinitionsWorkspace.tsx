@@ -93,7 +93,7 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
-  const [showCreateFolder, setShowCreateFolder] = useState(false)
+  const [folderCreateContext, setFolderCreateContext] = useState<{ parentUuid: string | null } | null>(null)
   const [showMoveDefinition, setShowMoveDefinition] = useState(false)
   const [pendingDefinitionUuid, setPendingDefinitionUuid] = useState<string | null>(null)
   const [folderToMove, setFolderToMove] = useState<Folder | null>(null)
@@ -118,6 +118,15 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
   const [bindings, setBindings] = useState<DataBinding[]>([])
   const [compiling, setCompiling] = useState(false)
   const [status, setStatus] = useState<{ tone: 'success' | 'error' | 'info'; text: string } | null>(null)
+
+  useEffect(() => {
+    const parentUuid = searchParams.get('createFolder')
+    if (parentUuid === null) return
+    setFolderCreateContext({ parentUuid: parentUuid || null })
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('createFolder')
+    setSearchParams(nextParams, { replace: true })
+  }, [searchParams, setSearchParams])
   const [capabilities, setCapabilities] = useState<ProjectCapabilities | null>(null)
   const [capabilityError, setCapabilityError] = useState(false)
   const [environments, setEnvironments] = useState<Environment[]>([])
@@ -353,7 +362,7 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
           <h1>{t('title')}</h1>
           <p>{t('subtitle')}</p>
         </div>
-        <div className="definition-title-actions"><button className="definition-button definition-button--quiet" type="button" onClick={() => setShowCreateFolder(true)}><FolderPlus size={17} aria-hidden="true" /> {t('newFolder')}</button><button className="definition-button definition-button--primary" type="button" onClick={() => setShowCreate(true)}><CirclePlus size={17} aria-hidden="true" /> {t('newDefinition')}</button></div>
+        <div className="definition-title-actions"><button className="definition-button definition-button--quiet" type="button" onClick={() => setFolderCreateContext({ parentUuid: null })}><FolderPlus size={17} aria-hidden="true" /> {t('newFolder')}</button><button className="definition-button definition-button--primary" type="button" onClick={() => setShowCreate(true)}><CirclePlus size={17} aria-hidden="true" /> {t('newDefinition')}</button></div>
       </header>
       {capabilityError && <div className="definition-notice definition-notice--info" role="status"><AlertCircle size={16} aria-hidden="true" /><span>{t('capabilityUnavailable')}</span></div>}
       {environmentLoadError && <div className="definition-notice definition-notice--error" role="alert"><AlertCircle size={16} aria-hidden="true" /><span>{t('environmentLoadError')}</span></div>}
@@ -518,18 +527,19 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
           }}
         />
       )}
-      {showCreateFolder && (
+      {folderCreateContext && (
         <CreateFolderDialog
-          folders={folders}
+          parentUuid={folderCreateContext.parentUuid}
+          parentName={folders.find((folder) => folder.uuid === folderCreateContext.parentUuid)?.name ?? null}
           creating={creatingFolder}
-          close={() => setShowCreateFolder(false)}
+          close={() => setFolderCreateContext(null)}
           onCreate={async (input) => {
             setCreatingFolder(true)
             try {
               const created = await definitionsApi.createFolder(projectUuid, input)
               setFolders((current) => [...current, created])
               notifyProjectTreeChanged()
-              setShowCreateFolder(false)
+              setFolderCreateContext(null)
               setStatus({ tone: 'success', text: t('folderCreated') })
             } catch (error) {
               setStatus({ tone: 'error', text: errorMessage(error, t('requestError')) })
@@ -593,25 +603,24 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
 }
 
 interface CreateFolderDialogProps {
-  folders: Folder[]
+  parentUuid: string | null
+  parentName: string | null
   creating: boolean
   close: () => void
   onCreate: (input: NewFolderInput) => Promise<void>
 }
 
-function CreateFolderDialog({ folders, creating, close, onCreate }: CreateFolderDialogProps) {
+function CreateFolderDialog({ parentUuid, parentName, creating, close, onCreate }: CreateFolderDialogProps) {
   const { t } = useDefinitionsI18n()
-  const [input, setInput] = useState<NewFolderInput>({ parentUuid: null, type: 'GELISTIRME', code: '', name: '', description: '' })
+  const [input, setInput] = useState<NewFolderInput>({ parentUuid, code: '', name: '', description: '' })
   async function submit(event: FormEvent) {
     event.preventDefault()
     await onCreate(input)
   }
   return (
-    <Dialog open title={t('newFolder')} eyebrow={t('designControl')} closeLabel={t('close')} onClose={close} busy={creating} className="definition-dialog" backdropClassName="definition-dialog-backdrop">
+    <Dialog open title={parentName ? t('newSubfolderNamed', { name: parentName }) : t('newFolder')} closeLabel={t('close')} onClose={close} busy={creating} className="definition-dialog definition-dialog--compact" backdropClassName="definition-dialog-backdrop">
         <form onSubmit={submit}>
           <div className="definition-form-grid">
-            <label><span>{t('parentFolder')}</span><select value={input.parentUuid ?? ''} onChange={(event) => setInput({ ...input, parentUuid: event.target.value || null })}><option value="">{t('rootFolder')}</option>{folders.filter((folder) => folder.status === 'AKTIF').map((folder) => <option key={folder.uuid} value={folder.uuid}>{folder.name} · {folder.code}</option>)}</select></label>
-            <label><span>{t('folderType')}</span><select value={input.type} onChange={(event) => setInput({ ...input, type: event.target.value as NewFolderInput['type'] })}><option value="GELISTIRME">{t('developmentFolder')}</option><option value="MODEL">{t('modelFolder')}</option><option value="YUKLEME_PLANI">{t('loadPlanFolder')}</option></select></label>
             <label><span>{t('code')}</span><input autoFocus required pattern="[A-Z][A-Z0-9_]{0,99}" placeholder="FINANCE" value={input.code} onChange={(event) => setInput({ ...input, code: event.target.value.toLocaleUpperCase('en-US').replace(/[^A-Z0-9_]/g, '') })} /></label>
             <label><span>{t('name')}</span><input required value={input.name} onChange={(event) => setInput({ ...input, name: event.target.value })} /></label>
             <label className="definition-form-grid--wide"><span>{t('description')}</span><textarea rows={3} value={input.description} onChange={(event) => setInput({ ...input, description: event.target.value })} /></label>

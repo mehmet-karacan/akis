@@ -80,7 +80,6 @@ public class MetadataService {
             UUID projectUuid,
             UUID parentUuid,
             String code,
-            String type,
             String name,
             String description) {
         ProjectRow project = project(projectUuid);
@@ -95,16 +94,11 @@ public class MetadataService {
             requireActiveFolder(parent);
             validateFolderPlacement(null, parentUuid, 1, repository.listFolders(project.id()));
         }
-        String normalizedType = type == null ? "GELISTIRME" : type.toUpperCase();
-        if (!List.of("GELISTIRME", "MODEL", "YUKLEME_PLANI").contains(normalizedType)) {
-            throw validation("Geçersiz klasör türü.");
-        }
         return repository.createFolder(
                 project.id(),
                 UUID.randomUUID(),
                 parentId,
                 normalizeCode(code),
-                normalizedType,
                 normalizeName(name),
                 trimToNull(description));
     }

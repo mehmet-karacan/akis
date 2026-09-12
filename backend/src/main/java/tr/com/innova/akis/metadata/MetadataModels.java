@@ -27,7 +27,6 @@ final class MetadataModels {
             UUID uuid,
             UUID parentUuid,
             String code,
-            String type,
             String status,
             String name,
             String description,

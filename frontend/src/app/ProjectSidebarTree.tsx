@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, ExternalLink, FileCode2, Folder, FolderOpen, MoreHorizontal, PanelRightOpen, Play, RefreshCw, Search, WandSparkles, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, ExternalLink, FileCode2, Folder, FolderOpen, FolderPlus, MoreHorizontal, PanelRightOpen, Play, RefreshCw, Search, WandSparkles, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { DefinitionTypeIcon } from '../features/definitions/DefinitionTypeIcon'
@@ -23,6 +23,7 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
   const { t } = useDefinitionsI18n()
   const [query, setQuery] = useState('')
   const [menu, setMenu] = useState<{ definition: Definition; x: number; y: number } | null>(null)
+  const [folderMenu, setFolderMenu] = useState<{ folder: ProjectFolder; x: number; y: number } | null>(null)
   const [compilingUuid, setCompilingUuid] = useState<string | null>(null)
   const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
   const tree = useMemo(() => buildFolderTree(folders.filter((item) => item.status !== 'PASIF')), [folders])
@@ -47,14 +48,14 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
   }, [projectUuid, tree]) // Tree expansion belongs to the selected project.
 
   useEffect(() => {
-    if (!menu) return
-    const close = () => setMenu(null)
+    if (!menu && !folderMenu) return
+    const close = () => { setMenu(null); setFolderMenu(null) }
     const closeWithEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') close() }
     window.addEventListener('click', close)
     window.addEventListener('scroll', close, true)
     window.addEventListener('keydown', closeWithEscape)
     return () => { window.removeEventListener('click', close); window.removeEventListener('scroll', close, true); window.removeEventListener('keydown', closeWithEscape) }
-  }, [menu])
+  }, [folderMenu, menu])
 
   const toggle = (uuid: string) => setExpanded((current) => {
     const next = new Set(current)
@@ -66,7 +67,13 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
     event.preventDefault(); event.stopPropagation()
     const rect = event.currentTarget.getBoundingClientRect()
     const fromContextMenu = event.type === 'contextmenu'
-    setMenu({ definition, x: fromContextMenu ? event.clientX : rect.right - 4, y: fromContextMenu ? event.clientY : rect.bottom + 3 })
+    setFolderMenu(null); setMenu({ definition, x: fromContextMenu ? event.clientX : rect.right - 4, y: fromContextMenu ? event.clientY : rect.bottom + 3 })
+  }
+  const openFolderMenu = (folder: ProjectFolder, event: MouseEvent) => {
+    event.preventDefault(); event.stopPropagation()
+    const rect = event.currentTarget.getBoundingClientRect()
+    const fromContextMenu = event.type === 'contextmenu'
+    setMenu(null); setFolderMenu({ folder, x: fromContextMenu ? event.clientX : rect.right - 4, y: fromContextMenu ? event.clientY : rect.bottom + 3 })
   }
   const compileScenario = async (definition: Definition) => {
     setMenu(null); setNotice(null); setCompilingUuid(definition.uuid)
@@ -93,9 +100,12 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
     const open = expanded.has(folder.uuid)
     const directDefinitions = definitionsByFolder.get(folder.uuid) ?? []
     return <li key={folder.uuid} className="sidebar-folder">
-      <button type="button" className="sidebar-folder-row" onClick={() => toggle(folder.uuid)} aria-expanded={open}>
-        {open ? <ChevronDown /> : <ChevronRight />}{open ? <FolderOpen /> : <Folder />}<span>{folder.name}</span><small>{folder.children.length + directDefinitions.length}</small>
-      </button>
+      <div className="sidebar-folder-action-row" onContextMenu={(event) => openFolderMenu(folder, event)}>
+        <button type="button" className="sidebar-folder-row" onClick={() => toggle(folder.uuid)} aria-expanded={open}>
+          {open ? <ChevronDown /> : <ChevronRight />}{open ? <FolderOpen /> : <Folder />}<span>{folder.name}</span><small>{folder.children.length + directDefinitions.length}</small>
+        </button>
+        <button type="button" className="sidebar-object-menu-button" aria-label={shellT('nav.objectActions', { name: folder.name })} aria-haspopup="menu" aria-expanded={folderMenu?.folder.uuid === folder.uuid} onClick={(event) => openFolderMenu(folder, event)}><MoreHorizontal /></button>
+      </div>
       {open && <ul>{folder.children.map(folderItem)}{directDefinitions.map(definitionItem)}</ul>}
     </li>
   }
@@ -113,6 +123,10 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
       <button type="button" role="menuitem" onClick={() => { setMenu(null); openDefinition(menu.definition.uuid) }}><ExternalLink />{shellT('nav.openObject')}</button>
       {executable(menu.definition) && <button type="button" role="menuitem" disabled={compilingUuid === menu.definition.uuid} onClick={() => void compileScenario(menu.definition)}><WandSparkles />{compilingUuid === menu.definition.uuid ? shellT('nav.creatingScenario') : shellT('nav.createScenario')}</button>}
       {executable(menu.definition) && <button type="button" role="menuitem" onClick={() => { const uuid = menu.definition.uuid; setMenu(null); onNavigate(`/projects/${encodeURIComponent(projectUuid)}/operations?definition=${encodeURIComponent(uuid)}&start=1`) }}><Play />{shellT('nav.runObject')}</button>}
+    </div>}
+    {folderMenu && <div className="sidebar-object-context-menu" role="menu" style={{ left: Math.min(folderMenu.x, window.innerWidth - 220), top: Math.min(folderMenu.y, window.innerHeight - 120) }} onClick={(event) => event.stopPropagation()}>
+      <header><Folder /><span><strong>{folderMenu.folder.name}</strong><small>{folderMenu.folder.code}</small></span></header>
+      <button type="button" role="menuitem" onClick={() => { const uuid = folderMenu.folder.uuid; setFolderMenu(null); onNavigate(`/projects/${encodeURIComponent(projectUuid)}/development?createFolder=${encodeURIComponent(uuid)}`) }}><FolderPlus />{shellT('nav.createSubfolder')}</button>
     </div>}
   </section>
 }

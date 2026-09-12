@@ -35,7 +35,6 @@ değeri, bağlantı test kanıtı, keşif görüntüsü, Scenario, yayın, zaman
       "path": "DESIGN",
       "parentPath": null,
       "code": "DESIGN",
-      "type": "GELISTIRME",
       "status": "AKTIF",
       "name": "Design",
       "description": null
@@ -104,7 +103,7 @@ ve optimistic-lock version bundle'a girmez.
 
 ### FolderEntry
 
-Her klasör `path`, nullable `parentPath`, `code`, `type`, `status`, `name` ve
+Her klasör `path`, nullable `parentPath`, `code`, `status`, `name` ve
 nullable `description` taşır. Kararlı referans UUID değil `path` değeridir.
 
 - Kök klasör: `path == code`, `parentPath == null`.
@@ -112,7 +111,6 @@ nullable `description` taşır. Kararlı referans UUID değil `path` değeridir.
 - `path` bundle içinde benzersizdir ve `parentPath` aynı bundle'daki bir klasörü
   göstermelidir.
 - En fazla 10.000 klasör ve 100 path segmenti kabul edilir.
-- `type`: `GELISTIRME`, `MODEL` veya `YUKLEME_PLANI`.
 - `status`: `AKTIF` veya `ARSIV`.
 
 Exporter klasörleri `path` artan sırasıyla yazar. Importer yazarken parent'ları

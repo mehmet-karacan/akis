@@ -6,7 +6,6 @@ const folder = (uuid: string, parentUuid: string | null, name = uuid): Folder =>
   uuid,
   parentUuid,
   code: uuid.toUpperCase(),
-  type: 'GELISTIRME',
   status: 'AKTIF',
   name,
   description: null,

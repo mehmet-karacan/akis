@@ -42,13 +42,19 @@ describe('ProjectsPage', () => {
     await i18n.changeLanguage('en')
   })
 
-  it('keeps the user at the mandatory project choice until a project is selected', async () => {
+  it('automatically opens the only available project', async () => {
     projectApi.listProjects.mockResolvedValue([firstProject])
     renderPage()
 
-    expect(await screen.findByRole('heading', { name: 'Integration projects' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /SKY GPU Transfer/ }))
+    expect(await screen.findByRole('heading', { name: 'Selected project' })).toBeInTheDocument()
+  })
 
+  it('requires an explicit choice when more than one project is available', async () => {
+    projectApi.listProjects.mockResolvedValue([firstProject, { ...firstProject, uuid: '22222222-2222-4222-8222-222222222222', code: 'FINANCE', name: 'Finance' }])
+    renderPage()
+
+    expect(await screen.findByRole('heading', { name: 'Select a project' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /SKY GPU Transfer/ }))
     expect(await screen.findByRole('heading', { name: 'Selected project' })).toBeInTheDocument()
   })
 

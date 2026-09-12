@@ -173,19 +173,17 @@ public class MetadataRepository {
             UUID uuid,
             Long parentId,
             String code,
-            String type,
             String name,
             String description) {
         jdbc.sql("""
                         insert into akis.klasor(
-                            proje_id, uuid, ust_klasor_id, kod, amac, ad, aciklama)
-                        values (:projectId, :uuid, :parentId, :code, :type, :name, :description)
+                            proje_id, uuid, ust_klasor_id, kod, ad, aciklama)
+                        values (:projectId, :uuid, :parentId, :code, :name, :description)
                         """)
                 .param("projectId", projectId)
                 .param("uuid", uuid)
                 .param("parentId", parentId, Types.BIGINT)
                 .param("code", code)
-                .param("type", type)
                 .param("name", name)
                 .param("description", description, Types.VARCHAR)
                 .update();
@@ -498,7 +496,7 @@ public class MetadataRepository {
     private String folderSelect() {
         return """
                 select k.id, k.proje_id, k.uuid, p.uuid as parent_uuid,
-                       k.kod, k.amac,
+                       k.kod,
                        case when k.arsivlenme_zamani is null then 'AKTIF' else 'ARSIVLENDI' end as durum,
                        k.ad, k.aciklama,
                        k.versiyon_no
@@ -514,7 +512,6 @@ public class MetadataRepository {
                 rs.getObject("uuid", UUID.class),
                 rs.getObject("parent_uuid", UUID.class),
                 rs.getString("kod"),
-                rs.getString("amac"),
                 rs.getString("durum"),
                 rs.getString("ad"),
                 rs.getString("aciklama"),
