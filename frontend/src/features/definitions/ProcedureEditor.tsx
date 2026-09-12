@@ -129,6 +129,10 @@ export function inferProcedureTaskMetadata(task: ProcedureTask, command: string)
   }
   return { type: "SQL", riskClass: "DML", requiresApproval: undefined };
 }
+
+export function isProcedureSideConfigured(task?: ProcedureTask) {
+  return Boolean(task?.logicalSchemaUuid && task.environmentUuid && task.command.trim());
+}
 export function applyAutomaticRowHandoffs(
   tasks: ProcedureTask[],
   maximumRows: number,
@@ -176,6 +180,7 @@ export function ProcedureEditor({
   const [selectedTaskId, setSelectedTaskId] = useState(
     value.tasks[0]?.id ?? "",
   );
+  const [selectedRole, setSelectedRole] = useState<ProcedureConnectionRole>("TARGET");
   const [page, setPage] = useState(0);
   const [undoTasks, setUndoTasks] = useState<ProcedureTask[] | null>(null);
   const [pendingDelete, setPendingDelete] = useState<number | null>(null);
@@ -224,23 +229,6 @@ export function ProcedureEditor({
     replaceTasks([...value.tasks, task], true);
     setSelectedTaskId(task.id);
     setPage(Math.floor(value.tasks.length / PAGE_SIZE));
-  };
-  const addSource = (unit: ProcedureStepUnit) => {
-    if (unit.source) return;
-    const source = nextTask("SOURCE", value.tasks);
-    const insertionIndex = unit.firstIndex;
-    const tasks = [...value.tasks];
-    tasks.splice(insertionIndex, 0, source);
-    replaceTasks(tasks, true);
-    setSelectedTaskId(source.id);
-  };
-  const addTarget = (unit: ProcedureStepUnit) => {
-    if (unit.target) return;
-    const target = nextTask("TARGET", value.tasks);
-    const tasks = [...value.tasks];
-    tasks.splice(unit.firstIndex + unit.tasks.length, 0, target);
-    replaceTasks(tasks, true);
-    setSelectedTaskId(target.id);
   };
   const duplicate = (index: number) => {
     const source = value.tasks[index];
@@ -318,35 +306,51 @@ export function ProcedureEditor({
     const index = value.tasks.findIndex((candidate) => candidate.id === task.id);
     if (index >= 0) update(index, { ...task, ...patch });
   };
+  const updateSide = (role: ProcedureConnectionRole, task: ProcedureTask | undefined, patch: Partial<ProcedureTask>) => {
+    if (task) {
+      updateTask(task, patch);
+      return;
+    }
+    if (!selectedUnit) return;
+    const created = {
+      ...nextTask(role, value.tasks),
+      name: (selectedUnit.target ?? selectedUnit.source)?.name ?? t("newStep"),
+      command: "",
+      ...patch,
+    };
+    const tasks = [...value.tasks];
+    tasks.splice(role === "SOURCE" ? selectedUnit.firstIndex : selectedUnit.firstIndex + selectedUnit.tasks.length, 0, created);
+    replaceTasks(tasks, true);
+    setSelectedTaskId(created.id);
+  };
   const renderTaskSide = (role: ProcedureConnectionRole, task?: ProcedureTask) => {
+    const configured = isProcedureSideConfigured(task);
     return (
       <section className={`procedure-side procedure-side--${role.toLowerCase()}`}>
-        <header><strong>{t(role === "SOURCE" ? "source" : "target")}</strong></header>
-        {task ? <>
-          <div className="procedure-side-context">
+        <div className="procedure-side-context">
             <label>
               <span>{t("logicalSchema")}</span>
-              <select value={task.logicalSchemaUuid ?? ""} onChange={(event) => updateTask(task, { logicalSchemaUuid: event.target.value })}>
+              <select value={task?.logicalSchemaUuid ?? ""} onChange={(event) => updateSide(role, task, { logicalSchemaUuid: event.target.value })}>
                 <option value="">{t("notSelected")}</option>
                 {logicalSchemas.map((item) => <option key={item.uuid} value={item.uuid}>{item.name}</option>)}
               </select>
             </label>
             <label>
               <span>{t("environment")}</span>
-              <select value={task.environmentUuid ?? ""} onChange={(event) => updateTask(task, { environmentUuid: event.target.value })}>
+              <select value={task?.environmentUuid ?? ""} onChange={(event) => updateSide(role, task, { environmentUuid: event.target.value })}>
                 <option value="">{t("notSelected")}</option>
                 {environments.map((item) => <option key={item.uuid} value={item.uuid}>{item.name}</option>)}
               </select>
             </label>
+            <span className={`procedure-side-state ${configured ? "is-configured" : ""}`}>{t(configured ? "configured" : "notConfigured")}</span>
           </div>
           <label className="procedure-command">
             <span>{t(role === "SOURCE" ? "sourceSql" : "targetSql")}</span>
-            <SqlEditor label={t(role === "SOURCE" ? "sourceSql" : "targetSql")} value={task.command} onChange={(command) => updateTask(task, { command, ...inferProcedureTaskMetadata(task, command) })} />
+            <SqlEditor label={t(role === "SOURCE" ? "sourceSql" : "targetSql")} value={task?.command ?? ""} onChange={(command) => {
+              const base = task ?? nextTask(role, value.tasks);
+              updateSide(role, task, { command, ...inferProcedureTaskMetadata(base, command) });
+            }} />
           </label>
-        </> : <div className="procedure-side-empty">
-          <p>{t(role === "SOURCE" ? "noSourceInStep" : "noTargetInStep")}</p>
-          <button className="definition-button definition-button--quiet" type="button" onClick={() => role === "SOURCE" ? addSource(selectedUnit!) : addTarget(selectedUnit!)}><Plus size={15} />{t(role === "SOURCE" ? "addSource" : "addTarget")}</button>
-        </div>}
       </section>
     );
   };
@@ -422,13 +426,16 @@ export function ProcedureEditor({
                 <button
                   className="procedure-task-select"
                   type="button"
-                  onClick={() => setSelectedTaskId(task.id)}
+                  onClick={() => {
+                    setSelectedTaskId(task.id);
+                    setSelectedRole(unit.target ? "TARGET" : "SOURCE");
+                  }}
                   aria-pressed={isSelected}
                 >
                   <span className="procedure-step-number">{index + 1}</span>
                   <div>
                     <strong>{task.name || task.id}</strong>
-                    <small className="procedure-step-route"><span className={unit.source ? "is-ready" : ""}>{t("source")}</span><span aria-hidden="true">→</span><span className={unit.target ? "is-ready" : ""}>{t("target")}</span></small>
+                    <small className="procedure-step-route"><span className={isProcedureSideConfigured(unit.source) ? "is-ready" : ""}>{t("source")}</span><span aria-hidden="true">→</span><span className={isProcedureSideConfigured(unit.target) ? "is-ready" : ""}>{t("target")}</span></small>
                   </div>
                 </button>
                 <div className="procedure-task-actions">
@@ -513,9 +520,12 @@ export function ProcedureEditor({
                 {units.indexOf(selectedUnit) + 1} / {units.length}
               </span>
             </header>
-            <div className="procedure-sides">
-              {renderTaskSide("SOURCE", selectedUnit.source)}
-              {renderTaskSide("TARGET", selectedUnit.target)}
+            <div className="procedure-command-tabs" role="tablist" aria-label={t("commands")}>
+              <button type="button" role="tab" aria-selected={selectedRole === "SOURCE"} onClick={() => setSelectedRole("SOURCE")}>{t("sourceCommand")}<span className={isProcedureSideConfigured(selectedUnit.source) ? "is-configured" : ""}>{t(isProcedureSideConfigured(selectedUnit.source) ? "configured" : "notConfigured")}</span></button>
+              <button type="button" role="tab" aria-selected={selectedRole === "TARGET"} onClick={() => setSelectedRole("TARGET")}>{t("targetCommand")}<span className={isProcedureSideConfigured(selectedUnit.target) ? "is-configured" : ""}>{t(isProcedureSideConfigured(selectedUnit.target) ? "configured" : "notConfigured")}</span></button>
+            </div>
+            <div className="procedure-command-detail">
+              {renderTaskSide(selectedRole, selectedRole === "SOURCE" ? selectedUnit.source : selectedUnit.target)}
             </div>
           </section>
         ) : (

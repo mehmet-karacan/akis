@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import i18n from '../../../core/i18n'
 import { DEFAULT_PROCEDURE, isProcedureContent } from '../defaults'
-import { applyAutomaticRowHandoffs, groupProcedureTasks, inferProcedureTaskMetadata, pageProcedureTasks, ProcedureEditor } from '../ProcedureEditor'
+import { applyAutomaticRowHandoffs, groupProcedureTasks, inferProcedureTaskMetadata, isProcedureSideConfigured, pageProcedureTasks, ProcedureEditor } from '../ProcedureEditor'
 import type { ProcedureContent } from '../types'
 
 function Harness() {
@@ -74,6 +74,12 @@ describe('ProcedureEditor', () => {
     expect(inferProcedureTaskMetadata(target, 'truncate table INNOVA_ODI.STG_X')).toEqual({ type: 'SQL', riskClass: 'DESTRUCTIVE', requiresApproval: true })
     expect(inferProcedureTaskMetadata(target, "begin dbms_stats.gather_table_stats('A', 'B'); end;")).toEqual({ type: 'PLSQL', riskClass: 'DESTRUCTIVE', requiresApproval: true })
     expect(inferProcedureTaskMetadata(target, 'insert into T values (:ID)')).toEqual({ type: 'SQL', riskClass: 'DML', requiresApproval: undefined })
+  })
+
+  it('marks a command configured only when its execution context is complete', () => {
+    const task = DEFAULT_PROCEDURE.tasks[1]!
+    expect(isProcedureSideConfigured(task)).toBe(false)
+    expect(isProcedureSideConfigured({ ...task, logicalSchemaUuid: 'logical', environmentUuid: 'environment' })).toBe(true)
   })
 
   it('rejects malformed task arrays before the visual editor renders them', () => {
