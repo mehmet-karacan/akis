@@ -102,6 +102,7 @@ test.describe('AKIŞ critical browser journeys', () => {
     await firstNode.dblclick({ force: true })
     await expect(page).not.toHaveURL(packageUrl)
     await expect(page).toHaveURL(/\/project\/objects\/definitions\//)
+    await page.setViewportSize({ width: 2560, height: 1080 })
     await expect(page.locator('.procedure-task').first()).toBeVisible()
     await page.locator('.procedure-task-select').first().click()
     await expect(page.locator('.procedure-sides')).toBeVisible()
@@ -109,6 +110,16 @@ test.describe('AKIŞ critical browser journeys', () => {
     await expect(page.locator('.procedure-side--target')).toBeVisible()
     await expect(page.getByText(/Step ID|Adım Kimliği/)).toHaveCount(0)
     await expect(page.getByText(/Task type|Görev Türü|Connection role|Bağlantı Rolü|Risk class|Risk Sınıfı|On error|Hata Durumunda/)).toHaveCount(0)
+    await expect(page.getByRole('tab', { name: /Data Bindings|Veri Bağları/ })).toHaveCount(0)
+    await expect(page.getByText(/Resolved execution context|Çözümlenen Çalışma Bağlamı/)).toHaveCount(0)
+    await expect(page.locator('.procedure-side select').first().locator('option').first()).toHaveText(/Not selected|Seçilmedi/)
+    const dimensions = await page.evaluate(() => {
+      const panel = document.querySelector('.definition-editor-panel')?.getBoundingClientRect()
+      const workbench = document.querySelector('.definition-workbench')?.getBoundingClientRect()
+      return { ratio: panel && workbench ? panel.width / workbench.width : 0, pageFits: document.documentElement.scrollHeight <= document.documentElement.clientHeight + 2 }
+    })
+    expect(dimensions.ratio).toBeGreaterThan(.95)
+    expect(dimensions.pageFits).toBe(true)
   })
 
   test('opens available detail screens and reveals Oracle fields only after provider selection', async ({ page }) => {

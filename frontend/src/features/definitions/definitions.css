@@ -155,7 +155,7 @@ span.explorer-toggle { pointer-events: none; }
 .explorer-unfiled { margin-top: .45rem; padding-top: .4rem; border-top: 1px solid var(--df-line); }
 
 .definition-workbench { min-width: 0; padding: .75rem 1rem 1rem; }
-.definition-document-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; max-width: 100rem; margin: 0 auto .8rem; }
+.definition-document-header { display: flex; width: 100%; align-items: flex-start; justify-content: space-between; gap: 1rem; margin: 0 0 .8rem; }
 .definition-document-header h2 { margin: .22rem 0 .1rem; font-size: 1.15rem; line-height: 1.2; }
 .definition-document-header p { margin: 0; color: var(--df-muted); font-size: .88rem; }
 .definition-document-actions { display: flex; align-items: center; gap: .45rem; }
@@ -167,19 +167,19 @@ span.explorer-toggle { pointer-events: none; }
 [data-theme='dark'] .definition-role--source { background: #1b3656; color: #92c4ff; }
 [data-theme='dark'] .definition-role--target { background: #193b2a; color: #8fdfb2; }
 
-.definition-tabs { display: flex; gap: .2rem; max-width: 100rem; margin: 0 auto; border-bottom: 1px solid var(--df-line); }
+.definition-tabs { display: flex; width: 100%; gap: .2rem; margin: 0; border-bottom: 1px solid var(--df-line); }
 .definition-tabs button { display: inline-flex; align-items: center; gap: .4rem; min-height: 2.7rem; padding: .5rem .8rem; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--df-muted); font-size: .82rem; font-weight: 720; }
 .definition-tabs button[aria-selected='true'] { border-bottom-color: var(--df-accent); color: var(--df-text); }
 .definition-count { min-width: 1.2rem; padding: .08rem .3rem; border-radius: 999px; background: var(--df-panel-muted); font-size: .66rem; text-align: center; }
 .definition-dirty-dot { width: .42rem; height: .42rem; border-radius: 50%; background: #d68a00; }
 
-.definition-notice { display: flex; align-items: center; gap: .5rem; max-width: 100rem; margin: .75rem auto; padding: .58rem .7rem; border: 1px solid var(--df-line); border-radius: .5rem; font-size: .8rem; }
+.definition-notice { display: flex; width: 100%; align-items: center; gap: .5rem; margin: .75rem 0; padding: .58rem .7rem; border: 1px solid var(--df-line); border-radius: .5rem; font-size: .8rem; }
 .definition-notice button { margin-left: auto; border: 0; background: transparent; color: inherit; font-weight: 750; text-decoration: underline; }
 .definition-notice--error { border-color: color-mix(in srgb, var(--df-danger) 35%, var(--df-line)); background: var(--df-danger-soft); color: var(--df-danger); }
 .definition-notice--success { border-color: color-mix(in srgb, var(--df-success) 35%, var(--df-line)); background: var(--df-success-soft); color: var(--df-success); }
 .definition-notice--info { background: var(--df-panel-muted); }
 
-.definition-editor-panel, .definition-version-layout, .definition-bindings-panel { max-width: 100rem; margin: .85rem auto 0; border: 1px solid var(--df-line); border-radius: .7rem; background: var(--df-panel); box-shadow: 0 1px 3px rgb(15 28 34 / .05); overflow: hidden; }
+.definition-editor-panel, .definition-version-layout, .definition-bindings-panel { width: 100%; margin: .85rem 0 0; border: 1px solid var(--df-line); border-radius: .7rem; background: var(--df-panel); box-shadow: 0 1px 3px rgb(15 28 34 / .05); overflow: hidden; }
 .definition-editor-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .65rem .75rem; border-bottom: 1px solid var(--df-line); background: var(--df-panel-muted); }
 .definition-editor-toolbar--compact { min-height: 2.9rem; justify-content: flex-end; padding: .38rem .55rem; }
 .definition-unsaved-state { margin-right: auto; color: #9a6300; font-size: .7rem; font-weight: 700; }

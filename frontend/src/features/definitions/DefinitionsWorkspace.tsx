@@ -420,7 +420,6 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
                 <div>
                   <div className="definition-document-meta">
                     <span className="definition-type-chip">{typeLabel(selectedDefinition.type)}</span>
-                    <span>{selectedDefinition.status === 'AKTIF' ? t('active') : selectedDefinition.status}</span>
                     <span><code>{selectedDefinition.code}</code></span>
                   </div>
                   <h2>{selectedDefinition.name}</h2>
@@ -428,7 +427,7 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
                 </div>
               </header>
 
-              {bindingTypes.has(selectedDefinition.type) ? <div className="definition-tabs" role="tablist" aria-label={t('details')} onKeyDown={(event) => {
+              {bindingTypes.has(selectedDefinition.type) && selectedDefinition.type !== 'PROCEDURE' ? <div className="definition-tabs" role="tablist" aria-label={t('details')} onKeyDown={(event) => {
                 if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
                 const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
                 const current = buttons.indexOf(document.activeElement as HTMLButtonElement)

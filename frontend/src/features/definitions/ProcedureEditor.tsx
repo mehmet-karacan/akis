@@ -10,17 +10,9 @@ import { useEffect, useMemo, useState } from "react";
 import { SqlEditor } from "../../core/ui";
 import {
   topologyApi,
-  type Connection,
-  type ConnectionVersion,
   type Environment,
   type LogicalSchema,
-  type PhysicalSchema,
-  type SchemaBinding,
 } from "../topology/api";
-import {
-  ResolvedContextSummary,
-  resolveProcedureContext,
-} from "./ResolvedContextSummary";
 import { useDefinitionsI18n } from "./i18n";
 import type {
   ProcedureConnectionRole,
@@ -190,26 +182,16 @@ export function ProcedureEditor({
   const [message, setMessage] = useState("");
   const [logicalSchemas, setLogicalSchemas] = useState<LogicalSchema[]>([]);
   const [environments, setEnvironments] = useState<Environment[]>([]);
-  const [bindings, setBindings] = useState<SchemaBinding[]>([]);
-  const [physical, setPhysical] = useState<PhysicalSchema[]>([]);
-  const [connections, setConnections] = useState<Connection[]>([]);
-  const [versions, setVersions] = useState<ConnectionVersion[]>([]);
   useEffect(() => {
     let active = true;
     void Promise.all([
       topologyApi.listLogicalSchemas(projectUuid),
       topologyApi.listEnvironments(projectUuid),
-      topologyApi.listBindings(projectUuid),
-      topologyApi.listPhysicalSchemas(projectUuid),
-      topologyApi.listConnections(projectUuid),
     ])
-      .then(([l, e, b, p, c]) => {
+      .then(([l, e]) => {
         if (active) {
           setLogicalSchemas(l);
           setEnvironments(e);
-          setBindings(b);
-          setPhysical(p);
-          setConnections(c);
         }
       })
       .catch(() => {
@@ -219,23 +201,6 @@ export function ProcedureEditor({
       active = false;
     };
   }, [projectUuid, t]);
-  useEffect(() => {
-    let active = true;
-    void Promise.all(
-      connections.map((connection) =>
-        topologyApi.listVersions(projectUuid, connection.uuid),
-      ),
-    )
-      .then((rows) => {
-        if (active) setVersions(rows.flat());
-      })
-      .catch(() => {
-        if (active) setVersions([]);
-      });
-    return () => {
-      active = false;
-    };
-  }, [connections, projectUuid]);
   useEffect(() => {
     if (!value.tasks.some((task) => task.id === selectedTaskId))
       setSelectedTaskId(value.tasks[0]?.id ?? "");
@@ -354,16 +319,6 @@ export function ProcedureEditor({
     if (index >= 0) update(index, { ...task, ...patch });
   };
   const renderTaskSide = (role: ProcedureConnectionRole, task?: ProcedureTask) => {
-    const logical = logicalSchemas.find((item) => item.uuid === task?.logicalSchemaUuid);
-    const environment = environments.find((item) => item.uuid === task?.environmentUuid);
-    const context = resolveProcedureContext(
-      task?.logicalSchemaUuid,
-      task?.environmentUuid,
-      bindings,
-      physical,
-      connections,
-      versions,
-    );
     return (
       <section className={`procedure-side procedure-side--${role.toLowerCase()}`}>
         <header><strong>{t(role === "SOURCE" ? "source" : "target")}</strong></header>
@@ -372,19 +327,18 @@ export function ProcedureEditor({
             <label>
               <span>{t("logicalSchema")}</span>
               <select value={task.logicalSchemaUuid ?? ""} onChange={(event) => updateTask(task, { logicalSchemaUuid: event.target.value })}>
-                <option value="">—</option>
+                <option value="">{t("notSelected")}</option>
                 {logicalSchemas.map((item) => <option key={item.uuid} value={item.uuid}>{item.name}</option>)}
               </select>
             </label>
             <label>
               <span>{t("environment")}</span>
               <select value={task.environmentUuid ?? ""} onChange={(event) => updateTask(task, { environmentUuid: event.target.value })}>
-                <option value="">—</option>
+                <option value="">{t("notSelected")}</option>
                 {environments.map((item) => <option key={item.uuid} value={item.uuid}>{item.name}</option>)}
               </select>
             </label>
           </div>
-          <ResolvedContextSummary logicalSchema={logical} environment={environment} context={context} />
           <label className="procedure-command">
             <span>{t(role === "SOURCE" ? "sourceSql" : "targetSql")}</span>
             <SqlEditor label={t(role === "SOURCE" ? "sourceSql" : "targetSql")} value={task.command} onChange={(command) => updateTask(task, { command, ...inferProcedureTaskMetadata(task, command) })} />
