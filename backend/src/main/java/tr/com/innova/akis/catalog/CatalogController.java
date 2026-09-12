@@ -1,6 +1,7 @@
 package tr.com.innova.akis.catalog;
 
 import java.net.URI;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -134,12 +135,15 @@ final class CatalogController {
             String status,
             String name,
             String description,
+            long dataObjectCount,
+            OffsetDateTime lastMetadataUpdate,
             long version) {
 
         static ModelView from(ModelRow row) {
             return new ModelView(
                     row.uuid(), row.logicalSchemaUuid(), row.code(), row.status(), row.name(),
-                    row.description(), row.version());
+                    row.description(), row.dataObjectCount(), row.lastMetadataUpdate(),
+                    row.version());
         }
     }
 

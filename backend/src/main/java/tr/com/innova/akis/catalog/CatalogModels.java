@@ -1,5 +1,6 @@
 package tr.com.innova.akis.catalog;
 
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 import tools.jackson.databind.JsonNode;
@@ -24,6 +25,8 @@ final class CatalogModels {
             String status,
             String name,
             String description,
+            long dataObjectCount,
+            OffsetDateTime lastMetadataUpdate,
             long version) {
     }
 

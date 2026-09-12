@@ -25,7 +25,9 @@ const PublicationDetailPage = lazy(() => import('../features/operations').then((
 const PublicationsPage = lazy(() => import('../features/operations').then((module) => ({ default: module.PublicationsPage })))
 const ProjectsPage = lazy(() => import('../features/projects/ProjectsPage').then((module) => ({ default: module.ProjectsPage })))
 const ProjectOverviewPage = lazy(() => import('../features/projects/ProjectOverviewPage').then((module) => ({ default: module.ProjectOverviewPage })))
-const TopologyPage = lazy(() => import('../features/topology').then((module) => ({ default: module.TopologyPage })))
+const ModelsPage = lazy(() => import('../features/models').then((module) => ({ default: module.ModelsPage })))
+const ModelDetailPage = lazy(() => import('../features/models').then((module) => ({ default: module.ModelDetailPage })))
+const MetadataImportPage = lazy(() => import('../features/models').then((module) => ({ default: module.MetadataImportPage })))
 
 function ProtectedShell() {
   const { username } = useAuth()
@@ -58,7 +60,9 @@ export function App() {
         <Route path="/projects/import" element={<BundleImportPage />} />
         <Route path="/projects/:projectUuid" element={<ProjectOverviewPage />} />
         <Route path="/projects/:projectUuid/topology" element={<LegacyTopologyRedirect />} />
-        <Route path="/projects/:projectUuid/models" element={<TopologyPage initialTab="catalog" />} />
+        <Route path="/projects/:projectUuid/models" element={<ModelsPage />} />
+        <Route path="/projects/:projectUuid/models/:modelUuid/import" element={<MetadataImportPage />} />
+        <Route path="/projects/:projectUuid/models/:modelUuid" element={<ModelDetailPage />} />
         <Route path="/projects/:projectUuid/definitions" element={<DefinitionsRoute />} />
         <Route path="/projects/:projectUuid/development" element={<DefinitionsRoute />} />
         <Route path="/projects/:projectUuid/publications" element={<PublicationsPage />} />

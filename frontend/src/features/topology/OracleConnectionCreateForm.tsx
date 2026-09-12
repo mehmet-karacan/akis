@@ -3,6 +3,7 @@ import { CheckCircle2, CircleAlert, LoaderCircle, Save, ShieldCheck } from 'luci
 import { topologyApi, type DraftConnectionTestResult } from './api'
 import { initialConnectionVersionDraft, toOracleConnectionInput, validateOracleConnectionInput, type ConnectionVersionDraft } from './connectionVersionModel'
 import type { getTopologyCopy } from './copy'
+import './topology.css'
 
 interface Props {
   projectUuid: string

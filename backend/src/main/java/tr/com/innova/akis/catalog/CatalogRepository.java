@@ -181,7 +181,14 @@ public class CatalogRepository {
                 select m.id, m.uuid, m.mantiksal_sema_id,
                        l.uuid as logical_schema_uuid, m.kod,
                        case when m.arsivlenme_zamani is null then 'AKTIF' else 'ARSIV' end as durum_kodu,
-                       m.ad, m.aciklama, m.versiyon_no
+                       m.ad, m.aciklama,
+                       (select count(*) from akis.veri_nesnesi d
+                         where d.model_id = m.id and d.arsivlenme_zamani is null) as nesne_sayisi,
+                       (select max(g.kesif_zamani)
+                          from akis.sema_goruntusu g
+                          join akis.veri_nesnesi d on d.id = g.veri_nesnesi_id
+                         where d.model_id = m.id) as son_metadata_guncellemesi,
+                       m.versiyon_no
                   from akis.model m
                   join akis.mantiksal_sema l on l.id = m.mantiksal_sema_id
                 """;
@@ -193,7 +200,9 @@ public class CatalogRepository {
                 rs.getLong("mantiksal_sema_id"),
                 rs.getObject("logical_schema_uuid", UUID.class),
                 rs.getString("kod"), rs.getString("durum_kodu"), rs.getString("ad"),
-                rs.getString("aciklama"), rs.getLong("versiyon_no"));
+                rs.getString("aciklama"), rs.getLong("nesne_sayisi"),
+                rs.getObject("son_metadata_guncellemesi", java.time.OffsetDateTime.class),
+                rs.getLong("versiyon_no"));
     }
 
     private String submodelSelect() {

@@ -179,6 +179,8 @@ export interface Model {
   status: string
   name: string
   description?: string | null
+  dataObjectCount?: number
+  lastMetadataUpdate?: string | null
   version: number
 }
 
@@ -368,6 +370,7 @@ export const topologyApi = {
   createBinding: (projectUuid: string, body: JsonRecord) => post<SchemaBinding>(`${base(projectUuid)}/schema-bindings`, body),
   updateBinding: (projectUuid: string, bindingUuid: string, body: JsonRecord) => patch<SchemaBinding>(`${base(projectUuid)}/schema-bindings/${encodeURIComponent(bindingUuid)}`, body),
   listModels: (projectUuid: string) => get<Model[]>(`${base(projectUuid)}/models`),
+  getModel: (projectUuid: string, modelUuid: string) => get<Model>(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}`),
   createModel: (projectUuid: string, body: JsonRecord) => post<Model>(`${base(projectUuid)}/models`, body),
   listSubmodels: (projectUuid: string, modelUuid: string) => get<Submodel[]>(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}/submodels`),
   createSubmodel: (projectUuid: string, modelUuid: string, body: JsonRecord) => post<Submodel>(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}/submodels`, body),
@@ -381,4 +384,6 @@ export const topologyApi = {
     physicalSchemaUuid: string,
     dataObjectUuid: string,
   ) => post<SchemaSnapshot>(`${connectionVersionV2(projectUuid, connectionUuid, versionUuid)}/physical-schemas/${encodeURIComponent(physicalSchemaUuid)}/data-objects/${encodeURIComponent(dataObjectUuid)}/schema-snapshots:discover`),
+  listSchemaSnapshots: (projectUuid: string, dataObjectUuid: string) =>
+    get<SchemaSnapshot[]>(`${base(projectUuid)}/data-objects/${encodeURIComponent(dataObjectUuid)}/schema-snapshots`),
 }
