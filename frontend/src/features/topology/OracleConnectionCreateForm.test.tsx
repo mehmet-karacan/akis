@@ -35,6 +35,8 @@ describe('Oracle connection creation', () => {
 
     await waitFor(() => expect(save).toBeEnabled())
     expect(create).not.toHaveBeenCalled()
+    fireEvent.change(screen.getByLabelText('Ad *'), { target: { value: 'SKY Production' } })
+    expect(save).toBeEnabled()
     fireEvent.change(screen.getByLabelText('Sunucu *'), { target: { value: '10.6.86.69' } })
     expect(save).toBeDisabled()
   })

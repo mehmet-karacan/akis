@@ -12,6 +12,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import tr.com.innova.akis.topology.TopologyModels.ConnectionRow;
+import tr.com.innova.akis.topology.TopologyModels.ConnectionCatalogRow;
 import tr.com.innova.akis.topology.TopologyModels.ConnectionVersionRow;
 import tr.com.innova.akis.topology.TopologyModels.EnvironmentRow;
 import tr.com.innova.akis.topology.TopologyModels.LogicalSchemaRow;
@@ -66,6 +67,71 @@ public class TopologyRepository {
         return jdbc.sql(connectionSelect() + " where proje_id = :projectId and arsivlenme_zamani is null order by kod")
                 .param("projectId", projectId)
                 .query(this::mapConnection)
+                .list();
+    }
+
+    List<ConnectionCatalogRow> listConnectionCatalog(long projectId) {
+        return jdbc.sql("""
+                with ranked_versions as (
+                    select bs.*,
+                           row_number() over (
+                               partition by bs.baglanti_id
+                               order by case when bs.durum = 'ETKIN' then 0 else 1 end,
+                                        bs.surum_no desc) as display_rank,
+                           max(bs.surum_no) over (partition by bs.baglanti_id) as latest_version_number
+                      from akis.baglanti_surumu bs
+                     where bs.proje_id = :projectId
+                )
+                select c.id as connection_id, c.proje_id, c.uuid as connection_uuid,
+                       c.kod as connection_code, c.saglayici_turu, c.ad as connection_name,
+                       c.aciklama as connection_description, c.versiyon_no as connection_version,
+                       rv.id, rv.uuid, rv.baglanti_id, rv.surum_no, rv.baglanti_modu,
+                       rv.surucu_sinifi, bk.kullanici_adi, rv.sunucu_adi, rv.servis_adi, rv.sid,
+                       rv.veritabani_adi, rv.jndi_adi, rv.tls_modu, rv.port,
+                       rv.baglanti_zaman_asimi_ms, rv.okuma_zaman_asimi_ms,
+                       rv.ag_zaman_asimi_ms, rv.sorgu_zaman_asimi_saniye,
+                       rv.kullanim_amaci, rv.olusturulma_zamani,
+                       case rv.durum when 'TASLAK' then 'DRAFT'
+                            when 'TEST_EDILDI' then 'TESTED'
+                            when 'ETKIN' then 'ACTIVE' else 'DISABLED' end as lifecycle_status,
+                       rv.versiyon_no as lifecycle_version,
+                       rv.hedef_kimlik_surumu as target_identity_version,
+                       rv.hedef_parmak_izi as target_fingerprint,
+                       rv.son_basarili_test_uuid as latest_successful_test_uuid,
+                       rv.test_edilme_zamani as tested_at,
+                       rv.etkinlestirilme_zamani as activated_at,
+                       rv.latest_version_number,
+                       (select count(*) from akis.fiziksel_sema f
+                         where f.proje_id = :projectId and f.baglanti_id = c.id
+                           and f.arsivlenme_zamani is null) as physical_schema_count,
+                       (select count(distinct se.mantiksal_sema_id)
+                          from akis.sema_eslemesi se
+                          join akis.fiziksel_sema f on f.id = se.fiziksel_sema_id
+                          join akis.mantiksal_sema ms on ms.id = se.mantiksal_sema_id
+                         where se.proje_id = :projectId and f.baglanti_id = c.id
+                           and f.arsivlenme_zamani is null and ms.arsivlenme_zamani is null)
+                           as logical_schema_count
+                  from akis.baglanti c
+                  left join ranked_versions rv
+                    on rv.baglanti_id = c.id and rv.display_rank = 1
+                  left join akis.baglanti_kimligi bk
+                    on bk.baglanti_surumu_id = rv.id and bk.kullanim_amaci = 'VERITABANI'
+                 where c.proje_id = :projectId and c.arsivlenme_zamani is null
+                 order by c.ad, c.kod
+                """)
+                .param("projectId", projectId)
+                .query((rs, rowNum) -> {
+                    ConnectionRow connection = new ConnectionRow(
+                            rs.getLong("connection_id"), rs.getLong("proje_id"),
+                            rs.getObject("connection_uuid", UUID.class), rs.getString("connection_code"),
+                            rs.getString("saglayici_turu"), "AKTIF", rs.getString("connection_name"),
+                            rs.getString("connection_description"), rs.getLong("connection_version"));
+                    ConnectionVersionRow displayed = rs.getObject("uuid", UUID.class) == null
+                            ? null : mapConnectionVersion(rs, rowNum);
+                    return new ConnectionCatalogRow(
+                            connection, displayed, rs.getObject("latest_version_number", Integer.class),
+                            rs.getInt("physical_schema_count"), rs.getInt("logical_schema_count"));
+                })
                 .list();
     }
 

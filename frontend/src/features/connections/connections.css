@@ -1,0 +1,60 @@
+.connections-page, .connection-form-page, .connection-detail-page { min-width: 0; }
+.connections-search { min-width: min(360px, 40vw); display: flex; grid-auto-flow: column; grid-template-columns: auto 1fr; align-items: center; gap: 8px; color: var(--ink-faint); }
+.connections-search input { min-height: 36px; padding: 6px 8px; border: 0; box-shadow: none; background: transparent; }
+.connections-table-wrap { margin-top: 16px; overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.connections-table { width: 100%; border-collapse: collapse; font-size: .8125rem; }
+.connections-table th { height: 40px; padding: 0 12px; color: var(--ink-faint); background: var(--surface-strong); font-size: .75rem; font-weight: 650; text-align: left; white-space: nowrap; }
+.connections-table td { height: 44px; padding: 6px 12px; border-top: 1px solid var(--line); vertical-align: middle; }
+.connections-table tbody tr:hover { background: var(--accent-soft); }
+.connections-table .numeric { text-align: right; }
+.provider-cell { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.provider-cell .database-provider-icon { width: 26px; height: 26px; }
+.connection-name-link { display: grid; gap: 1px; min-width: 140px; }
+.connection-name-link:hover strong { color: var(--accent); }
+.connection-name-link small, .revision-list small { color: var(--ink-faint); font: .7rem/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.connection-endpoint { display: block; max-width: 260px; overflow: hidden; color: var(--ink-soft); text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+.newer-draft { color: var(--amber); }
+.row-actions { width: 58px; }
+.row-actions a { height: 32px; display: flex; align-items: center; justify-content: flex-end; color: var(--ink-faint); }
+.row-actions a svg { width: 15px; }
+.connections-pagination { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--ink-soft); font-size: .75rem; }
+.connections-pagination > div { display: flex; align-items: center; gap: 8px; }
+.connections-pagination .button { min-height: 34px; }
+.connection-back-link { width: max-content; display: inline-flex; align-items: center; gap: 6px; margin-bottom: 16px; color: var(--ink-soft); font-size: .8125rem; font-weight: 600; }
+.connection-back-link:hover { color: var(--accent); }
+.connection-form-surface, .connection-detail-section, .connection-summary-card { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.connection-form-surface { max-width: 940px; padding: 24px; }
+.connection-summary-card { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 20px; padding: 20px; }
+.connection-provider-mark { width: 56px; height: 56px; display: grid; place-items: center; border-radius: 12px; background: var(--accent-soft); }
+.connection-summary-card dl { margin: 0; display: grid; grid-template-columns: minmax(220px, 2fr) repeat(3, minmax(110px, 1fr)); gap: 16px; }
+.connection-summary-card dl > div, .revision-details > div { display: grid; align-content: start; gap: 4px; }
+.connection-summary-card dt, .revision-details dt { color: var(--ink-faint); font-size: .75rem; }
+.connection-summary-card dd, .revision-details dd { margin: 0; color: var(--ink); font-size: .8125rem; font-weight: 600; }
+.connection-detail-tabs { height: 48px; display: flex; align-items: end; gap: 24px; margin-top: 16px; border-bottom: 1px solid var(--line); }
+.connection-detail-tabs a { height: 48px; display: flex; align-items: center; color: var(--ink-soft); font-size: .8125rem; font-weight: 650; }
+.connection-detail-tabs a:first-child { color: var(--accent); box-shadow: inset 0 -2px var(--accent); }
+.connection-detail-section { margin-top: 16px; padding: 20px; }
+.connection-detail-section > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.connection-detail-section h2 { margin: 0; }
+.connection-detail-section header p { margin: 3px 0 0; color: var(--ink-soft); font-size: .8125rem; }
+.revision-list { display: grid; }
+.revision-list > a { min-height: 52px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 10px; border-top: 1px solid var(--line); }
+.revision-list > a:hover { background: var(--accent-soft); }
+.revision-list > a > span:first-child { display: grid; gap: 3px; }
+.physical-schema-list { margin: 0; padding: 0; list-style: none; }
+.physical-schema-list li { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid var(--line); }
+.physical-schema-list code { color: var(--ink-soft); }
+.connection-edit-dialog { width: min(780px, 100%); max-height: calc(100vh - 40px); overflow: auto; }
+.connection-edit-dialog details { padding: 12px; border: 1px solid var(--line); border-radius: 8px; }
+.connection-edit-dialog summary { cursor: pointer; color: var(--accent); font-weight: 650; }
+.connection-delete-impact { display: grid; gap: 16px; }
+.connection-delete-impact > svg { color: var(--danger); }
+.connection-delete-impact dl { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0; }
+.connection-delete-impact dl > div { padding: 12px; border-radius: 8px; background: var(--surface-strong); }
+.connection-delete-impact dt { color: var(--ink-soft); font-size: .75rem; }
+.connection-delete-impact dd { margin: 4px 0 0; font-size: 1.25rem; font-weight: 650; }
+.connection-delete-impact footer { display: flex; justify-content: flex-end; gap: 8px; }
+.connection-revision-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.revision-details { margin: 14px 0 0; display: grid; gap: 12px; }
+@media (max-width: 900px) { .connection-summary-card dl { grid-template-columns: 1fr 1fr; } .connection-revision-grid { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .ui-filter-bar { align-items: stretch; flex-direction: column; } .connections-search { min-width: 0; } .connection-summary-card { grid-template-columns: 1fr; } .connection-summary-card dl { grid-template-columns: 1fr; } .connections-pagination { align-items: flex-start; flex-direction: column; } }

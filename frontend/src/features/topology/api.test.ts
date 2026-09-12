@@ -16,6 +16,12 @@ function mockResponse(body: unknown = {}) {
 }
 
 describe('topology API contracts', () => {
+  it('loads the connection catalog through one summary endpoint', async () => {
+    const fetchMock = mockResponse([])
+    await topologyApi.listConnectionCatalog('project id')
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/projects/project%20id/connections/catalog')
+  })
+
   it('creates an Oracle definition and its first endpoint atomically', async () => {
     const fetchMock = mockResponse({ connection: { uuid: 'connection' }, initialVersion: { uuid: 'version' } })
     const initialVersion = {

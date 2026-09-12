@@ -7,6 +7,10 @@ import { AppShell } from './AppShell'
 
 const BundleImportPage = lazy(() => import('../features/bundles').then((module) => ({ default: module.BundleImportPage })))
 const DefinitionsWorkspace = lazy(() => import('../features/definitions').then((module) => ({ default: module.DefinitionsWorkspace })))
+const ConnectionsPage = lazy(() => import('../features/connections').then((module) => ({ default: module.ConnectionsPage })))
+const ConnectionCreatePage = lazy(() => import('../features/connections').then((module) => ({ default: module.ConnectionCreatePage })))
+const ConnectionDetailPage = lazy(() => import('../features/connections').then((module) => ({ default: module.ConnectionDetailPage })))
+const ConnectionRevisionPage = lazy(() => import('../features/connections').then((module) => ({ default: module.ConnectionRevisionPage })))
 const RunDetailPage = lazy(() => import('../features/execution').then((module) => ({ default: module.RunDetailPage })))
 const RunsPage = lazy(() => import('../features/execution').then((module) => ({ default: module.RunsPage })))
 const IdentityUsersPage = lazy(() => import('../features/operations').then((module) => ({ default: module.IdentityUsersPage })))
@@ -27,6 +31,11 @@ function DefinitionsRoute() {
   return <DefinitionsWorkspace projectUuid={projectUuid} />
 }
 
+function LegacyTopologyRedirect() {
+  const { projectUuid = '' } = useParams()
+  return <Navigate to={`/projects/${projectUuid}/connections`} replace />
+}
+
 function RouteLoading() {
   const { t } = useTranslation()
   return <div className="route-loading" role="status"><span />{t('common.loading')}</div>
@@ -42,7 +51,7 @@ export function App() {
         <Route path="/project-bundles/import" element={<BundleImportPage />} />
         <Route path="/projects/import" element={<BundleImportPage />} />
         <Route path="/projects/:projectUuid" element={<ProjectOverviewPage />} />
-        <Route path="/projects/:projectUuid/topology" element={<TopologyPage />} />
+        <Route path="/projects/:projectUuid/topology" element={<LegacyTopologyRedirect />} />
         <Route path="/projects/:projectUuid/models" element={<TopologyPage initialTab="catalog" />} />
         <Route path="/projects/:projectUuid/definitions" element={<DefinitionsRoute />} />
         <Route path="/projects/:projectUuid/development" element={<DefinitionsRoute />} />
@@ -53,7 +62,10 @@ export function App() {
         <Route path="/projects/:projectUuid/runs/:runUuid" element={<RunDetailPage />} />
         <Route path="/projects/:projectUuid/operations/runs/:runUuid" element={<RunDetailPage />} />
         <Route path="/projects/:projectUuid/team" element={<MembershipsPage />} />
-        <Route path="/projects/:projectUuid/connections" element={<TopologyPage />} />
+        <Route path="/projects/:projectUuid/connections" element={<ConnectionsPage />} />
+        <Route path="/projects/:projectUuid/connections/new" element={<ConnectionCreatePage />} />
+        <Route path="/projects/:projectUuid/connections/:connectionUuid" element={<ConnectionDetailPage />} />
+        <Route path="/projects/:projectUuid/connections/:connectionUuid/revisions/:revisionUuid" element={<ConnectionRevisionPage />} />
         <Route path="/identity/users" element={<IdentityUsersPage />} />
       </Route>
       <Route path="*" element={<Navigate to={username ? '/projects' : '/login'} replace />} />

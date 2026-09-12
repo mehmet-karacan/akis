@@ -22,6 +22,7 @@ Temel yüzeyler:
 - `POST|GET /api/v1/global-definitions/{definitionUuid}/versions`
 - `POST|GET /api/v1/projects/{projectUuid}/secret-references`
 - `POST|GET /api/v1/projects/{projectUuid}/connections`
+- `GET /api/v1/projects/{projectUuid}/connections/catalog`
 - `POST|GET /api/v1/projects/{projectUuid}/connections/{connectionUuid}/versions`
 - `POST|GET /api/v2/projects/{projectUuid}/connections/{connectionUuid}/versions` (Oracle JDBC/JNDI)
 - `POST|GET /api/v1/projects/{projectUuid}/physical-schemas`

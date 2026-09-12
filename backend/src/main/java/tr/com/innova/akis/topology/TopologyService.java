@@ -15,6 +15,7 @@ import tools.jackson.databind.ObjectMapper;
 import tr.com.innova.akis.metadata.ApiException;
 import tr.com.innova.akis.projectbundle.SecretValueSanitizer;
 import tr.com.innova.akis.topology.TopologyModels.ConnectionRow;
+import tr.com.innova.akis.topology.TopologyModels.ConnectionCatalogRow;
 import tr.com.innova.akis.topology.TopologyModels.ConnectionVersionRow;
 import tr.com.innova.akis.topology.TopologyModels.EnvironmentRow;
 import tr.com.innova.akis.topology.TopologyModels.LogicalSchemaRow;
@@ -101,6 +102,11 @@ public class TopologyService {
     List<ConnectionRow> listConnections(UUID projectUuid) {
         ProjectRef project = project(projectUuid);
         return repository.listConnections(project.id());
+    }
+
+    List<ConnectionCatalogRow> listConnectionCatalog(UUID projectUuid) {
+        ProjectRef project = project(projectUuid);
+        return repository.listConnectionCatalog(project.id());
     }
 
     ConnectionRow connection(UUID projectUuid, UUID connectionUuid) {

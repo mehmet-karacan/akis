@@ -72,6 +72,13 @@ class CleanTopologyRepositoryIT {
         assertEquals("AKTIF", repository.listConnections(projectId).getFirst().status());
         assertEquals(binding.uuid(), repository.listSchemaBindings(projectId).getFirst().uuid());
         assertTrue(repository.findPhysicalSchema(projectId, physical.uuid()).isPresent());
+        var catalog = repository.listConnectionCatalog(projectId).stream()
+                .filter(item -> item.connection().uuid().equals(connection.uuid()))
+                .findFirst().orElseThrow();
+        assertEquals(version.uuid(), catalog.displayedVersion().uuid());
+        assertEquals(1, catalog.latestVersionNumber());
+        assertEquals(1, catalog.physicalSchemaCount());
+        assertEquals(1, catalog.logicalSchemaCount());
     }
 
     @Test

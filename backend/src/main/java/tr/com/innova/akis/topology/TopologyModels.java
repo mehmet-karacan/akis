@@ -25,6 +25,14 @@ final class TopologyModels {
             long version) {
     }
 
+    record ConnectionCatalogRow(
+            ConnectionRow connection,
+            ConnectionVersionRow displayedVersion,
+            Integer latestVersionNumber,
+            int physicalSchemaCount,
+            int logicalSchemaCount) {
+    }
+
     record ConnectionVersionRow(
             long id,
             UUID uuid,

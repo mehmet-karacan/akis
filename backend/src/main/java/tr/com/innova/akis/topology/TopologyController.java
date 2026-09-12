@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
 
 import tr.com.innova.akis.topology.TopologyModels.ConnectionRow;
+import tr.com.innova.akis.topology.TopologyModels.ConnectionCatalogRow;
 import tr.com.innova.akis.topology.TopologyModels.ConnectionVersionRow;
 import tr.com.innova.akis.topology.TopologyModels.EnvironmentRow;
 import tr.com.innova.akis.topology.TopologyModels.LogicalSchemaRow;
@@ -60,6 +61,14 @@ final class TopologyController {
     List<ConnectionView> listConnections(@PathVariable UUID projectUuid) {
         authorization.requireProjectPermission(projectUuid, TOPOLOGY_READ);
         return service.listConnections(projectUuid).stream().map(ConnectionView::from).toList();
+    }
+
+    @GetMapping("/connections/catalog")
+    List<ConnectionCatalogView> connectionCatalog(@PathVariable UUID projectUuid) {
+        authorization.requireProjectPermission(projectUuid, TOPOLOGY_READ);
+        return service.listConnectionCatalog(projectUuid).stream()
+                .map(ConnectionCatalogView::from)
+                .toList();
     }
 
     @GetMapping("/connections/{connectionUuid}")
@@ -258,6 +267,39 @@ final class TopologyController {
             return new ConnectionView(
                     row.uuid(), row.code(), row.databaseType(), row.status(), row.name(),
                     row.description(), row.version());
+        }
+    }
+
+    record ConnectionCatalogView(
+            ConnectionView connection,
+            ConnectionVersionCatalogView displayedVersion,
+            Integer latestVersionNumber,
+            int physicalSchemaCount,
+            int logicalSchemaCount) {
+        static ConnectionCatalogView from(ConnectionCatalogRow row) {
+            return new ConnectionCatalogView(
+                    ConnectionView.from(row.connection()),
+                    row.displayedVersion() == null ? null : ConnectionVersionCatalogView.from(row.displayedVersion()),
+                    row.latestVersionNumber(), row.physicalSchemaCount(), row.logicalSchemaCount());
+        }
+    }
+
+    record ConnectionVersionCatalogView(
+            UUID uuid, int versionNumber, String mode, String driverReference, String username,
+            String host, String serviceName, String sid, String databaseName, String jndiName,
+            String tlsMode, Integer port, int policyVersion, JsonNode policy,
+            OffsetDateTime createdAt, String lifecycleStatus, long lifecycleVersion,
+            Integer targetIdentityVersion, String targetFingerprint,
+            UUID latestSuccessfulTestUuid, OffsetDateTime testedAt,
+            OffsetDateTime activatedAt, String runtimeCapability) {
+        static ConnectionVersionCatalogView from(ConnectionVersionRow row) {
+            return new ConnectionVersionCatalogView(
+                    row.uuid(), row.versionNumber(), row.mode(), row.driverReference(), row.username(),
+                    row.host(), row.serviceName(), row.sid(), row.databaseName(), row.jndiName(),
+                    row.tlsMode(), row.port(), row.policyVersion(), row.policy(), row.createdAt(),
+                    row.lifecycleStatus(), row.lifecycleVersion(), row.targetIdentityVersion(),
+                    row.targetFingerprint(), row.latestSuccessfulTestUuid(), row.testedAt(), row.activatedAt(),
+                    "JNDI".equals(row.mode()) ? "TEST_DISCOVERY_ONLY" : "EXECUTABLE");
         }
     }
 

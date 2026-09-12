@@ -36,6 +36,14 @@ export interface ConnectionVersion {
   runtimeCapability: 'EXECUTABLE' | 'TEST_DISCOVERY_ONLY'
 }
 
+export interface ConnectionCatalogProjection {
+  connection: Connection
+  displayedVersion?: ConnectionVersion | null
+  latestVersionNumber?: number | null
+  physicalSchemaCount: number
+  logicalSchemaCount: number
+}
+
 export interface ConnectionExecutionPolicy {
   connectTimeoutMs: number
   readTimeoutMs: number
@@ -318,6 +326,8 @@ const remove = (path: string) => apiRequest<void>(path, { method: 'DELETE' })
 
 export const topologyApi = {
   listConnections: (projectUuid: string) => get<Connection[]>(`${base(projectUuid)}/connections`),
+  getConnection: (projectUuid: string, connectionUuid: string) => get<Connection>(`${base(projectUuid)}/connections/${encodeURIComponent(connectionUuid)}`),
+  listConnectionCatalog: (projectUuid: string) => get<ConnectionCatalogProjection[]>(`${base(projectUuid)}/connections/catalog`),
   createConnection: (projectUuid: string, body: JsonRecord) => post<Connection>(`${base(projectUuid)}/connections`, body),
   updateConnection: (projectUuid: string, connectionUuid: string, body: JsonRecord) =>
     patch<Connection>(`${base(projectUuid)}/connections/${encodeURIComponent(connectionUuid)}`, body),

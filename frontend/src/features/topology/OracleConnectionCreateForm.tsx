@@ -11,8 +11,7 @@ interface Props {
   onClose(): void
 }
 
-const fingerprint = (name: string, code: string, description: string, draft: ConnectionVersionDraft) =>
-  JSON.stringify({ name: name.trim(), code: code.trim(), description: description.trim(), ...draft })
+const fingerprint = (draft: ConnectionVersionDraft) => JSON.stringify(draft)
 
 export function OracleConnectionCreateForm({ projectUuid, copy: c, onConnectionCreated, onClose }: Props) {
   const [provider, setProvider] = useState('')
@@ -24,7 +23,7 @@ export function OracleConnectionCreateForm({ projectUuid, copy: c, onConnectionC
   const [error, setError] = useState('')
   const [testedFingerprint, setTestedFingerprint] = useState('')
   const [testResult, setTestResult] = useState<DraftConnectionTestResult | null>(null)
-  const currentFingerprint = useMemo(() => fingerprint(name, code, description, draft), [name, code, description, draft])
+  const currentFingerprint = useMemo(() => fingerprint(draft), [draft])
   const tested = Boolean(testResult?.connected && testedFingerprint === currentFingerprint)
 
   const invalidate = () => { setTestResult(null); setTestedFingerprint(''); setError('') }
@@ -71,8 +70,8 @@ export function OracleConnectionCreateForm({ projectUuid, copy: c, onConnectionC
         </select>
       </label>
       {provider === 'ORACLE' && <>
-        <label className="topology-field"><span>{c.name} *</span><input required value={name} onChange={(e) => { setName(e.target.value); invalidate() }} /></label>
-        <label className="topology-field"><span>{c.code} *</span><input required pattern="[A-Za-z][A-Za-z0-9_]{0,99}" value={code} onChange={(e) => { setCode(e.target.value.toUpperCase()); invalidate() }} /></label>
+        <label className="topology-field"><span>{c.name} *</span><input required value={name} onChange={(e) => setName(e.target.value)} /></label>
+        <label className="topology-field"><span>{c.code} *</span><input required pattern="[A-Za-z][A-Za-z0-9_]{0,99}" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} /></label>
         <label className="topology-field"><span>{c.connectionMode} *</span><select value={draft.mode} onChange={(e) => update('mode', e.target.value as ConnectionVersionDraft['mode'])}><option value="JDBC">JDBC</option><option value="JNDI">JNDI</option></select></label>
         {draft.mode === 'JDBC' ? <>
           <label className="topology-field"><span>{c.host} *</span><input required value={draft.host} onChange={(e) => update('host', e.target.value)} placeholder="10.0.0.10" autoComplete="off" /></label>
@@ -82,7 +81,7 @@ export function OracleConnectionCreateForm({ projectUuid, copy: c, onConnectionC
           <label className="topology-field"><span>{c.username} *</span><input required value={draft.username} onChange={(e) => update('username', e.target.value)} autoComplete="username" /></label>
           <label className="topology-field"><span>{c.password} *</span><input required type="password" value={draft.password} onChange={(e) => update('password', e.target.value)} autoComplete="new-password" /></label>
         </> : <label className="topology-field topology-field--wide"><span>{c.jndiName} *</span><input required value={draft.jndiName} onChange={(e) => update('jndiName', e.target.value)} placeholder="java:comp/env/jdbc/OracleMain" /></label>}
-        <label className="topology-field topology-field--wide"><span>{c.description} ({c.optional.toLowerCase()})</span><textarea rows={2} value={description} onChange={(e) => { setDescription(e.target.value); invalidate() }} /></label>
+        <label className="topology-field topology-field--wide"><span>{c.description} ({c.optional.toLowerCase()})</span><textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} /></label>
         <details className="topology-advanced topology-field--wide"><summary>{c.advancedSettings}</summary><div className="topology-timeout-grid">
           <label className="topology-field"><span>{c.connectTimeout}</span><input required type="number" min="1000" max="120000" value={draft.connectTimeoutMs} onChange={(e) => update('connectTimeoutMs', e.target.value)} /></label>
           <label className="topology-field"><span>{c.readTimeout}</span><input required type="number" min="1000" max="300000" value={draft.readTimeoutMs} onChange={(e) => update('readTimeoutMs', e.target.value)} /></label>
