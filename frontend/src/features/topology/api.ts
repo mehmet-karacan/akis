@@ -137,6 +137,11 @@ export interface Environment {
   version: number
 }
 
+export interface CreateEnvironmentRequest extends JsonRecord {
+  code: string
+  name: string
+}
+
 export interface SchemaBinding {
   uuid: string
   logicalSchemaUuid: string
@@ -324,7 +329,7 @@ export const topologyApi = {
   listLogicalSchemas: (projectUuid: string) => get<LogicalSchema[]>(`${base(projectUuid)}/logical-schemas`),
   createLogicalSchema: (projectUuid: string, body: JsonRecord) => post<LogicalSchema>(`${base(projectUuid)}/logical-schemas`, body),
   listEnvironments: (projectUuid: string) => get<Environment[]>(`${base(projectUuid)}/environments`),
-  createEnvironment: (projectUuid: string, body: JsonRecord) => post<Environment>(`${base(projectUuid)}/environments`, body),
+  createEnvironment: (projectUuid: string, body: CreateEnvironmentRequest) => post<Environment>(`${base(projectUuid)}/environments`, body),
   listBindings: (projectUuid: string) => get<SchemaBinding[]>(`${base(projectUuid)}/schema-bindings`),
   createBinding: (projectUuid: string, body: JsonRecord) => post<SchemaBinding>(`${base(projectUuid)}/schema-bindings`, body),
   listModels: (projectUuid: string) => get<Model[]>(`${base(projectUuid)}/models`),

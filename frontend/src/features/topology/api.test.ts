@@ -123,6 +123,16 @@ describe('topology API contracts', () => {
     expect(JSON.parse(String(init.body))).toEqual({ tableName: 'CUSTOMER', limit: 25 })
   })
 
+  it('creates an environment with only its name and code', async () => {
+    const fetchMock = mockResponse({ uuid: 'environment' })
+
+    await topologyApi.createEnvironment('project id', { code: 'TEST', name: 'Test Ortamı' })
+
+    const [path, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(path).toBe('/api/v1/projects/project%20id/environments')
+    expect(JSON.parse(String(init.body))).toEqual({ code: 'TEST', name: 'Test Ortamı' })
+  })
+
   it('captures a server-produced schema snapshot without sending client metadata', async () => {
     const fetchMock = mockResponse({ uuid: 'snapshot', serverProduced: true })
 

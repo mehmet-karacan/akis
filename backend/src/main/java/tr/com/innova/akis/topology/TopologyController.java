@@ -140,9 +140,7 @@ final class TopologyController {
             @Valid @RequestBody CreateEnvironmentRequest request) {
         authorization.requireProjectPermission(projectUuid, TOPOLOGY_WRITE);
         EnvironmentRow row = service.createEnvironment(
-                projectUuid, request.code(), request.risk(),
-                request.policyVersion() == null ? 1 : request.policyVersion(),
-                request.policy(), request.name());
+                projectUuid, request.code(), "DUSUK", 1, null, request.name());
         return ResponseEntity.created(URI.create(
                 "/api/v1/projects/" + projectUuid + "/environments/" + row.uuid()))
                 .body(EnvironmentView.from(row));
@@ -209,9 +207,6 @@ final class TopologyController {
 
     record CreateEnvironmentRequest(
             @NotBlank String code,
-            String risk,
-            @Min(1) Integer policyVersion,
-            JsonNode policy,
             @NotBlank String name) {
     }
 
