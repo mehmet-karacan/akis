@@ -26,9 +26,8 @@ import type { Publication } from '../operations/types'
 import { topologyApi, type Environment } from '../topology/api'
 import { definitionsApi } from './api'
 import { bindingNodes, candidateLabel, unboundNodes } from './bindingCatalog'
-import { createDefaultContent, isMappingContent, isProcedureContent, supportsVisualEditor } from './defaults'
+import { createDefaultContent, isMappingContent, isProcedureContent } from './defaults'
 import { definitionTypeKey, useDefinitionsI18n } from './i18n'
-import { JsonDraftEditor } from './JsonDraftEditor'
 import { MappingGrid } from './MappingGrid'
 import { ProcedureEditor } from './ProcedureEditor'
 import { StructuredDraftEditor } from './StructuredDraftEditor'
@@ -57,7 +56,6 @@ interface DefinitionsWorkspaceProps {
 }
 
 type WorkspaceTab = 'draft' | 'versions' | 'bindings'
-type EditorMode = 'visual' | 'json'
 
 const executableTypes = new Set<DefinitionType>(['MAPPING', 'PACKAGE', 'PROCEDURE', 'LOAD_PLAN'])
 const bindingTypes = new Set<DefinitionType>(['MAPPING', 'REUSABLE_MAPPING', 'PROCEDURE'])
@@ -103,13 +101,11 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
   const [movingDefinition, setMovingDefinition] = useState(false)
   const [movingFolder, setMovingFolder] = useState(false)
   const [tab, setTab] = useState<WorkspaceTab>('draft')
-  const [editorMode, setEditorMode] = useState<EditorMode>('visual')
   const [draft, setDraft] = useState<Draft | null>(null)
   const [content, setContent] = useState<unknown>({})
   const [schemaVersion, setSchemaVersion] = useState(1)
   const [draftLoading, setDraftLoading] = useState(false)
   const [dirty, setDirty] = useState(false)
-  const [jsonValid, setJsonValid] = useState(true)
   const [saving, setSaving] = useState(false)
   const [versions, setVersions] = useState<DefinitionVersion[]>([])
   const [versionDescription, setVersionDescription] = useState('')
@@ -225,7 +221,6 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
       setSchemaVersion(nextDraft?.schemaVersion ?? (selectedDefinition.type === 'MAPPING' || selectedDefinition.type === 'PROCEDURE' ? 2 : 1))
       setContent(nextDraft?.content ?? createDefaultContent(selectedDefinition.type))
       setDirty(false)
-      setJsonValid(true)
       setVersions(nextVersions)
       setSelectedVersionUuid(nextVersions[0]?.uuid ?? null)
     } catch (error) {
@@ -262,7 +257,7 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
   }, [projectUuid, selectedDefinition, selectedVersionUuid])
 
   async function saveDraft(): Promise<boolean> {
-    if (!selectedDefinition || saving || !jsonValid) return false
+    if (!selectedDefinition || saving) return false
     setSaving(true)
     setStatus(null)
     try {
@@ -450,30 +445,20 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
                       {dirty && <span>{t('unsaved')}</span>}
                     </div>
                     <div className="definition-editor-actions">
-                      {supportsVisualEditor(selectedDefinition.type, schemaVersion) && (
-                        <div className="definition-segmented definition-editor-mode" aria-label={t('editorMode')}>
-                          <button type="button" aria-pressed={editorMode === 'visual'} onClick={() => setEditorMode('visual')}>{selectedDefinition.type === 'PROCEDURE' ? t('procedureEditor') : t('formEditor')}</button>
-                          <button type="button" aria-pressed={editorMode === 'json'} onClick={() => setEditorMode('json')}>{t('advancedJson')}</button>
-                        </div>
-                      )}
-                      <label className="definition-schema-version">
-                        <span>{t('schemaVersion')}</span>
-                        <input type="number" min="1" value={schemaVersion} onChange={(event) => { setSchemaVersion(Number(event.target.value)); setDirty(true) }} />
-                      </label>
-                      <button className="definition-button definition-button--primary" type="button" disabled={saving || !dirty || !jsonValid} onClick={() => void saveDraft()}>
+                      <button className="definition-button definition-button--primary" type="button" disabled={saving || !dirty} onClick={() => void saveDraft()}>
                         {saving ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Save size={16} aria-hidden="true" />}
                         {saving ? t('saving') : t('saveDraft')}
                       </button>
                     </div>
                   </div>
-                  {selectedDefinition.type === 'MAPPING' && editorMode === 'visual' && isMappingContent(content) ? (
+                  {selectedDefinition.type === 'MAPPING' && isMappingContent(content) ? (
                     <MappingGrid value={content} onChange={updateContent} />
-                  ) : selectedDefinition.type === 'PROCEDURE' && supportsVisualEditor(selectedDefinition.type, schemaVersion) && editorMode === 'visual' && isProcedureContent(content) ? (
+                  ) : selectedDefinition.type === 'PROCEDURE' && isProcedureContent(content) ? (
                     <ProcedureEditor value={content} onChange={updateContent} limits={capabilities?.procedure} />
-                  ) : ['VARIABLE', 'SEQUENCE', 'PACKAGE'].includes(selectedDefinition.type) && editorMode === 'visual' ? (
+                  ) : !['MAPPING', 'PROCEDURE', 'REUSABLE_MAPPING'].includes(selectedDefinition.type) ? (
                     <StructuredDraftEditor type={selectedDefinition.type} value={content} onChange={updateContent} />
                   ) : (
-                    <JsonDraftEditor value={content} onChange={updateContent} onValidityChange={setJsonValid} />
+                    <div className="definition-state definition-state--error"><AlertCircle aria-hidden="true" /><p>{t('unsupportedDraftShape')}</p><button className="definition-button definition-button--quiet" type="button" onClick={() => updateContent(createDefaultContent(selectedDefinition.type))}>{t('resetStructuredDraft')}</button></div>
                   )}
                 </section>
               ) : tab === 'versions' ? (

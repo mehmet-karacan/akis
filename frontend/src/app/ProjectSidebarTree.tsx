@@ -2,7 +2,7 @@ import { Blocks, Braces, ChevronDown, ChevronRight, Database, ExternalLink, File
 import { useEffect, useMemo, useState, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { DefinitionTypeIcon } from '../features/definitions/DefinitionTypeIcon'
-import { buildFolderTree, type FolderTreeNode } from '../features/definitions/ProjectExplorer'
+import { buildFolderTree, matchesObjectSearch, type FolderTreeNode } from './ProjectObjectTreeAdapter'
 import { definitionTypeKey, useDefinitionsI18n } from '../features/definitions/i18n'
 import type { Definition, Folder as ProjectFolder } from '../features/definitions/types'
 import { definitionsApi } from '../features/definitions/api'
@@ -24,7 +24,7 @@ interface Props {
 }
 
 export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading, failed, onNavigate, onRetry, projectUuid }: Props) {
-  const { t: shellT } = useTranslation()
+  const { t: shellT, i18n } = useTranslation()
   const { t } = useDefinitionsI18n()
   const [query, setQuery] = useState('')
   const [menu, setMenu] = useState<{ definition: Definition; x: number; y: number } | null>(null)
@@ -32,15 +32,14 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
   const [creationMenu, setCreationMenu] = useState<{ type: typeof COMPONENT_TYPES[number] | null; x: number; y: number } | null>(null)
   const [compilingUuid, setCompilingUuid] = useState<string | null>(null)
   const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
-  const tree = useMemo(() => buildFolderTree(folders.filter((item) => item.status !== 'PASIF')), [folders])
+  const locale = i18n.resolvedLanguage ?? i18n.language
+  const tree = useMemo(() => buildFolderTree(folders.filter((item) => item.status !== 'PASIF'), locale), [folders, locale])
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const activeDefinitions = useMemo(() => definitions.filter((item) => item.status !== 'PASIF' && item.type !== 'REUSABLE_MAPPING'), [definitions])
   const flowDefinitions = useMemo(() => activeDefinitions.filter((item) => FLOW_TYPES.has(item.type)), [activeDefinitions])
   const matches = useMemo(() => {
-    const normalized = query.trim().toLocaleLowerCase()
-    if (!normalized) return activeDefinitions
-    return activeDefinitions.filter((item) => `${item.name} ${item.code} ${t(definitionTypeKey[item.type])}`.toLocaleLowerCase().includes(normalized))
-  }, [activeDefinitions, query, t])
+    return activeDefinitions.filter((item) => matchesObjectSearch(item.name, item.code, t(definitionTypeKey[item.type]), query, locale))
+  }, [activeDefinitions, locale, query, t])
   const definitionsByFolder = useMemo(() => {
     const grouped = new Map<string | null, Definition[]>()
     for (const definition of flowDefinitions) {
@@ -51,8 +50,9 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
   }, [flowDefinitions])
 
   useEffect(() => {
-    setExpanded(new Set([VIRTUAL.flows, VIRTUAL.components, ...tree.map((folder) => folder.uuid)]))
-  }, [projectUuid, tree]) // Tree expansion belongs to the selected project.
+    const initiallyOpenFolders = flowDefinitions.length <= 200 ? tree.map((folder) => folder.uuid) : []
+    setExpanded(new Set([VIRTUAL.flows, VIRTUAL.components, ...initiallyOpenFolders]))
+  }, [flowDefinitions.length, projectUuid, tree]) // Large repositories stay responsive by opening folders on demand.
 
   useEffect(() => {
     if (!menu && !folderMenu && !creationMenu) return

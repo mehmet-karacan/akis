@@ -161,6 +161,11 @@ span.explorer-toggle { pointer-events: none; }
 .structured-draft-form { display: grid; grid-template-columns: repeat(2, minmax(12rem, 1fr)); gap: .8rem; padding: 1rem; }
 .structured-draft-wide { grid-column: 1 / -1; }
 .structured-draft-wide textarea { min-height: 12rem; font-family: "Cascadia Code", Consolas, monospace; }
+.structured-list-editor { display: grid; gap: .5rem; }
+.structured-list-editor > header { display: flex; align-items: center; justify-content: space-between; gap: .7rem; }
+.structured-list-editor > div { display: grid; grid-template-columns: minmax(8rem, 1fr) minmax(8rem, 1fr) auto; align-items: start; gap: .5rem; padding: .55rem; border: 1px solid var(--df-line); border-radius: .5rem; background: var(--df-bg); }
+.structured-list-editor > div.structured-list-editor--stack { grid-template-columns: minmax(8rem, .45fr) minmax(14rem, 1fr) auto; }
+.structured-list-editor textarea { min-height: 5rem; resize: vertical; }
 .structured-package-editor { display: grid; gap: .85rem; padding: 1rem; }
 .structured-package-editor > label { max-width: 25rem; }
 .structured-package-editor > header { display: flex; align-items: end; justify-content: space-between; gap: 1rem; padding-top: .7rem; border-top: 1px solid var(--df-line); }
