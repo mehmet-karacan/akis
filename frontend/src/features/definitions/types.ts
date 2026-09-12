@@ -144,6 +144,8 @@ export interface ProcedureTask {
   connectionRole: ProcedureConnectionRole
   riskClass: ProcedureRiskClass
   command: string
+  logicalSchemaUuid?: string
+  environmentUuid?: string
   requiresApproval?: boolean
   onError?: 'STOP' | 'CONTINUE'
   timeoutSeconds?: number

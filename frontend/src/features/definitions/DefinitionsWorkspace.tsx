@@ -454,7 +454,7 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
                   {selectedDefinition.type === 'MAPPING' && isMappingContent(content) ? (
                     <MappingGrid value={content} onChange={updateContent} />
                   ) : selectedDefinition.type === 'PROCEDURE' && isProcedureContent(content) ? (
-                    <ProcedureEditor value={content} onChange={updateContent} limits={capabilities?.procedure} />
+                    <ProcedureEditor projectUuid={projectUuid} value={content} onChange={updateContent} limits={capabilities?.procedure} />
                   ) : !['MAPPING', 'PROCEDURE', 'REUSABLE_MAPPING'].includes(selectedDefinition.type) ? (
                     <StructuredDraftEditor type={selectedDefinition.type} value={content} onChange={updateContent} />
                   ) : (

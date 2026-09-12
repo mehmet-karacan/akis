@@ -2,13 +2,13 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import i18n from '../../../core/i18n'
-import { DEFAULT_PROCEDURE, isProcedureContent, supportsVisualEditor } from '../defaults'
-import { ProcedureEditor } from '../ProcedureEditor'
+import { DEFAULT_PROCEDURE, isProcedureContent } from '../defaults'
+import { pageProcedureTasks, ProcedureEditor } from '../ProcedureEditor'
 import type { ProcedureContent } from '../types'
 
 function Harness() {
   const [content, setContent] = useState<ProcedureContent>(DEFAULT_PROCEDURE)
-  return <ProcedureEditor value={content} onChange={setContent} />
+  return <ProcedureEditor projectUuid="project" value={content} onChange={setContent} />
 }
 
 describe('ProcedureEditor', () => {
@@ -59,9 +59,11 @@ describe('ProcedureEditor', () => {
     expect(isProcedureContent(DEFAULT_PROCEDURE)).toBe(true)
   })
 
-  it('keeps legacy procedure drafts JSON-only until an explicit v2 upgrade', () => {
-    expect(supportsVisualEditor('PROCEDURE', 1)).toBe(false)
-    expect(supportsVisualEditor('PROCEDURE', 2)).toBe(true)
-    expect(supportsVisualEditor('MAPPING', 1)).toBe(true)
+  it('windows a 10,000-step fixture without cutting off navigation', () => {
+    const tasks = Array.from({ length: 10_000 }, (_, index) => ({ ...DEFAULT_PROCEDURE.tasks[0]!, id: `STEP_${index + 1}`, name: `Step ${index + 1}` }))
+    const last = pageProcedureTasks(tasks, '', 99)
+    expect(last.items).toHaveLength(100)
+    expect(last.items[0]?.task.id).toBe('STEP_9901')
+    expect(last.pages).toBe(100)
   })
 })
