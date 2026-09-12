@@ -7,6 +7,7 @@ import java.util.regex.Pattern;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.JsonNode;
 
 import tr.com.innova.akis.metadata.ApiException;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.ConnectionProbe;
@@ -48,6 +49,32 @@ public class OracleDiscoveryService {
             UUID connectionUuid,
             UUID connectionVersionUuid) {
         ConnectionProfile profile = profile(projectUuid, connectionUuid, connectionVersionUuid);
+        try (Credentials credentials = credentials(profile)) {
+            ConnectionProbe probe = gateway.test(profile, credentials);
+            requireOracle19c(probe);
+            requireTargetIdentity(probe);
+            return probe;
+        }
+    }
+
+    public ConnectionProbe testDraftConnection(
+            String mode,
+            String jndiName,
+            String host,
+            String serviceName,
+            String sid,
+            Integer port,
+            JsonNode policy,
+            String credentialReferencePath) {
+        String normalizedMode = mode == null ? "" : mode.trim().toUpperCase(Locale.ROOT);
+        ConnectionProfile draft = new ConnectionProfile(
+                0L, 0L, new UUID(0L, 0L), new UUID(0L, 0L), "ORACLE",
+                normalizedMode, jndiName, "JDBC".equals(normalizedMode) ? ORACLE_DRIVER : null,
+                host, serviceName, sid, "DISABLED", port == null ? 0 : port,
+                policy, "JDBC".equals(normalizedMode) ? "ENV" : null,
+                "JDBC".equals(normalizedMode) ? credentialReferencePath : null,
+                "JDBC".equals(normalizedMode) ? "AKTIF" : null);
+        ConnectionProfile profile = validatedProfile(draft);
         try (Credentials credentials = credentials(profile)) {
             ConnectionProbe probe = gateway.test(profile, credentials);
             requireOracle19c(probe);
@@ -151,6 +178,10 @@ public class OracleDiscoveryService {
         if (!"ORACLE".equals(profile.databaseType())) {
             throw validation("Bu işlem yalnız Oracle bağlantılarında kullanılabilir.");
         }
+        return validatedProfile(profile);
+    }
+
+    private ConnectionProfile validatedProfile(ConnectionProfile profile) {
         if ("JNDI".equals(profile.mode())) {
             if (profile.jndiName() == null || !JNDI_NAME.matcher(profile.jndiName()).matches()
                     || profile.secretProvider() != null || profile.secretReferencePath() != null) {

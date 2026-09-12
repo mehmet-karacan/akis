@@ -67,6 +67,36 @@ public class TopologyService {
                 normalizeName(name), trimToNull(description));
     }
 
+    @Transactional
+    ConnectionWithInitialVersion createOracleConnectionWithInitialVersion(
+            UUID projectUuid,
+            String code,
+            String name,
+            String description,
+            String mode,
+            String host,
+            String serviceName,
+            String sid,
+            Integer port,
+            String jndiName,
+            int policyVersion,
+            JsonNode policy,
+            String credentialProvider,
+            String credentialReferencePath) {
+        ConnectionRow connection = createConnection(
+                projectUuid, code, "ORACLE", name, description);
+        ConnectionVersionRow version = createConnectionVersionWithCredential(
+                projectUuid, connection.uuid(), mode, null, host,
+                serviceName, sid, null, "DISABLED", port, jndiName,
+                policyVersion, policy, credentialProvider, credentialReferencePath);
+        return new ConnectionWithInitialVersion(connection, version);
+    }
+
+    record ConnectionWithInitialVersion(
+            ConnectionRow connection,
+            ConnectionVersionRow initialVersion) {
+    }
+
     List<ConnectionRow> listConnections(UUID projectUuid) {
         ProjectRef project = project(projectUuid);
         return repository.listConnections(project.id());

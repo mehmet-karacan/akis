@@ -24,11 +24,11 @@ import { getTopologyCopy, type CopyKey } from './copy'
 import { ConnectionVersionLifecyclePanel, lifecycleLabel } from './ConnectionVersionLifecyclePanel'
 import { DatabaseProviderIcon } from './DatabaseProviderIcon'
 import { DiscoverySnapshotPanel } from './DiscoverySnapshotPanel'
-import { OracleConnectionVersionForm } from './OracleConnectionVersionForm'
+import { OracleConnectionCreateForm } from './OracleConnectionCreateForm'
 import './topology.css'
 
 type Tab = 'connections' | 'schemas' | 'bindings' | 'catalog'
-type FormName = 'connection' | 'version' | 'physical' | 'logical' | 'environment' | 'binding' | 'model' | 'submodel' | 'object' | null
+type FormName = 'connection' | 'physical' | 'logical' | 'environment' | 'binding' | 'model' | 'submodel' | 'object' | null
 
 interface TopologyPageProps {
   projectUuid?: string
@@ -114,6 +114,7 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
   const [busy, setBusy] = useState('')
   const [selectedConnectionUuid, setSelectedConnectionUuid] = useState('')
   const [versions, setVersions] = useState<ConnectionVersion[]>([])
+  const [connectionVersions, setConnectionVersions] = useState<Record<string, ConnectionVersion[]>>({})
   const [versionsLoading, setVersionsLoading] = useState(false)
   const [selectedVersionUuid, setSelectedVersionUuid] = useState('')
   const [selectedPhysicalUuid, setSelectedPhysicalUuid] = useState('')
@@ -134,6 +135,9 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
         topologyApi.listEnvironments(projectUuid), topologyApi.listBindings(projectUuid), topologyApi.listModels(projectUuid),
       ])
       setResources({ connections, physicalSchemas, logicalSchemas, environments, bindings, models })
+      const versionEntries = await Promise.all(connections.map(async (connection) =>
+        [connection.uuid, await topologyApi.listVersions(projectUuid, connection.uuid)] as const))
+      setConnectionVersions(Object.fromEntries(versionEntries))
       setSelectedConnectionUuid((current) => connections.some((item) => item.uuid === current) ? current : connections[0]?.uuid ?? '')
       setSelectedPhysicalUuid((current) => physicalSchemas.some((item) => item.uuid === current) ? current : physicalSchemas[0]?.uuid ?? '')
       setSelectedModelUuid((current) => models.some((item) => item.uuid === current) ? current : models[0]?.uuid ?? '')
@@ -159,6 +163,7 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
       .then((items) => {
         if (!active) return
         setVersions(items)
+        setConnectionVersions((current) => ({ ...current, [selectedConnectionUuid]: items }))
         setSelectedVersionUuid((current) => items.some((item) => item.uuid === current) ? current : items[0]?.uuid ?? '')
       })
       .catch((error: unknown) => active && setActionError(error instanceof Error ? error.message : tr('loadFailed')))
@@ -215,7 +220,7 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
     setDataObjects(nextObjects)
   }
   const formTitle: Record<Exclude<FormName, null>, string> = {
-    connection: tr('addConnection'), version: tr('addVersion'),
+    connection: tr('addConnection'),
     physical: tr('addPhysical'), logical: tr('addLogical'), environment: tr('addEnvironment'),
     binding: tr('addBinding'), model: tr('addModel'), submodel: tr('addSubmodel'), object: tr('addDataObject'),
   }
@@ -292,21 +297,29 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
             <div className="topology-columns topology-columns--master-detail" id="topology-panel-connections" role="tabpanel" aria-labelledby="topology-tab-connections">
               <section className="topology-panel">
                 <PanelHeading icon={<Cable />} title={tr('connections')} count={resources.connections.length} action={<button className="topology-button topology-button--small" onClick={() => setForm('connection')}><Plus />{tr('addConnection')}</button>} />
-                {resources.connections.length === 0 ? <Empty>{tr('noItems')}</Empty> : <div className="topology-cards">{resources.connections.map((item) => (
-                  <button key={item.uuid} className="topology-card" aria-pressed={selectedConnectionUuid === item.uuid} onClick={() => setSelectedConnectionUuid(item.uuid)}>
-                    <DatabaseProviderIcon databaseType={item.databaseType} /><span><strong>{item.name}</strong><small>{item.code} · {item.databaseType}</small></span><Status value={item.status} /><ChevronRight />
+                {resources.connections.length === 0 ? <Empty>{tr('noItems')}</Empty> : <div className="topology-cards">{resources.connections.map((item) => {
+                  const latest = connectionVersions[item.uuid]?.[0]
+                  return <button key={item.uuid} className="topology-card topology-card--connection" aria-pressed={selectedConnectionUuid === item.uuid} onClick={() => setSelectedConnectionUuid(item.uuid)}>
+                    <DatabaseProviderIcon databaseType={item.databaseType} />
+                    <span className="topology-card-main"><strong>{item.name}</strong><small>{item.code} · {item.databaseType}</small>
+                      {latest && <span className="topology-connection-endpoint"><b>{latest.mode}</b><span>{latest.mode === 'JNDI' ? latest.jndiName : `${latest.host}:${latest.port}`}</span><span>{latest.mode === 'JDBC' ? `${latest.serviceName ? c.serviceName : c.sid}: ${latest.serviceName ?? latest.sid}` : ''}</span></span>}
+                    </span><Status value={item.status} /><ChevronRight />
                   </button>
-                ))}</div>}
+                })}</div>}
               </section>
               <section className="topology-panel">
-                <PanelHeading icon={<ServerCog />} title={tr('versions')} count={versions.length} action={selectedConnection && <button className="topology-button topology-button--small" onClick={() => setForm('version')} disabled={selectedConnection.databaseType !== 'ORACLE'}><Plus />{tr('addVersion')}</button>} />
-                {!selectedConnection ? <Empty>{tr('chooseConnection')}</Empty> : versionsLoading ? <div className="topology-loading"><LoaderCircle className="is-spinning" />{tr('loading')}</div> : versions.length === 0 ? <Empty>{tr('noItems')}</Empty> : (
-                  <div className="topology-version-list">{versions.map((item) => <button key={item.uuid} aria-pressed={selectedVersionUuid === item.uuid} onClick={() => setSelectedVersionUuid(item.uuid)}>
-                    <span className="topology-version-card-heading"><span>v{item.versionNumber} · {item.mode}</span><span className={`topology-lifecycle-badge topology-lifecycle-badge--${item.lifecycleStatus.toLowerCase()}`}>{lifecycleLabel(item.lifecycleStatus, c)}</span></span>
-                    <strong>{connectionVersionSummary(item)}</strong>
-                    <small>{item.testedAt ? `${c.testedAt}: ${dateFormatter.format(new Date(item.testedAt))}` : c.notTested}</small>
-                  </button>)}</div>
-                )}
+                <PanelHeading icon={<ServerCog />} title={tr('connectionDetails')} />
+                {!selectedConnection ? <Empty>{tr('chooseConnection')}</Empty> : versionsLoading ? <div className="topology-loading"><LoaderCircle className="is-spinning" />{tr('loading')}</div> : !selectedVersion ? <Empty>{tr('noItems')}</Empty> : <dl className="topology-current-connection">
+                  <div><dt>{tr('provider')}</dt><dd>{selectedConnection.databaseType}</dd></div>
+                  <div><dt>{tr('connectionMode')}</dt><dd>{selectedVersion.mode}</dd></div>
+                  {selectedVersion.mode === 'JDBC' ? <>
+                    <div><dt>{tr('host')}</dt><dd>{selectedVersion.host}</dd></div><div><dt>{tr('port')}</dt><dd>{selectedVersion.port}</dd></div>
+                    <div><dt>{selectedVersion.serviceName ? tr('serviceName') : tr('sid')}</dt><dd>{selectedVersion.serviceName ?? selectedVersion.sid}</dd></div>
+                    <div><dt>{tr('driver')}</dt><dd>{selectedVersion.driverReference}</dd></div>
+                  </> : <div><dt>{tr('jndiName')}</dt><dd>{selectedVersion.jndiName}</dd></div>}
+                  <div><dt>{tr('status')}</dt><dd>{lifecycleLabel(selectedVersion.lifecycleStatus, c)}</dd></div>
+                  <div><dt>{tr('testedAt')}</dt><dd>{selectedVersion.testedAt ? dateFormatter.format(new Date(selectedVersion.testedAt)) : c.notTested}</dd></div>
+                </dl>}
                 {selectedVersion && selectedConnection && <ConnectionVersionLifecyclePanel
                   projectUuid={projectUuid}
                   connectionUuid={selectedConnection.uuid}
@@ -321,7 +334,7 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
 
           {tab === 'schemas' && (
             <div className="topology-columns topology-columns--three" id="topology-panel-schemas" role="tabpanel" aria-labelledby="topology-tab-schemas">
-              <section className="topology-panel"><PanelHeading icon={<Database />} title={tr('physical')} count={resources.physicalSchemas.length} action={<button className="topology-button topology-button--icon" onClick={() => setForm('physical')} aria-label={tr('addPhysical')}><Plus /></button>} />
+              <section className="topology-panel"><PanelHeading icon={<Database />} title={tr('physical')} count={resources.physicalSchemas.length} action={<button className="topology-button topology-button--icon" onClick={() => setForm('physical')} aria-label={tr('addPhysical')} disabled={resources.connections.length === 0}><Plus /></button>} />
                 {resources.physicalSchemas.length === 0 ? <Empty>{tr('noItems')}</Empty> : <div className="topology-simple-list">{resources.physicalSchemas.map((item) => <article key={item.uuid}><div><strong>{item.name}</strong><small>{item.code} · {item.schemaReference}</small></div><Status value={item.status} /></article>)}</div>}
               </section>
               <section className="topology-panel"><PanelHeading icon={<Layers3 />} title={tr('logical')} count={resources.logicalSchemas.length} action={<button className="topology-button topology-button--icon" onClick={() => setForm('logical')} aria-label={tr('addLogical')}><Plus /></button>} />
@@ -404,8 +417,7 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
       )}
 
       <Drawer open={form !== null} className="topology-drawer" closeButtonClassName="topology-icon-button" title={form ? formTitle[form] : ''} closeLabel={tr('close')} busy={Boolean(busy)} onClose={() => setForm(null)}>
-        {form === 'connection' && <form className="topology-form" onSubmit={(event) => void submit('connection', event, (data) => topologyApi.createConnection(projectUuid, { code: textValue(data, 'code'), name: textValue(data, 'name'), databaseType: textValue(data, 'databaseType'), description: optionalValue(data, 'description') }))}><Field label={tr('name')} name="name" /><Field label={tr('code')} name="code" /><Field label={tr('databaseType')} name="databaseType"><select name="databaseType" defaultValue="ORACLE" required><option value="ORACLE">Oracle</option></select></Field><Field label={tr('description')} name="description" optional><textarea name="description" rows={3} /></Field><Submit busy={busy === 'connection'} c={c} /></form>}
-        {form === 'version' && selectedConnection?.databaseType === 'ORACLE' && <OracleConnectionVersionForm projectUuid={projectUuid} connectionUuid={selectedConnection.uuid} copy={c} locale={locale} onClose={() => setForm(null)} onVersionChanged={refreshConnectionVersions} />}
+        {form === 'connection' && <OracleConnectionCreateForm projectUuid={projectUuid} copy={c} locale={locale} onClose={() => setForm(null)} onConnectionCreated={async (connectionUuid) => { await loadAll(); setSelectedConnectionUuid(connectionUuid) }} />}
         {form === 'physical' && <form className="topology-form" onSubmit={(event) => void submit('physical', event, (data) => topologyApi.createPhysicalSchema(projectUuid, { connectionUuid: textValue(data, 'connectionUuid'), code: textValue(data, 'code'), schemaReference: textValue(data, 'schemaReference'), name: textValue(data, 'name') }))}><Field label={tr('name')} name="name" /><Field label={tr('code')} name="code" /><Field label={tr('connection')} name="connectionUuid"><select name="connectionUuid" required defaultValue={selectedConnectionUuid}><option value="">—</option>{resources.connections.map((item) => <option key={item.uuid} value={item.uuid}>{item.name}</option>)}</select></Field><Field label={tr('schemaReference')} name="schemaReference" /><Submit busy={busy === 'physical'} c={c} /></form>}
         {form === 'logical' && <form className="topology-form" onSubmit={(event) => void submit('logical', event, (data) => topologyApi.createLogicalSchema(projectUuid, { code: textValue(data, 'code'), name: textValue(data, 'name'), description: optionalValue(data, 'description') }))}><Field label={tr('name')} name="name" /><Field label={tr('code')} name="code" /><Field label={tr('description')} name="description" optional><textarea name="description" rows={3} /></Field><Submit busy={busy === 'logical'} c={c} /></form>}
         {form === 'environment' && <form className="topology-form" onSubmit={(event) => void submit('environment', event, (data) => topologyApi.createEnvironment(projectUuid, { code: textValue(data, 'code'), name: textValue(data, 'name'), risk: textValue(data, 'risk'), policyVersion: Number(textValue(data, 'policyVersion') || 1) }))}><Field label={tr('name')} name="name" /><Field label={tr('code')} name="code" /><Field label={tr('risk')} name="risk"><select name="risk" defaultValue="DUSUK" required><option value="DUSUK">{tr('riskLow')}</option><option value="ORTA">{tr('riskMedium')}</option><option value="URETIM">{tr('riskProduction')}</option></select></Field><Field label={tr('policyVersion')} name="policyVersion"><input name="policyVersion" type="number" min="1" defaultValue="1" required /></Field><Submit busy={busy === 'environment'} c={c} /></form>}

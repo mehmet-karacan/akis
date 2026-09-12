@@ -34,6 +34,7 @@ class OracleDiscoveryApiContractTest {
                 OracleConnectionLifecycleController.LifecycleView.class,
                 OracleConnectionLifecycleController.TestAttemptView.class,
                 OracleConnectionLifecycleController.ProbeView.class,
+                OracleDraftConnectionTestController.DraftConnectionTestView.class,
                 OracleSchemaSnapshotCaptureController.SnapshotView.class,
                 OracleSchemaSnapshotCaptureController.ColumnView.class,
                 OracleSchemaSnapshotCaptureController.ConstraintView.class);

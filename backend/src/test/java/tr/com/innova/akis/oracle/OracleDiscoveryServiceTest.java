@@ -47,6 +47,25 @@ class OracleDiscoveryServiceTest {
     }
 
     @Test
+    void draftConnectionTestUsesTransientFieldsWithoutRepositoryMetadata() {
+        StubRepository repository = repository(7L);
+        CapturingGateway gateway = new CapturingGateway();
+        gateway.probe = oracle19c();
+        var policy = new ObjectMapper().createObjectNode()
+                .put("connectTimeoutMs", 10000)
+                .put("readTimeoutMs", 30000)
+                .put("networkTimeoutMs", 30000)
+                .put("queryTimeoutSeconds", 300);
+
+        ConnectionProbe result = service(repository, gateway).testDraftConnection(
+                "JDBC", null, "10.0.0.1", "ORCL", null, 1521,
+                policy, ENVIRONMENT_NAME);
+
+        assertEquals(19, result.databaseMajorVersion());
+        assertArrayEquals(new char[PASSWORD.length()], gateway.passwordReference);
+    }
+
+    @Test
     void connectionTestRejectsOtherDatabaseVersionsWithoutLeakingTheCredential() {
         StubRepository repository = repository(7L);
         CapturingGateway gateway = new CapturingGateway();

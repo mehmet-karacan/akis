@@ -61,6 +61,29 @@ export type CreateConnectionVersionRequest = {
   executionPolicy: ConnectionExecutionPolicy
 }
 
+export interface CreateOracleConnectionRequest {
+  code: string
+  name: string
+  description?: string
+  initialVersion: CreateConnectionVersionRequest
+}
+
+export interface OracleConnectionCreated {
+  connection: Connection
+  initialVersion: ConnectionVersion
+}
+
+export interface DraftConnectionTestResult {
+  connected: boolean
+  oracle19cCompatible: boolean
+  databaseProduct: string
+  databaseVersion: string
+  databaseMajorVersion: number
+  databaseMinorVersion: number
+  driverName: string
+  driverVersion: string
+}
+
 export interface PhysicalSchema {
   uuid: string
   connectionUuid: string
@@ -242,6 +265,7 @@ export interface SchemaSnapshot {
 type JsonRecord = Record<string, unknown>
 
 const base = (projectUuid: string) => `/api/v1/projects/${encodeURIComponent(projectUuid)}`
+const v2Base = (projectUuid: string) => `/api/v2/projects/${encodeURIComponent(projectUuid)}`
 const connectionVersionsV2 = (projectUuid: string, connectionUuid: string) =>
   `/api/v2/projects/${encodeURIComponent(projectUuid)}/connections/${encodeURIComponent(connectionUuid)}/versions`
 const connectionVersionV2 = (projectUuid: string, connectionUuid: string, versionUuid: string) =>
@@ -256,6 +280,10 @@ const post = <T>(path: string, body?: JsonRecord) => apiRequest<T>(path, {
 export const topologyApi = {
   listConnections: (projectUuid: string) => get<Connection[]>(`${base(projectUuid)}/connections`),
   createConnection: (projectUuid: string, body: JsonRecord) => post<Connection>(`${base(projectUuid)}/connections`, body),
+  createOracleConnection: (projectUuid: string, body: CreateOracleConnectionRequest) =>
+    post<OracleConnectionCreated>(`${v2Base(projectUuid)}/connections`, body as unknown as JsonRecord),
+  testOracleDraftConnection: (projectUuid: string, body: CreateConnectionVersionRequest) =>
+    post<DraftConnectionTestResult>(`${v2Base(projectUuid)}/connections/test`, body as unknown as JsonRecord),
   listVersions: (projectUuid: string, connectionUuid: string) => get<ConnectionVersion[]>(connectionVersionsV2(projectUuid, connectionUuid)),
   createVersion: (projectUuid: string, connectionUuid: string, body: CreateConnectionVersionRequest) => post<ConnectionVersion>(connectionVersionsV2(projectUuid, connectionUuid), body),
   testConnectionVersion: (projectUuid: string, connectionUuid: string, versionUuid: string) =>

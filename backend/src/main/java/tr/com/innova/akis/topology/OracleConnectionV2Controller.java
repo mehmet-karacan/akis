@@ -23,13 +23,15 @@ import tools.jackson.databind.JsonNode;
 
 import tr.com.innova.akis.metadata.ApiException;
 import tr.com.innova.akis.security.AuthorizationService;
+import tr.com.innova.akis.topology.TopologyModels.ConnectionRow;
 import tr.com.innova.akis.topology.TopologyModels.ConnectionVersionRow;
+import tr.com.innova.akis.topology.TopologyService.ConnectionWithInitialVersion;
 import static tr.com.innova.akis.security.PermissionCodes.TOPOLOGY_READ;
 import static tr.com.innova.akis.security.PermissionCodes.TOPOLOGY_WRITE;
 
 /** Versioned Oracle-specific connection contract. V1 remains JDBC compatible. */
 @RestController
-@RequestMapping("/api/v2/projects/{projectUuid}/connections/{connectionUuid}/versions")
+@RequestMapping("/api/v2/projects/{projectUuid}/connections")
 final class OracleConnectionV2Controller {
 
     private static final Set<String> MODES = Set.of("JDBC", "JNDI");
@@ -48,14 +50,49 @@ final class OracleConnectionV2Controller {
     }
 
     @PostMapping
+    ResponseEntity<OracleConnectionWithInitialVersionV2View> createConnection(
+            @PathVariable UUID projectUuid,
+            @Valid @RequestBody CreateOracleConnectionV2Request request) {
+        authorization.requireProjectPermission(projectUuid, TOPOLOGY_WRITE);
+        VersionFields fields = versionFields(request.initialVersion());
+        ConnectionWithInitialVersion created = service.createOracleConnectionWithInitialVersion(
+                projectUuid, request.code(), request.name(), request.description(),
+                fields.mode(), fields.host(), fields.serviceName(), fields.sid(), fields.port(),
+                fields.jndiName(), fields.policyVersion(), fields.executionPolicy(),
+                fields.credentialProvider(), fields.credentialReferencePath());
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+                OracleConnectionWithInitialVersionV2View.from(created));
+    }
+
+    @PostMapping("/{connectionUuid}/versions")
     ResponseEntity<ConnectionVersionV2View> create(
             @PathVariable UUID projectUuid,
             @PathVariable UUID connectionUuid,
             @Valid @RequestBody CreateOracleConnectionVersionV2Request request) {
         authorization.requireProjectPermission(projectUuid, TOPOLOGY_WRITE);
         requireOracle(projectUuid, connectionUuid);
+        VersionFields fields = versionFields(request);
+        ConnectionVersionRow row = service.createConnectionVersionWithCredential(
+                projectUuid, connectionUuid, fields.mode(), null, fields.host(),
+                fields.serviceName(), fields.sid(), null, "DISABLED", fields.port(),
+                fields.jndiName(), fields.policyVersion(), fields.executionPolicy(),
+                fields.credentialProvider(), fields.credentialReferencePath());
+        return ResponseEntity.status(HttpStatus.CREATED).body(ConnectionVersionV2View.from(row));
+    }
+
+    @GetMapping("/{connectionUuid}/versions")
+    List<ConnectionVersionV2View> list(
+            @PathVariable UUID projectUuid,
+            @PathVariable UUID connectionUuid) {
+        authorization.requireProjectPermission(projectUuid, TOPOLOGY_READ);
+        requireOracle(projectUuid, connectionUuid);
+        return service.listConnectionVersions(projectUuid, connectionUuid).stream()
+                .map(ConnectionVersionV2View::from)
+                .toList();
+    }
+
+    private VersionFields versionFields(CreateOracleConnectionVersionV2Request request) {
         String mode = allowed(request.mode(), MODES, "connection mode");
-        ConnectionVersionRow row;
         int policyVersion = request.policyVersion() == null ? 2 : request.policyVersion();
         if (policyVersion != 2) {
             throw validation("Oracle connection V2 requires policyVersion 2.");
@@ -75,39 +112,20 @@ final class OracleConnectionV2Controller {
             }
             String identifierType = allowed(
                     jdbc.connectIdentifier().type(), IDENTIFIER_TYPES, "connect identifier type");
-            String transport = allowed(jdbc.transport(), TRANSPORTS, "transport");
-            String serviceName = "SERVICE_NAME".equals(identifierType)
-                    ? jdbc.connectIdentifier().value() : null;
-            String sid = "SID".equals(identifierType)
-                    ? jdbc.connectIdentifier().value() : null;
-            row = service.createConnectionVersionWithCredential(
-                    projectUuid, connectionUuid, "JDBC", null, jdbc.host(),
-                    serviceName, sid, null,
-                    "DISABLED",
+            allowed(jdbc.transport(), TRANSPORTS, "transport");
+            return new VersionFields(
+                    mode, jdbc.host(),
+                    "SERVICE_NAME".equals(identifierType) ? jdbc.connectIdentifier().value() : null,
+                    "SID".equals(identifierType) ? jdbc.connectIdentifier().value() : null,
                     jdbc.port(), null, policyVersion, request.executionPolicy(),
                     jdbc.credentialProvider(), jdbc.credentialReferencePath());
         }
-        else {
-            if (request.jndi() == null || request.jdbc() != null) {
-                throw validation("JNDI mode requires only the jndi payload.");
-            }
-            row = service.createConnectionVersionWithCredential(
-                    projectUuid, connectionUuid, "JNDI", null, null,
-                    null, null, null, null, null, request.jndi().name(),
-                    policyVersion, request.executionPolicy(), null, null);
+        if (request.jndi() == null || request.jdbc() != null) {
+            throw validation("JNDI mode requires only the jndi payload.");
         }
-        return ResponseEntity.status(HttpStatus.CREATED).body(ConnectionVersionV2View.from(row));
-    }
-
-    @GetMapping
-    List<ConnectionVersionV2View> list(
-            @PathVariable UUID projectUuid,
-            @PathVariable UUID connectionUuid) {
-        authorization.requireProjectPermission(projectUuid, TOPOLOGY_READ);
-        requireOracle(projectUuid, connectionUuid);
-        return service.listConnectionVersions(projectUuid, connectionUuid).stream()
-                .map(ConnectionVersionV2View::from)
-                .toList();
+        return new VersionFields(
+                mode, null, null, null, null, request.jndi().name(), policyVersion,
+                request.executionPolicy(), null, null);
     }
 
     private String allowed(String raw, Set<String> values, String field) {
@@ -137,6 +155,55 @@ final class OracleConnectionV2Controller {
         @JsonAnySetter
         void rejectUnknown(String field, JsonNode value) {
             throw new IllegalArgumentException("Unknown Oracle connection V2 field: " + field);
+        }
+    }
+
+    record CreateOracleConnectionV2Request(
+            @NotBlank String code,
+            @NotBlank String name,
+            String description,
+            @Valid @NotNull CreateOracleConnectionVersionV2Request initialVersion) {
+        @JsonAnySetter
+        void rejectUnknown(String field, JsonNode value) {
+            throw new IllegalArgumentException("Unknown Oracle connection V2 field: " + field);
+        }
+    }
+
+    private record VersionFields(
+            String mode,
+            String host,
+            String serviceName,
+            String sid,
+            Integer port,
+            String jndiName,
+            int policyVersion,
+            JsonNode executionPolicy,
+            String credentialProvider,
+            String credentialReferencePath) {
+    }
+
+    record OracleConnectionWithInitialVersionV2View(
+            ConnectionView connection,
+            ConnectionVersionV2View initialVersion) {
+        static OracleConnectionWithInitialVersionV2View from(ConnectionWithInitialVersion created) {
+            return new OracleConnectionWithInitialVersionV2View(
+                    ConnectionView.from(created.connection()),
+                    ConnectionVersionV2View.from(created.initialVersion()));
+        }
+    }
+
+    record ConnectionView(
+            UUID uuid,
+            String code,
+            String databaseType,
+            String status,
+            String name,
+            String description,
+            long version) {
+        static ConnectionView from(ConnectionRow row) {
+            return new ConnectionView(
+                    row.uuid(), row.code(), row.databaseType(), row.status(), row.name(),
+                    row.description(), row.version());
         }
     }
 

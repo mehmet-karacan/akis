@@ -9,12 +9,18 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
+
+import tr.com.innova.akis.projectbundle.SecretValueSanitizer;
 
 class CleanTopologyRepositoryIT {
 
     private static TopologyRepository repository;
+    private static TopologyService service;
+    private static JdbcClient jdbc;
     private static long projectId;
+    private static UUID projectUuid;
 
     @BeforeAll
     static void connectToCleanBaseline() {
@@ -24,10 +30,13 @@ class CleanTopologyRepositoryIT {
         }
         var dataSource = new DriverManagerDataSource(
                 url, required("SPRING_DATASOURCE_USERNAME"), required("SPRING_DATASOURCE_PASSWORD"));
-        JdbcClient jdbc = JdbcClient.create(dataSource);
+        jdbc = JdbcClient.create(dataSource);
         repository = new TopologyRepository(jdbc, new ObjectMapper());
+        service = new TopologyService(repository, new ObjectMapper(), new SecretValueSanitizer());
         projectId = jdbc.sql("insert into akis.proje(kod, ad) values ('TOPOLOGY_IT', 'Topology IT') returning id")
                 .query(Long.class).single();
+        projectUuid = jdbc.sql("select uuid from akis.proje where id = :id")
+                .param("id", projectId).query(UUID.class).single();
     }
 
     @Test
@@ -63,6 +72,31 @@ class CleanTopologyRepositoryIT {
         assertEquals("AKTIF", repository.listConnections(projectId).getFirst().status());
         assertEquals(binding.uuid(), repository.listSchemaBindings(projectId).getFirst().uuid());
         assertTrue(repository.findPhysicalSchema(projectId, physical.uuid()).isPresent());
+    }
+
+    @Test
+    void createsOracleDefinitionWithItsInitialVersionAsOneServiceBoundary() throws Exception {
+        var policy = new ObjectMapper().createObjectNode()
+                .put("connectTimeoutMs", 10000)
+                .put("readTimeoutMs", 30000)
+                .put("networkTimeoutMs", 30000)
+                .put("queryTimeoutSeconds", 300);
+
+        var created = service.createOracleConnectionWithInitialVersion(
+                projectUuid, "ORACLE_ATOMIC", "Oracle Atomic", null,
+                "JDBC", "oracle.example", "ORCL", null, 1521, null,
+                2, policy, "ENV", "AKIS_ORACLE_ATOMIC_CREDENTIAL");
+
+        assertEquals(created.connection().id(), created.initialVersion().connectionId());
+        assertEquals("oracle.example", created.initialVersion().host());
+        assertEquals(1, repository.listConnectionVersions(
+                projectId, created.connection().id()).size());
+        assertTrue(TopologyService.class.getDeclaredMethod(
+                        "createOracleConnectionWithInitialVersion",
+                        UUID.class, String.class, String.class, String.class, String.class,
+                        String.class, String.class, String.class, Integer.class, String.class,
+                        int.class, tools.jackson.databind.JsonNode.class, String.class, String.class)
+                .isAnnotationPresent(Transactional.class));
     }
 
     private static String required(String name) {
