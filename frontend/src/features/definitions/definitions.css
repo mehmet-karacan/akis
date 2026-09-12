@@ -173,6 +173,34 @@ span.explorer-toggle { pointer-events: none; }
 .structured-package-editor > header p { margin: 0; color: var(--df-muted); font-size: .72rem; }
 .structured-package-list { display: grid; gap: .5rem; }
 .structured-package-list article { display: grid; grid-template-columns: auto minmax(10rem, 1fr) minmax(10rem, 1fr) auto; align-items: end; gap: .65rem; padding: .7rem; border: 1px solid var(--df-line); border-radius: .55rem; background: var(--df-bg); }
+.package-editor { min-height: 44rem; }
+.package-editor-tabs, .package-toolbar { display: flex; align-items: center; gap: .45rem; padding: .55rem .7rem; border-bottom: 1px solid var(--df-line); background: var(--df-panel-muted); }
+.package-editor-tabs button, .package-toolbar button, .package-properties button, .package-palette > button { display: inline-flex; align-items: center; gap: .35rem; border: 1px solid var(--df-line); border-radius: .4rem; padding: .42rem .6rem; background: var(--df-panel); color: var(--df-text); }
+.package-editor-tabs button.is-active { border-color: var(--df-accent); color: var(--df-accent); }
+.package-toolbar span { margin-left: auto; color: var(--df-muted); font-size: .72rem; }
+.package-workbench { display: grid; grid-template-columns: 15rem minmax(25rem, 1fr) 18rem; min-height: 37rem; }
+.package-palette, .package-properties { min-width: 0; padding: .7rem; background: var(--df-panel-muted); overflow: auto; }
+.package-palette { border-right: 1px solid var(--df-line); }
+.package-properties { border-left: 1px solid var(--df-line); }
+.package-palette h3, .package-properties h3 { margin: 0 0 .55rem; }
+.package-palette select, .package-palette > button, .package-properties input, .package-properties select, .package-properties > button { width: 100%; margin-bottom: .5rem; }
+.package-palette ul { display: grid; gap: .35rem; padding: 0; list-style: none; }
+.package-palette li button { width: 100%; border: 1px solid transparent; border-radius: .4rem; padding: .5rem; background: var(--df-panel); color: var(--df-text); text-align: left; }
+.package-palette li small { display: block; color: var(--df-muted); }
+.package-canvas { min-width: 0; min-height: 37rem; background: var(--df-bg); }
+.package-node-label { display: grid; min-width: 8rem; text-align: left; }
+.package-node-label span { color: var(--df-accent); font-size: .62rem; font-weight: 800; text-transform: uppercase; }
+.package-node-label small { color: var(--df-muted); }
+.package-properties label { display: grid; gap: .25rem; margin-bottom: .55rem; }
+.package-properties section { margin-top: .8rem; padding-top: .7rem; border-top: 1px solid var(--df-line); }
+.package-properties button.danger { color: var(--df-danger); }
+.package-delete-confirm { padding: .55rem; border: 1px solid var(--df-danger); border-radius: .4rem; background: var(--df-danger-soft); }
+.package-accessible-list { padding: .7rem; border-top: 1px solid var(--df-line); }
+.package-accessible-list table { width: 100%; border-collapse: collapse; }
+.package-accessible-list th, .package-accessible-list td { padding: .45rem; border-bottom: 1px solid var(--df-line); text-align: left; }
+.package-overview { padding: 1rem; }
+.package-overview dl { display: grid; grid-template-columns: repeat(3, 1fr); gap: .7rem; }
+@media (max-width: 1100px) { .package-workbench { grid-template-columns: 12rem minmax(22rem, 1fr); } .package-properties { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--df-line); } }
 .definition-schema-version { display: flex; align-items: center; gap: .4rem; }
 .definition-schema-version span { margin: 0 !important; white-space: nowrap; }
 .definition-schema-version input { width: 4rem; min-height: 2.25rem; }

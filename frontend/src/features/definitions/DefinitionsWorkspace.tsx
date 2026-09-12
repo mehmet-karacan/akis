@@ -29,6 +29,7 @@ import { bindingNodes, candidateLabel, unboundNodes } from './bindingCatalog'
 import { createDefaultContent, isMappingContent, isProcedureContent } from './defaults'
 import { definitionTypeKey, useDefinitionsI18n } from './i18n'
 import { MappingGrid } from './MappingGrid'
+import { PackageEditor } from './PackageEditor'
 import { ProcedureEditor } from './ProcedureEditor'
 import { StructuredDraftEditor } from './StructuredDraftEditor'
 import type {
@@ -455,6 +456,8 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
                     <MappingGrid projectUuid={projectUuid} value={content} onChange={updateContent} />
                   ) : selectedDefinition.type === 'PROCEDURE' && isProcedureContent(content) ? (
                     <ProcedureEditor projectUuid={projectUuid} value={content} onChange={updateContent} limits={capabilities?.procedure} />
+                  ) : selectedDefinition.type === 'PACKAGE' ? (
+                    <PackageEditor projectUuid={projectUuid} definitionUuid={selectedDefinition.uuid} value={content} onChange={updateContent} />
                   ) : !['MAPPING', 'PROCEDURE', 'REUSABLE_MAPPING'].includes(selectedDefinition.type) ? (
                     <StructuredDraftEditor type={selectedDefinition.type} value={content} onChange={updateContent} />
                   ) : (

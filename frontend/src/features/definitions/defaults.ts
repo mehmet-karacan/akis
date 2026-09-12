@@ -45,8 +45,8 @@ const defaults: Record<DefinitionType, unknown> = {
   MAPPING: DEFAULT_MAPPING,
   REUSABLE_MAPPING: { inputs: [], outputs: [], nodes: [] },
   PACKAGE: {
-    firstStepId: 'STEP_1',
-    steps: [{ id: 'STEP_1', type: 'MAPPING' }],
+    firstStepId: '',
+    steps: [],
     transitions: [],
   },
   PROCEDURE: DEFAULT_PROCEDURE,
