@@ -33,17 +33,17 @@ public class JdbcProcedurePreflightContextStore
         return jdbc.sql("""
                         select p.uuid as project_uuid,
                                y.uuid as publication_uuid,
-                               y.durum_kodu,
-                               y.release_hash,
+                               y.durum as durum_kodu,
+                               y.fiziksel_manifesto ->> 'releaseHash' as release_hash,
                                s.plan_ozeti,
                                s.plan,
                                y.fiziksel_manifesto
-                          from entegrasyon.yayin y
-                          join entegrasyon.proje p on p.id = y.proje_id
-                          join entegrasyon.senaryo s on s.id = y.senaryo_id
+                          from akis.yayin y
+                          join akis.proje p on p.id = y.proje_id
+                          join akis.senaryo s on s.id = y.senaryo_id
                          where p.uuid = :projectUuid
                            and y.uuid = :publicationUuid
-                           and y.durum_kodu in ('AKTIF', 'ONAY_BEKLIYOR')
+                           and y.durum in ('AKTIF', 'ONAY_BEKLIYOR')
                            and y.fiziksel_manifesto ->> 'runtimeCapability'
                                = 'ORACLE_PROCEDURE_V1'
                         """)
@@ -65,18 +65,15 @@ public class JdbcProcedurePreflightContextStore
     public Optional<ConnectionEvidence> findConnectionEvidence(
             UUID projectUuid, UUID connectionVersionUuid) {
         return jdbc.sql("""
-                        select yd.hedef_kimlik_surumu,
-                               yd.hedef_parmak_izi
-                          from entegrasyon.baglanti_surumu_yasam_dongusu yd
-                          join entegrasyon.proje p on p.id = yd.proje_id
-                          join entegrasyon.baglanti_surumu bs
-                            on bs.proje_id = yd.proje_id
-                           and bs.id = yd.baglanti_surumu_id
+                        select bs.hedef_kimlik_surumu,
+                               bs.hedef_parmak_izi
+                          from akis.baglanti_surumu bs
+                          join akis.proje p on p.id = bs.proje_id
                          where p.uuid = :projectUuid
                            and bs.uuid = :connectionVersionUuid
-                           and yd.durum_kodu = 'ACTIVE'
-                           and yd.hedef_kimlik_surumu = 1
-                           and yd.hedef_parmak_izi ~ '^[0-9a-f]{64}$'
+                           and bs.durum = 'ETKIN'
+                           and bs.hedef_kimlik_surumu = 1
+                           and bs.hedef_parmak_izi ~ '^[0-9a-f]{64}$'
                         """)
                 .param("projectUuid", projectUuid)
                 .param("connectionVersionUuid", connectionVersionUuid)

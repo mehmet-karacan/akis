@@ -35,14 +35,14 @@ public class JdbcPinnedExecutionContextStore implements PinnedExecutionContextPo
                                c.plan_ozeti,
                                s.plan as scenario_plan,
                                y.fiziksel_manifesto
-                          from entegrasyon.calistirma c
-                          join entegrasyon.is_talebi it
+                          from akis.calistirma c
+                          join akis.is_talebi it
                             on it.proje_id = c.proje_id and it.id = c.is_talebi_id
-                          join entegrasyon.yayin y
+                          join akis.yayin y
                             on y.proje_id = it.proje_id and y.id = it.yayin_id
-                          join entegrasyon.senaryo s on s.id = y.senaryo_id
+                          join akis.senaryo s on s.id = y.senaryo_id
                          where c.uuid = :runUuid
-                           and c.yayin_ozeti = y.release_hash
+                           and c.yayin_ozeti = (y.fiziksel_manifesto ->> 'releaseHash')
                            and c.plan_ozeti = s.plan_ozeti
                         """)
                 .param("runUuid", runUuid)

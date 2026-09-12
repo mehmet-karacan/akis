@@ -39,71 +39,72 @@ public class JdbcRuntimeOracleConnectionMetadataStore
                                bs.uuid as connection_version_uuid,
                                bs.baglanti_modu,
                                bs.jndi_adi,
-                               bs.surucu_referansi,
+                               bs.surucu_sinifi as surucu_referansi,
                                bs.sunucu_adi,
                                bs.servis_adi,
                                bs.sid,
                                bs.port,
                                bs.tls_modu,
-                               bs.politika,
-                               sr.saglayici_kodu,
-                               sr.referans_yolu
-                          from entegrasyon.tanim_veri_nesnesi tvn
-                          join entegrasyon.proje p on p.id = tvn.proje_id
-                          join entegrasyon.yayin_veri_bagi yb
+                               jsonb_build_object(
+                                  'connectTimeoutMs',bs.baglanti_zaman_asimi_ms,
+                                  'readTimeoutMs',bs.okuma_zaman_asimi_ms,
+                                  'networkTimeoutMs',bs.ag_zaman_asimi_ms,
+                                  'queryTimeoutSeconds',bs.sorgu_zaman_asimi_saniye) as politika,
+                               bk.gizli_deger_saglayicisi as saglayici_kodu,
+                               bk.gizli_deger_konumu as referans_yolu
+                          from akis.tanim_veri_nesnesi tvn
+                          join akis.proje p on p.id = tvn.proje_id
+                          join akis.yayin_veri_bagi yb
                             on yb.proje_id = tvn.proje_id
                            and yb.tanim_veri_nesnesi_id = tvn.id
-                          join entegrasyon.veri_nesnesi vn
+                          join akis.veri_nesnesi vn
                             on vn.proje_id = tvn.proje_id
                            and vn.id = tvn.veri_nesnesi_id
-                          join entegrasyon.sema_goruntusu sg
+                          join akis.sema_goruntusu sg
                             on sg.proje_id = tvn.proje_id
                            and sg.id = tvn.sema_goruntusu_id
-                          join entegrasyon.ortam_sema_eslemesi ose
+                          join akis.sema_eslemesi ose
                             on ose.proje_id = tvn.proje_id
-                          join entegrasyon.fiziksel_sema fs
+                          join akis.fiziksel_sema fs
                             on fs.proje_id = tvn.proje_id
                            and fs.id = ose.fiziksel_sema_id
-                          join entegrasyon.baglanti_surumu bs
+                          join akis.baglanti_surumu bs
                             on bs.proje_id = tvn.proje_id
                            and bs.id = ose.baglanti_surumu_id
-                          join entegrasyon.baglanti b
+                          join akis.baglanti b
                             on b.proje_id = tvn.proje_id
                            and b.id = bs.baglanti_id
-                          left join entegrasyon.baglanti_secret_bagi bsb
-                            on bsb.proje_id = tvn.proje_id
-                           and bsb.baglanti_surumu_id = bs.id
-                           and bsb.rol_kodu = 'KIMLIK'
-                          left join entegrasyon.secret_referansi sr
-                            on sr.proje_id = tvn.proje_id
-                           and sr.id = bsb.secret_referansi_id
+                          left join akis.baglanti_kimligi bk
+                            on bk.proje_id = tvn.proje_id
+                           and bk.baglanti_surumu_id = bs.id
+                           and bk.kullanim_amaci = 'VERITABANI'
                          where tvn.uuid = :definitionDataObjectUuid
                            and tvn.dugum_kodu = :datasetId
                            and vn.uuid = :dataObjectUuid
-                           and vn.tur_kodu = 'TABLO'
+                           and vn.tur = 'TABLO'
                            and vn.nesne_referansi = :objectName
                            and sg.uuid = :schemaSnapshotUuid
                            and sg.veri_nesnesi_id = vn.id
                            and sg.fiziksel_sema_id = fs.id
                            and sg.baglanti_surumu_id = bs.id
                            and sg.parmak_izi = :snapshotFingerprint
-                           and yb.ortam_sema_eslemesi_id = ose.id
+                           and yb.sema_eslemesi_id = ose.id
                            and yb.fiziksel_sema_id = fs.id
                            and yb.baglanti_surumu_id = bs.id
                            and yb.sema_goruntusu_id = sg.id
                            and yb.fiziksel_kimlik = :physicalIdentity
-                           and yb.bag_versiyon_no = :bindingVersion
+                           and yb.bag_surumu = :bindingVersion
                            and ose.uuid = :environmentSchemaBindingUuid
                            and fs.uuid = :physicalSchemaUuid
-                           and fs.sema_referansi = :owner
+                           and fs.sema_adi = :owner
                            and fs.baglanti_id = bs.baglanti_id
                            and bs.uuid = :connectionVersionUuid
-                           and b.veritabani_turu = 'ORACLE'
-                           and b.durum_kodu = 'AKTIF'
-                           and fs.durum_kodu = 'AKTIF'
-                           and ose.durum_kodu = 'AKTIF'
-                           and (bs.baglanti_modu = 'JNDI' or sr.durum_kodu = 'AKTIF')
-                           and tvn.rol_kodu = :storedRole
+                           and b.saglayici_turu = 'ORACLE'
+                           and b.arsivlenme_zamani is null
+                           and fs.arsivlenme_zamani is null
+                           and bs.durum = 'ETKIN'
+                           and (bs.baglanti_modu = 'JNDI' or bk.id is not null)
+                           and tvn.rol = :storedRole
                         """)
                 .param("definitionDataObjectUuid", binding.definitionDataObjectUuid())
                 .param("datasetId", binding.datasetId())

@@ -36,69 +36,69 @@ public class JdbcPinnedSchemaSnapshotStore implements PinnedSchemaSnapshotPort {
                    sg.uuid as snapshot_uuid,
                    sg.parmak_izi,
                    sg.motor_surumu,
-                   sg.ozellik_surumu,
+                   sg.ozellik_sema_surumu as ozellik_surumu,
                    sg.ozellik
-              from entegrasyon.yayin_veri_bagi yb
-              join entegrasyon.yayin y
+              from akis.yayin_veri_bagi yb
+              join akis.yayin y
                 on y.proje_id = yb.proje_id and y.id = yb.yayin_id
-              join entegrasyon.proje p on p.id = yb.proje_id
-              join entegrasyon.senaryo sn on sn.id = y.senaryo_id
-              join entegrasyon.tanim_surumu ts on ts.id = sn.tanim_surumu_id
-              join entegrasyon.tanim t on t.id = ts.tanim_id
-              join entegrasyon.tanim_veri_nesnesi tvn
+              join akis.proje p on p.id = yb.proje_id
+              join akis.senaryo sn on sn.id = y.senaryo_id
+              join akis.tanim_surumu ts on ts.id = sn.tanim_surumu_id
+              join akis.tanim t on t.id = ts.tanim_id
+              join akis.tanim_veri_nesnesi tvn
                 on tvn.proje_id = yb.proje_id
                and tvn.id = yb.tanim_veri_nesnesi_id
-              join entegrasyon.veri_nesnesi vn
+              join akis.veri_nesnesi vn
                 on vn.proje_id = yb.proje_id and vn.id = tvn.veri_nesnesi_id
-              join entegrasyon.model m
+              join akis.model m
                 on m.proje_id = yb.proje_id and m.id = vn.model_id
-              join entegrasyon.ortam_sema_eslemesi ose
+              join akis.sema_eslemesi ose
                 on ose.proje_id = yb.proje_id
-               and ose.id = yb.ortam_sema_eslemesi_id
-              join entegrasyon.ortam o
+               and ose.id = yb.sema_eslemesi_id
+              join akis.ortam o
                 on o.proje_id = yb.proje_id and o.id = ose.ortam_id
-              join entegrasyon.mantiksal_sema ms
+              join akis.mantiksal_sema ms
                 on ms.proje_id = yb.proje_id
                and ms.id = ose.mantiksal_sema_id
-              join entegrasyon.fiziksel_sema fs
+              join akis.fiziksel_sema fs
                 on fs.proje_id = yb.proje_id and fs.id = yb.fiziksel_sema_id
-              join entegrasyon.baglanti_surumu bs
+              join akis.baglanti_surumu bs
                 on bs.proje_id = yb.proje_id and bs.id = yb.baglanti_surumu_id
-              join entegrasyon.baglanti b
+              join akis.baglanti b
                 on b.proje_id = yb.proje_id and b.id = bs.baglanti_id
-              join entegrasyon.sema_goruntusu sg
+              join akis.sema_goruntusu sg
                 on sg.proje_id = yb.proje_id and sg.id = yb.sema_goruntusu_id
-              join entegrasyon.sema_goruntusu_oracle_kaniti ok
+              join akis.sema_goruntusu_oracle_kaniti ok
                 on ok.proje_id = yb.proje_id
                and ok.sema_goruntusu_id = sg.id
                and ok.baglanti_surumu_id = bs.id
              where t.uuid = :definitionUuid
                and ts.uuid = :definitionVersionUuid
-               and y.release_hash = :releaseHash
+               and (y.fiziksel_manifesto ->> 'releaseHash') = :releaseHash
                and tvn.uuid = :definitionDataObjectUuid
                and tvn.dugum_kodu = :datasetId
-               and tvn.rol_kodu = :storedRole
+               and tvn.rol = :storedRole
                and tvn.tanim_surumu_id = ts.id
                and vn.uuid = :dataObjectUuid
-               and vn.tur_kodu = 'TABLO'
-               and vn.durum_kodu = 'AKTIF'
-               and m.durum_kodu = 'AKTIF'
+               and vn.tur = 'TABLO'
+               and vn.arsivlenme_zamani is null
+               and m.arsivlenme_zamani is null
                and vn.nesne_referansi = :objectName
                and ose.uuid = :environmentSchemaBindingUuid
                and ose.ortam_id = y.ortam_id
-               and ose.durum_kodu = 'AKTIF'
-               and o.durum_kodu = 'AKTIF'
-               and ms.durum_kodu = 'AKTIF'
+               and o.arsivlenme_zamani is null
+               and ms.arsivlenme_zamani is null
                and yb.fiziksel_sema_id = ose.fiziksel_sema_id
                and yb.baglanti_surumu_id = ose.baglanti_surumu_id
                and fs.uuid = :physicalSchemaUuid
-               and fs.sema_referansi = :owner
-               and fs.durum_kodu = 'AKTIF'
+               and fs.sema_adi = :owner
+               and fs.arsivlenme_zamani is null
                and fs.baglanti_id = bs.baglanti_id
                and bs.uuid = :connectionVersionUuid
-               and b.veritabani_turu = 'ORACLE'
-               and b.durum_kodu = 'AKTIF'
-               and y.durum_kodu = :publicationStatus
+               and b.saglayici_turu = 'ORACLE'
+               and b.arsivlenme_zamani is null
+               and bs.durum = 'ETKIN'
+               and y.durum = :publicationStatus
                and sg.uuid = :schemaSnapshotUuid
                and sg.id = tvn.sema_goruntusu_id
                and sg.veri_nesnesi_id = vn.id
@@ -106,7 +106,7 @@ public class JdbcPinnedSchemaSnapshotStore implements PinnedSchemaSnapshotPort {
                and sg.baglanti_surumu_id = bs.id
                and sg.parmak_izi = :snapshotFingerprint
                and yb.fiziksel_kimlik = :physicalIdentity
-               and yb.bag_versiyon_no = :bindingVersion
+               and yb.bag_surumu = :bindingVersion
             """;
 
     private final JdbcClient jdbc;
@@ -273,11 +273,12 @@ public class JdbcPinnedSchemaSnapshotStore implements PinnedSchemaSnapshotPort {
 
     private List<Column> loadColumns(long snapshotId) {
         return jdbc.sql("""
-                        select kolon_referansi, uretici_tip_kodu, kanonik_tip_kodu,
+                        select kolon_referansi, uretici_tipi as uretici_tip_kodu,
+                               kanonik_tip as kanonik_tip_kodu,
                                sira_no, hassasiyet, olcek, uzunluk,
                                zaman_hassasiyeti, null_olabilir,
                                varsayilan_ifade, ad
-                          from entegrasyon.kolon_goruntusu
+                          from akis.kolon_goruntusu
                          where sema_goruntusu_id = :snapshotId
                          order by sira_no, kolon_referansi
                         """)
@@ -296,9 +297,11 @@ public class JdbcPinnedSchemaSnapshotStore implements PinnedSchemaSnapshotPort {
 
     private List<Constraint> loadConstraints(long snapshotId) {
         return jdbc.sql("""
-                        select kg.id, kg.dis_referans, kg.tur_kodu, kg.etkin,
-                               kg.ayrinti_surumu, kg.ayrinti, kg.ad
-                          from entegrasyon.kisit_goruntusu kg
+                        select kg.id, kg.dis_referans,
+                               case kg.tur when 'BIRINCIL_ANAHTAR' then 'PK' when 'BENZERSIZ' then 'UK'
+                                 when 'YABANCI_ANAHTAR' then 'FK' when 'KONTROL' then 'CHECK' end as tur_kodu,
+                               kg.etkin_mi as etkin, kg.ayrinti_sema_surumu as ayrinti_surumu, kg.ayrinti, kg.ad
+                          from akis.kisit_goruntusu kg
                          where kg.sema_goruntusu_id = :snapshotId
                          order by kg.dis_referans
                         """)
@@ -314,8 +317,8 @@ public class JdbcPinnedSchemaSnapshotStore implements PinnedSchemaSnapshotPort {
     private List<String> loadConstraintColumns(long constraintId) {
         return jdbc.sql("""
                         select kgo.kolon_referansi
-                          from entegrasyon.kisit_kolonu kk
-                          join entegrasyon.kolon_goruntusu kgo
+                          from akis.kisit_kolonu kk
+                          join akis.kolon_goruntusu kgo
                             on kgo.proje_id = kk.proje_id
                            and kgo.id = kk.kolon_goruntusu_id
                          where kk.kisit_goruntusu_id = :constraintId
