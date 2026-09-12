@@ -172,3 +172,7 @@ Aynı betik Prosedür çalışma günlüğünü de doğrular: sabit plandan adı
 mutating adım için işlem niyetini komuttan önce kalıcılaştırma, tekrarlanabilir
 tam-kanıt onayları ve başarılı koşu kapanışı. Adım sayısı sabit değildir; plan
 başına güvenlik üst sınırı 1000'dir.
+
+Belirsiz Oracle commit sonucu aynı kabul testinde ayrı bir mutabakat lease'i ve
+hedef fencing bariyeriyle ele alınır. `PUBLISHED`, `NOT_PUBLISHED` ve `CONFLICT`
+sonuçları tiplidir; mutabakat kanıtı eklemeli ve değişmez bir tabloda tutulur.

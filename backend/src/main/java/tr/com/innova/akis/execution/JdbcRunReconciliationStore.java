@@ -47,7 +47,7 @@ public class JdbcRunReconciliationStore implements RunReconciliationPort {
         return jdbc.sql("""
                         select calistirma_nesil_no, hedef_kaynagi_uuid,
                                hedef_nesil_no, kiralama_bitis_zamani
-                          from entegrasyon.calistirma_mutabakat_sahiplen(
+                          from akis.calistirma_mutabakat_sahiplen(
                                :runUuid, :profileUuid, :workerReference, :leaseSeconds)
                         """)
                 .param("runUuid", runUuid)
@@ -68,7 +68,7 @@ public class JdbcRunReconciliationStore implements RunReconciliationPort {
             return HeartbeatResult.rejected();
         }
         Boolean accepted = jdbc.sql("""
-                        select entegrasyon.calistirma_mutabakat_yasam_sinyali(
+                        select akis.calistirma_mutabakat_yasam_sinyali(
                             :runUuid, :workerReference, :runGeneration, :leaseSeconds)
                         """)
                 .param("runUuid", safeToken.runUuid())
@@ -92,19 +92,19 @@ public class JdbcRunReconciliationStore implements RunReconciliationPort {
     private boolean lockActiveLease(ReconciliationLeaseToken token) {
         return jdbc.sql("""
                         select true
-                          from entegrasyon.calistirma_durumu cd
-                          join entegrasyon.calistirma c
+                          from akis.calistirma_durumu cd
+                          join akis.calistirma c
                             on c.proje_id = cd.proje_id
                            and c.id = cd.calistirma_id
-                          join entegrasyon.hedef_kaynagi hk
+                          join akis.hedef_kaynagi hk
                             on hk.id = cd.hedef_kaynagi_id
                          where c.uuid = :runUuid
-                           and cd.durum_kodu = 'MUTABAKAT'
+                           and cd.durum = 'MUTABAKAT'
                            and cd.isleyici_referansi = :workerReference
                            and cd.nesil_no = :runGeneration
                            and cd.kiralama_bitis_zamani > clock_timestamp()
                            and hk.uuid = :targetUuid
-                           and hk.durum_kodu = 'ASKIDA'
+                           and hk.durum = 'ASKIDA'
                            and hk.nesil_no = :targetGeneration
                            and cd.hedef_nesil_no = hk.nesil_no
                          for update of cd, hk
@@ -123,18 +123,18 @@ public class JdbcRunReconciliationStore implements RunReconciliationPort {
             ReconciliationLeaseToken token) {
         return jdbc.sql("""
                         select cd.kiralama_bitis_zamani
-                          from entegrasyon.calistirma_durumu cd
-                          join entegrasyon.calistirma c
+                          from akis.calistirma_durumu cd
+                          join akis.calistirma c
                             on c.proje_id = cd.proje_id
                            and c.id = cd.calistirma_id
-                          join entegrasyon.hedef_kaynagi hk
+                          join akis.hedef_kaynagi hk
                             on hk.id = cd.hedef_kaynagi_id
                          where c.uuid = :runUuid
-                           and cd.durum_kodu = 'MUTABAKAT'
+                           and cd.durum = 'MUTABAKAT'
                            and cd.isleyici_referansi = :workerReference
                            and cd.nesil_no = :runGeneration
                            and hk.uuid = :targetUuid
-                           and hk.durum_kodu = 'ASKIDA'
+                           and hk.durum = 'ASKIDA'
                            and hk.nesil_no = :targetGeneration
                            and cd.hedef_nesil_no = hk.nesil_no
                         """)
@@ -201,25 +201,25 @@ public class JdbcRunReconciliationStore implements RunReconciliationPort {
         return Boolean.TRUE.equals(jdbc.sql("""
                         select exists (
                             select 1
-                              from entegrasyon.calistirma c
-                              join entegrasyon.calistirma_durumu cd
+                              from akis.calistirma c
+                              join akis.calistirma_durumu cd
                                 on cd.proje_id = c.proje_id
                                and cd.calistirma_id = c.id
-                              join entegrasyon.hedef_kaynagi hk
+                              join akis.hedef_kaynagi hk
                                 on hk.id = cd.hedef_kaynagi_id
-                              join entegrasyon.calistirma_olayi co
+                              join akis.calistirma_olayi co
                                 on co.proje_id = c.proje_id
                                and co.calistirma_id = c.id
                                and co.olay_no = cd.son_olay_no
                              where c.uuid = :runUuid
-                               and cd.durum_kodu = :runStatus
+                               and cd.durum = :runStatus
                                and cd.isleyici_referansi = :workerReference
                                and cd.nesil_no = :runGeneration
                                and cd.kiralama_bitis_zamani is null
                                and cd.bitis_zamani is not null
                                and hk.uuid = :targetUuid
                                and cd.hedef_nesil_no = :targetGeneration
-                               and co.tur_kodu = 'RECONCILIATION_COMPLETED'
+                               and co.tur = 'RECONCILIATION_COMPLETED'
                                and co.veri ->> 'outcome' = :outcome
                                and co.veri ->> 'targetStatus' = :targetStatus
                         )
@@ -241,28 +241,35 @@ public class JdbcRunReconciliationStore implements RunReconciliationPort {
         return Boolean.TRUE.equals(jdbc.sql("""
                         select exists (
                             select 1
-                              from entegrasyon.kontrol_noktasi kn
-                              join entegrasyon.calistirma c
+                              from akis.kontrol_noktasi kn
+                              join akis.mutabakat_kaniti mk
+                                on mk.kontrol_noktasi_id = kn.id
+                              join akis.calistirma c
                                 on c.proje_id = kn.proje_id
                                and c.id = kn.calistirma_id
-                              join entegrasyon.calistirma_adimi ca
+                              join akis.calistirma_adimi ca
                                 on ca.proje_id = kn.proje_id
                                and ca.id = kn.calistirma_adimi_id
                              where c.uuid = :runUuid
                                and ca.adim_kodu = 'PILOT_PUBLISH'
-                               and kn.tur_kodu = 'PUBLISH'
+                               and kn.tur = 'PUBLISH'
                                and kn.hedef_kaynagi_id = (
                                    select hk.id
-                                     from entegrasyon.hedef_kaynagi hk
+                                     from akis.hedef_kaynagi hk
                                     where hk.uuid = :targetUuid)
                                and kn.hedef_nesil_no = :targetGeneration - 1
-                               and kn.mutabakat_hedef_nesil_no = :targetGeneration
+                               and mk.mutabakat_hedef_nesil_no = :targetGeneration
+                               and mk.sonuc = 'PUBLISHED'
                                and kn.kapsam_ozeti = :runtimePlanHash
                                and kn.hedef_defter_referansi = :publishKeyHash
                                and kn.payload_ozeti = :payloadHash
                                and (kn.imlec ->> 'rowCount')::bigint = :rowCount
                                and (kn.imlec ->> 'byteCount')::bigint = :byteCount
-                               and coalesce((kn.imlec ->> 'reconciled')::boolean, false)
+                               and mk.runtime_plan_ozeti = :runtimePlanHash
+                               and mk.yayin_anahtari_ozeti = :publishKeyHash
+                               and mk.payload_ozeti = :payloadHash
+                               and mk.satir_sayisi = :rowCount
+                               and mk.bayt_sayisi = :byteCount
                         )
                         """)
                 .param("runUuid", token.runUuid())
@@ -280,7 +287,7 @@ public class JdbcRunReconciliationStore implements RunReconciliationPort {
     private boolean completePublished(
             ReconciliationLeaseToken token, PublishEvidence evidence) {
         Boolean accepted = jdbc.sql("""
-                        select entegrasyon.calistirma_mutabakat_sonlandir(
+                        select akis.calistirma_mutabakat_sonlandir(
                             :runUuid, :workerReference, :runGeneration,
                             :targetUuid, :targetGeneration, 'PUBLISHED',
                             :runtimePlanHash, :publishKeyHash, :payloadHash,
@@ -304,7 +311,7 @@ public class JdbcRunReconciliationStore implements RunReconciliationPort {
     private boolean completeWithoutEvidence(
             ReconciliationLeaseToken token, String outcome) {
         Boolean accepted = jdbc.sql("""
-                        select entegrasyon.calistirma_mutabakat_sonlandir(
+                        select akis.calistirma_mutabakat_sonlandir(
                             :runUuid, :workerReference, :runGeneration,
                             :targetUuid, :targetGeneration, :outcome,
                             null::text, null::text, null::text,

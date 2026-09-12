@@ -40,12 +40,14 @@ Status date: 2026-09-12
 - Procedure plan materialization, ordered task state, mutating operation intent,
   exact retry acknowledgement and terminal success now execute on the clean
   schema. Runtime evidence does not duplicate connection timeout policy.
+- Unknown publish outcomes now use a clean reconciliation lease, incremented
+  target barrier and immutable typed reconciliation evidence. Published recovery
+  is covered by the generated-database acceptance test.
 - The connection UI no longer loads or manages separate secret-reference
   objects. It records only the name of a server-side environment variable; its
   value stays outside PostgreSQL, API responses, bundles and Git.
-- Reconciliation still uses the legacy schema until its clean operations gate
-  and acceptance tests are complete. The persistent local database has not been
-  destructively cut over.
+- Application repositories no longer issue runtime queries against the legacy
+  schema. The persistent local database has not yet been destructively cut over.
 
 ## Current completion estimate
 

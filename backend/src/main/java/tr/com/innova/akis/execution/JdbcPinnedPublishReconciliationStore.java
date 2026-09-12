@@ -73,30 +73,30 @@ public class JdbcPinnedPublishReconciliationStore
                                cd.nesil_no as reconciliation_run_generation,
                                cd.isleyici_referansi as reconciliation_worker_reference,
                                cd.hedef_nesil_no as barrier_target_generation
-                          from entegrasyon.pilot_yayin_niyeti pyn
-                          join entegrasyon.calistirma c
+                          from akis.pilot_yayin_niyeti pyn
+                          join akis.calistirma c
                             on c.proje_id = pyn.proje_id
                            and c.id = pyn.calistirma_id
-                          join entegrasyon.proje p on p.id = pyn.proje_id
-                          join entegrasyon.is_talebi it
+                          join akis.proje p on p.id = pyn.proje_id
+                          join akis.is_talebi it
                             on it.proje_id = pyn.proje_id
                            and it.id = pyn.is_talebi_id
-                          join entegrasyon.yayin y
+                          join akis.yayin y
                             on y.proje_id = it.proje_id and y.id = it.yayin_id
-                          join entegrasyon.calistirma_durumu cd
+                          join akis.calistirma_durumu cd
                             on cd.proje_id = pyn.proje_id
                            and cd.calistirma_id = pyn.calistirma_id
-                          join entegrasyon.hedef_kaynagi hk
+                          join akis.hedef_kaynagi hk
                             on hk.id = pyn.hedef_kaynagi_id
                          where c.uuid = :runUuid
-                           and cd.durum_kodu = 'MUTABAKAT'
+                           and cd.durum = 'MUTABAKAT'
                            and cd.worker_profili_id is not null
                            and cd.isleyici_referansi is not null
                            and cd.kiralama_bitis_zamani > clock_timestamp()
                            and cd.nesil_no = pyn.calistirma_nesil_no + 1
                            and cd.hedef_kaynagi_id = pyn.hedef_kaynagi_id
                            and cd.hedef_nesil_no = pyn.hedef_nesil_no + 1
-                           and hk.durum_kodu = 'ASKIDA'
+                           and hk.durum = 'ASKIDA'
                            and hk.calistirma_id is null
                            and hk.kiralama_bitis_zamani is null
                            and hk.nesil_no = cd.hedef_nesil_no
