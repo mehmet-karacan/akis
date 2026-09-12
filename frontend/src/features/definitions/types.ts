@@ -109,6 +109,8 @@ export interface MappingDataset {
   id: string
   role: DatasetRole
   name?: string
+  dataObjectUuid?: string
+  schemaSnapshotUuid?: string
   [key: string]: unknown
 }
 

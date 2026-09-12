@@ -452,7 +452,7 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
                     </div>
                   </div>
                   {selectedDefinition.type === 'MAPPING' && isMappingContent(content) ? (
-                    <MappingGrid value={content} onChange={updateContent} />
+                    <MappingGrid projectUuid={projectUuid} value={content} onChange={updateContent} />
                   ) : selectedDefinition.type === 'PROCEDURE' && isProcedureContent(content) ? (
                     <ProcedureEditor projectUuid={projectUuid} value={content} onChange={updateContent} limits={capabilities?.procedure} />
                   ) : !['MAPPING', 'PROCEDURE', 'REUSABLE_MAPPING'].includes(selectedDefinition.type) ? (

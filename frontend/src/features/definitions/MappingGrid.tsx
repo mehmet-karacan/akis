@@ -1,10 +1,13 @@
-import { Plus, Search, Trash2 } from 'lucide-react'
-import { useMemo, useState, type KeyboardEvent } from 'react'
+import { Plus, Search, Trash2, Undo2 } from 'lucide-react'
+import { Fragment, useEffect, useMemo, useState, type KeyboardEvent } from 'react'
+import { topologyApi, type DataObject, type Model, type SchemaSnapshot } from '../topology/api'
+import { ExpressionBuilder, expressionSummary } from './ExpressionBuilder'
 import { useDefinitionsI18n } from './i18n'
 import { filterMappingRows, MAPPING_PAGE_SIZE, pageCount, safePage } from './mappingUtils'
 import type { ColumnMapping, MappingContent, MappingDataset } from './types'
 
 interface MappingGridProps {
+  projectUuid: string
   value: MappingContent
   onChange: (value: MappingContent) => void
 }
@@ -24,11 +27,19 @@ function createRow(value: MappingContent): ColumnMapping {
   return { source: { dataset: source, column: '' }, target: { dataset: target, column: '' } }
 }
 
-export function MappingGrid({ value, onChange }: MappingGridProps) {
+interface CatalogEntry { model: Model; object: DataObject; snapshot?: SchemaSnapshot }
+
+export function MappingGrid({ projectUuid, value, onChange }: MappingGridProps) {
   const { t } = useDefinitionsI18n()
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(0)
-  const [expressionErrors, setExpressionErrors] = useState<Record<number, boolean>>({})
+  const [catalog, setCatalog] = useState<CatalogEntry[]>([])
+  const [catalogError, setCatalogError] = useState(false)
+  const [editingExpression, setEditingExpression] = useState<number | null>(null)
+  const [pendingDatasetDelete, setPendingDatasetDelete] = useState<number | null>(null)
+  const [undoValue, setUndoValue] = useState<MappingContent | null>(null)
+  const [suggestions, setSuggestions] = useState<Array<{ index: number; dataset: string; column: string }>>([])
+  useEffect(() => { let active = true; setCatalogError(false); void topologyApi.listModels(projectUuid).then(async (models) => { const objects = (await Promise.all(models.map(async (model) => (await topologyApi.listDataObjects(projectUuid, model.uuid)).map((object) => ({ model, object }))))).flat(); const rows = await Promise.all(objects.map(async (entry) => ({ ...entry, snapshot: (await topologyApi.listSchemaSnapshots(projectUuid, entry.object.uuid))[0] }))); if (active) setCatalog(rows) }).catch(() => { if (active) setCatalogError(true) }); return () => { active = false } }, [projectUuid])
   const filteredRows = useMemo(
     () => filterMappingRows(value.columnMappings, query),
     [query, value.columnMappings],
@@ -41,6 +52,10 @@ export function MappingGrid({ value, onChange }: MappingGridProps) {
   )
   const sources = value.datasets.filter((dataset) => dataset.role === 'SOURCE')
   const targets = value.datasets.filter((dataset) => dataset.role === 'TARGET')
+  const entryFor = (datasetId: string) => { const dataset = value.datasets.find((item) => item.id === datasetId); return catalog.find((entry) => entry.object.uuid === dataset?.dataObjectUuid) }
+  const columnsFor = (datasetId: string) => entryFor(datasetId)?.snapshot?.columns ?? []
+  const expressionColumns = sources.flatMap((dataset) => columnsFor(dataset.id).map((column) => ({ dataset: dataset.id, column: column.reference, label: `${dataset.name || dataset.id}.${column.reference} · ${column.producerType}` })))
+  const suggestMatches = () => setSuggestions(value.columnMappings.flatMap((row, index) => { if (row.expression || row.source?.column || !row.target.column) return []; const match = sources.flatMap((dataset) => columnsFor(dataset.id).map((column) => ({ dataset: dataset.id, column: column.reference }))).find((candidate) => candidate.column.toLocaleUpperCase() === row.target.column.toLocaleUpperCase()); return match ? [{ index, ...match }] : [] }))
 
   function updateDataset(index: number, patch: Partial<MappingDataset>) {
     const datasets = value.datasets.map((dataset, current) =>
@@ -98,6 +113,8 @@ export function MappingGrid({ value, onChange }: MappingGridProps) {
             </button>
           </div>
         </div>
+        {catalogError ? <p className="definition-notice definition-notice--error" role="alert">{t('catalogLoadFailed')}</p> : null}
+        {pendingDatasetDelete != null ? <div className="definition-notice definition-notice--info" role="alert"><span>{t('datasetDeleteImpact', { count: value.columnMappings.filter((row) => row.source?.dataset === value.datasets[pendingDatasetDelete]?.id || row.target.dataset === value.datasets[pendingDatasetDelete]?.id || expressionSummary(row.expression)?.includes(`${value.datasets[pendingDatasetDelete]?.id}.`)).length })}</span><button type="button" onClick={() => { const dataset = value.datasets[pendingDatasetDelete]; if (!dataset) return; setUndoValue(structuredClone(value)); onChange({ ...value, datasets: value.datasets.filter((_, position) => position !== pendingDatasetDelete), columnMappings: value.columnMappings.filter((row) => row.source?.dataset !== dataset.id && row.target.dataset !== dataset.id && !expressionSummary(row.expression)?.includes(`${dataset.id}.`)) }); setPendingDatasetDelete(null) }}>{t('confirmRemove')}</button><button type="button" onClick={() => setPendingDatasetDelete(null)}>{t('cancel')}</button></div> : null}
         <div className="mapping-datasets">
           {value.datasets.map((dataset, index) => (
             <div className="mapping-dataset" key={index}>
@@ -105,35 +122,27 @@ export function MappingGrid({ value, onChange }: MappingGridProps) {
                 {dataset.role === 'SOURCE' ? t('source') : t('target')}
               </span>
               <label>
-                <span>{t('datasetId')}</span>
-                <input
-                  value={dataset.id}
-                  onChange={(event) => updateDataset(index, { id: event.target.value })}
-                />
-              </label>
-              <label>
-                <span>{t('name')}</span>
+                <span>{t('catalogObject')}</span>
+                <select value={dataset.dataObjectUuid ?? ''} onChange={(event) => { const entry = catalog.find((item) => item.object.uuid === event.target.value); updateDataset(index, { dataObjectUuid: entry?.object.uuid, schemaSnapshotUuid: entry?.snapshot?.uuid, name: dataset.name || entry?.object.name }) }}><option value="">{t('chooseDataObject')}</option>{catalog.map((entry) => <option key={entry.object.uuid} value={entry.object.uuid}>{entry.model.name} → {entry.object.name} · {entry.object.objectReference}</option>)}</select>
+              </label><label>
+                <span>{t('datasetAlias')}</span>
                 <input
                   value={dataset.name ?? ''}
                   onChange={(event) => updateDataset(index, { name: event.target.value })}
                 />
-              </label>
+              </label><code className="dataset-stable-id">{dataset.id}</code>
               <button
                 type="button"
                 className="definition-icon-button"
                 aria-label={`${t('remove')} ${dataset.id}`}
-                onClick={() =>
-                  onChange({
-                    ...value,
-                    datasets: value.datasets.filter((_, current) => current !== index),
-                  })
-                }
+                onClick={() => setPendingDatasetDelete(index)}
               >
                 <Trash2 size={16} aria-hidden="true" />
               </button>
             </div>
           ))}
         </div>
+        {undoValue ? <button className="definition-button definition-button--quiet mapping-undo" type="button" onClick={() => { onChange(undoValue); setUndoValue(null) }}><Undo2 size={15} />{t('undo')}</button> : null}
       </section>
 
       <section className="mapping-section" aria-labelledby="mapping-rows-title">
@@ -154,7 +163,9 @@ export function MappingGrid({ value, onChange }: MappingGridProps) {
           >
             <Plus size={16} aria-hidden="true" /> {t('addRow')}
           </button>
+          <button className="definition-button definition-button--quiet" type="button" onClick={suggestMatches}>{t('suggestMatches')}</button>
         </div>
+        {suggestions.length > 0 ? <div className="definition-notice definition-notice--info"><span>{t('matchSuggestions', { count: suggestions.length })}</span><button type="button" onClick={() => { setUndoValue(structuredClone(value)); onChange({ ...value, columnMappings: value.columnMappings.map((row, index) => { const suggestion = suggestions.find((item) => item.index === index); return suggestion && !row.expression && !row.source?.column ? { ...row, source: { dataset: suggestion.dataset, column: suggestion.column } } : row }) }); setSuggestions([]) }}>{t('applySuggestions')}</button><button type="button" onClick={() => setSuggestions([])}>{t('cancel')}</button></div> : null}
         <div className="mapping-grid-toolbar">
           <label className="definition-search definition-search--compact">
             <Search size={16} aria-hidden="true" />
@@ -189,8 +200,8 @@ export function MappingGrid({ value, onChange }: MappingGridProps) {
             <tbody>
               {visibleRows.map(({ row, index }) => {
                 const isExpression = !!row.expression
-                return (
-                  <tr key={index} data-grid-row={index}>
+                return <Fragment key={index}>
+                  <tr data-grid-row={index}>
                     <th scope="row">{index + 1}</th>
                     <td>
                       <select
@@ -200,7 +211,7 @@ export function MappingGrid({ value, onChange }: MappingGridProps) {
                         onChange={(event) =>
                           updateRow(index, (current) =>
                             event.target.value === 'EXPRESSION'
-                              ? { expression: {}, target: current.target }
+                              ? { expression: { kind: 'COLUMN', dataset: sources[0]?.id ?? '', column: columnsFor(sources[0]?.id ?? '')[0]?.reference ?? '' }, target: current.target }
                               : {
                                   source: {
                                     dataset: sources[0]?.id ?? '',
@@ -224,7 +235,7 @@ export function MappingGrid({ value, onChange }: MappingGridProps) {
                         onChange={(event) =>
                           updateRow(index, (current) => ({
                             ...current,
-                            source: { dataset: event.target.value, column: current.source?.column ?? '' },
+                            source: { dataset: event.target.value, column: '' },
                           }))
                         }
                       >
@@ -235,7 +246,7 @@ export function MappingGrid({ value, onChange }: MappingGridProps) {
                       </select>
                     </td>
                     <td>
-                      <input
+                      <select
                         data-grid-column="source-column"
                         aria-label={`${index + 1} ${t('sourceColumn')}`}
                         value={row.source?.column ?? ''}
@@ -249,26 +260,17 @@ export function MappingGrid({ value, onChange }: MappingGridProps) {
                             },
                           }))
                         }
-                      />
+                      ><option value="">—</option>{columnsFor(row.source?.dataset ?? '').map((column) => <option key={column.reference} value={column.reference}>{column.reference} · {column.producerType}</option>)}</select>
                     </td>
                     <td>
-                      <input
-                        key={`${index}-${JSON.stringify(row.expression)}`}
+                      <button
+                        type="button"
+                        className="mapping-expression-button"
                         data-grid-column="expression"
                         aria-label={`${index + 1} ${t('expression')}`}
-                        aria-invalid={!!expressionErrors[index]}
-                        defaultValue={row.expression ? JSON.stringify(row.expression) : ''}
                         disabled={!isExpression}
-                        onBlur={(event) => {
-                          try {
-                            const expression = JSON.parse(event.target.value || '{}') as Record<string, unknown>
-                            setExpressionErrors((current) => ({ ...current, [index]: false }))
-                            updateRow(index, (current) => ({ ...current, expression }))
-                          } catch {
-                            setExpressionErrors((current) => ({ ...current, [index]: true }))
-                          }
-                        }}
-                      />
+                        onClick={() => setEditingExpression(editingExpression === index ? null : index)}
+                      >{expressionSummary(row.expression) ?? t('unsupportedExpression')}</button>
                     </td>
                     <td>
                       <select
@@ -278,7 +280,7 @@ export function MappingGrid({ value, onChange }: MappingGridProps) {
                         onChange={(event) =>
                           updateRow(index, (current) => ({
                             ...current,
-                            target: { ...current.target, dataset: event.target.value },
+                            target: { dataset: event.target.value, column: '' },
                           }))
                         }
                       >
@@ -289,7 +291,7 @@ export function MappingGrid({ value, onChange }: MappingGridProps) {
                       </select>
                     </td>
                     <td>
-                      <input
+                      <select
                         data-grid-column="target-column"
                         aria-label={`${index + 1} ${t('targetColumn')}`}
                         value={row.target.column}
@@ -299,7 +301,7 @@ export function MappingGrid({ value, onChange }: MappingGridProps) {
                             target: { ...current.target, column: event.target.value },
                           }))
                         }
-                      />
+                      ><option value="">—</option>{columnsFor(row.target.dataset).map((column) => <option key={column.reference} value={column.reference}>{column.reference} · {column.producerType}</option>)}</select>
                     </td>
                     <td>
                       <button
@@ -316,8 +318,7 @@ export function MappingGrid({ value, onChange }: MappingGridProps) {
                         <Trash2 size={15} aria-hidden="true" />
                       </button>
                     </td>
-                  </tr>
-                )
+                  </tr>{editingExpression === index ? <tr className="mapping-expression-row"><td colSpan={8}><ExpressionBuilder value={row.expression} columns={expressionColumns} onCancel={() => setEditingExpression(null)} onApply={(expression) => { updateRow(index, (current) => ({ target: current.target, expression })); setEditingExpression(null) }} /><p className="definition-help">{t('expressionRuntimeUnsupported')}</p></td></tr> : null}</Fragment>
               })}
             </tbody>
           </table>
