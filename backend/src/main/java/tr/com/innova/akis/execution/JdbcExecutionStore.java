@@ -40,8 +40,8 @@ public class JdbcExecutionStore implements ExecutionStore {
     @Override
     public Optional<Long> findProjectId(UUID projectUuid) {
         return jdbc.sql("""
-                        select id from entegrasyon.proje
-                         where uuid = :projectUuid and durum_kodu = 'AKTIF'
+                        select id from akis.proje
+                         where uuid = :projectUuid and arsivlenme_zamani is null
                         """)
                 .param("projectUuid", projectUuid)
                 .query(Long.class)
@@ -51,11 +51,13 @@ public class JdbcExecutionStore implements ExecutionStore {
     @Override
     public Optional<Actor> findActiveActor(String provider, String subject) {
         return jdbc.sql("""
-                        select id, uuid, ad
-                          from entegrasyon.kullanici
-                         where oidc_saglayici = :provider
-                           and oidc_ozne = :subject
-                           and durum_kodu = 'AKTIF'
+                        select k.id, k.uuid, k.gorunen_ad as ad
+                          from akis.kullanici k
+                          join akis.harici_kimlik h on h.kullanici_id = k.id
+                         where ((:provider = 'LOCAL_BASIC' and h.saglayici_turu='YEREL' and h.yayinlayici is null)
+                                or (h.saglayici_turu='OIDC' and h.yayinlayici=:provider))
+                           and h.harici_kullanici_anahtari=:subject
+                           and k.devre_disi_birakilma_zamani is null
                         """)
                 .param("provider", provider)
                 .param("subject", subject)
@@ -70,16 +72,17 @@ public class JdbcExecutionStore implements ExecutionStore {
             UUID projectUuid, UUID publicationUuid) {
         return jdbc.sql("""
                         select p.id as project_id, y.id as publication_id,
-                               y.uuid as publication_uuid, y.durum_kodu,
-                               o.risk_kodu, y.release_hash, s.plan_ozeti,
+                               y.uuid as publication_uuid, y.durum as durum_kodu,
+                               o.risk as risk_kodu,
+                               y.fiziksel_manifesto ->> 'releaseHash' as release_hash, s.plan_ozeti,
                                y.fiziksel_manifesto
-                          from entegrasyon.yayin y
-                          join entegrasyon.proje p on p.id = y.proje_id
-                          join entegrasyon.ortam o
+                          from akis.yayin y
+                          join akis.proje p on p.id = y.proje_id
+                          join akis.ortam o
                             on o.proje_id = y.proje_id and o.id = y.ortam_id
-                          join entegrasyon.senaryo s on s.id = y.senaryo_id
+                          join akis.senaryo s on s.id = y.senaryo_id
                          where p.uuid = :projectUuid
-                           and p.durum_kodu = 'AKTIF'
+                           and p.arsivlenme_zamani is null
                            and y.uuid = :publicationUuid
                          for update of y
                         """)
@@ -103,15 +106,15 @@ public class JdbcExecutionStore implements ExecutionStore {
             String requestHash,
             UUID reservationUuid) {
         return jdbc.sql("""
-                        insert into entegrasyon.istek_anahtari(
-                            proje_id, kullanici_id, kapsam_kodu, anahtar_ozeti,
-                            istek_ozeti, durum_kodu, sona_erme_zamani, uuid,
+                        insert into akis.istek_anahtari(
+                            proje_id, kullanici_id, kapsam, anahtar_ozeti,
+                            istek_ozeti, durum, sona_erme_zamani, uuid,
                             olusturan_kullanici_id)
                         values (:projectId, :actorId, :scope, :keyHash,
                                 :requestHash, 'ISLENIYOR',
                                 current_timestamp + interval '24 hours', :uuid,
                                 :actorId)
-                        on conflict (proje_id, kullanici_id, kapsam_kodu, anahtar_ozeti)
+                        on conflict (proje_id, kullanici_id, kapsam, anahtar_ozeti)
                         do nothing
                         """)
                 .param("projectId", projectId)
@@ -128,10 +131,10 @@ public class JdbcExecutionStore implements ExecutionStore {
             long projectId, long actorId, String scope, String keyHash) {
         return jdbc.sql("""
                         select id, istek_ozeti, is_talebi_id
-                          from entegrasyon.istek_anahtari
+                          from akis.istek_anahtari
                          where proje_id = :projectId
                            and kullanici_id = :actorId
-                           and kapsam_kodu = :scope
+                           and kapsam = :scope
                            and anahtar_ozeti = :keyHash
                          for update
                         """)
@@ -155,10 +158,10 @@ public class JdbcExecutionStore implements ExecutionStore {
             UUID stateUuid,
             UUID eventUuid) {
         long jobRequestId = jdbc.sql("""
-                        insert into entegrasyon.is_talebi(
+                        insert into akis.is_talebi(
                             proje_id, yayin_id, istek_ozeti, is_turu, oncelik,
-                            parametre_surumu, parametre, uuid, olusturan_kullanici_id)
-                        values (:projectId, :publicationId, :requestHash, 'RUN', 50,
+                            parametre_sema_surumu, parametre, uuid, olusturan_kullanici_id)
+                        values (:projectId, :publicationId, :requestHash, 'CALISTIR', 50,
                                 1, '{}'::jsonb, :uuid, :actorId)
                         returning id
                         """)
@@ -170,7 +173,7 @@ public class JdbcExecutionStore implements ExecutionStore {
                 .query(Long.class)
                 .single();
         long runId = jdbc.sql("""
-                        insert into entegrasyon.calistirma(
+                        insert into akis.calistirma(
                             proje_id, is_talebi_id, deneme_no, yayin_ozeti, plan_ozeti,
                             baslatma_turu, uuid, olusturan_kullanici_id)
                         values (:projectId, :jobRequestId, 1, :releaseHash, :planHash,
@@ -186,8 +189,8 @@ public class JdbcExecutionStore implements ExecutionStore {
                 .query(Long.class)
                 .single();
         jdbc.sql("""
-                        insert into entegrasyon.calistirma_durumu(
-                            proje_id, calistirma_id, durum_kodu, son_olay_no,
+                        insert into akis.calistirma_durumu(
+                            proje_id, calistirma_id, durum, son_olay_no,
                             uuid, olusturan_kullanici_id, guncellenme_zamani,
                             guncelleyen_kullanici_id)
                         values (:projectId, :runId, 'BEKLIYOR', 1,
@@ -214,10 +217,10 @@ public class JdbcExecutionStore implements ExecutionStore {
         response.put("jobRequestUuid", run.jobRequestUuid().toString());
         response.put("runUuid", run.runUuid().toString());
         jdbc.sql("""
-                        update entegrasyon.istek_anahtari
+                        update akis.istek_anahtari
                            set is_talebi_id = :jobRequestId,
-                               durum_kodu = 'TAMAMLANDI',
-                               yanit_surumu = 1,
+                               durum = 'TAMAMLANDI',
+                               yanit_sema_surumu = 1,
                                yanit = cast(:response as jsonb),
                                guncellenme_zamani = current_timestamp,
                                guncelleyen_kullanici_id = kullanici_id,
@@ -278,10 +281,10 @@ public class JdbcExecutionStore implements ExecutionStore {
     @Override
     public List<RunEventRow> listEvents(UUID projectUuid, UUID runUuid) {
         return jdbc.sql("""
-                        select e.uuid, e.olay_no, e.tur_kodu, e.olay_zamani, e.veri
-                          from entegrasyon.calistirma_olayi e
-                          join entegrasyon.calistirma r on r.id = e.calistirma_id
-                          join entegrasyon.proje p on p.id = r.proje_id
+                        select e.uuid, e.olay_no, e.tur as tur_kodu, e.olay_zamani, e.veri
+                          from akis.calistirma_olayi e
+                          join akis.calistirma r on r.id = e.calistirma_id
+                          join akis.proje p on p.id = r.proje_id
                          where p.uuid = :projectUuid and r.uuid = :runUuid
                          order by e.olay_no
                         """)
@@ -298,17 +301,17 @@ public class JdbcExecutionStore implements ExecutionStore {
     @Override
     public List<RunStepRow> listSteps(UUID projectUuid, UUID runUuid) {
         return jdbc.sql("""
-                        select a.uuid, a.adim_kodu, a.tur_kodu, a.sira_no, a.ad,
-                               coalesce(d.durum_kodu, 'KAYDEDILMEDI') as durum_kodu,
-                               k.baglanti_rolu, k.risk_kodu,
+                        select a.uuid, a.adim_kodu, a.tur as tur_kodu, a.sira_no, a.ad,
+                               coalesce(d.durum, 'KAYDEDILMEDI') as durum_kodu,
+                               k.baglanti_rolu, k.risk as risk_kodu,
                                d.baslama_zamani, d.bitis_zamani,
                                d.satir_sayisi, d.bayt_sayisi, d.hata_kodu
-                          from entegrasyon.calistirma_adimi a
-                          join entegrasyon.calistirma r on r.id = a.calistirma_id
-                          join entegrasyon.proje p on p.id = r.proje_id
-                          left join entegrasyon.prosedur_adim_kaniti k
+                          from akis.calistirma_adimi a
+                          join akis.calistirma r on r.id = a.calistirma_id
+                          join akis.proje p on p.id = r.proje_id
+                          left join akis.prosedur_adim_kaniti k
                             on k.proje_id = a.proje_id and k.calistirma_adimi_id = a.id
-                          left join entegrasyon.prosedur_adim_durumu d
+                          left join akis.prosedur_adim_durumu d
                             on d.proje_id = a.proje_id and d.calistirma_adimi_id = a.id
                          where p.uuid = :projectUuid and r.uuid = :runUuid
                          order by a.sira_no, a.id
@@ -331,14 +334,14 @@ public class JdbcExecutionStore implements ExecutionStore {
     public RunRow cancelQueued(RunRow run, Actor actor, UUID eventUuid) {
         long nextEvent = run.lastEventNumber() + 1;
         int updated = jdbc.sql("""
-                        update entegrasyon.calistirma_durumu
-                           set durum_kodu = 'IPTAL',
+                        update akis.calistirma_durumu
+                           set durum = 'IPTAL',
                                son_olay_no = :eventNumber,
                                bitis_zamani = current_timestamp,
                                guncellenme_zamani = current_timestamp,
                                guncelleyen_kullanici_id = :actorId,
                                versiyon_no = versiyon_no + 1
-                         where id = :stateId and durum_kodu = 'BEKLIYOR'
+                         where id = :stateId and durum = 'BEKLIYOR'
                         """)
                 .param("eventNumber", nextEvent)
                 .param("actorId", actor.id())
@@ -354,7 +357,7 @@ public class JdbcExecutionStore implements ExecutionStore {
     }
 
     private long projectId(long runId) {
-        return jdbc.sql("select proje_id from entegrasyon.calistirma where id = :runId")
+        return jdbc.sql("select proje_id from akis.calistirma where id = :runId")
                 .param("runId", runId)
                 .query(Long.class)
                 .single();
@@ -376,9 +379,9 @@ public class JdbcExecutionStore implements ExecutionStore {
             UUID eventUuid,
             long actorId) {
         jdbc.sql("""
-                        insert into entegrasyon.calistirma_olayi(
-                            proje_id, calistirma_id, olay_no, tur_kodu,
-                            olay_zamani, veri_surumu, veri, uuid,
+                        insert into akis.calistirma_olayi(
+                            proje_id, calistirma_id, olay_no, tur,
+                            olay_zamani, veri_sema_surumu, veri, uuid,
                             olusturan_kullanici_id)
                         values (:projectId, :runId, :eventNumber, :type,
                                 current_timestamp, 1, cast(:data as jsonb), :uuid,
@@ -399,14 +402,14 @@ public class JdbcExecutionStore implements ExecutionStore {
                 select j.id as job_request_id, r.id as run_id, d.id as state_id,
                        j.uuid as job_request_uuid, r.uuid as run_uuid,
                        y.uuid as publication_uuid, r.deneme_no, r.baslatma_turu,
-                       d.durum_kodu, r.yayin_ozeti, r.plan_ozeti, d.son_olay_no,
+                       d.durum as durum_kodu, r.yayin_ozeti, r.plan_ozeti, d.son_olay_no,
                        r.olusturulma_zamani, d.baslama_zamani, d.bitis_zamani,
                        d.iptal_isteme_zamani
-                  from entegrasyon.calistirma r
-                  join entegrasyon.is_talebi j on j.id = r.is_talebi_id
-                  join entegrasyon.yayin y on y.id = j.yayin_id
-                  join entegrasyon.calistirma_durumu d on d.calistirma_id = r.id
-                  join entegrasyon.proje p on p.id = r.proje_id
+                  from akis.calistirma r
+                  join akis.is_talebi j on j.id = r.is_talebi_id
+                  join akis.yayin y on y.id = j.yayin_id
+                  join akis.calistirma_durumu d on d.calistirma_id = r.id
+                  join akis.proje p on p.id = r.proje_id
                 """;
     }
 

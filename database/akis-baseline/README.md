@@ -131,3 +131,15 @@ Bu yapı tasarım ağacında ayrı bir “Yayınlar” çalışma alanı değild
 öncesi kullanılan değişmez fiziksel manifesto ve yüksek riskli işlemlerin onay
 kapısıdır. Ortam riski ile sürümlü, secretsız politika gerçek metadata olarak
 saklanır.
+
+Manuel çalıştırma isteği, idempotency, koşu, hiyerarşik adım ağacı ve eklemeli
+olay günlüğü için:
+
+```powershell
+.\database\akis-baseline\test-execution.ps1
+```
+
+Paket ve Load Plan alt adımları `ust_adim_id` ile ağaç halinde saklanır; API bu
+yapıyı operasyon ekranında genişletilebilir adımlar olarak sunabilir. Tasarım
+zamanındaki adım zaman aşımı tekrarlanmaz; çalıştırma bağlantı sürümünün tipli
+zaman aşımı politikasını kullanır.

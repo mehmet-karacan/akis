@@ -26,6 +26,10 @@ Status date: 2026-09-12
 - Environment risk/policy, runnable Scenario releases, pinned physical bindings
   and append-only approvals now run on the clean schema. “Publication” remains
   an execution safety boundary, not a top-level design workspace.
+- Manual requests, idempotency reservations, runs, hierarchical run steps and
+  append-only events now have a clean control-plane model and repository test.
+  The step tree supports package/load-plan nesting without duplicating connection
+  timeout policy into Procedure steps.
 - The connection UI no longer loads or manages separate secret-reference
   objects. It records only the name of a server-side environment variable; its
   value stays outside PostgreSQL, API responses, bundles and Git.
