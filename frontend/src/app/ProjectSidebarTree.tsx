@@ -10,6 +10,12 @@ import { useProjectAccess } from '../core/auth/ProjectAccessContext'
 import { projectRoute } from '../features/projects/CurrentProjectContext'
 
 const FLOW_TYPES = new Set(['MAPPING', 'PACKAGE', 'PROCEDURE', 'LOAD_PLAN'])
+const FLOW_GROUPS = [
+  { type: 'MAPPING', label: 'nav.interfaces' },
+  { type: 'PROCEDURE', label: 'nav.procedures' },
+  { type: 'PACKAGE', label: 'nav.packages' },
+  { type: 'LOAD_PLAN', label: 'nav.loadPlans' },
+] as const
 const COMPONENT_TYPES = ['VARIABLE', 'SEQUENCE', 'USER_FUNCTION', 'KNOWLEDGE_MODULE'] as const
 const VIRTUAL = { flows: '__flows', components: '__components' } as const
 const componentIcon = { VARIABLE: Variable, SEQUENCE: Hash, USER_FUNCTION: Braces, KNOWLEDGE_MODULE: Blocks } as const
@@ -56,7 +62,8 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
 
   useEffect(() => {
     const initiallyOpenFolders = flowDefinitions.length <= 200 ? tree.map((folder) => folder.uuid) : []
-    setExpanded(new Set([VIRTUAL.flows, VIRTUAL.components, ...initiallyOpenFolders]))
+    const initiallyOpenGroups = flowDefinitions.length <= 200 ? flowDefinitions.map((item) => `${item.folderUuid ?? 'unfiled'}:${item.type}`) : []
+    setExpanded(new Set([VIRTUAL.flows, VIRTUAL.components, ...initiallyOpenFolders, ...initiallyOpenGroups]))
   }, [flowDefinitions.length, projectUuid, tree]) // Large repositories stay responsive by opening folders on demand.
 
   useEffect(() => {
@@ -90,6 +97,7 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
     return next
   })
   const openDefinition = (uuid: string) => onNavigate(`${projectRoute('/objects/definitions')}/${encodeURIComponent(uuid)}`)
+  const createFlow = (type: typeof FLOW_GROUPS[number]['type'], folderUuid: string | null) => onNavigate(`${projectRoute('/objects')}?createType=${encodeURIComponent(type)}&folder=${encodeURIComponent(folderUuid ?? '')}`)
   const openMenu = (definition: Definition, event: MouseEvent) => {
     event.preventDefault(); event.stopPropagation()
     const rect = event.currentTarget.getBoundingClientRect()
@@ -133,6 +141,18 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
     <button type="button" className="sidebar-object-menu-button" aria-label={shellT('nav.objectActions', { name: definition.name })} aria-haspopup="menu" aria-expanded={menu?.definition.uuid === definition.uuid} onClick={(event) => openMenu(definition, event)}><MoreHorizontal /></button>
     </div>
   </li>
+  const flowGroupItem = (scope: string, folderUuid: string | null, type: typeof FLOW_GROUPS[number]['type'], labelKey: string, items: Definition[]) => {
+    const groupUuid = `${scope}:${type}`
+    const open = expanded.has(groupUuid)
+    const label = shellT(labelKey)
+    return <li key={groupUuid} className="sidebar-folder sidebar-type-cluster">
+      <div className="sidebar-folder-action-row" onContextMenu={(event) => { event.preventDefault(); createFlow(type, folderUuid) }}>
+        <button type="button" className="sidebar-folder-row" onClick={() => toggle(groupUuid)} aria-expanded={open}><span className="sidebar-folder-spacer" /><DefinitionTypeIcon type={type} /><span>{label}</span><small>{items.length}</small></button>
+        {canWrite && <button type="button" className="sidebar-object-menu-button" aria-label={shellT('nav.addNamed', { name: label })} onClick={() => createFlow(type, folderUuid)}><Plus /></button>}
+      </div>
+      {open && (items.length > 0 ? <ul>{items.map(definitionItem)}</ul> : <p className="sidebar-group-empty">{shellT('nav.emptyGroup')}</p>)}
+    </li>
+  }
   const folderItem = (folder: FolderTreeNode) => {
     const open = expanded.has(folder.uuid)
     const directDefinitions = definitionsByFolder.get(folder.uuid) ?? []
@@ -143,7 +163,7 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
         </button>
         <button type="button" className="sidebar-object-menu-button" aria-label={shellT('nav.objectActions', { name: folder.name })} aria-haspopup="menu" aria-expanded={folderMenu?.folder.uuid === folder.uuid} onClick={(event) => openFolderMenu(folder, event)}><MoreHorizontal /></button>
       </div>
-      {open && <ul>{folder.children.map(folderItem)}{directDefinitions.map(definitionItem)}</ul>}
+      {open && <ul>{folder.children.map(folderItem)}{FLOW_GROUPS.map((group) => flowGroupItem(folder.uuid, folder.uuid, group.type, group.label, directDefinitions.filter((item) => item.type === group.type)))}</ul>}
     </li>
   }
   const unfiled = definitionsByFolder.get(null) ?? []
@@ -172,8 +192,8 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
     <div className="sidebar-tree-scroll">
       {loading ? <p className="sidebar-tree-state">{shellT('common.loading')}</p> : failed ? <button className="sidebar-tree-retry" type="button" onClick={onRetry}><RefreshCw />{shellT('common.retry')}</button> : query.trim() ? matches.length > 0 ? <ul className="sidebar-tree sidebar-tree--results">{matches.map(definitionItem)}</ul> : <p className="sidebar-tree-state">{shellT('nav.noMatchingObjects')}</p> : <ul className="sidebar-tree sidebar-tree--virtual">
         <li className="sidebar-folder sidebar-virtual-root">
-          <button type="button" className="sidebar-folder-row" onClick={() => toggle(VIRTUAL.flows)} aria-expanded={flowsOpen}>{flowsOpen ? <ChevronDown /> : <ChevronRight />}<Workflow /><span>{shellT('nav.flows')}</span><small>{flowDefinitions.length}</small></button>
-          {flowsOpen && <ul>{tree.map(folderItem)}{unfiled.length > 0 && <li className="sidebar-folder"><div className="sidebar-folder-row sidebar-folder-row--static"><span className="sidebar-folder-spacer" /><Folder /><span>{shellT('nav.unfiled')}</span><small>{unfiled.length}</small></div><ul>{unfiled.map(definitionItem)}</ul></li>}{tree.length === 0 && unfiled.length === 0 && <li><p className="sidebar-group-empty"><FileCode2 />{shellT('nav.noFlows')}</p></li>}</ul>}
+          <div className="sidebar-folder-action-row" onContextMenu={(event) => { event.preventDefault(); if (canWrite) onNavigate(`${projectRoute('/objects')}?createFolder=`) }}><button type="button" className="sidebar-folder-row" onClick={() => toggle(VIRTUAL.flows)} aria-expanded={flowsOpen}>{flowsOpen ? <ChevronDown /> : <ChevronRight />}<Workflow /><span>{shellT('nav.flows')}</span><small>{flowDefinitions.length}</small></button>{canWrite && <button type="button" className="sidebar-object-menu-button sidebar-object-menu-button--always" aria-label={shellT('nav.createRootFolder')} onClick={() => onNavigate(`${projectRoute('/objects')}?createFolder=`)}><Plus /></button>}</div>
+          {flowsOpen && <ul>{tree.map(folderItem)}{unfiled.length > 0 && <li className="sidebar-folder"><div className="sidebar-folder-row sidebar-folder-row--static"><span className="sidebar-folder-spacer" /><Folder /><span>{shellT('nav.unfiled')}</span><small>{unfiled.length}</small></div><ul>{FLOW_GROUPS.filter((group) => unfiled.some((item) => item.type === group.type)).map((group) => flowGroupItem('unfiled', null, group.type, group.label, unfiled.filter((item) => item.type === group.type)))}</ul></li>}{tree.length === 0 && unfiled.length === 0 && <li><p className="sidebar-group-empty"><FileCode2 />{shellT('nav.noFlows')}</p></li>}</ul>}
         </li>
         <li className="sidebar-folder sidebar-virtual-root">
           <div className="sidebar-folder-action-row" onContextMenu={(event) => openCreationMenu(null, event)}>

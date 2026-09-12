@@ -2,17 +2,13 @@ import {
   AlertCircle,
   Check,
   ChevronRight,
-  CirclePlus,
   FileCode2,
   FolderInput,
-  FolderPlus,
   GitBranch,
   Layers3,
   LoaderCircle,
   Plus,
-  RefreshCw,
   Save,
-  ShieldCheck,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
@@ -102,6 +98,7 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
   const [loadError, setLoadError] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [createDefinitionType, setCreateDefinitionType] = useState<DefinitionType | null>(null)
+  const [createDefinitionFolderUuid, setCreateDefinitionFolderUuid] = useState<string | null>(null)
   const [folderCreateContext, setFolderCreateContext] = useState<{ parentUuid: string | null } | null>(null)
   const [showMoveDefinition, setShowMoveDefinition] = useState(false)
   const [pendingDefinitionUuid, setPendingDefinitionUuid] = useState<string | null>(null)
@@ -139,10 +136,12 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
     if (!requestedType) return
     if (DEFINITION_TYPES.includes(requestedType as DefinitionType) && requestedType !== 'REUSABLE_MAPPING') {
       setCreateDefinitionType(requestedType as DefinitionType)
+      setCreateDefinitionFolderUuid(searchParams.get('folder') || null)
       setShowCreate(true)
     }
     const nextParams = new URLSearchParams(searchParams)
     nextParams.delete('createType')
+    nextParams.delete('folder')
     setSearchParams(nextParams, { replace: true })
   }, [searchParams, setSearchParams])
   const [capabilities, setCapabilities] = useState<ProjectCapabilities | null>(null)
@@ -381,10 +380,7 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
 
   return (
     <div className="definitions-workspace" onKeyDown={handleWorkspaceKeyDown}>
-      <header className="definitions-titlebar">
-        <h1>{t('title')}</h1>
-        {canWrite && <div className="definition-title-actions"><button className="definition-button definition-button--quiet" type="button" onClick={() => setFolderCreateContext({ parentUuid: null })}><FolderPlus size={17} aria-hidden="true" /> {t('newFolder')}</button><button className="definition-button definition-button--primary" type="button" onClick={() => { setCreateDefinitionType(null); setShowCreate(true) }}><CirclePlus size={17} aria-hidden="true" /> {t('newDefinition')}</button></div>}
-      </header>
+      <h1 className="sr-only">{t('title')}</h1>
       {capabilityError && <div className="definition-notice definition-notice--info" role="status"><AlertCircle size={16} aria-hidden="true" /><span>{t('capabilityUnavailable')}</span></div>}
       {environmentLoadError && <div className="definition-notice definition-notice--error" role="alert"><AlertCircle size={16} aria-hidden="true" /><span>{t('environmentLoadError')}</span></div>}
 
@@ -430,17 +426,9 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
                   <h2>{selectedDefinition.name}</h2>
                   {selectedDefinition.description && <p>{selectedDefinition.description}</p>}
                 </div>
-                <div className="definition-document-actions">
-                  {canWrite && <button className="definition-button definition-button--quiet" type="button" onClick={() => setShowMoveDefinition(true)}>
-                    <FolderInput size={16} aria-hidden="true" /> {t('moveDefinition')}
-                  </button>}
-                  <button className="definition-icon-button" type="button" aria-label={t('reloadDraft')} onClick={() => void loadDefinition()}>
-                    <RefreshCw size={17} aria-hidden="true" />
-                  </button>
-                </div>
               </header>
 
-              <div className="definition-tabs" role="tablist" aria-label={t('details')} onKeyDown={(event) => {
+              {bindingTypes.has(selectedDefinition.type) ? <div className="definition-tabs" role="tablist" aria-label={t('details')} onKeyDown={(event) => {
                 if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
                 const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
                 const current = buttons.indexOf(document.activeElement as HTMLButtonElement)
@@ -451,25 +439,17 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
                   <FileCode2 size={16} aria-hidden="true" /> {t('draft')}
                   {dirty && <span className="definition-dirty-dot" aria-label={t('unsaved')} />}
                 </button>
-                <button id="definition-tab-versions" type="button" role="tab" tabIndex={tab === 'versions' ? 0 : -1} aria-selected={tab === 'versions'} aria-controls="definition-panel-versions" onClick={() => setTab('versions')}>
-                  <ShieldCheck size={16} aria-hidden="true" /> {t('versions')} <span className="definition-count">{versions.length}</span>
+                <button id="definition-tab-bindings" type="button" role="tab" tabIndex={tab === 'bindings' ? 0 : -1} aria-selected={tab === 'bindings'} aria-controls="definition-panel-bindings" onClick={() => setTab('bindings')}>
+                  <GitBranch size={16} aria-hidden="true" /> {t('binding')} <span className="definition-count">{bindings.length}</span>
                 </button>
-                {bindingTypes.has(selectedDefinition.type) && (
-                  <button id="definition-tab-bindings" type="button" role="tab" tabIndex={tab === 'bindings' ? 0 : -1} aria-selected={tab === 'bindings'} aria-controls="definition-panel-bindings" onClick={() => setTab('bindings')}>
-                    <GitBranch size={16} aria-hidden="true" /> {t('binding')} <span className="definition-count">{bindings.length}</span>
-                  </button>
-                )}
-              </div>
+              </div> : null}
 
               {draftLoading ? (
                 <div className="definition-state"><LoaderCircle className="spin" aria-hidden="true" /> {t('loading')}</div>
               ) : tab === 'draft' ? (
                 <section id="definition-panel-draft" className="definition-editor-panel" role="tabpanel" aria-labelledby="definition-tab-draft">
-                  <div className="definition-editor-toolbar">
-                    <div className="definition-draft-state">
-                      <strong>{draft ? t('draftVersion', { version: draft.version }) : t('noDraft')}</strong>
-                      {dirty && <span>{t('unsaved')}</span>}
-                    </div>
+                  <div className="definition-editor-toolbar definition-editor-toolbar--compact">
+                    {dirty ? <span className="definition-unsaved-state">{t('unsaved')}</span> : <span />}
                     {canWrite && <div className="definition-editor-actions">
                       <button className="definition-button definition-button--primary" type="button" disabled={saving || !dirty} onClick={() => void saveDraft()}>
                         {saving ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Save size={16} aria-hidden="true" />}
@@ -535,8 +515,9 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
           folders={folders}
           types={types.filter((type) => type.code !== 'REUSABLE_MAPPING')}
           initialType={createDefinitionType}
+          initialFolderUuid={createDefinitionFolderUuid}
           creating={creating}
-          close={() => { setShowCreate(false); setCreateDefinitionType(null) }}
+          close={() => { setShowCreate(false); setCreateDefinitionType(null); setCreateDefinitionFolderUuid(null) }}
           onCreate={async (input) => {
             setCreating(true)
             try {
@@ -547,6 +528,7 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
               notifyProjectTreeChanged()
               setShowCreate(false)
               setCreateDefinitionType(null)
+              setCreateDefinitionFolderUuid(null)
               setTab('draft')
             } catch (error) {
               setStatus({ tone: 'error', text: errorMessage(error, t('requestError')) })
@@ -944,14 +926,15 @@ interface CreateDefinitionDialogProps {
   folders: Folder[]
   types: DefinitionTypeDescriptor[]
   initialType: DefinitionType | null
+  initialFolderUuid: string | null
   creating: boolean
   close: () => void
   onCreate: (input: NewDefinitionInput) => Promise<void>
 }
 
-function CreateDefinitionDialog({ folders, types, initialType, creating, close, onCreate }: CreateDefinitionDialogProps) {
+function CreateDefinitionDialog({ folders, types, initialType, initialFolderUuid, creating, close, onCreate }: CreateDefinitionDialogProps) {
   const { t } = useDefinitionsI18n()
-  const [input, setInput] = useState<NewDefinitionInput>({ folderUuid: null, type: initialType ?? 'MAPPING', code: '', name: '', description: '' })
+  const [input, setInput] = useState<NewDefinitionInput>({ folderUuid: initialFolderUuid, type: initialType ?? 'MAPPING', code: '', name: '', description: '' })
   const descriptor = types.find((type) => type.code === input.type)
   const fixedComponentType = initialType !== null && !descriptor?.folderRequired
   async function submit(event: FormEvent) {
