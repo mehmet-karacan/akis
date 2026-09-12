@@ -109,3 +109,13 @@ Bu kapı gerçek katalog ve keşif repository sorgularını çalıştırır. Ayn
 yeniden keşfedildiğinde tek parmak izli görüntüye çözülür; kolon ve kısıt kolon
 sıraları ilişkisel tutulur. Oracle görüntüsü ayrıca başarılı bağlantı testine ve
 hedef parmak izine sabitlenmiş değişmez bir kanıt kaydı taşır.
+
+Doğrulama sonuçları ve ODI karşılığı olan üretilmiş Scenario kayıtları için:
+
+```powershell
+.\database\akis-baseline\test-scenarios.ps1
+```
+
+Scenario, belirli bir değişmez tanım sürümünden kanonik olarak derlenen planı ve
+SHA-256 özetini saklar. Aynı içerik yeniden üretildiğinde ikinci bir Scenario
+oluşturulmaz; doğrulama ve plan kayıtları sonradan değiştirilemez.

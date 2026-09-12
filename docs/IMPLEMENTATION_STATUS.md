@@ -20,6 +20,9 @@ Status date: 2026-09-12
   use the clean `akis` schema. Temporary PostgreSQL acceptance tests exercise
   catalog vocabulary translation, hierarchy creation, deterministic snapshot
   deduplication and ordered relational metadata.
+- Validation evidence and generated Scenario plans now run on the clean schema.
+  The database enforces source-version scope and successful validation, while
+  repository tests prove deterministic compilation and idempotent generation.
 - The connection UI no longer loads or manages separate secret-reference
   objects. It records only the name of a server-side environment variable; its
   value stays outside PostgreSQL, API responses, bundles and Git.
