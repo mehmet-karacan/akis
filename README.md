@@ -131,6 +131,11 @@ Kontrollü DBA kurulumu ve bağımsız doğrulama için:
 Transaction protokolü, nesneler ve negatif test kapıları
 `database/oracle/README.md` belgesindedir.
 
+Gelecekteki Oracle staging/geçici nesneleri bağlantı ayarı değildir; çalışma
+şeması ve yürütme stratejisi bağlamında platform tarafından adlandırılır.
+`AKIS_C$`, `AKIS_I$` ve `AKIS_E$` sahiplik sözleşmesi
+`docs/architecture/ORACLE_WORK_OBJECT_NAMING.md` belgesindedir.
+
 Container'ları durdurmak için:
 
     .\scripts\dev-down.ps1

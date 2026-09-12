@@ -254,11 +254,13 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
 
   const submit = async (name: Exclude<FormName, null>, event: FormEvent<HTMLFormElement>, request: (data: FormData) => Promise<unknown>, after?: () => Promise<void> | void) => {
     event.preventDefault()
+    const formElement = event.currentTarget
+    const formData = new FormData(formElement)
     setBusy(name)
     setActionError('')
     try {
-      await request(new FormData(event.currentTarget))
-      event.currentTarget.reset()
+      await request(formData)
+      formElement.reset()
       setForm(null)
       await loadAll()
       await after?.()

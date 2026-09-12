@@ -5,6 +5,7 @@ $ErrorActionPreference = "Stop"
 $baselineDirectory = $PSScriptRoot
 $v001 = Join-Path $baselineDirectory "V001__identity_rbac_project.sql"
 $v002 = Join-Path $baselineDirectory "V002__connections_and_schemas.sql"
+$v013 = Join-Path $baselineDirectory "V013__physical_schema_identity_per_connection.sql"
 $verification = Join-Path $baselineDirectory "verify-connections.sql"
 $projectRoot = Split-Path -Parent (Split-Path -Parent $baselineDirectory)
 $envFile = Join-Path $projectRoot ".env"
@@ -39,6 +40,7 @@ try {
     $files = @(
         @{ Local = $v001; Container = "/tmp/akis-clean-v001.sql" },
         @{ Local = $v002; Container = "/tmp/akis-clean-v002.sql" },
+        @{ Local = $v013; Container = "/tmp/akis-clean-v013.sql" },
         @{ Local = $verification; Container = "/tmp/akis-clean-connections-verify.sql" }
     )
     foreach ($file in $files) {

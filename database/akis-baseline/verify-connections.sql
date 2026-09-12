@@ -89,8 +89,9 @@ VALUES
 
 INSERT INTO fiziksel_sema(id, proje_id, baglanti_id, kod, ad, sema_adi) VALUES
     (910030, 910001, 910010, 'SKY_TTBP', 'SKY TTBP', 'TTBP'),
-    (910031, 910001, 910011, 'GPU_INNOVA_ODI', 'GPU INNOVA ODI', 'INNOVA_ODI'),
-    (910032, 910002, 910012, 'OTHER_SCHEMA', 'Other Schema', 'OTHER');
+    (910031, 910001, 910011, 'INNOVA_ODI', 'GPU INNOVA ODI', 'INNOVA_ODI'),
+    (910032, 910002, 910012, 'OTHER_SCHEMA', 'Other Schema', 'OTHER'),
+    (910033, 910001, 910010, 'INNOVA_ODI', 'SKY INNOVA ODI', 'INNOVA_ODI');
 
 INSERT INTO mantiksal_sema(id, proje_id, kod, ad)
 VALUES
