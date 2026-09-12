@@ -1,19 +1,17 @@
-# Akış portable proje bundle formatı v1
+# Akış portable proje bundle formatı v2
 
 ## Kapsam
 
-V1 proje bundle, bir projenin taşınabilir tasarım metadatasıdır. Backend
+V2 proje bundle, bir projenin taşınabilir tasarım metadatasıdır. Backend
 sözleşmesi `ProjectBundleModels.ProjectBundle`, normatif JSON şeması ise
-[`project-bundle-v1.schema.json`](../schemas/project-bundle-v1.schema.json)
+[`project-bundle-v2.schema.json`](../schemas/project-bundle-v2.schema.json)
 dosyasıdır.
 
-V1 yalnız proje metadatasını, klasör hiyerarşisini, proje kapsamlı tanımları,
-varsa tanım taslağını ve immutable tanım sürümlerini taşır.
-
-V1 full topology taşımaz. Credential/secret referansları, bağlantılar, bağlantı
-sürümleri, fiziksel ve mantıksal şemalar, ortamlar ve şema eşlemeleri bundle'da
-yoktur. Definition dependency, data binding, Scenario, publication, schedule,
-çalıştırma/audit, kullanıcı ve yetki kayıtları da kapsam dışıdır.
+V2 proje metadatasını, klasör hiyerarşisini, proje kapsamlı tanımları, taslak ve
+değişmez tanım sürümlerini; ayrıca bağlantı/sürüm, fiziksel-mantıksal şema,
+ortam/eşleme, model/alt model ve veri nesnesi tasarımını taşır. Parola veya secret
+değeri, bağlantı test kanıtı, keşif görüntüsü, Scenario, yayın, zamanlama,
+çalıştırma/audit, kullanıcı ve yetki kayıtları taşınmaz.
 
 ## JSON şekli
 
@@ -22,8 +20,8 @@ yoktur. Definition dependency, data binding, Scenario, publication, schedule,
 ```json
 {
   "format": "akis.project-bundle",
-  "formatVersion": 1,
-  "schemaVersion": 1,
+  "formatVersion": 2,
+  "schemaVersion": 2,
   "checksum": "cc3bc34c27d254e8efedb77208a43eb4d161d49ced7190ecdf7b89176a16b335",
   "exportedAt": "2026-09-11T10:30:00Z",
   "project": {
@@ -78,7 +76,8 @@ yoktur. Definition dependency, data binding, Scenario, publication, schedule,
     }
   ],
   "topology": {
-    "sanitized": true
+    "sanitized": true,
+    "definitions": {}
   }
 }
 ```
@@ -86,8 +85,8 @@ yoktur. Definition dependency, data binding, Scenario, publication, schedule,
 Örnekteki hash değerleri şekli göstermek içindir; gerçek dosyada backend
 tarafından hesaplanan değerler kullanılmalıdır.
 
-`format`, `formatVersion` ve `schemaVersion` için kabul edilen tek v1 değerleri
-sırasıyla `akis.project-bundle`, `1` ve `1`'dir. Daha yeni/eski değerler
+`format`, `formatVersion` ve `schemaVersion` için kabul edilen tek v2 değerleri
+sırasıyla `akis.project-bundle`, `2` ve `2`'dir. Daha yeni/eski değerler
 fail-closed reddedilir. Backend hata kodları `UNSUPPORTED_FORMAT`,
 `UNSUPPORTED_FORMAT_VERSION` ve `UNSUPPORTED_SCHEMA_VERSION` değerleridir.
 
@@ -157,14 +156,16 @@ Immutable sürüm alanları `versionNumber`, `schemaVersion`, `contentHash`,
   karakterdir.
 - `createdAt` zorunludur ve import sırasında değiştirilmez.
 - Exporter sürümleri `versionNumber` artan sırasıyla yazar.
-- Import mevcut sürümü update etmez; v1 her zaman yeni proje oluşturduğu için
+- Import mevcut sürümü update etmez; v2 her zaman yeni proje oluşturduğu için
   sürümleri verilen numara ve hash ile yeni proje içine ekler.
 
-## Topology marker ve secret sınırı
+## Taşınabilir topology ve secret sınırı
 
-V1 topology kaydı tam olarak `{"sanitized": true}` şeklindedir. Başka topology
-alanı yoktur. `sanitized: false`, backend tarafından `UNSANITIZED_TOPOLOGY`
-olarak reddedilir.
+V2 topology kaydı `sanitized: true` ve `definitions` nesnesini taşır. Bağlantı
+sürümleri import sırasında daima `TASLAK` oluşturulur; başka sistemden gelen test
+ve etkinleştirme kanıtı güvenilir sayılmaz. Kimlik bağı yalnız kullanıcı adı ile
+`ENV`/`VAULT` referansını taşır, secret değeri hiçbir zaman pakete girmez.
+`sanitized: false`, backend tarafından `UNSANITIZED_TOPOLOGY` olarak reddedilir.
 
 Secret değerleri draft veya immutable version `content` içine gömülemez.
 Backend `SecretValueSanitizer`, alan adını locale bağımsız küçük harfe çevirip
@@ -217,7 +218,7 @@ GET /api/v1/projects/{projectUuid}/bundle/export
 `PROJECT_READ` gerekir. Backend REPEATABLE READ, read-only transaction içinde
 project/folder/definition/draft/version snapshot'ını alır, stable folder path'leri
 kurar, secret taramasını ve document validation'ı çalıştırır, checksum'ı üretir.
-Yanıt dosya adı `{PROJECT_CODE}-bundle-v1.json` olur.
+Yanıt dosya adı `{PROJECT_CODE}-bundle-v2.json` olur.
 
 ### Validate
 
@@ -273,16 +274,16 @@ projeye merge etmez.
 
 ## Conflict policy
 
-| Değer | Gerçek v1 davranışı |
+| Değer | Gerçek v2 davranışı |
 |---|---|
 | `FAIL` | Hedefte aynı project code varsa HTTP 409 `BUNDLE_CONFLICT`; write yapılmaz. Kod boşsa kaynak project code ile yeni proje oluşturulur. |
 | `RENAME` | Hedefte code varsa sırayla `{CODE}_IMPORT_1`, `{CODE}_IMPORT_2`, ... denenir. 100 karakter sınırı için kaynak prefix'i suffix'e yer açacak şekilde kırpılır. İlk boş code dry-run ve import sonucudur. |
-| `SKIP` | Enum değeri ayrılmıştır ama v1'de uygulanmaz. HTTP 422 `UNSUPPORTED_CONFLICT_POLICY` ile fail-closed reddedilir. |
-| `NEW_VERSION` | Enum değeri ayrılmıştır ama v1'de uygulanmaz. HTTP 422 `UNSUPPORTED_CONFLICT_POLICY` ile fail-closed reddedilir. |
+| `SKIP` | Enum değeri ayrılmıştır ama v2'de uygulanmaz. HTTP 422 `UNSUPPORTED_CONFLICT_POLICY` ile fail-closed reddedilir. |
+| `NEW_VERSION` | Enum değeri ayrılmıştır ama v2'de uygulanmaz. HTTP 422 `UNSUPPORTED_CONFLICT_POLICY` ile fail-closed reddedilir. |
 
 `RENAME` yalnız yeni hedef projenin code alanını değiştirir. Folder path,
 definition code veya immutable version numaralarını yeniden adlandırmaz. Çünkü
-v1 import var olan proje içeriğiyle merge etmez.
+v2 import var olan proje içeriğiyle merge etmez.
 
 ## Uygulanan validation sınırları
 

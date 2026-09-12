@@ -129,7 +129,8 @@ public class ProjectBundleService {
                 FORMAT, FORMAT_VERSION, SCHEMA_VERSION, null, OffsetDateTime.now(),
                 new ProjectEntry(
                         project.code(), project.status(), project.name(), project.description()),
-                folders, definitions, new TopologyEntry(true));
+                folders, definitions, new TopologyEntry(
+                        true, repository.loadPortableTopology(project.id())));
         assertNoSecretValues(withoutChecksum);
         List<BundleIssue> exportIssues = new ArrayList<>();
         validateDocument(withoutChecksum, exportIssues);
@@ -179,6 +180,8 @@ public class ProjectBundleService {
         var project = repository.insertProject(
                 projectUuid, targetCode, bundle.project().status(),
                 bundle.project().name(), bundle.project().description());
+
+        repository.importPortableTopology(project.id(), bundle.topology().definitions());
 
         Map<String, Long> folderIdsByPath = new HashMap<>();
         bundle.folders().stream()
@@ -310,7 +313,33 @@ public class ProjectBundleService {
         }
         else if (!bundle.topology().sanitized()) {
             issue(issues, "topology.sanitized", "UNSANITIZED_TOPOLOGY",
-                    "Topology must be marked sanitized in bundle v1.");
+                    "Topology must be marked sanitized.");
+        }
+        else if (bundle.topology().definitions() == null
+                || !bundle.topology().definitions().isObject()) {
+            issue(issues, "topology.definitions", "TOPOLOGY_DEFINITIONS_REQUIRED",
+                    "Portable topology definitions must be an object.");
+        }
+        else {
+            JsonNode topology = bundle.topology().definitions();
+            for (String name : List.of(
+                    "connections", "physicalSchemas", "logicalSchemas", "environments",
+                    "schemaBindings", "models", "submodels", "dataObjects")) {
+                if (topology.get(name) == null || !topology.get(name).isArray()) {
+                    issue(issues, "topology.definitions." + name, "TOPOLOGY_ARRAY_REQUIRED",
+                            name + " must be an array.");
+                }
+            }
+            for (String secretPath : secretSanitizer.sensitivePaths(topology)) {
+                issue(issues, "topology.definitions" + secretPath.substring(1),
+                        "SECRET_VALUE_FORBIDDEN", "Secret values are forbidden in project bundles.");
+            }
+            JsonLimits topologyLimits = jsonLimits(topology);
+            if (topologyLimits.depth() > MAX_JSON_DEPTH
+                    || topologyLimits.nodes() > MAX_BUNDLE_JSON_NODES) {
+                issue(issues, "topology.definitions", "TOPOLOGY_SIZE_LIMIT_EXCEEDED",
+                        "Portable topology exceeds the JSON safety limits.");
+            }
         }
         if (!HASH.matcher(nullToEmpty(bundle.checksum())).matches()) {
             issue(issues, "checksum", "INVALID_BUNDLE_CHECKSUM",

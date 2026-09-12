@@ -17,7 +17,7 @@ export function safeBundleFileName(projectCode: string) {
     .replace(/[^a-zA-Z0-9._-]+/g, '-')
     .replace(/^[._-]+|[._-]+$/g, '')
     .slice(0, 80)
-  return `${normalized || 'project'}-bundle-v1.json`
+  return `${normalized || 'project'}-bundle-v2.json`
 }
 
 export function isBundleDocument(value: unknown): value is ProjectBundleDocument {
@@ -26,8 +26,8 @@ export function isBundleDocument(value: unknown): value is ProjectBundleDocument
   const project = document.project
   const topology = document.topology
   return document.format === BUNDLE_FORMAT
-    && document.formatVersion === 1
-    && document.schemaVersion === 1
+    && document.formatVersion === 2
+    && document.schemaVersion === 2
     && typeof document.checksum === 'string'
     && typeof document.exportedAt === 'string'
     && Boolean(project)
@@ -41,6 +41,8 @@ export function isBundleDocument(value: unknown): value is ProjectBundleDocument
     && typeof topology === 'object'
     && !Array.isArray(topology)
     && typeof (topology as Record<string, unknown>).sanitized === 'boolean'
+    && Boolean((topology as Record<string, unknown>).definitions)
+    && typeof (topology as Record<string, unknown>).definitions === 'object'
 }
 
 export async function readBundleFile(file: File): Promise<SelectedBundle> {

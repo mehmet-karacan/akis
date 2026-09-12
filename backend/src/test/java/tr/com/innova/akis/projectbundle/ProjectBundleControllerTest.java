@@ -15,6 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import tools.jackson.databind.ObjectMapper;
 
 import tr.com.innova.akis.projectbundle.ProjectBundleModels.BundleCounts;
 import tr.com.innova.akis.projectbundle.ProjectBundleModels.ConflictPolicy;
@@ -57,7 +58,7 @@ class ProjectBundleControllerTest {
         assertEquals(projectUuid, authorization.projectUuid);
         assertEquals(PROJECT_READ, authorization.permission);
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertTrue(response.getHeaders().getContentDisposition().getFilename().startsWith("DEMO-bundle-v1"));
+        assertTrue(response.getHeaders().getContentDisposition().getFilename().startsWith("DEMO-bundle-v2"));
     }
 
     @Test
@@ -126,9 +127,11 @@ class ProjectBundleControllerTest {
 
         private ProjectBundle bundle() {
             return new ProjectBundle(
-                    ProjectBundleModels.FORMAT, 1, 1, "0".repeat(64),
+                    ProjectBundleModels.FORMAT, ProjectBundleModels.FORMAT_VERSION,
+                    ProjectBundleModels.SCHEMA_VERSION, "0".repeat(64),
                     OffsetDateTime.now(), new ProjectEntry("DEMO", "AKTIF", "Demo", null),
-                    List.of(), List.of(), new TopologyEntry(true));
+                    List.of(), List.of(), new TopologyEntry(
+                            true, new ObjectMapper().createObjectNode()));
         }
     }
 }

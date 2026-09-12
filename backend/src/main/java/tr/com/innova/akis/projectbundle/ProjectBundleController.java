@@ -42,7 +42,7 @@ final class ProjectBundleController {
         ProjectBundle bundle = service.exportBundle(projectUuid);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=\"" + bundle.project().code() + "-bundle-v1.json\"")
+                        "attachment; filename=\"" + bundle.project().code() + "-bundle-v2.json\"")
                 .body(bundle);
     }
 

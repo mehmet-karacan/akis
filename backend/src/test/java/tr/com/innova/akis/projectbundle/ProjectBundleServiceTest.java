@@ -315,7 +315,7 @@ class ProjectBundleServiceTest {
                                 "ROOT", null, "ROOT", "GELISTIRME",
                                 "AKTIF", "Root", null)),
                 List.of(definition),
-                new TopologyEntry(true));
+                new TopologyEntry(true, emptyTopology()));
     }
 
     private ProjectBundle sign(ProjectBundleService service, ProjectBundle bundle) {
@@ -371,6 +371,15 @@ class ProjectBundleServiceTest {
         }
 
         @Override
+        JsonNode loadPortableTopology(long projectId) {
+            return emptyTopology();
+        }
+
+        @Override
+        void importPortableTopology(long projectId, JsonNode topology) {
+        }
+
+        @Override
         ProjectRow insertProject(
                 UUID uuid, String code, String status, String name, String description) {
             writeCount++;
@@ -417,5 +426,15 @@ class ProjectBundleServiceTest {
             writeCount++;
             insertedVersions++;
         }
+    }
+
+    private static JsonNode emptyTopology() {
+        var value = new ObjectMapper().createObjectNode();
+        for (String name : List.of(
+                "connections", "physicalSchemas", "logicalSchemas", "environments",
+                "schemaBindings", "models", "submodels", "dataObjects")) {
+            value.putArray(name);
+        }
+        return value;
     }
 }

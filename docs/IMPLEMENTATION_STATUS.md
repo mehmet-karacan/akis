@@ -93,8 +93,10 @@ multi-engine support, deployment automation and production operations.
   default and in CI.
 - Publication operations UI now exposes independent SKY source and GPU target
   read-only readiness checks beside approval, with bilingual result summaries.
-- Project bundle V1 export/import for definition metadata. Secret values remain
-  outside bundles and Git.
+- Project bundle V2 export/import for definitions, connection revisions,
+  physical/logical schemas, environments, schema bindings, models, submodels and
+  data objects. Imported revisions return to draft; secret values, runtime
+  evidence and discovery snapshots remain outside bundles and Git.
 
 ## Current HAKEDIS_TIPI pilot state
 
@@ -132,8 +134,6 @@ flags remain local-only deployment controls; CI/CD remains disabled.
 
 ## Work after the first pilot
 
-- Bundle V2 for complete project export/import including topology references,
-  procedures, mappings, packages, variables and sequences; never secret values.
 - Runtime semantics for variables, sequences, packages and load plans.
 - Scheduling, retry/restart policies, notifications and operator runbooks.
 - OIDC/SSO, production RBAC review, retention, backup/restore and observability.

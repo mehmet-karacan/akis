@@ -40,7 +40,7 @@ export interface ProjectBundleDocument {
   }
   folders: unknown[]
   definitions: unknown[]
-  topology: { sanitized: boolean }
+  topology: { sanitized: boolean; definitions: Record<string, unknown> }
 }
 
 export interface SelectedBundle {

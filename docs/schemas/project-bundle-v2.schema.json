@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://akis.innova.com/schemas/project-bundle-v2.schema.json",
+  "title": "Akis portable project bundle v2",
+  "type": "object",
+  "required": ["format", "formatVersion", "schemaVersion", "checksum", "exportedAt", "project", "folders", "definitions", "topology"],
+  "properties": {
+    "format": { "const": "akis.project-bundle" },
+    "formatVersion": { "const": 2 },
+    "schemaVersion": { "const": 2 },
+    "checksum": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "exportedAt": { "type": "string", "format": "date-time" },
+    "project": { "type": "object" },
+    "folders": { "type": "array", "maxItems": 10000 },
+    "definitions": { "type": "array", "maxItems": 20000 },
+    "topology": {
+      "type": "object",
+      "required": ["sanitized", "definitions"],
+      "properties": {
+        "sanitized": { "const": true },
+        "definitions": {
+          "type": "object",
+          "required": ["connections", "physicalSchemas", "logicalSchemas", "environments", "schemaBindings", "models", "submodels", "dataObjects"],
+          "properties": {
+            "connections": { "type": "array" }, "physicalSchemas": { "type": "array" },
+            "logicalSchemas": { "type": "array" }, "environments": { "type": "array" },
+            "schemaBindings": { "type": "array" }, "models": { "type": "array" },
+            "submodels": { "type": "array" }, "dataObjects": { "type": "array" }
+          }
+        }
+      }
+    }
+  }
+}

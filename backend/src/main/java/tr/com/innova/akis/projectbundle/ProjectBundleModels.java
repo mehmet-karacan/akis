@@ -11,8 +11,8 @@ import tr.com.innova.akis.metadata.DefinitionType;
 public final class ProjectBundleModels {
 
     public static final String FORMAT = "akis.project-bundle";
-    public static final int FORMAT_VERSION = 1;
-    public static final int SCHEMA_VERSION = 1;
+    public static final int FORMAT_VERSION = 2;
+    public static final int SCHEMA_VERSION = 2;
 
     private ProjectBundleModels() {
     }
@@ -76,11 +76,8 @@ public final class ProjectBundleModels {
             OffsetDateTime createdAt) {
     }
 
-    /**
-     * Topology import is intentionally not implemented in v1. The marker lets
-     * producers explicitly state that the omitted topology has been sanitized.
-     */
-    public record TopologyEntry(boolean sanitized) {
+    /** Portable design topology. Runtime test, discovery and secret values are excluded. */
+    public record TopologyEntry(boolean sanitized, JsonNode definitions) {
     }
 
     public record BundleIssue(

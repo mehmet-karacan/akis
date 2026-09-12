@@ -15,7 +15,7 @@ const en = {
   emptyFile: 'The selected file is empty.',
   fileTooLarge: 'The selected file exceeds the 10 MB limit.',
   invalidJson: 'The selected file is not valid JSON.',
-  invalidFormat: 'This is not an AKIS project bundle v1.',
+  invalidFormat: 'This is not an AKIS project bundle v2.',
   validating: 'Validating bundle…',
   validationPassed: 'Server validation passed.',
   validationFailed: 'Bundle validation found issues.',
@@ -51,7 +51,7 @@ const en = {
   fileName: 'File name',
   fileSize: 'Size',
   bundleProject: 'Bundle project',
-  securityNotice: 'Topology and secret values are not imported by bundle v1.',
+  securityNotice: 'Design topology is imported by bundle v2; secret values and runtime evidence are never imported.',
   reset: 'Start Over',
 } as const
 
@@ -70,7 +70,7 @@ const tr: Record<keyof typeof en, string> = {
   emptyFile: 'Seçilen dosya boş.',
   fileTooLarge: 'Seçilen dosya 10 MB sınırını aşıyor.',
   invalidJson: 'Seçilen dosya geçerli JSON değil.',
-  invalidFormat: 'Bu dosya AKIS proje paketi v1 değil.',
+  invalidFormat: 'Bu dosya AKIS proje paketi v2 değil.',
   validating: 'Paket doğrulanıyor…',
   validationPassed: 'Sunucu doğrulaması başarılı.',
   validationFailed: 'Paket doğrulamasında sorunlar bulundu.',
@@ -106,7 +106,7 @@ const tr: Record<keyof typeof en, string> = {
   fileName: 'Dosya adı',
   fileSize: 'Boyut',
   bundleProject: 'Paket projesi',
-  securityNotice: 'Paket v1 topoloji ve secret değerlerini içe aktarmaz.',
+  securityNotice: 'Paket v2 tasarım topolojisini içe aktarır; secret değerleri ve çalışma kanıtları hiçbir zaman aktarılmaz.',
   reset: 'Baştan Başla',
 }
 

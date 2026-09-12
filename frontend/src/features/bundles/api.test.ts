@@ -4,14 +4,14 @@ import type { ProjectBundleDocument } from './types'
 
 const document = {
   format: 'akis.project-bundle',
-  formatVersion: 1,
-  schemaVersion: 1,
+  formatVersion: 2,
+  schemaVersion: 2,
   checksum: 'a'.repeat(64),
   exportedAt: '2026-09-11T00:00:00Z',
   project: { code: 'DEMO', status: 'AKTIF', name: 'Demo', description: null },
   folders: [],
   definitions: [],
-  topology: { sanitized: true },
+  topology: { sanitized: true, definitions: {} },
 } satisfies ProjectBundleDocument
 
 afterEach(() => vi.unstubAllGlobals())
