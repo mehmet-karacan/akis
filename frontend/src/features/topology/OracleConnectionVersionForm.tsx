@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { CheckCircle2, ChevronLeft, ChevronRight, CircleAlert, Database, LoaderCircle, ServerCog } from 'lucide-react'
-import { topologyApi, type ConnectionVersion, type SecretReference } from './api'
+import { topologyApi, type ConnectionVersion } from './api'
 import { initialConnectionVersionDraft, toCreateConnectionVersionRequest, validateConnectionVersionDraft, type ConnectionVersionDraft } from './connectionVersionModel'
 import type { getTopologyCopy } from './copy'
 import { ConnectionVersionLifecyclePanel, lifecycleLabel } from './ConnectionVersionLifecyclePanel'
@@ -8,24 +8,18 @@ import { ConnectionVersionLifecyclePanel, lifecycleLabel } from './ConnectionVer
 interface Props {
   projectUuid: string
   connectionUuid: string
-  secrets: SecretReference[]
   copy: ReturnType<typeof getTopologyCopy>
   locale: string
   onVersionChanged(versionUuid: string): Promise<ConnectionVersion | undefined>
   onClose(): void
 }
 
-export function OracleConnectionVersionForm({ projectUuid, connectionUuid, secrets, copy: c, locale, onVersionChanged, onClose }: Props) {
+export function OracleConnectionVersionForm({ projectUuid, connectionUuid, copy: c, locale, onVersionChanged, onClose }: Props) {
   const [draft, setDraft] = useState<ConnectionVersionDraft>(initialConnectionVersionDraft)
   const [step, setStep] = useState(0)
   const [busy, setBusy] = useState<'create' | 'test' | ''>('')
   const [error, setError] = useState('')
   const [created, setCreated] = useState<ConnectionVersion | null>(null)
-  const eligibleSecrets = useMemo(
-    () => secrets.filter((item) => item.provider === 'ENV' && item.status === 'AKTIF'),
-    [secrets],
-  )
-  const credential = useMemo(() => eligibleSecrets.find((item) => item.uuid === draft.credentialSecretReferenceUuid), [draft.credentialSecretReferenceUuid, eligibleSecrets])
   const steps = [c.endpointStep, c.credentialsStep, c.reviewStep]
 
   const update = <K extends keyof ConnectionVersionDraft>(key: K, value: ConnectionVersionDraft[K]) => {
@@ -113,21 +107,20 @@ export function OracleConnectionVersionForm({ projectUuid, connectionUuid, secre
 
     {step === 1 && <div className="topology-form">
       {draft.mode === 'JDBC' ? <>
-        <label className="topology-field"><span>{c.credentialSecret} *</span><select required value={draft.credentialSecretReferenceUuid} onChange={(event) => update('credentialSecretReferenceUuid', event.target.value)}><option value="">—</option>{eligibleSecrets.map((item) => <option key={item.uuid} value={item.uuid}>{item.name} · {item.code}</option>)}</select></label>
+        <label className="topology-field"><span>{c.credentialSecret} *</span><input required value={draft.credentialReferencePath} onChange={(event) => update('credentialReferencePath', event.target.value.toUpperCase())} placeholder="AKIS_ORACLE_SKY_CREDENTIAL" autoComplete="off" /></label>
         <p className="topology-security-note">{c.noSecretValues}</p>
-        {!eligibleSecrets.length && <div className="topology-inline-error"><CircleAlert />{c.secretRequiredHint}</div>}
       </> : <div className="topology-managed-note"><ServerCog /><div><strong>{c.containerManaged}</strong><p>{c.containerManagedHint}</p></div></div>}
     </div>}
 
     {step === 2 && <dl className="topology-review">
       <div><dt>{c.connectionMode}</dt><dd>{draft.mode}</dd></div>
-      {draft.mode === 'JDBC' ? <><div><dt>{c.endpoint}</dt><dd>{draft.host}:{draft.port}</dd></div><div><dt>{c.connectIdentifier}</dt><dd>{draft.identifierType} · {draft.identifier}</dd></div><div><dt>{c.transport}</dt><dd>{draft.transport}</dd></div><div><dt>{c.credentialSecret}</dt><dd>{credential?.name ?? '—'}</dd></div><div><dt>{c.driver}</dt><dd>oracle.jdbc.OracleDriver · {c.systemManaged}</dd></div></> : <div><dt>{c.jndiName}</dt><dd>{draft.jndiName}</dd></div>}
+      {draft.mode === 'JDBC' ? <><div><dt>{c.endpoint}</dt><dd>{draft.host}:{draft.port}</dd></div><div><dt>{c.connectIdentifier}</dt><dd>{draft.identifierType} · {draft.identifier}</dd></div><div><dt>{c.transport}</dt><dd>{draft.transport}</dd></div><div><dt>{c.credentialSecret}</dt><dd>{draft.credentialReferencePath || '—'}</dd></div><div><dt>{c.driver}</dt><dd>oracle.jdbc.OracleDriver · {c.systemManaged}</dd></div></> : <div><dt>{c.jndiName}</dt><dd>{draft.jndiName}</dd></div>}
       <div><dt>{c.executionPolicy}</dt><dd>{draft.connectTimeoutMs} / {draft.readTimeoutMs} / {draft.networkTimeoutMs} ms · {draft.queryTimeoutSeconds} s</dd></div>
     </dl>}
 
     <div className="topology-form-actions">
       <button className="topology-button topology-button--quiet" type="button" onClick={() => step === 0 ? onClose() : setStep((current) => current - 1)}><ChevronLeft />{step === 0 ? c.close : c.back}</button>
-      {step < 2 ? <button className="topology-button" type="submit" disabled={step === 1 && draft.mode === 'JDBC' && !eligibleSecrets.length}>{c.continue}<ChevronRight /></button> : <button className="topology-button" type="submit" disabled={busy === 'create'}>{busy === 'create' ? <LoaderCircle className="is-spinning" /> : <CheckCircle2 />}{busy === 'create' ? c.creating : c.createVersion}</button>}
+      {step < 2 ? <button className="topology-button" type="submit">{c.continue}<ChevronRight /></button> : <button className="topology-button" type="submit" disabled={busy === 'create'}>{busy === 'create' ? <LoaderCircle className="is-spinning" /> : <CheckCircle2 />}{busy === 'create' ? c.creating : c.createVersion}</button>}
     </div>
   </form>
 }

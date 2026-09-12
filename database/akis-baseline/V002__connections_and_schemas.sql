@@ -49,6 +49,8 @@ CREATE TABLE baglanti_surumu (
     sorgu_zaman_asimi_saniye INTEGER NOT NULL DEFAULT 60,
     kullanim_amaci VARCHAR(64),
     durum VARCHAR(20) NOT NULL DEFAULT 'TASLAK',
+    hedef_kimlik_surumu INTEGER,
+    hedef_parmak_izi VARCHAR(128),
     son_basarili_test_uuid UUID,
     test_edilme_zamani TIMESTAMPTZ,
     etkinlestirilme_zamani TIMESTAMPTZ,
@@ -97,10 +99,13 @@ CREATE TABLE baglanti_surumu (
     ),
     CONSTRAINT ck_baglanti_surumu_yasam CHECK (
         (durum = 'TASLAK' AND son_basarili_test_uuid IS NULL
+            AND hedef_kimlik_surumu IS NULL AND hedef_parmak_izi IS NULL
             AND test_edilme_zamani IS NULL AND etkinlestirilme_zamani IS NULL)
         OR (durum = 'TEST_EDILDI' AND son_basarili_test_uuid IS NOT NULL
+            AND hedef_kimlik_surumu IS NOT NULL AND hedef_parmak_izi IS NOT NULL
             AND test_edilme_zamani IS NOT NULL AND etkinlestirilme_zamani IS NULL)
         OR (durum = 'ETKIN' AND son_basarili_test_uuid IS NOT NULL
+            AND hedef_kimlik_surumu IS NOT NULL AND hedef_parmak_izi IS NOT NULL
             AND test_edilme_zamani IS NOT NULL AND etkinlestirilme_zamani IS NOT NULL)
         OR durum = 'KULLANIM_DISI'
     ),
@@ -154,6 +159,10 @@ CREATE TABLE baglanti_testi (
     urun_surumu VARCHAR(500),
     surucu_adi VARCHAR(500),
     surucu_surumu VARCHAR(500),
+    veritabani_ana_surumu INTEGER,
+    veritabani_alt_surumu INTEGER,
+    hedef_kimlik_surumu INTEGER,
+    hedef_parmak_izi VARCHAR(128),
     baslama_zamani TIMESTAMPTZ NOT NULL,
     tamamlanma_zamani TIMESTAMPTZ NOT NULL,
     sure_milisaniye BIGINT NOT NULL,
@@ -179,6 +188,11 @@ CREATE TABLE baglanti_testi (
         (sonuc = 'BASARILI' AND hata_kodu IS NULL
             AND urun_adi IS NOT NULL AND urun_surumu IS NOT NULL)
         OR (sonuc = 'BASARISIZ' AND hata_kodu IS NOT NULL)
+    ),
+    CONSTRAINT ck_baglanti_testi_hedef CHECK (
+        (sonuc = 'BASARILI' AND hedef_kimlik_surumu IS NOT NULL
+            AND hedef_parmak_izi IS NOT NULL)
+        OR sonuc = 'BASARISIZ'
     ),
     CONSTRAINT ck_baglanti_testi_audit CHECK (
         versiyon_no > 0

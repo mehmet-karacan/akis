@@ -5,13 +5,15 @@ describe('Oracle connection version model', () => {
   it('serializes a service-name JDBC profile without SID', () => {
     const request = toCreateConnectionVersionRequest({
       ...initialConnectionVersionDraft, host: 'db.example', identifier: 'ORCLPDB',
-      credentialSecretReferenceUuid: 'secret-1',
+      credentialReferencePath: 'AKIS_ORACLE_MAIN_CREDENTIAL',
     })
     expect(request).toMatchObject({
       mode: 'JDBC',
       jdbc: {
         connectIdentifier: { type: 'SERVICE_NAME', value: 'ORCLPDB' },
         transport: 'TCP',
+        credentialProvider: 'ENV',
+        credentialReferencePath: 'AKIS_ORACLE_MAIN_CREDENTIAL',
       },
     })
     expect(request).not.toHaveProperty('driverReference')
@@ -20,7 +22,7 @@ describe('Oracle connection version model', () => {
   it('serializes only the selected SID', () => {
     const request = toCreateConnectionVersionRequest({
       ...initialConnectionVersionDraft, host: '10.0.0.8', identifierType: 'SID',
-      identifier: 'ORCL', credentialSecretReferenceUuid: 'secret-1',
+      identifier: 'ORCL', credentialReferencePath: 'AKIS_ORACLE_MAIN_CREDENTIAL',
     })
     expect(request).toMatchObject({
       mode: 'JDBC',

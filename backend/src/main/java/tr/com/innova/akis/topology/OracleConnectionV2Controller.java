@@ -80,18 +80,18 @@ final class OracleConnectionV2Controller {
                     ? jdbc.connectIdentifier().value() : null;
             String sid = "SID".equals(identifierType)
                     ? jdbc.connectIdentifier().value() : null;
-            row = service.createConnectionVersion(
+            row = service.createConnectionVersionWithCredential(
                     projectUuid, connectionUuid, "JDBC", null, jdbc.host(),
                     serviceName, sid, null,
                     "DISABLED",
                     jdbc.port(), null, policyVersion, request.executionPolicy(),
-                    jdbc.credentialSecretReferenceUuid(), "KIMLIK");
+                    jdbc.credentialProvider(), jdbc.credentialReferencePath());
         }
         else {
             if (request.jndi() == null || request.jdbc() != null) {
                 throw validation("JNDI mode requires only the jndi payload.");
             }
-            row = service.createConnectionVersion(
+            row = service.createConnectionVersionWithCredential(
                     projectUuid, connectionUuid, "JNDI", null, null,
                     null, null, null, null, null, request.jndi().name(),
                     policyVersion, request.executionPolicy(), null, null);
@@ -145,7 +145,8 @@ final class OracleConnectionV2Controller {
             @NotNull @Min(1) @Max(65535) Integer port,
             @Valid @NotNull ConnectIdentifierRequest connectIdentifier,
             @NotBlank String transport,
-            @NotNull UUID credentialSecretReferenceUuid) {
+            @NotBlank String credentialProvider,
+            @NotBlank String credentialReferencePath) {
         @JsonAnySetter
         void rejectUnknown(String field, JsonNode value) {
             throw new IllegalArgumentException("Unknown Oracle JDBC V2 field: " + field);

@@ -143,20 +143,25 @@ $$;
 INSERT INTO baglanti_testi(
     id, proje_id, baglanti_surumu_id, deneme_no, sonuc,
     urun_adi, urun_surumu, surucu_adi, surucu_surumu,
+    hedef_kimlik_surumu, hedef_parmak_izi,
     baslama_zamani, tamamlanma_zamani, sure_milisaniye, uuid)
 VALUES
     (910060, 910001, 910020, 1, 'BASARILI',
         'Oracle Database', '19c', 'Oracle JDBC', '23',
+        1, repeat('a', 64),
         current_timestamp, current_timestamp, 0,
         '91000000-0000-0000-0000-000000000060'),
     (910061, 910001, 910021, 1, 'BASARILI',
         'Oracle Database', '19c', 'Oracle JDBC', '23',
+        1, repeat('b', 64),
         current_timestamp, current_timestamp, 0,
         '91000000-0000-0000-0000-000000000061');
 
 UPDATE baglanti_surumu
    SET durum = 'ETKIN',
        son_basarili_test_uuid = '91000000-0000-0000-0000-000000000061',
+       hedef_kimlik_surumu = 1,
+       hedef_parmak_izi = repeat('b', 64),
        test_edilme_zamani = current_timestamp,
        etkinlestirilme_zamani = current_timestamp
  WHERE id = 910021;
@@ -171,10 +176,12 @@ VALUES (
 INSERT INTO baglanti_testi(
     id, proje_id, baglanti_surumu_id, deneme_no, sonuc,
     urun_adi, urun_surumu, surucu_adi, surucu_surumu,
+    hedef_kimlik_surumu, hedef_parmak_izi,
     baslama_zamani, tamamlanma_zamani, sure_milisaniye, uuid)
 VALUES (
     910062, 910001, 910022, 1, 'BASARILI',
     'Oracle Database', '19c', 'Oracle JDBC', '23',
+    1, repeat('c', 64),
     current_timestamp, current_timestamp, 0,
     '91000000-0000-0000-0000-000000000062');
 
@@ -184,6 +191,8 @@ BEGIN
         UPDATE baglanti_surumu
            SET durum = 'ETKIN',
                son_basarili_test_uuid = '91000000-0000-0000-0000-000000000062',
+               hedef_kimlik_surumu = 1,
+               hedef_parmak_izi = repeat('c', 64),
                test_edilme_zamani = current_timestamp,
                etkinlestirilme_zamani = current_timestamp
          WHERE id = 910022;

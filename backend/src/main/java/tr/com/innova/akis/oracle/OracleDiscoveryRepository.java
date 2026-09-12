@@ -5,7 +5,6 @@ import java.util.UUID;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
-import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -33,41 +32,39 @@ public class OracleDiscoveryRepository {
                                b.id as connection_id,
                                b.uuid as connection_uuid,
                                bs.uuid as connection_version_uuid,
-                               b.veritabani_turu,
+                               b.saglayici_turu,
                                bs.baglanti_modu,
                                bs.jndi_adi,
-                               bs.surucu_referansi,
+                               bs.surucu_sinifi,
                                bs.sunucu_adi,
                                bs.servis_adi,
                                bs.sid,
                                bs.tls_modu,
                                bs.port,
-                               bs.politika,
-                               sr.saglayici_kodu,
-                               sr.referans_yolu,
-                               sr.durum_kodu as secret_status,
-                               yd.durum_kodu as lifecycle_status,
-                               yd.durum_surumu as lifecycle_state_version,
-                               yd.son_basarili_test_uuid,
-                               yd.hedef_kimlik_surumu,
-                               yd.hedef_parmak_izi
-                          from entegrasyon.proje p
-                          join entegrasyon.baglanti b
+                               bs.baglanti_zaman_asimi_ms,
+                               bs.okuma_zaman_asimi_ms,
+                               bs.ag_zaman_asimi_ms,
+                               bs.sorgu_zaman_asimi_saniye,
+                               bk.gizli_deger_saglayicisi,
+                               bk.gizli_deger_konumu,
+                               case when bk.id is null then null else 'AKTIF' end as secret_status,
+                               case bs.durum when 'TASLAK' then 'DRAFT'
+                                    when 'TEST_EDILDI' then 'TESTED'
+                                    when 'ETKIN' then 'ACTIVE' else 'DISABLED' end as lifecycle_status,
+                               bs.versiyon_no as lifecycle_state_version,
+                               bs.son_basarili_test_uuid,
+                               bs.hedef_kimlik_surumu,
+                               bs.hedef_parmak_izi
+                          from akis.proje p
+                          join akis.baglanti b
                             on b.proje_id = p.id
-                          join entegrasyon.baglanti_surumu bs
+                          join akis.baglanti_surumu bs
                             on bs.proje_id = p.id
                            and bs.baglanti_id = b.id
-                          join entegrasyon.baglanti_surumu_yasam_dongusu yd
-                            on yd.proje_id = p.id
-                           and yd.baglanti_id = b.id
-                           and yd.baglanti_surumu_id = bs.id
-                          left join entegrasyon.baglanti_secret_bagi ssb
-                            on ssb.proje_id = p.id
-                           and ssb.baglanti_surumu_id = bs.id
-                           and ssb.rol_kodu = 'KIMLIK'
-                          left join entegrasyon.secret_referansi sr
-                            on sr.proje_id = p.id
-                           and sr.id = ssb.secret_referansi_id
+                          left join akis.baglanti_kimligi bk
+                            on bk.proje_id = p.id
+                           and bk.baglanti_surumu_id = bs.id
+                           and bk.kullanim_amaci = 'VERITABANI'
                          where p.uuid = :projectUuid
                            and b.uuid = :connectionUuid
                            and bs.uuid = :connectionVersionUuid
@@ -80,18 +77,18 @@ public class OracleDiscoveryRepository {
                         rs.getLong("connection_id"),
                         rs.getObject("connection_uuid", UUID.class),
                         rs.getObject("connection_version_uuid", UUID.class),
-                        rs.getString("veritabani_turu"),
+                        rs.getString("saglayici_turu"),
                         rs.getString("baglanti_modu"),
                         rs.getString("jndi_adi"),
-                        rs.getString("surucu_referansi"),
+                        rs.getString("surucu_sinifi"),
                         rs.getString("sunucu_adi"),
                         rs.getString("servis_adi"),
                         rs.getString("sid"),
-                        rs.getString("tls_modu"),
+                        apiTlsMode(rs.getString("tls_modu")),
                         rs.getInt("port"),
-                        json(rs.getString("politika")),
-                        rs.getString("saglayici_kodu"),
-                        rs.getString("referans_yolu"),
+                        policy(rs),
+                        rs.getString("gizli_deger_saglayicisi"),
+                        rs.getString("gizli_deger_konumu"),
                         rs.getString("secret_status"),
                         rs.getString("lifecycle_status"),
                         rs.getLong("lifecycle_state_version"),
@@ -146,8 +143,9 @@ public class OracleDiscoveryRepository {
             long projectId,
             UUID physicalSchemaUuid) {
         return jdbc.sql("""
-                        select uuid, baglanti_id, sema_referansi, durum_kodu
-                          from entegrasyon.fiziksel_sema
+                        select uuid, baglanti_id, sema_adi,
+                               case when arsivlenme_zamani is null then 'AKTIF' else 'PASIF' end as durum
+                          from akis.fiziksel_sema
                          where proje_id = :projectId
                            and uuid = :physicalSchemaUuid
                         """)
@@ -156,17 +154,27 @@ public class OracleDiscoveryRepository {
                 .query((rs, rowNum) -> new PhysicalSchemaProfile(
                         rs.getObject("uuid", UUID.class),
                         rs.getLong("baglanti_id"),
-                        rs.getString("sema_referansi"),
-                        rs.getString("durum_kodu")))
+                        rs.getString("sema_adi"),
+                        rs.getString("durum")))
                 .optional();
     }
 
-    private JsonNode json(String value) {
-        try {
-            return objectMapper.readTree(value);
-        }
-        catch (JacksonException exception) {
-            throw new IllegalStateException("Kayıtlı bağlantı politikası okunamadı.", exception);
-        }
+    private JsonNode policy(java.sql.ResultSet rs) throws java.sql.SQLException {
+        var policy = objectMapper.createObjectNode();
+        policy.put("connectTimeoutMs", rs.getInt("baglanti_zaman_asimi_ms"));
+        policy.put("readTimeoutMs", rs.getInt("okuma_zaman_asimi_ms"));
+        policy.put("networkTimeoutMs", rs.getInt("ag_zaman_asimi_ms"));
+        policy.put("queryTimeoutSeconds", rs.getInt("sorgu_zaman_asimi_saniye"));
+        return policy;
+    }
+
+    private String apiTlsMode(String value) {
+        return switch (value) {
+            case "DEVRE_DISI" -> "DISABLED";
+            case "ZORUNLU" -> "REQUIRED";
+            case "SERTIFIKA_DOGRULA" -> "VERIFY_CA";
+            case "TAM_DOGRULA" -> "VERIFY_FULL";
+            default -> value;
+        };
     }
 }

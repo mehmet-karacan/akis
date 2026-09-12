@@ -11,7 +11,7 @@ export interface ConnectionVersionDraft {
   identifierType: IdentifierType
   identifier: string
   transport: Transport
-  credentialSecretReferenceUuid: string
+  credentialReferencePath: string
   jndiName: string
   connectTimeoutMs: string
   readTimeoutMs: string
@@ -21,7 +21,7 @@ export interface ConnectionVersionDraft {
 
 export const initialConnectionVersionDraft: ConnectionVersionDraft = {
   mode: 'JDBC', host: '', port: '1521', identifierType: 'SERVICE_NAME',
-  identifier: '', transport: 'TCP', credentialSecretReferenceUuid: '', jndiName: '',
+  identifier: '', transport: 'TCP', credentialReferencePath: '', jndiName: '',
   connectTimeoutMs: '10000', readTimeoutMs: '30000', networkTimeoutMs: '30000', queryTimeoutSeconds: '300',
 }
 
@@ -50,7 +50,7 @@ export function validateConnectionVersionDraft(draft: ConnectionVersionDraft): s
     ...(!/^(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$/.test(draft.host) || draft.host.includes('..') ? ['host'] : []),
     ...(!Number.isInteger(port) || port < 1 || port > 65535 ? ['port'] : []),
     ...(!/^[A-Za-z0-9_$#.-]{1,128}$/.test(draft.identifier) ? ['identifier'] : []),
-    ...(!draft.credentialSecretReferenceUuid ? ['credential'] : []),
+    ...(!/^[A-Z][A-Z0-9_]{1,199}$/.test(draft.credentialReferencePath) ? ['credential'] : []),
     ...policyErrors(draft),
   ]
 }
@@ -77,7 +77,8 @@ export function toCreateConnectionVersionRequest(draft: ConnectionVersionDraft):
       host: draft.host.trim(), port: Number(draft.port),
       connectIdentifier: { type: draft.identifierType, value: draft.identifier.trim() },
       transport: draft.transport,
-      credentialSecretReferenceUuid: draft.credentialSecretReferenceUuid,
+      credentialProvider: 'ENV',
+      credentialReferencePath: draft.credentialReferencePath.trim(),
     },
     policyVersion: 2, executionPolicy: executionPolicy(draft),
   }

@@ -8,7 +8,6 @@ import java.util.UUID;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
-import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -19,7 +18,6 @@ import tr.com.innova.akis.topology.TopologyModels.LogicalSchemaRow;
 import tr.com.innova.akis.topology.TopologyModels.PhysicalSchemaRow;
 import tr.com.innova.akis.topology.TopologyModels.ProjectRef;
 import tr.com.innova.akis.topology.TopologyModels.SchemaBindingRow;
-import tr.com.innova.akis.topology.TopologyModels.SecretReferenceRow;
 
 @Repository
 public class TopologyRepository {
@@ -33,54 +31,10 @@ public class TopologyRepository {
     }
 
     Optional<ProjectRef> findProject(UUID projectUuid) {
-        return jdbc.sql("select id, uuid from entegrasyon.proje where uuid = :uuid")
+        return jdbc.sql("select id, uuid from akis.proje where uuid = :uuid and arsivlenme_zamani is null")
                 .param("uuid", projectUuid)
                 .query((rs, rowNum) -> new ProjectRef(
                         rs.getLong("id"), rs.getObject("uuid", UUID.class)))
-                .optional();
-    }
-
-    SecretReferenceRow createSecretReference(
-            long projectId,
-            UUID uuid,
-            String code,
-            String referencePath,
-            String versionReference,
-            String provider,
-            String name) {
-        return jdbc.sql("""
-                        insert into entegrasyon.secret_referansi(
-                            proje_id, uuid, kod, referans_yolu, surum_referansi,
-                            saglayici_kodu, ad)
-                        values (:projectId, :uuid, :code, :referencePath, :versionReference,
-                                :provider, :name)
-                        returning id, uuid, kod, referans_yolu, surum_referansi,
-                                  saglayici_kodu, durum_kodu, ad, versiyon_no
-                        """)
-                .param("projectId", projectId)
-                .param("uuid", uuid)
-                .param("code", code)
-                .param("referencePath", referencePath)
-                .param("versionReference", versionReference, Types.VARCHAR)
-                .param("provider", provider)
-                .param("name", name)
-                .query(this::mapSecretReference)
-                .single();
-    }
-
-    List<SecretReferenceRow> listSecretReferences(long projectId) {
-        return jdbc.sql(secretReferenceSelect() + " where proje_id = :projectId order by kod")
-                .param("projectId", projectId)
-                .query(this::mapSecretReference)
-                .list();
-    }
-
-    Optional<SecretReferenceRow> findSecretReference(long projectId, UUID uuid) {
-        return jdbc.sql(secretReferenceSelect()
-                        + " where proje_id = :projectId and uuid = :uuid")
-                .param("projectId", projectId)
-                .param("uuid", uuid)
-                .query(this::mapSecretReference)
                 .optional();
     }
 
@@ -92,11 +46,11 @@ public class TopologyRepository {
             String name,
             String description) {
         return jdbc.sql("""
-                        insert into entegrasyon.baglanti(
-                            proje_id, uuid, kod, veritabani_turu, ad, aciklama)
+                        insert into akis.baglanti(
+                            proje_id, uuid, kod, saglayici_turu, ad, aciklama)
                         values (:projectId, :uuid, :code, :databaseType, :name, :description)
-                        returning id, proje_id, uuid, kod, veritabani_turu,
-                                  durum_kodu, ad, aciklama, versiyon_no
+                        returning id, proje_id, uuid, kod, saglayici_turu,
+                                  'AKTIF'::text as durum, ad, aciklama, versiyon_no
                         """)
                 .param("projectId", projectId)
                 .param("uuid", uuid)
@@ -124,7 +78,7 @@ public class TopologyRepository {
     }
 
     void lockConnection(long connectionId) {
-        jdbc.sql("select id from entegrasyon.baglanti where id = :id for update")
+        jdbc.sql("select id from akis.baglanti where id = :id for update")
                 .param("id", connectionId)
                 .query(Long.class)
                 .single();
@@ -132,11 +86,10 @@ public class TopologyRepository {
 
     void activateDraftConnection(long connectionId) {
         jdbc.sql("""
-                        update entegrasyon.baglanti
-                           set durum_kodu = 'AKTIF',
-                               guncellenme_zamani = current_timestamp,
+                        update akis.baglanti
+                           set guncellenme_zamani = current_timestamp,
                                versiyon_no = versiyon_no + 1
-                         where id = :id and durum_kodu = 'TASLAK'
+                         where id = :id and arsivlenme_zamani is null
                         """)
                 .param("id", connectionId)
                 .update();
@@ -145,7 +98,7 @@ public class TopologyRepository {
     int nextConnectionVersion(long connectionId) {
         return jdbc.sql("""
                         select coalesce(max(surum_no), 0) + 1
-                          from entegrasyon.baglanti_surumu
+                          from akis.baglanti_surumu
                          where baglanti_id = :connectionId
                         """)
                 .param("connectionId", connectionId)
@@ -170,23 +123,27 @@ public class TopologyRepository {
             int policyVersion,
             JsonNode policy) {
         return jdbc.sql("""
-                        insert into entegrasyon.baglanti_surumu(
-                            proje_id, baglanti_id, uuid, surum_no, baglanti_modu, surucu_referansi,
+                        insert into akis.baglanti_surumu(
+                            proje_id, baglanti_id, uuid, surum_no, baglanti_modu, surucu_sinifi,
                             sunucu_adi, servis_adi, sid, veritabani_adi, jndi_adi, tls_modu,
-                            port, politika_surumu, politika)
+                            port, baglanti_zaman_asimi_ms, okuma_zaman_asimi_ms,
+                            ag_zaman_asimi_ms, sorgu_zaman_asimi_saniye, kullanim_amaci)
                         values (:projectId, :connectionId, :uuid, :versionNumber, :mode, :driverReference,
                                 :host, :serviceName, :sid, :databaseName, :jndiName, :tlsMode,
-                                :port, :policyVersion, cast(:policy as jsonb))
-                        returning id, uuid, baglanti_id, surum_no, baglanti_modu, surucu_referansi,
+                                :port, :connectTimeoutMs, :readTimeoutMs,
+                                :networkTimeoutMs, :queryTimeoutSeconds, :purpose)
+                        returning id, uuid, baglanti_id, surum_no, baglanti_modu, surucu_sinifi,
                                   sunucu_adi, servis_adi, sid, veritabani_adi, jndi_adi, tls_modu,
-                                  port, politika_surumu, politika, olusturulma_zamani,
+                                  port, baglanti_zaman_asimi_ms, okuma_zaman_asimi_ms,
+                                  ag_zaman_asimi_ms, sorgu_zaman_asimi_saniye, kullanim_amaci,
+                                  olusturulma_zamani,
                                   'DRAFT'::text as lifecycle_status,
-                                  1::bigint as lifecycle_version,
-                                  null::integer as target_identity_version,
-                                  null::text as target_fingerprint,
-                                  null::uuid as latest_successful_test_uuid,
-                                  null::timestamptz as tested_at,
-                                  null::timestamptz as activated_at
+                                  versiyon_no as lifecycle_version,
+                                  hedef_kimlik_surumu as target_identity_version,
+                                  hedef_parmak_izi as target_fingerprint,
+                                  son_basarili_test_uuid as latest_successful_test_uuid,
+                                  test_edilme_zamani as tested_at,
+                                  etkinlestirilme_zamani as activated_at
                         """)
                 .param("projectId", projectId)
                 .param("connectionId", connectionId)
@@ -199,28 +156,34 @@ public class TopologyRepository {
                 .param("sid", sid, Types.VARCHAR)
                 .param("databaseName", databaseName, Types.VARCHAR)
                 .param("jndiName", jndiName, Types.VARCHAR)
-                .param("tlsMode", tlsMode)
+                .param("tlsMode", storedTlsMode(tlsMode))
                 .param("port", port, Types.INTEGER)
-                .param("policyVersion", policyVersion)
-                .param("policy", policy.toString())
+                .param("connectTimeoutMs", policyInteger(policy, "connectTimeoutMs", 10000))
+                .param("readTimeoutMs", policyInteger(policy, "readTimeoutMs", 60000))
+                .param("networkTimeoutMs", policyInteger(policy, "networkTimeoutMs", 60000))
+                .param("queryTimeoutSeconds", policyInteger(policy, "queryTimeoutSeconds", 60))
+                .param("purpose", policyText(policy, "purpose"), Types.VARCHAR)
                 .query(this::mapConnectionVersion)
                 .single();
     }
 
-    void bindSecret(
+    void bindCredential(
             long projectId,
             long connectionVersionId,
-            long secretReferenceId,
+            String provider,
+            String referencePath,
             String role) {
         jdbc.sql("""
-                        insert into entegrasyon.baglanti_secret_bagi(
-                            proje_id, baglanti_surumu_id, secret_referansi_id, rol_kodu)
-                        values (:projectId, :connectionVersionId, :secretReferenceId, :role)
+                        insert into akis.baglanti_kimligi(
+                            proje_id, baglanti_surumu_id, kullanim_amaci,
+                            gizli_deger_saglayicisi, gizli_deger_konumu)
+                        values (:projectId, :connectionVersionId, :role, :provider, :referencePath)
                         """)
                 .param("projectId", projectId)
                 .param("connectionVersionId", connectionVersionId)
-                .param("secretReferenceId", secretReferenceId)
-                .param("role", role)
+                .param("provider", provider)
+                .param("referencePath", referencePath)
+                .param("role", storedCredentialPurpose(role))
                 .update();
     }
 
@@ -251,8 +214,8 @@ public class TopologyRepository {
             String schemaReference,
             String name) {
         jdbc.sql("""
-                        insert into entegrasyon.fiziksel_sema(
-                            proje_id, baglanti_id, uuid, kod, sema_referansi, ad)
+                        insert into akis.fiziksel_sema(
+                            proje_id, baglanti_id, uuid, kod, sema_adi, ad)
                         values (:projectId, :connectionId, :uuid, :code, :schemaReference, :name)
                         """)
                 .param("projectId", projectId)
@@ -288,10 +251,11 @@ public class TopologyRepository {
             String name,
             String description) {
         return jdbc.sql("""
-                        insert into entegrasyon.mantiksal_sema(
+                        insert into akis.mantiksal_sema(
                             proje_id, uuid, kod, ad, aciklama)
                         values (:projectId, :uuid, :code, :name, :description)
-                        returning id, uuid, kod, durum_kodu, ad, aciklama, versiyon_no
+                        returning id, uuid, kod, 'AKTIF'::text as durum,
+                                  ad, aciklama, versiyon_no
                         """)
                 .param("projectId", projectId)
                 .param("uuid", uuid)
@@ -327,19 +291,17 @@ public class TopologyRepository {
             JsonNode policy,
             String name) {
         return jdbc.sql("""
-                        insert into entegrasyon.ortam(
-                            proje_id, uuid, kod, risk_kodu, politika_surumu, politika, ad)
-                        values (:projectId, :uuid, :code, :risk, :policyVersion,
-                                cast(:policy as jsonb), :name)
-                        returning id, uuid, kod, risk_kodu, durum_kodu,
-                                  politika_surumu, politika, ad, versiyon_no
+                        insert into akis.ortam(
+                            proje_id, uuid, kod, uretim_mi, ad)
+                        values (:projectId, :uuid, :code, :production, :name)
+                        returning id, uuid, kod,
+                                  case when uretim_mi then 'URETIM' else 'DUSUK' end as risk,
+                                  'AKTIF'::text as durum, ad, versiyon_no
                         """)
                 .param("projectId", projectId)
                 .param("uuid", uuid)
                 .param("code", code)
-                .param("risk", risk)
-                .param("policyVersion", policyVersion)
-                .param("policy", policy.toString())
+                .param("production", "URETIM".equals(risk))
                 .param("name", name)
                 .query(this::mapEnvironment)
                 .single();
@@ -368,11 +330,13 @@ public class TopologyRepository {
             long physicalSchemaId,
             long connectionVersionId) {
         jdbc.sql("""
-                        insert into entegrasyon.ortam_sema_eslemesi(
-                            proje_id, uuid, mantiksal_sema_id, ortam_id,
+                        insert into akis.sema_eslemesi(
+                            proje_id, uuid, mantiksal_sema_id, ortam_id, baglanti_id,
                             fiziksel_sema_id, baglanti_surumu_id)
-                        values (:projectId, :uuid, :logicalSchemaId, :environmentId,
-                                :physicalSchemaId, :connectionVersionId)
+                        select :projectId, :uuid, :logicalSchemaId, :environmentId,
+                               f.baglanti_id, :physicalSchemaId, :connectionVersionId
+                          from akis.fiziksel_sema f
+                         where f.proje_id = :projectId and f.id = :physicalSchemaId
                         """)
                 .param("projectId", projectId)
                 .param("uuid", uuid)
@@ -401,28 +365,12 @@ public class TopologyRepository {
                 .optional();
     }
 
-    private String secretReferenceSelect() {
-        return """
-                select id, uuid, kod, referans_yolu, surum_referansi,
-                       saglayici_kodu, durum_kodu, ad, versiyon_no
-                  from entegrasyon.secret_referansi
-                """;
-    }
-
-    private SecretReferenceRow mapSecretReference(java.sql.ResultSet rs, int rowNum)
-            throws java.sql.SQLException {
-        return new SecretReferenceRow(
-                rs.getLong("id"), rs.getObject("uuid", UUID.class), rs.getString("kod"),
-                rs.getString("referans_yolu"), rs.getString("surum_referansi"),
-                rs.getString("saglayici_kodu"), rs.getString("durum_kodu"),
-                rs.getString("ad"), rs.getLong("versiyon_no"));
-    }
-
     private String connectionSelect() {
         return """
-                select id, proje_id, uuid, kod, veritabani_turu,
-                       durum_kodu, ad, aciklama, versiyon_no
-                  from entegrasyon.baglanti
+                select id, proje_id, uuid, kod, saglayici_turu,
+                       case when arsivlenme_zamani is null then 'AKTIF' else 'PASIF' end as durum,
+                       ad, aciklama, versiyon_no
+                  from akis.baglanti
                 """;
     }
 
@@ -431,27 +379,28 @@ public class TopologyRepository {
         return new ConnectionRow(
                 rs.getLong("id"), rs.getLong("proje_id"),
                 rs.getObject("uuid", UUID.class), rs.getString("kod"),
-                rs.getString("veritabani_turu"), rs.getString("durum_kodu"),
+                rs.getString("saglayici_turu"), rs.getString("durum"),
                 rs.getString("ad"), rs.getString("aciklama"), rs.getLong("versiyon_no"));
     }
 
     private String connectionVersionSelect() {
         return """
                 select bs.id, bs.uuid, bs.baglanti_id, bs.surum_no, bs.baglanti_modu,
-                       bs.surucu_referansi, bs.sunucu_adi, bs.servis_adi, bs.sid,
+                       bs.surucu_sinifi, bs.sunucu_adi, bs.servis_adi, bs.sid,
                        bs.veritabani_adi, bs.jndi_adi, bs.tls_modu, bs.port,
-                       bs.politika_surumu, bs.politika, bs.olusturulma_zamani,
-                       yd.durum_kodu as lifecycle_status,
-                       yd.durum_surumu as lifecycle_version,
-                       yd.hedef_kimlik_surumu as target_identity_version,
-                       yd.hedef_parmak_izi as target_fingerprint,
-                       yd.son_basarili_test_uuid as latest_successful_test_uuid,
-                       yd.test_edilme_zamani as tested_at,
-                       yd.aktiflestirilme_zamani as activated_at
-                  from entegrasyon.baglanti_surumu bs
-                  join entegrasyon.baglanti_surumu_yasam_dongusu yd
-                    on yd.proje_id = bs.proje_id
-                   and yd.baglanti_surumu_id = bs.id
+                       bs.baglanti_zaman_asimi_ms, bs.okuma_zaman_asimi_ms,
+                       bs.ag_zaman_asimi_ms, bs.sorgu_zaman_asimi_saniye,
+                       bs.kullanim_amaci, bs.olusturulma_zamani,
+                       case bs.durum when 'TASLAK' then 'DRAFT'
+                            when 'TEST_EDILDI' then 'TESTED'
+                            when 'ETKIN' then 'ACTIVE' else 'DISABLED' end as lifecycle_status,
+                       bs.versiyon_no as lifecycle_version,
+                       bs.hedef_kimlik_surumu as target_identity_version,
+                       bs.hedef_parmak_izi as target_fingerprint,
+                       bs.son_basarili_test_uuid as latest_successful_test_uuid,
+                       bs.test_edilme_zamani as tested_at,
+                       bs.etkinlestirilme_zamani as activated_at
+                  from akis.baglanti_surumu bs
                 """;
     }
 
@@ -460,11 +409,11 @@ public class TopologyRepository {
         return new ConnectionVersionRow(
                 rs.getLong("id"), rs.getObject("uuid", UUID.class),
                 rs.getLong("baglanti_id"), rs.getInt("surum_no"),
-                rs.getString("baglanti_modu"), rs.getString("surucu_referansi"), rs.getString("sunucu_adi"),
+                rs.getString("baglanti_modu"), rs.getString("surucu_sinifi"), rs.getString("sunucu_adi"),
                 rs.getString("servis_adi"), rs.getString("sid"),
-                rs.getString("veritabani_adi"), rs.getString("jndi_adi"), rs.getString("tls_modu"),
-                rs.getObject("port", Integer.class), rs.getInt("politika_surumu"),
-                json(rs.getString("politika")),
+                rs.getString("veritabani_adi"), rs.getString("jndi_adi"), apiTlsMode(rs.getString("tls_modu")),
+                rs.getObject("port", Integer.class), 2,
+                connectionPolicy(rs),
                 rs.getObject("olusturulma_zamani", OffsetDateTime.class),
                 rs.getString("lifecycle_status"), rs.getLong("lifecycle_version"),
                 rs.getObject("target_identity_version", Integer.class),
@@ -477,9 +426,10 @@ public class TopologyRepository {
     private String physicalSchemaSelect() {
         return """
                 select f.id, f.uuid, f.baglanti_id, c.uuid as connection_uuid,
-                       f.kod, f.sema_referansi, f.durum_kodu, f.ad, f.versiyon_no
-                  from entegrasyon.fiziksel_sema f
-                  join entegrasyon.baglanti c on c.id = f.baglanti_id
+                       f.kod, f.sema_adi, case when f.arsivlenme_zamani is null then 'AKTIF' else 'PASIF' end as durum,
+                       f.ad, f.versiyon_no
+                  from akis.fiziksel_sema f
+                  join akis.baglanti c on c.id = f.baglanti_id
                 """;
     }
 
@@ -488,14 +438,16 @@ public class TopologyRepository {
         return new PhysicalSchemaRow(
                 rs.getLong("id"), rs.getObject("uuid", UUID.class),
                 rs.getLong("baglanti_id"), rs.getObject("connection_uuid", UUID.class),
-                rs.getString("kod"), rs.getString("sema_referansi"),
-                rs.getString("durum_kodu"), rs.getString("ad"), rs.getLong("versiyon_no"));
+                rs.getString("kod"), rs.getString("sema_adi"),
+                rs.getString("durum"), rs.getString("ad"), rs.getLong("versiyon_no"));
     }
 
     private String logicalSchemaSelect() {
         return """
-                select id, uuid, kod, durum_kodu, ad, aciklama, versiyon_no
-                  from entegrasyon.mantiksal_sema
+                select id, uuid, kod,
+                       case when arsivlenme_zamani is null then 'AKTIF' else 'PASIF' end as durum,
+                       ad, aciklama, versiyon_no
+                  from akis.mantiksal_sema
                 """;
     }
 
@@ -503,15 +455,17 @@ public class TopologyRepository {
             throws java.sql.SQLException {
         return new LogicalSchemaRow(
                 rs.getLong("id"), rs.getObject("uuid", UUID.class), rs.getString("kod"),
-                rs.getString("durum_kodu"), rs.getString("ad"), rs.getString("aciklama"),
+                rs.getString("durum"), rs.getString("ad"), rs.getString("aciklama"),
                 rs.getLong("versiyon_no"));
     }
 
     private String environmentSelect() {
         return """
-                select id, uuid, kod, risk_kodu, durum_kodu,
-                       politika_surumu, politika, ad, versiyon_no
-                  from entegrasyon.ortam
+                select id, uuid, kod,
+                       case when uretim_mi then 'URETIM' else 'DUSUK' end as risk,
+                       case when arsivlenme_zamani is null then 'AKTIF' else 'PASIF' end as durum,
+                       ad, versiyon_no
+                  from akis.ortam
                 """;
     }
 
@@ -519,8 +473,8 @@ public class TopologyRepository {
             throws java.sql.SQLException {
         return new EnvironmentRow(
                 rs.getLong("id"), rs.getObject("uuid", UUID.class), rs.getString("kod"),
-                rs.getString("risk_kodu"), rs.getString("durum_kodu"),
-                rs.getInt("politika_surumu"), json(rs.getString("politika")),
+                rs.getString("risk"), rs.getString("durum"),
+                1, objectMapper.createObjectNode(),
                 rs.getString("ad"), rs.getLong("versiyon_no"));
     }
 
@@ -528,12 +482,12 @@ public class TopologyRepository {
         return """
                 select b.uuid, l.uuid as logical_schema_uuid, o.uuid as environment_uuid,
                        f.uuid as physical_schema_uuid, v.uuid as connection_version_uuid,
-                       b.durum_kodu, b.versiyon_no
-                  from entegrasyon.ortam_sema_eslemesi b
-                  join entegrasyon.mantiksal_sema l on l.id = b.mantiksal_sema_id
-                  join entegrasyon.ortam o on o.id = b.ortam_id
-                  join entegrasyon.fiziksel_sema f on f.id = b.fiziksel_sema_id
-                  join entegrasyon.baglanti_surumu v on v.id = b.baglanti_surumu_id
+                       'AKTIF'::text as durum, b.versiyon_no
+                  from akis.sema_eslemesi b
+                  join akis.mantiksal_sema l on l.id = b.mantiksal_sema_id
+                  join akis.ortam o on o.id = b.ortam_id
+                  join akis.fiziksel_sema f on f.id = b.fiziksel_sema_id
+                  join akis.baglanti_surumu v on v.id = b.baglanti_surumu_id
                 """;
     }
 
@@ -545,15 +499,57 @@ public class TopologyRepository {
                 rs.getObject("environment_uuid", UUID.class),
                 rs.getObject("physical_schema_uuid", UUID.class),
                 rs.getObject("connection_version_uuid", UUID.class),
-                rs.getString("durum_kodu"), rs.getLong("versiyon_no"));
+                rs.getString("durum"), rs.getLong("versiyon_no"));
     }
 
-    private JsonNode json(String value) {
-        try {
-            return objectMapper.readTree(value);
+    private JsonNode connectionPolicy(java.sql.ResultSet rs) throws java.sql.SQLException {
+        var policy = objectMapper.createObjectNode();
+        policy.put("connectTimeoutMs", rs.getInt("baglanti_zaman_asimi_ms"));
+        policy.put("readTimeoutMs", rs.getInt("okuma_zaman_asimi_ms"));
+        policy.put("networkTimeoutMs", rs.getInt("ag_zaman_asimi_ms"));
+        policy.put("queryTimeoutSeconds", rs.getInt("sorgu_zaman_asimi_saniye"));
+        String purpose = rs.getString("kullanim_amaci");
+        if (purpose != null) {
+            policy.put("purpose", purpose);
         }
-        catch (JacksonException exception) {
-            throw new IllegalStateException("Stored JSON could not be read.", exception);
-        }
+        return policy;
+    }
+
+    private int policyInteger(JsonNode policy, String field, int fallback) {
+        JsonNode value = policy.get(field);
+        return value == null ? fallback : value.intValue();
+    }
+
+    private String policyText(JsonNode policy, String field) {
+        JsonNode value = policy.get(field);
+        return value == null || !value.isString() ? null : value.stringValue();
+    }
+
+    private String storedTlsMode(String value) {
+        return switch (value) {
+            case "DISABLED" -> "DEVRE_DISI";
+            case "REQUIRED" -> "ZORUNLU";
+            case "VERIFY_CA" -> "SERTIFIKA_DOGRULA";
+            case "VERIFY_FULL" -> "TAM_DOGRULA";
+            default -> value;
+        };
+    }
+
+    private String apiTlsMode(String value) {
+        return switch (value) {
+            case "DEVRE_DISI" -> "DISABLED";
+            case "ZORUNLU" -> "REQUIRED";
+            case "SERTIFIKA_DOGRULA" -> "VERIFY_CA";
+            case "TAM_DOGRULA" -> "VERIFY_FULL";
+            default -> value;
+        };
+    }
+
+    private String storedCredentialPurpose(String value) {
+        return switch (value) {
+            case "KIMLIK" -> "VERITABANI";
+            case "CLIENT_SERTIFIKA" -> "ISTEMCI_SERTIFIKASI";
+            default -> value;
+        };
     }
 }

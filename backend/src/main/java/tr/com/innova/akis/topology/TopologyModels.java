@@ -13,18 +13,6 @@ final class TopologyModels {
     record ProjectRef(long id, UUID uuid) {
     }
 
-    record SecretReferenceRow(
-            long id,
-            UUID uuid,
-            String code,
-            String referencePath,
-            String versionReference,
-            String provider,
-            String status,
-            String name,
-            long version) {
-    }
-
     record ConnectionRow(
             long id,
             long projectId,

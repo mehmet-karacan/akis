@@ -55,9 +55,9 @@ public class OracleConnectionLifecycleRepository {
     int nextAttemptNumber(UUID projectUuid, UUID connectionVersionUuid) {
         return jdbc.sql("""
                         select coalesce(max(t.deneme_no), 0) + 1
-                          from entegrasyon.baglanti_surumu_testi t
-                          join entegrasyon.proje p on p.id = t.proje_id
-                          join entegrasyon.baglanti_surumu bs
+                          from akis.baglanti_testi t
+                          join akis.proje p on p.id = t.proje_id
+                          join akis.baglanti_surumu bs
                             on bs.proje_id = t.proje_id
                            and bs.id = t.baglanti_surumu_id
                          where p.uuid = :projectUuid
@@ -81,30 +81,37 @@ public class OracleConnectionLifecycleRepository {
             OffsetDateTime completedAt,
             long durationMs) {
         return jdbc.sql("""
-                        insert into entegrasyon.baglanti_surumu_testi(
-                            proje_id, baglanti_id, baglanti_surumu_id, uuid, deneme_no,
-                            sonuc_kodu, hata_kodu, database_product, database_version,
-                            database_major, database_minor,
-                            driver_name, driver_version, hedef_kimlik_surumu,
-                            hedef_parmak_izi, baslama_zamani, tamamlanma_zamani, sure_ms)
-                        select p.id, b.id, bs.id, :testUuid, :attemptNumber,
-                               :outcome, :errorCode, :databaseProduct, :databaseVersion,
+                        insert into akis.baglanti_testi(
+                            proje_id, baglanti_surumu_id, uuid, deneme_no,
+                            sonuc, hata_kodu, urun_adi, urun_surumu,
+                            veritabani_ana_surumu, veritabani_alt_surumu,
+                            surucu_adi, surucu_surumu, hedef_kimlik_surumu,
+                            hedef_parmak_izi, baslama_zamani, tamamlanma_zamani, sure_milisaniye)
+                        select p.id, bs.id, :testUuid, :attemptNumber,
+                               case when :outcome = 'PASSED' then 'BASARILI' else 'BASARISIZ' end,
+                               :errorCode, :databaseProduct, :databaseVersion,
                                :databaseMajorVersion, :databaseMinorVersion,
                                :driverName, :driverVersion, :targetIdentityVersion,
                                :targetFingerprint, :startedAt, :completedAt, :durationMs
-                          from entegrasyon.proje p
-                          join entegrasyon.baglanti b on b.proje_id = p.id
-                          join entegrasyon.baglanti_surumu bs
+                          from akis.proje p
+                          join akis.baglanti b on b.proje_id = p.id
+                          join akis.baglanti_surumu bs
                             on bs.proje_id = p.id and bs.baglanti_id = b.id
                          where p.uuid = :projectUuid
                            and b.uuid = :connectionUuid
                            and bs.uuid = :connectionVersionUuid
                         returning uuid, :connectionVersionUuid::uuid as connection_version_uuid,
-                                  deneme_no, sonuc_kodu, hata_kodu, database_product,
-                                  database_version, database_major,
-                                  database_minor, driver_name, driver_version,
+                                  deneme_no,
+                                  case when sonuc = 'BASARILI' then 'PASSED'
+                                       when hata_kodu = 'ORACLE_TARGET_MISMATCH' then 'TARGET_MISMATCH'
+                                       else 'FAILED' end as sonuc_kodu,
+                                  hata_kodu, urun_adi as database_product,
+                                  urun_surumu as database_version,
+                                  veritabani_ana_surumu as database_major,
+                                  veritabani_alt_surumu as database_minor,
+                                  surucu_adi as driver_name, surucu_surumu as driver_version,
                                   hedef_kimlik_surumu, hedef_parmak_izi,
-                                  baslama_zamani, tamamlanma_zamani, sure_ms
+                                  baslama_zamani, tamamlanma_zamani, sure_milisaniye as sure_ms
                         """)
                 .param("projectUuid", projectUuid)
                 .param("connectionUuid", connectionUuid)
@@ -140,24 +147,26 @@ public class OracleConnectionLifecycleRepository {
             OffsetDateTime completedAt,
             long durationMs) {
         return jdbc.sql("""
-                        insert into entegrasyon.baglanti_surumu_testi(
-                            proje_id, baglanti_id, baglanti_surumu_id, uuid, deneme_no,
-                            sonuc_kodu, hata_kodu, baslama_zamani, tamamlanma_zamani, sure_ms)
-                        select p.id, b.id, bs.id, :testUuid, :attemptNumber,
-                               'FAILED', :errorCode, :startedAt, :completedAt, :durationMs
-                          from entegrasyon.proje p
-                          join entegrasyon.baglanti b on b.proje_id = p.id
-                          join entegrasyon.baglanti_surumu bs
+                        insert into akis.baglanti_testi(
+                            proje_id, baglanti_surumu_id, uuid, deneme_no,
+                            sonuc, hata_kodu, baslama_zamani, tamamlanma_zamani, sure_milisaniye)
+                        select p.id, bs.id, :testUuid, :attemptNumber,
+                               'BASARISIZ', :errorCode, :startedAt, :completedAt, :durationMs
+                          from akis.proje p
+                          join akis.baglanti b on b.proje_id = p.id
+                          join akis.baglanti_surumu bs
                             on bs.proje_id = p.id and bs.baglanti_id = b.id
                          where p.uuid = :projectUuid
                            and b.uuid = :connectionUuid
                            and bs.uuid = :connectionVersionUuid
                         returning uuid, :connectionVersionUuid::uuid as connection_version_uuid,
-                                  deneme_no, sonuc_kodu, hata_kodu, database_product,
-                                  database_version, database_major,
-                                  database_minor, driver_name, driver_version,
+                                  deneme_no, 'FAILED'::text as sonuc_kodu, hata_kodu,
+                                  urun_adi as database_product, urun_surumu as database_version,
+                                  veritabani_ana_surumu as database_major,
+                                  veritabani_alt_surumu as database_minor,
+                                  surucu_adi as driver_name, surucu_surumu as driver_version,
                                   hedef_kimlik_surumu, hedef_parmak_izi,
-                                  baslama_zamani, tamamlanma_zamani, sure_ms
+                                  baslama_zamani, tamamlanma_zamani, sure_milisaniye as sure_ms
                         """)
                 .param("projectUuid", projectUuid)
                 .param("connectionUuid", connectionUuid)
@@ -179,22 +188,19 @@ public class OracleConnectionLifecycleRepository {
             ConnectionProbe probe,
             OffsetDateTime testedAt) {
         jdbc.sql("""
-                        update entegrasyon.baglanti_surumu_yasam_dongusu yd
-                           set durum_kodu = case when yd.durum_kodu = 'DRAFT' then 'TESTED'
-                                                else yd.durum_kodu end,
-                               durum_surumu = yd.durum_surumu + 1,
+                        update akis.baglanti_surumu bs
+                           set durum = case when bs.durum = 'TASLAK' then 'TEST_EDILDI'
+                                            else bs.durum end,
+                               versiyon_no = bs.versiyon_no + 1,
                                hedef_kimlik_surumu = coalesce(
-                                   yd.hedef_kimlik_surumu, :targetIdentityVersion),
+                                   bs.hedef_kimlik_surumu, :targetIdentityVersion),
                                hedef_parmak_izi = coalesce(
-                                   yd.hedef_parmak_izi, :targetFingerprint),
+                                   bs.hedef_parmak_izi, :targetFingerprint),
                                son_basarili_test_uuid = :testUuid,
                                test_edilme_zamani = :testedAt,
                                guncellenme_zamani = current_timestamp
-                          from entegrasyon.proje p
-                          join entegrasyon.baglanti_surumu bs
-                            on bs.proje_id = p.id
-                         where yd.proje_id = p.id
-                           and yd.baglanti_surumu_id = bs.id
+                          from akis.proje p
+                         where bs.proje_id = p.id
                            and p.uuid = :projectUuid
                            and bs.uuid = :connectionVersionUuid
                         """)
@@ -213,27 +219,45 @@ public class OracleConnectionLifecycleRepository {
             UUID connectionVersionUuid,
             UUID testUuid,
             long expectedStateVersion) {
+        jdbc.sql("""
+                        update akis.baglanti_surumu previous
+                           set durum = 'KULLANIM_DISI',
+                               guncellenme_zamani = current_timestamp,
+                               versiyon_no = previous.versiyon_no + 1
+                          from akis.proje p, akis.baglanti b, akis.baglanti_surumu candidate
+                         where b.proje_id = p.id
+                           and candidate.proje_id = p.id and candidate.baglanti_id = b.id
+                           and previous.baglanti_id = b.id and previous.durum = 'ETKIN'
+                           and previous.id <> candidate.id
+                           and p.uuid = :projectUuid and b.uuid = :connectionUuid
+                           and candidate.uuid = :connectionVersionUuid
+                           and candidate.durum = 'TEST_EDILDI'
+                           and candidate.versiyon_no = :expectedStateVersion
+                           and candidate.son_basarili_test_uuid = :testUuid
+                        """)
+                .param("projectUuid", projectUuid)
+                .param("connectionUuid", connectionUuid)
+                .param("connectionVersionUuid", connectionVersionUuid)
+                .param("testUuid", testUuid)
+                .param("expectedStateVersion", expectedStateVersion)
+                .update();
         int updated = jdbc.sql("""
-                        update entegrasyon.baglanti_surumu_yasam_dongusu yd
-                           set durum_kodu = 'ACTIVE',
-                               durum_surumu = yd.durum_surumu + 1,
-                               aktiflestirilme_zamani = current_timestamp,
+                        update akis.baglanti_surumu bs
+                           set durum = 'ETKIN',
+                               versiyon_no = bs.versiyon_no + 1,
+                               etkinlestirilme_zamani = current_timestamp,
                                guncellenme_zamani = current_timestamp
-                          from entegrasyon.proje p
-                          join entegrasyon.baglanti b on b.proje_id = p.id
-                          join entegrasyon.baglanti_surumu bs
-                            on bs.proje_id = p.id and bs.baglanti_id = b.id
-                         where yd.proje_id = p.id
-                           and yd.baglanti_id = b.id
-                           and yd.baglanti_surumu_id = bs.id
+                          from akis.proje p
+                          join akis.baglanti b on b.proje_id = p.id
+                         where bs.proje_id = p.id and bs.baglanti_id = b.id
                            and p.uuid = :projectUuid
                            and b.uuid = :connectionUuid
                            and bs.uuid = :connectionVersionUuid
                            and bs.baglanti_modu = 'JDBC'
-                           and yd.durum_kodu = 'TESTED'
-                           and yd.durum_surumu = :expectedStateVersion
-                           and yd.son_basarili_test_uuid = :testUuid
-                           and yd.hedef_parmak_izi is not null
+                           and bs.durum = 'TEST_EDILDI'
+                           and bs.versiyon_no = :expectedStateVersion
+                           and bs.son_basarili_test_uuid = :testUuid
+                           and bs.hedef_parmak_izi is not null
                         """)
                 .param("projectUuid", projectUuid)
                 .param("connectionUuid", connectionUuid)
@@ -244,21 +268,6 @@ public class OracleConnectionLifecycleRepository {
         if (updated != 1) {
             throw new LifecycleConflictException();
         }
-        jdbc.sql("""
-                        update entegrasyon.baglanti b
-                           set durum_kodu = case when b.durum_kodu = 'TASLAK' then 'AKTIF'
-                                                else b.durum_kodu end,
-                               guncellenme_zamani = current_timestamp,
-                               versiyon_no = b.versiyon_no + 1
-                          from entegrasyon.proje p
-                         where b.proje_id = p.id
-                           and p.uuid = :projectUuid
-                           and b.uuid = :connectionUuid
-                           and b.durum_kodu = 'TASLAK'
-                        """)
-                .param("projectUuid", projectUuid)
-                .param("connectionUuid", connectionUuid)
-                .update();
         return lockLifecycle(projectUuid, connectionUuid, connectionVersionUuid);
     }
 
@@ -269,17 +278,23 @@ public class OracleConnectionLifecycleRepository {
             int limit) {
         return jdbc.sql("""
                         select t.uuid, bs.uuid as connection_version_uuid, t.deneme_no,
-                               t.sonuc_kodu, t.hata_kodu, t.database_product,
-                               t.database_version, t.database_major,
-                               t.database_minor, t.driver_name, t.driver_version,
+                               case when t.sonuc = 'BASARILI' then 'PASSED'
+                                    when t.hata_kodu = 'ORACLE_TARGET_MISMATCH' then 'TARGET_MISMATCH'
+                                    else 'FAILED' end as sonuc_kodu,
+                               t.hata_kodu, t.urun_adi as database_product,
+                               t.urun_surumu as database_version,
+                               t.veritabani_ana_surumu as database_major,
+                               t.veritabani_alt_surumu as database_minor,
+                               t.surucu_adi as driver_name, t.surucu_surumu as driver_version,
                                t.hedef_kimlik_surumu, t.hedef_parmak_izi,
-                               t.baslama_zamani, t.tamamlanma_zamani, t.sure_ms
-                          from entegrasyon.baglanti_surumu_testi t
-                          join entegrasyon.proje p on p.id = t.proje_id
-                          join entegrasyon.baglanti b
-                            on b.proje_id = t.proje_id and b.id = t.baglanti_id
-                          join entegrasyon.baglanti_surumu bs
+                               t.baslama_zamani, t.tamamlanma_zamani,
+                               t.sure_milisaniye as sure_ms
+                          from akis.baglanti_testi t
+                          join akis.proje p on p.id = t.proje_id
+                          join akis.baglanti_surumu bs
                             on bs.proje_id = t.proje_id and bs.id = t.baglanti_surumu_id
+                          join akis.baglanti b
+                            on b.proje_id = bs.proje_id and b.id = bs.baglanti_id
                          where p.uuid = :projectUuid
                            and b.uuid = :connectionUuid
                            and bs.uuid = :connectionVersionUuid
@@ -296,16 +311,17 @@ public class OracleConnectionLifecycleRepository {
 
     private String lifecycleSelect() {
         return """
-                select bs.uuid as connection_version_uuid, yd.durum_kodu,
-                       yd.durum_surumu, yd.hedef_kimlik_surumu,
-                       yd.hedef_parmak_izi, yd.son_basarili_test_uuid,
-                       yd.test_edilme_zamani, yd.aktiflestirilme_zamani
-                  from entegrasyon.baglanti_surumu_yasam_dongusu yd
-                  join entegrasyon.proje p on p.id = yd.proje_id
-                  join entegrasyon.baglanti b
-                    on b.proje_id = yd.proje_id and b.id = yd.baglanti_id
-                  join entegrasyon.baglanti_surumu bs
-                    on bs.proje_id = yd.proje_id and bs.id = yd.baglanti_surumu_id
+                select bs.uuid as connection_version_uuid,
+                       case bs.durum when 'TASLAK' then 'DRAFT'
+                            when 'TEST_EDILDI' then 'TESTED'
+                            when 'ETKIN' then 'ACTIVE' else 'DISABLED' end as durum_kodu,
+                       bs.versiyon_no as durum_surumu, bs.hedef_kimlik_surumu,
+                       bs.hedef_parmak_izi, bs.son_basarili_test_uuid,
+                       bs.test_edilme_zamani, bs.etkinlestirilme_zamani as aktiflestirilme_zamani
+                  from akis.baglanti_surumu bs
+                  join akis.proje p on p.id = bs.proje_id
+                  join akis.baglanti b
+                    on b.proje_id = bs.proje_id and b.id = bs.baglanti_id
                 """;
     }
 

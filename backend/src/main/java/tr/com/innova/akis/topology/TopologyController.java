@@ -25,7 +25,6 @@ import tr.com.innova.akis.topology.TopologyModels.EnvironmentRow;
 import tr.com.innova.akis.topology.TopologyModels.LogicalSchemaRow;
 import tr.com.innova.akis.topology.TopologyModels.PhysicalSchemaRow;
 import tr.com.innova.akis.topology.TopologyModels.SchemaBindingRow;
-import tr.com.innova.akis.topology.TopologyModels.SecretReferenceRow;
 import tr.com.innova.akis.security.AuthorizationService;
 import static tr.com.innova.akis.security.PermissionCodes.*;
 
@@ -39,27 +38,6 @@ final class TopologyController {
     TopologyController(TopologyService service, AuthorizationService authorization) {
         this.service = service;
         this.authorization = authorization;
-    }
-
-    @PostMapping("/secret-references")
-    ResponseEntity<SecretReferenceView> createSecretReference(
-            @PathVariable UUID projectUuid,
-            @Valid @RequestBody CreateSecretReferenceRequest request) {
-        authorization.requireProjectPermission(projectUuid, SECRET_WRITE);
-        SecretReferenceRow row = service.createSecretReference(
-                projectUuid, request.code(), request.referencePath(),
-                request.versionReference(), request.provider(), request.name());
-        return ResponseEntity.created(URI.create(
-                "/api/v1/projects/" + projectUuid + "/secret-references/" + row.uuid()))
-                .body(SecretReferenceView.from(row));
-    }
-
-    @GetMapping("/secret-references")
-    List<SecretReferenceView> listSecretReferences(@PathVariable UUID projectUuid) {
-        authorization.requireProjectPermission(projectUuid, SECRET_READ);
-        return service.listSecretReferences(projectUuid).stream()
-                .map(SecretReferenceView::from)
-                .toList();
     }
 
     @PostMapping("/connections")
@@ -95,12 +73,12 @@ final class TopologyController {
             @PathVariable UUID connectionUuid,
             @Valid @RequestBody CreateConnectionVersionRequest request) {
         authorization.requireProjectPermission(projectUuid, TOPOLOGY_WRITE);
-        ConnectionVersionRow row = service.createConnectionVersion(
+        ConnectionVersionRow row = service.createConnectionVersionWithCredential(
                 projectUuid, connectionUuid, "JDBC", request.driverReference(), request.host(),
                 request.serviceName(), request.sid(), request.databaseName(), request.tlsMode(),
                 request.port(), null,
                 request.policyVersion() == null ? 1 : request.policyVersion(),
-                request.policy(), request.secretReferenceUuid(), request.secretRole());
+                request.policy(), request.credentialProvider(), request.credentialReferencePath());
         return ResponseEntity.status(201).body(ConnectionVersionView.from(row));
     }
 
@@ -195,14 +173,6 @@ final class TopologyController {
         return service.listSchemaBindings(projectUuid);
     }
 
-    record CreateSecretReferenceRequest(
-            @NotBlank String code,
-            @NotBlank String referencePath,
-            String versionReference,
-            @NotBlank String provider,
-            @NotBlank String name) {
-    }
-
     record CreateConnectionRequest(
             @NotBlank String code,
             @NotBlank String databaseType,
@@ -220,8 +190,8 @@ final class TopologyController {
             @Min(1) @Max(65535) int port,
             @Min(1) Integer policyVersion,
             JsonNode policy,
-            UUID secretReferenceUuid,
-            String secretRole) {
+            String credentialProvider,
+            String credentialReferencePath) {
     }
 
     record CreatePhysicalSchemaRequest(
@@ -250,23 +220,6 @@ final class TopologyController {
             @NotNull UUID environmentUuid,
             @NotNull UUID physicalSchemaUuid,
             @NotNull UUID connectionVersionUuid) {
-    }
-
-    record SecretReferenceView(
-            UUID uuid,
-            String code,
-            String referencePath,
-            String versionReference,
-            String provider,
-            String status,
-            String name,
-            long version) {
-
-        static SecretReferenceView from(SecretReferenceRow row) {
-            return new SecretReferenceView(
-                    row.uuid(), row.code(), row.referencePath(), row.versionReference(),
-                    row.provider(), row.status(), row.name(), row.version());
-        }
     }
 
     record ConnectionView(

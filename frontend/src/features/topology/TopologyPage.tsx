@@ -18,7 +18,6 @@ import {
   type Model,
   type PhysicalSchema,
   type SchemaBinding,
-  type SecretReference,
   type Submodel,
 } from './api'
 import { getTopologyCopy, type CopyKey } from './copy'
@@ -37,7 +36,6 @@ interface TopologyPageProps {
 }
 
 interface Resources {
-  secrets: SecretReference[]
   connections: Connection[]
   physicalSchemas: PhysicalSchema[]
   logicalSchemas: LogicalSchema[]
@@ -47,7 +45,7 @@ interface Resources {
 }
 
 const emptyResources: Resources = {
-  secrets: [], connections: [], physicalSchemas: [], logicalSchemas: [],
+  connections: [], physicalSchemas: [], logicalSchemas: [],
   environments: [], bindings: [], models: [],
 }
 
@@ -130,12 +128,12 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
     setLoading(true)
     setLoadError('')
     try {
-      const [secrets, connections, physicalSchemas, logicalSchemas, environments, bindings, models] = await Promise.all([
-        topologyApi.listSecrets(projectUuid), topologyApi.listConnections(projectUuid),
+      const [connections, physicalSchemas, logicalSchemas, environments, bindings, models] = await Promise.all([
+        topologyApi.listConnections(projectUuid),
         topologyApi.listPhysicalSchemas(projectUuid), topologyApi.listLogicalSchemas(projectUuid),
         topologyApi.listEnvironments(projectUuid), topologyApi.listBindings(projectUuid), topologyApi.listModels(projectUuid),
       ])
-      setResources({ secrets, connections, physicalSchemas, logicalSchemas, environments, bindings, models })
+      setResources({ connections, physicalSchemas, logicalSchemas, environments, bindings, models })
       setSelectedConnectionUuid((current) => connections.some((item) => item.uuid === current) ? current : connections[0]?.uuid ?? '')
       setSelectedPhysicalUuid((current) => physicalSchemas.some((item) => item.uuid === current) ? current : physicalSchemas[0]?.uuid ?? '')
       setSelectedModelUuid((current) => models.some((item) => item.uuid === current) ? current : models[0]?.uuid ?? '')
@@ -407,7 +405,7 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
 
       <Drawer open={form !== null} className="topology-drawer" closeButtonClassName="topology-icon-button" title={form ? formTitle[form] : ''} closeLabel={tr('close')} busy={Boolean(busy)} onClose={() => setForm(null)}>
         {form === 'connection' && <form className="topology-form" onSubmit={(event) => void submit('connection', event, (data) => topologyApi.createConnection(projectUuid, { code: textValue(data, 'code'), name: textValue(data, 'name'), databaseType: textValue(data, 'databaseType'), description: optionalValue(data, 'description') }))}><Field label={tr('name')} name="name" /><Field label={tr('code')} name="code" /><Field label={tr('databaseType')} name="databaseType"><select name="databaseType" defaultValue="ORACLE" required><option value="ORACLE">Oracle</option></select></Field><Field label={tr('description')} name="description" optional><textarea name="description" rows={3} /></Field><Submit busy={busy === 'connection'} c={c} /></form>}
-        {form === 'version' && selectedConnection?.databaseType === 'ORACLE' && <OracleConnectionVersionForm projectUuid={projectUuid} connectionUuid={selectedConnection.uuid} secrets={resources.secrets} copy={c} locale={locale} onClose={() => setForm(null)} onVersionChanged={refreshConnectionVersions} />}
+        {form === 'version' && selectedConnection?.databaseType === 'ORACLE' && <OracleConnectionVersionForm projectUuid={projectUuid} connectionUuid={selectedConnection.uuid} copy={c} locale={locale} onClose={() => setForm(null)} onVersionChanged={refreshConnectionVersions} />}
         {form === 'physical' && <form className="topology-form" onSubmit={(event) => void submit('physical', event, (data) => topologyApi.createPhysicalSchema(projectUuid, { connectionUuid: textValue(data, 'connectionUuid'), code: textValue(data, 'code'), schemaReference: textValue(data, 'schemaReference'), name: textValue(data, 'name') }))}><Field label={tr('name')} name="name" /><Field label={tr('code')} name="code" /><Field label={tr('connection')} name="connectionUuid"><select name="connectionUuid" required defaultValue={selectedConnectionUuid}><option value="">—</option>{resources.connections.map((item) => <option key={item.uuid} value={item.uuid}>{item.name}</option>)}</select></Field><Field label={tr('schemaReference')} name="schemaReference" /><Submit busy={busy === 'physical'} c={c} /></form>}
         {form === 'logical' && <form className="topology-form" onSubmit={(event) => void submit('logical', event, (data) => topologyApi.createLogicalSchema(projectUuid, { code: textValue(data, 'code'), name: textValue(data, 'name'), description: optionalValue(data, 'description') }))}><Field label={tr('name')} name="name" /><Field label={tr('code')} name="code" /><Field label={tr('description')} name="description" optional><textarea name="description" rows={3} /></Field><Submit busy={busy === 'logical'} c={c} /></form>}
         {form === 'environment' && <form className="topology-form" onSubmit={(event) => void submit('environment', event, (data) => topologyApi.createEnvironment(projectUuid, { code: textValue(data, 'code'), name: textValue(data, 'name'), risk: textValue(data, 'risk'), policyVersion: Number(textValue(data, 'policyVersion') || 1) }))}><Field label={tr('name')} name="name" /><Field label={tr('code')} name="code" /><Field label={tr('risk')} name="risk"><select name="risk" defaultValue="DUSUK" required><option value="DUSUK">{tr('riskLow')}</option><option value="ORTA">{tr('riskMedium')}</option><option value="URETIM">{tr('riskProduction')}</option></select></Field><Field label={tr('policyVersion')} name="policyVersion"><input name="policyVersion" type="number" min="1" defaultValue="1" required /></Field><Submit busy={busy === 'environment'} c={c} /></form>}

@@ -1,16 +1,5 @@
 import { apiRequest, jsonBody } from '../../core/api/client'
 
-export interface SecretReference {
-  uuid: string
-  code: string
-  referencePath: string
-  versionReference?: string | null
-  provider: string
-  status: string
-  name: string
-  version: number
-}
-
 export interface Connection {
   uuid: string
   code: string
@@ -60,7 +49,8 @@ export type CreateConnectionVersionRequest = {
     port: number
     connectIdentifier: { type: 'SERVICE_NAME' | 'SID'; value: string }
     transport: 'TCP'
-    credentialSecretReferenceUuid: string
+    credentialProvider: 'ENV' | 'VAULT'
+    credentialReferencePath: string
   }
   policyVersion: 2
   executionPolicy: ConnectionExecutionPolicy
@@ -264,8 +254,6 @@ const post = <T>(path: string, body?: JsonRecord) => apiRequest<T>(path, {
 })
 
 export const topologyApi = {
-  listSecrets: (projectUuid: string) => get<SecretReference[]>(`${base(projectUuid)}/secret-references`),
-  createSecret: (projectUuid: string, body: JsonRecord) => post<SecretReference>(`${base(projectUuid)}/secret-references`, body),
   listConnections: (projectUuid: string) => get<Connection[]>(`${base(projectUuid)}/connections`),
   createConnection: (projectUuid: string, body: JsonRecord) => post<Connection>(`${base(projectUuid)}/connections`, body),
   listVersions: (projectUuid: string, connectionUuid: string) => get<ConnectionVersion[]>(connectionVersionsV2(projectUuid, connectionUuid)),

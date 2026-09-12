@@ -1,6 +1,22 @@
 # Akış implementation status
 
-Status date: 2026-09-11
+Status date: 2026-09-12
+
+## Clean `akis` rebase progress
+
+- Identity, RBAC, project membership and project repositories run against the
+  clean `akis` schema and pass temporary-database acceptance tests.
+- Connection, typed connection policy, internal credential binding,
+  physical/logical schemas, environments and schema bindings now have clean
+  repository coverage. Connection test evidence and revision activation no
+  longer depend on the legacy lifecycle tables.
+- The connection UI no longer loads or manages separate secret-reference
+  objects. It records only the name of a server-side environment variable; its
+  value stays outside PostgreSQL, API responses, bundles and Git.
+- Catalog/snapshot, definitions, runnable versions and execution repositories
+  still use the legacy schema until their corresponding clean baseline groups
+  and acceptance tests are complete. The persistent local database has not been
+  destructively cut over.
 
 ## Current completion estimate
 

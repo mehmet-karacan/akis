@@ -21,7 +21,6 @@ import tr.com.innova.akis.topology.TopologyModels.LogicalSchemaRow;
 import tr.com.innova.akis.topology.TopologyModels.PhysicalSchemaRow;
 import tr.com.innova.akis.topology.TopologyModels.ProjectRef;
 import tr.com.innova.akis.topology.TopologyModels.SchemaBindingRow;
-import tr.com.innova.akis.topology.TopologyModels.SecretReferenceRow;
 
 @Service
 public class TopologyService {
@@ -33,12 +32,9 @@ public class TopologyService {
             "java:comp/env/jdbc/[A-Za-z0-9_.-]{1,180}");
     private static final Pattern DATABASE_NAME = Pattern.compile("[A-Za-z0-9_$#.-]{1,128}");
     private static final Set<String> DATABASE_TYPES = Set.of("ORACLE", "POSTGRESQL", "MYSQL");
-    private static final Set<String> SECRET_PROVIDERS = Set.of("ENV", "VAULT", "KUBERNETES");
     private static final Set<String> TLS_MODES = Set.of(
             "DISABLED", "REQUIRED", "VERIFY_CA", "VERIFY_FULL");
     private static final Set<String> ORACLE_TLS_MODES = Set.of("DISABLED", "REQUIRED");
-    private static final Set<String> SECRET_ROLES = Set.of(
-            "KIMLIK", "WALLET", "CLIENT_SERTIFIKA");
     private static final Set<String> CONNECTION_MODES = Set.of("JDBC", "JNDI");
     private static final Set<String> CONNECTION_POLICY_FIELDS = Set.of(
             "connectTimeoutMs", "readTimeoutMs", "networkTimeoutMs",
@@ -55,30 +51,6 @@ public class TopologyService {
         this.repository = repository;
         this.objectMapper = objectMapper;
         this.secretSanitizer = secretSanitizer;
-    }
-
-    @Transactional
-    SecretReferenceRow createSecretReference(
-            UUID projectUuid,
-            String code,
-            String referencePath,
-            String versionReference,
-            String provider,
-            String name) {
-        ProjectRef project = project(projectUuid);
-        String normalizedProvider = allowed(provider, SECRET_PROVIDERS, "secret provider");
-        String path = required(referencePath, "Secret referans yolu", 500);
-        if (normalizedProvider.equals("ENV") && !path.matches("[A-Z][A-Z0-9_]{1,199}")) {
-            throw validation("ENV secret referansı yalnız ortam değişkeni adı olmalıdır.");
-        }
-        return repository.createSecretReference(
-                project.id(), UUID.randomUUID(), normalizeCode(code), path,
-                trimToNull(versionReference), normalizedProvider, normalizeName(name));
-    }
-
-    List<SecretReferenceRow> listSecretReferences(UUID projectUuid) {
-        ProjectRef project = project(projectUuid);
-        return repository.listSecretReferences(project.id());
     }
 
     @Transactional
@@ -106,7 +78,7 @@ public class TopologyService {
     }
 
     @Transactional
-    ConnectionVersionRow createConnectionVersion(
+    ConnectionVersionRow createConnectionVersionWithCredential(
             UUID projectUuid,
             UUID connectionUuid,
             String mode,
@@ -120,8 +92,8 @@ public class TopologyService {
             String jndiName,
             int policyVersion,
             JsonNode policy,
-            UUID secretReferenceUuid,
-            String secretRole) {
+            String credentialProvider,
+            String credentialReferencePath) {
         ProjectRef project = project(projectUuid);
         ConnectionRow connection = connection(project, connectionUuid);
         if ("PASIF".equals(connection.status())) {
@@ -182,7 +154,7 @@ public class TopologyService {
             if (!JNDI_NAME.matcher(normalizedJndiName).matches()) {
                 throw validation("JNDI adı java:comp/env/jdbc/ altında güvenli bir yerel ad olmalıdır.");
             }
-            if (secretReferenceUuid != null || secretRole != null) {
+            if (credentialProvider != null || credentialReferencePath != null) {
                 throw validation("JNDI bağlantısında secret referansı uygulama sunucusu tarafından yönetilir.");
             }
         }
@@ -192,22 +164,17 @@ public class TopologyService {
         JsonNode safePolicy = policy == null ? objectMapper.createObjectNode() : policy;
         validateConnectionPolicy(safePolicy);
 
-        SecretReferenceRow secret = null;
-        String normalizedRole = null;
-        if (secretReferenceUuid != null) {
-            secret = repository.findSecretReference(project.id(), secretReferenceUuid)
-                    .orElseThrow(() -> notFound("Secret referansı bulunamadı."));
-            if ("ORACLE".equals(connection.databaseType())
-                    && (!"ENV".equals(secret.provider()) || !"AKTIF".equals(secret.status()))) {
-                throw validation("Oracle kimlik bilgisi için aktif bir ENV secret referansı zorunludur.");
+        String normalizedCredentialProvider = null;
+        String normalizedCredentialPath = null;
+        if ("JDBC".equals(normalizedMode)) {
+            normalizedCredentialProvider = allowed(
+                    credentialProvider, Set.of("ENV", "VAULT"), "credential provider");
+            normalizedCredentialPath = required(
+                    credentialReferencePath, "Kimlik bilgisi konumu", 1000);
+            if ("ENV".equals(normalizedCredentialProvider)
+                    && !normalizedCredentialPath.matches("[A-Z][A-Z0-9_]{1,199}")) {
+                throw validation("ENV kimlik bilgisi konumu yalnız ortam değişkeni adı olmalıdır.");
             }
-            normalizedRole = allowed(
-                    secretRole == null ? "KIMLIK" : secretRole,
-                    SECRET_ROLES,
-                    "secret rolü");
-        }
-        else if (secretRole != null) {
-            throw validation("Secret rolü için secretReferenceUuid zorunludur.");
         }
 
         repository.lockConnection(connection.id());
@@ -217,9 +184,10 @@ public class TopologyService {
                 normalizedMode, normalizedDriver, normalizedHost,
                 normalizedServiceName, normalizedSid, normalizedDatabaseName,
                 normalizedJndiName, normalizedTlsMode, normalizedPort, policyVersion, safePolicy);
-        if (secret != null) {
-            repository.bindSecret(
-                    project.id(), version.id(), secret.id(), normalizedRole);
+        if (normalizedCredentialProvider != null) {
+            repository.bindCredential(
+                    project.id(), version.id(), normalizedCredentialProvider,
+                    normalizedCredentialPath, "KIMLIK");
         }
         return version;
     }
