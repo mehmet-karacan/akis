@@ -21,6 +21,15 @@ const en = {
   retryUnsupported: 'Retry and resume are unavailable because this runtime does not yet provide a safe checkpoint protocol.',
   steps: 'Steps', emptySteps: 'No typed step evidence is available for this run.', stepDetail: 'Step detail', type: 'Type', connectionRole: 'Connection role', risk: 'Risk', rowCount: 'Rows', byteCount: 'Bytes', errorCode: 'Error code',
   status_HATA_DEVAM: 'Failed, continued', status_ATLANDI: 'Skipped', status_KAYDEDILMEDI: 'Not recorded',
+  runsOperationalHelp: 'Monitor runs, investigate failures, and manage only permitted interventions.', runViews: 'Run views',
+  view_RECENT: 'Recent runs', view_ACTIVE: 'Active runs', view_FAILED: 'Failed runs', view_HISTORY: 'Run history',
+  scope_RECENT: 'Runs created in the last 24 hours', scope_ACTIVE: 'All active runs without a date limit', scope_FAILED: 'Failed runs in the last 24 hours', scope_HISTORY: 'Run history; last 7 days by default',
+  allStatuses: 'All statuses', environment: 'Environment', allEnvironments: 'All environments', objectType: 'Object type', allObjectTypes: 'All object types', procedure: 'Procedure', mapping: 'Data flow', package: 'Package',
+  applyFilters: 'Apply filters', clearFilters: 'Clear filters', from: 'From', to: 'To', apply: 'Apply', pauseLive: 'Pause live refresh', resumeLive: 'Resume live refresh', refreshFailed: 'The latest refresh failed; the previous results remain visible.',
+  object: 'Object', duration: 'Duration', rows: 'Rows', initiator: 'Initiator', resultCount: '{{count}} results', pageSize: 'Page size', previousPage: 'Previous page', nextPage: 'Next page',
+  runnableVersion: 'Runnable version', targetSummary: 'Pinned target summary', confirmProductionRun: 'I confirm this run will use the production environment and the pinned targets shown above.',
+  pinnedContextUnavailable: 'Pinned environment and target context could not be loaded; run evidence remains available.', availableInterventions: 'Interventions', rerun: 'Run again', resumeRun: 'Resume from failed step', actionReason: 'Unavailable: {{reason}}',
+  evidence: 'Run evidence', tab_SUMMARY: 'Summary', tab_LOGS: 'Logs', tab_EVENTS: 'Events', errorMessageUnavailable: 'A safe error message was not recorded for this step. Inspect the structured events.', metricScope: 'Metrics below belong to the selected step; unknown values are not shown as zero.', operationalEventLog: 'Operational event log', eventLogScope: 'Structured run events; task stdout is not available in this runtime.', noStepLog: 'No structured event lines are available. The step may not have started.',
 } as const
 
 const tr: Record<keyof typeof en, string> = {
@@ -44,6 +53,15 @@ const tr: Record<keyof typeof en, string> = {
   retryUnsupported: 'Bu çalışma zamanı henüz güvenli bir kontrol noktası protokolü sunmadığı için yeniden deneme ve devam ettirme kullanılamıyor.',
   steps: 'Adımlar', emptySteps: 'Bu çalıştırma için türlendirilmiş adım kanıtı bulunmuyor.', stepDetail: 'Adım detayı', type: 'Tür', connectionRole: 'Bağlantı rolü', risk: 'Risk', rowCount: 'Satır', byteCount: 'Bayt', errorCode: 'Hata kodu',
   status_HATA_DEVAM: 'Hata, devam edildi', status_ATLANDI: 'Atlandı', status_KAYDEDILMEDI: 'Kaydedilmedi',
+  runsOperationalHelp: 'Çalıştırmaları izleyin, hataları inceleyin ve yalnız izin verilen müdahaleleri yönetin.', runViews: 'Çalıştırma görünümleri',
+  view_RECENT: 'Son çalıştırmalar', view_ACTIVE: 'Aktif çalıştırmalar', view_FAILED: 'Başarısız çalıştırmalar', view_HISTORY: 'Çalıştırma geçmişi',
+  scope_RECENT: 'Son 24 saatte oluşturulan çalıştırmalar', scope_ACTIVE: 'Tarih sınırı olmadan tüm aktif çalıştırmalar', scope_FAILED: 'Son 24 saatte başarısız olan çalıştırmalar', scope_HISTORY: 'Varsayılan olarak son 7 günlük çalıştırma geçmişi',
+  allStatuses: 'Tüm durumlar', environment: 'Ortam', allEnvironments: 'Tüm ortamlar', objectType: 'Nesne türü', allObjectTypes: 'Tüm nesne türleri', procedure: 'Prosedür', mapping: 'Veri akışı', package: 'Paket',
+  applyFilters: 'Filtreleri uygula', clearFilters: 'Filtreleri temizle', from: 'Başlangıç', to: 'Bitiş', apply: 'Uygula', pauseLive: 'Canlı yenilemeyi duraklat', resumeLive: 'Canlı yenilemeyi sürdür', refreshFailed: 'Son yenileme başarısız oldu; önceki sonuçlar görünmeye devam ediyor.',
+  object: 'Nesne', duration: 'Süre', rows: 'Satır', initiator: 'Başlatan', resultCount: '{{count}} sonuç', pageSize: 'Sayfa boyutu', previousPage: 'Önceki sayfa', nextPage: 'Sonraki sayfa',
+  runnableVersion: 'Çalıştırılabilir sürüm', targetSummary: 'Sabitlenmiş hedef özeti', confirmProductionRun: 'Bu çalıştırmanın üretim ortamını ve yukarıda gösterilen sabitlenmiş hedefleri kullanacağını onaylıyorum.',
+  pinnedContextUnavailable: 'Sabitlenmiş ortam ve hedef bağlamı yüklenemedi; çalıştırma kanıtları görüntülenmeye devam ediyor.', availableInterventions: 'Müdahaleler', rerun: 'Yeniden çalıştır', resumeRun: 'Başarısız adımdan devam et', actionReason: 'Kullanılamıyor: {{reason}}',
+  evidence: 'Çalıştırma kanıtları', tab_SUMMARY: 'Özet', tab_LOGS: 'Loglar', tab_EVENTS: 'Olaylar', errorMessageUnavailable: 'Bu adım için güvenli bir hata mesajı kaydedilmedi. Yapılandırılmış olayları inceleyin.', metricScope: 'Aşağıdaki metrikler seçili adıma aittir; bilinmeyen değerler sıfır gösterilmez.', operationalEventLog: 'Operasyonel olay günlüğü', eventLogScope: 'Yapılandırılmış çalıştırma olaylarıdır; bu runtime görev stdout’u sunmuyor.', noStepLog: 'Yapılandırılmış olay satırı yok. Adım henüz başlamamış olabilir.',
 }
 
 export type ExecutionMessageKey = keyof typeof en

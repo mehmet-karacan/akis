@@ -2,6 +2,7 @@ package tr.com.innova.akis.execution;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -18,7 +19,11 @@ import tr.com.innova.akis.execution.ExecutionModels.Actor;
 import tr.com.innova.akis.execution.ExecutionModels.IdempotencyReservation;
 import tr.com.innova.akis.execution.ExecutionModels.PublicationContext;
 import tr.com.innova.akis.execution.ExecutionModels.RunEventRow;
+import tr.com.innova.akis.execution.ExecutionModels.RunEventPage;
 import tr.com.innova.akis.execution.ExecutionModels.RunRow;
+import tr.com.innova.akis.execution.ExecutionModels.RunSearch;
+import tr.com.innova.akis.execution.ExecutionModels.RunSummaryPage;
+import tr.com.innova.akis.execution.ExecutionModels.RunSummaryRow;
 import tr.com.innova.akis.execution.ExecutionModels.RunStepRow;
 
 @Repository
@@ -279,6 +284,80 @@ public class JdbcExecutionStore implements ExecutionStore {
     }
 
     @Override
+    public RunSummaryPage search(UUID projectUuid, RunSearch search) {
+        String joinsAndFilter = """
+                  from akis.calistirma r
+                  join akis.is_talebi j on j.id = r.is_talebi_id
+                  join akis.yayin y on y.id = j.yayin_id
+                  join akis.senaryo s on s.id = y.senaryo_id
+                  join akis.tanim_surumu ts on ts.id = s.tanim_surumu_id
+                  join akis.tanim t on t.id = ts.tanim_id
+                  join akis.ortam o on o.id = y.ortam_id
+                  join akis.calistirma_durumu d on d.calistirma_id = r.id
+                  join akis.proje p on p.id = r.proje_id
+                  left join akis.kullanici k on k.id = j.olusturan_kullanici_id
+                 where p.uuid = :projectUuid
+                   and (:query is null or lower(t.ad) like '%' || lower(:query) || '%'
+                        or lower(t.kod) like '%' || lower(:query) || '%')
+                   and (:statuses is null or d.durum = any(string_to_array(:statuses, ',')))
+                   and (:environment is null or o.kod = :environment)
+                   and (:definitionType is null or t.tur = :definitionType)
+                   and (
+                        (:view = 'ACTIVE' and d.durum not in ('BASARILI','BASARISIZ','IPTAL','SONUCU_BILINMIYOR'))
+                        or (:view = 'RECENT' and r.olusturulma_zamani >= coalesce(:fromTime, current_timestamp - interval '24 hours') and r.olusturulma_zamani <= coalesce(:toTime, current_timestamp))
+                        or (:view = 'FAILED' and d.durum in ('BASARISIZ','MUDAHALE_GEREKLI','YENIDEN_DENENEBILIR') and r.olusturulma_zamani >= coalesce(:fromTime, current_timestamp - interval '24 hours') and r.olusturulma_zamani <= coalesce(:toTime, current_timestamp))
+                        or (:view = 'HISTORY' and r.olusturulma_zamani >= coalesce(:fromTime, current_timestamp - interval '7 days') and r.olusturulma_zamani <= coalesce(:toTime, current_timestamp))
+                   )
+                """;
+        long total = bindSearch(jdbc.sql("select count(*) " + joinsAndFilter), projectUuid, search)
+                .query(Long.class).single();
+        List<RunSummaryRow> items = bindSearch(jdbc.sql("""
+                        select j.id as job_request_id, r.id as run_id, d.id as state_id,
+                               j.uuid as job_request_uuid, r.uuid as run_uuid,
+                               y.uuid as publication_uuid, r.deneme_no, r.baslatma_turu,
+                               d.durum as durum_kodu, r.yayin_ozeti, r.plan_ozeti, d.son_olay_no,
+                               r.olusturulma_zamani, d.baslama_zamani, d.bitis_zamani,
+                               d.iptal_isteme_zamani,
+                               t.uuid as definition_uuid, t.kod as definition_code,
+                               t.ad as definition_name, t.tur as definition_type,
+                               o.uuid as environment_uuid, o.kod as environment_code,
+                               o.ad as environment_name, o.risk as environment_risk,
+                               coalesce(k.gorunen_ad, '—') as initiator_name
+                        """ + joinsAndFilter + """
+                         order by r.olusturulma_zamani desc, r.id desc
+                         limit :size offset :offset
+                        """), projectUuid, search)
+                .param("size", search.size())
+                .param("offset", search.page() * search.size())
+                .query((rs, rowNum) -> new RunSummaryRow(
+                        mapRun(rs, rowNum), rs.getObject("definition_uuid", UUID.class),
+                        rs.getString("definition_code"), rs.getString("definition_name"),
+                        rs.getString("definition_type"),
+                        rs.getObject("environment_uuid", UUID.class),
+                        rs.getString("environment_code"), rs.getString("environment_name"),
+                        rs.getString("environment_risk"), rs.getString("initiator_name")))
+                .list();
+        return new RunSummaryPage(items, total, search.page(), search.size());
+    }
+
+    private JdbcClient.StatementSpec bindSearch(
+            JdbcClient.StatementSpec statement, UUID projectUuid, RunSearch search) {
+        return statement
+                .param("projectUuid", projectUuid)
+                .param("query", blankToNull(search.query()), Types.VARCHAR)
+                .param("statuses", blankToNull(search.statuses()), Types.VARCHAR)
+                .param("environment", blankToNull(search.environmentCode()), Types.VARCHAR)
+                .param("definitionType", blankToNull(search.definitionType()), Types.VARCHAR)
+                .param("view", search.view())
+                .param("fromTime", search.from(), Types.TIMESTAMP_WITH_TIMEZONE)
+                .param("toTime", search.to(), Types.TIMESTAMP_WITH_TIMEZONE);
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    @Override
     public List<RunEventRow> listEvents(UUID projectUuid, UUID runUuid) {
         return jdbc.sql("""
                         select e.uuid, e.olay_no, e.tur as tur_kodu, e.olay_zamani, e.veri
@@ -299,9 +378,35 @@ public class JdbcExecutionStore implements ExecutionStore {
     }
 
     @Override
+    public RunEventPage listEvents(UUID projectUuid, UUID runUuid, long after, int size) {
+        List<RunEventRow> rows = jdbc.sql("""
+                        select e.uuid, e.olay_no, e.tur as tur_kodu, e.olay_zamani, e.veri
+                          from akis.calistirma_olayi e
+                          join akis.calistirma r on r.id = e.calistirma_id
+                          join akis.proje p on p.id = r.proje_id
+                         where p.uuid = :projectUuid and r.uuid = :runUuid
+                           and e.olay_no > :after
+                         order by e.olay_no
+                         limit :limit
+                        """)
+                .param("projectUuid", projectUuid).param("runUuid", runUuid)
+                .param("after", after).param("limit", size + 1)
+                .query((rs, rowNum) -> new RunEventRow(
+                        rs.getObject("uuid", UUID.class), rs.getLong("olay_no"),
+                        rs.getString("tur_kodu"),
+                        rs.getObject("olay_zamani", OffsetDateTime.class),
+                        json(rs.getString("veri"))))
+                .list();
+        boolean hasMore = rows.size() > size;
+        List<RunEventRow> items = hasMore ? rows.subList(0, size) : rows;
+        Long nextCursor = items.isEmpty() ? null : items.getLast().eventNumber();
+        return new RunEventPage(List.copyOf(items), nextCursor, hasMore);
+    }
+
+    @Override
     public List<RunStepRow> listSteps(UUID projectUuid, UUID runUuid) {
         return jdbc.sql("""
-                        select a.uuid, a.adim_kodu, a.tur as tur_kodu, a.sira_no, a.ad,
+                        select a.uuid, u.uuid as parent_uuid, a.adim_kodu, a.tur as tur_kodu, a.sira_no, a.ad,
                                coalesce(d.durum, 'KAYDEDILMEDI') as durum_kodu,
                                k.baglanti_rolu, k.risk as risk_kodu,
                                d.baslama_zamani, d.bitis_zamani,
@@ -309,6 +414,7 @@ public class JdbcExecutionStore implements ExecutionStore {
                           from akis.calistirma_adimi a
                           join akis.calistirma r on r.id = a.calistirma_id
                           join akis.proje p on p.id = r.proje_id
+                          left join akis.calistirma_adimi u on u.id = a.ust_adim_id
                           left join akis.prosedur_adim_kaniti k
                             on k.proje_id = a.proje_id and k.calistirma_adimi_id = a.id
                           left join akis.prosedur_adim_durumu d
@@ -319,7 +425,8 @@ public class JdbcExecutionStore implements ExecutionStore {
                 .param("projectUuid", projectUuid)
                 .param("runUuid", runUuid)
                 .query((rs, rowNum) -> new RunStepRow(
-                        rs.getObject("uuid", UUID.class), rs.getString("adim_kodu"),
+                        rs.getObject("uuid", UUID.class), rs.getObject("parent_uuid", UUID.class),
+                        rs.getString("adim_kodu"),
                         rs.getString("tur_kodu"), rs.getInt("sira_no"), rs.getString("ad"),
                         rs.getString("durum_kodu"), rs.getString("baglanti_rolu"),
                         rs.getString("risk_kodu"),

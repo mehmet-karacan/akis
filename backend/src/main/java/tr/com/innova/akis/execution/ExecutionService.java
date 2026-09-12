@@ -15,7 +15,10 @@ import tr.com.innova.akis.execution.ExecutionModels.Actor;
 import tr.com.innova.akis.execution.ExecutionModels.IdempotencyReservation;
 import tr.com.innova.akis.execution.ExecutionModels.PublicationContext;
 import tr.com.innova.akis.execution.ExecutionModels.RunEventRow;
+import tr.com.innova.akis.execution.ExecutionModels.RunEventPage;
 import tr.com.innova.akis.execution.ExecutionModels.RunRow;
+import tr.com.innova.akis.execution.ExecutionModels.RunSearch;
+import tr.com.innova.akis.execution.ExecutionModels.RunSummaryPage;
 import tr.com.innova.akis.execution.ExecutionModels.RunStepRow;
 import tr.com.innova.akis.execution.ExecutionModels.StartResult;
 import tr.com.innova.akis.metadata.ApiException;
@@ -108,6 +111,18 @@ public class ExecutionService {
     }
 
     @Transactional(readOnly = true)
+    RunSummaryPage search(UUID projectUuid, RunSearch search) {
+        requireProject(projectUuid);
+        if (search.page() < 0 || search.size() < 1 || search.size() > 200) {
+            throw validation("Sayfa numarası ve sayfa boyutu geçersiz.");
+        }
+        if (!List.of("RECENT", "ACTIVE", "FAILED", "HISTORY").contains(search.view())) {
+            throw validation("Çalıştırma görünümü geçersiz.");
+        }
+        return store.search(projectUuid, search);
+    }
+
+    @Transactional(readOnly = true)
     RunRow get(UUID projectUuid, UUID runUuid) {
         return store.find(projectUuid, runUuid)
                 .orElseThrow(() -> notFound("Çalıştırma bulunamadı."));
@@ -117,6 +132,15 @@ public class ExecutionService {
     List<RunEventRow> events(UUID projectUuid, UUID runUuid) {
         get(projectUuid, runUuid);
         return store.listEvents(projectUuid, runUuid);
+    }
+
+    @Transactional(readOnly = true)
+    RunEventPage events(UUID projectUuid, UUID runUuid, long after, int size) {
+        get(projectUuid, runUuid);
+        if (after < 0 || size < 1 || size > 500) {
+            throw validation("Olay cursor veya sayfa boyutu geçersiz.");
+        }
+        return store.listEvents(projectUuid, runUuid, after, size);
     }
 
     @Transactional(readOnly = true)

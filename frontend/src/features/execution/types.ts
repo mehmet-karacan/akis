@@ -26,6 +26,40 @@ export interface RunRecord {
   allowedActions: Array<{ action: 'CANCEL' | 'START_NEW_ATTEMPT' | 'RESUME' | string; allowed: boolean; reasonCode: string | null }>
 }
 
+export type RunView = 'RECENT' | 'ACTIVE' | 'FAILED' | 'HISTORY'
+
+export interface RunSearchInput {
+  view: RunView
+  query?: string
+  statuses?: string
+  environment?: string
+  definitionType?: string
+  from?: string
+  to?: string
+  page: number
+  size: number
+}
+
+export interface RunSummary {
+  run: RunRecord
+  definitionUuid: string
+  definitionCode: string
+  definitionName: string
+  definitionType: string
+  environmentUuid: string
+  environmentCode: string
+  environmentName: string
+  environmentRisk: string
+  initiatorName: string
+}
+
+export interface RunPage {
+  items: RunSummary[]
+  total: number
+  page: number
+  size: number
+}
+
 export type Run = RunRecord
 
 export interface RunEvent {
@@ -36,8 +70,11 @@ export interface RunEvent {
   data: unknown
 }
 
+export interface RunEventPage { items: RunEvent[]; nextCursor: number | null; hasMore: boolean }
+
 export interface RunStep {
   uuid: string
+  parentUuid: string | null
   code: string
   type: string
   ordinal: number

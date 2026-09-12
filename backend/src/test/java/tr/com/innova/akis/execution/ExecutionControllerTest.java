@@ -21,7 +21,10 @@ import tr.com.innova.akis.execution.ExecutionModels.Actor;
 import tr.com.innova.akis.execution.ExecutionModels.IdempotencyReservation;
 import tr.com.innova.akis.execution.ExecutionModels.PublicationContext;
 import tr.com.innova.akis.execution.ExecutionModels.RunEventRow;
+import tr.com.innova.akis.execution.ExecutionModels.RunEventPage;
 import tr.com.innova.akis.execution.ExecutionModels.RunRow;
+import tr.com.innova.akis.execution.ExecutionModels.RunSearch;
+import tr.com.innova.akis.execution.ExecutionModels.RunSummaryPage;
 import tr.com.innova.akis.execution.ExecutionModels.RunStepRow;
 import tr.com.innova.akis.execution.ExecutionModels.StartResult;
 import tr.com.innova.akis.security.AuthorizationService;
@@ -66,9 +69,14 @@ class ExecutionControllerTest {
 
         controller.list(PROJECT_UUID);
         assertEquals(RUN_READ, authorization.permission);
+        controller.search(PROJECT_UUID, "RECENT", null, null, null, null,
+                null, null, 0, 50);
+        assertEquals(RUN_READ, authorization.permission);
         controller.get(PROJECT_UUID, RUN_UUID);
         assertEquals(RUN_READ, authorization.permission);
         controller.events(PROJECT_UUID, RUN_UUID);
+        assertEquals(RUN_READ, authorization.permission);
+        controller.eventPage(PROJECT_UUID, RUN_UUID, 0, 100);
         assertEquals(RUN_READ, authorization.permission);
         controller.steps(PROJECT_UUID, RUN_UUID);
         assertEquals(RUN_READ, authorization.permission);
@@ -120,6 +128,11 @@ class ExecutionControllerTest {
         }
 
         @Override
+        RunSummaryPage search(UUID projectUuid, RunSearch search) {
+            return new RunSummaryPage(List.of(), 0, search.page(), search.size());
+        }
+
+        @Override
         RunRow get(UUID projectUuid, UUID runUuid) {
             return run();
         }
@@ -127,6 +140,11 @@ class ExecutionControllerTest {
         @Override
         List<RunEventRow> events(UUID projectUuid, UUID runUuid) {
             return List.of();
+        }
+
+        @Override
+        RunEventPage events(UUID projectUuid, UUID runUuid, long after, int size) {
+            return new RunEventPage(List.of(), null, false);
         }
 
         @Override
@@ -174,7 +192,9 @@ class ExecutionControllerTest {
         @Override public Optional<RunRow> find(UUID p, UUID r) { throw unsupported(); }
         @Override public Optional<RunRow> lock(UUID p, UUID r) { throw unsupported(); }
         @Override public List<RunRow> list(UUID p) { throw unsupported(); }
+        @Override public RunSummaryPage search(UUID p, RunSearch s) { throw unsupported(); }
         @Override public List<RunEventRow> listEvents(UUID p, UUID r) { throw unsupported(); }
+        @Override public RunEventPage listEvents(UUID p, UUID r, long a, int s) { throw unsupported(); }
         @Override public List<RunStepRow> listSteps(UUID p, UUID r) { throw unsupported(); }
         @Override public RunRow cancelQueued(RunRow r, Actor a, UUID e) { throw unsupported(); }
 

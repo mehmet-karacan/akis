@@ -21,7 +21,10 @@ import tr.com.innova.akis.execution.ExecutionModels.Actor;
 import tr.com.innova.akis.execution.ExecutionModels.IdempotencyReservation;
 import tr.com.innova.akis.execution.ExecutionModels.PublicationContext;
 import tr.com.innova.akis.execution.ExecutionModels.RunEventRow;
+import tr.com.innova.akis.execution.ExecutionModels.RunEventPage;
 import tr.com.innova.akis.execution.ExecutionModels.RunRow;
+import tr.com.innova.akis.execution.ExecutionModels.RunSearch;
+import tr.com.innova.akis.execution.ExecutionModels.RunSummaryPage;
 import tr.com.innova.akis.execution.ExecutionModels.RunStepRow;
 import tr.com.innova.akis.execution.ExecutionModels.StartResult;
 import tr.com.innova.akis.metadata.ApiException;
@@ -280,10 +283,20 @@ class ExecutionServiceTest {
         }
 
         @Override
+        public RunSummaryPage search(UUID projectUuid, RunSearch search) {
+            return new RunSummaryPage(List.of(), 0, search.page(), search.size());
+        }
+
+        @Override
         public List<RunEventRow> listEvents(UUID projectUuid, UUID runUuid) {
             return run == null ? List.of() : List.of(new RunEventRow(
                     UUID.randomUUID(), 1, "RUN_REQUESTED", OffsetDateTime.now(),
                     objectMapper.createObjectNode()));
+        }
+
+        @Override
+        public RunEventPage listEvents(UUID projectUuid, UUID runUuid, long after, int size) {
+            return new RunEventPage(listEvents(projectUuid, runUuid), null, false);
         }
 
         @Override

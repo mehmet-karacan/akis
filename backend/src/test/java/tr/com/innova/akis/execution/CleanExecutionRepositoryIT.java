@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.UUID;
+import java.time.OffsetDateTime;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -14,11 +15,12 @@ import tools.jackson.databind.ObjectMapper;
 class CleanExecutionRepositoryIT {
     private static JdbcExecutionStore store; private static JdbcPinnedExecutionContextStore pinnedStore;
     private static JdbcProcedurePreflightContextStore preflightStore;
+    private static JdbcClient jdbc;
     private static UUID projectUuid; private static UUID publicationUuid;
 
     @BeforeAll static void connect(){
         String url=required("SPRING_DATASOURCE_URL");if(!url.matches(".*(/akis_execution_test_[0-9]+)(?:\\?.*)?$"))throw new IllegalStateException("Generated execution DB required.");
-        var ds=new DriverManagerDataSource(url,required("SPRING_DATASOURCE_USERNAME"),required("SPRING_DATASOURCE_PASSWORD"));var jdbc=JdbcClient.create(ds);var mapper=new ObjectMapper();store=new JdbcExecutionStore(jdbc,mapper);pinnedStore=new JdbcPinnedExecutionContextStore(jdbc,mapper);preflightStore=new JdbcProcedurePreflightContextStore(jdbc,mapper);
+        var ds=new DriverManagerDataSource(url,required("SPRING_DATASOURCE_USERNAME"),required("SPRING_DATASOURCE_PASSWORD"));jdbc=JdbcClient.create(ds);var mapper=new ObjectMapper();store=new JdbcExecutionStore(jdbc,mapper);pinnedStore=new JdbcPinnedExecutionContextStore(jdbc,mapper);preflightStore=new JdbcProcedurePreflightContextStore(jdbc,mapper);
         projectUuid=jdbc.sql("insert into akis.proje(kod,ad) values ('EXECUTION_IT','Execution IT') returning uuid").query(UUID.class).single();long p=jdbc.sql("select id from akis.proje where uuid=:u").param("u",projectUuid).query(Long.class).single();
         long actor=jdbc.sql("insert into akis.kullanici(gorunen_ad) values ('Developer') returning id").query(Long.class).single();jdbc.sql("insert into akis.harici_kimlik(kullanici_id,saglayici_turu,harici_kullanici_anahtari) values (:k,'YEREL','developer')").param("k",actor).update();
         long o=jdbc.sql("insert into akis.ortam(proje_id,kod,ad) values (:p,'DEV','Development') returning id").param("p",p).query(Long.class).single();long f=jdbc.sql("insert into akis.klasor(proje_id,kod,ad) values (:p,'ROOT','Root') returning id").param("p",p).query(Long.class).single();long t=jdbc.sql("insert into akis.tanim(proje_id,klasor_id,tur,kod,ad) values (:p,:f,'PROSEDUR','LOAD','Load') returning id").param("p",p).param("f",f).query(Long.class).single();
@@ -30,7 +32,10 @@ class CleanExecutionRepositoryIT {
         long p=store.findProjectId(projectUuid).orElseThrow();var actor=store.findActiveActor("LOCAL_BASIC","developer").orElseThrow();var publication=store.lockPublication(projectUuid,publicationUuid).orElseThrow();
         assertTrue(store.reserveIdempotency(p,actor.id(),"MANUAL_RUN","d".repeat(64),"e".repeat(64),UUID.randomUUID()));var reservation=store.lockIdempotency(p,actor.id(),"MANUAL_RUN","d".repeat(64)).orElseThrow();
         var run=store.createQueuedRun(publication,actor,"e".repeat(64),UUID.randomUUID(),UUID.randomUUID(),UUID.randomUUID(),UUID.randomUUID());store.completeIdempotency(reservation.id(),run.jobRequestId(),run);
-        assertEquals("BEKLIYOR",run.status());assertEquals(publicationUuid,pinnedStore.find(run.runUuid()).orElseThrow().publicationUuid());assertEquals("AKTIF",preflightStore.find(projectUuid,publicationUuid).orElseThrow().status());assertEquals("RUN_REQUESTED",store.listEvents(projectUuid,run.runUuid()).getFirst().type());var cancelled=store.cancelQueued(store.lock(projectUuid,run.runUuid()).orElseThrow(),actor,UUID.randomUUID());assertEquals("IPTAL",cancelled.status());assertEquals(2,store.listEvents(projectUuid,run.runUuid()).size());
+        assertEquals("BEKLIYOR",run.status());assertEquals(publicationUuid,pinnedStore.find(run.runUuid()).orElseThrow().publicationUuid());assertEquals("AKTIF",preflightStore.find(projectUuid,publicationUuid).orElseThrow().status());assertEquals("RUN_REQUESTED",store.listEvents(projectUuid,run.runUuid()).getFirst().type());
+        var page=store.search(projectUuid,new ExecutionModels.RunSearch("RECENT","load",null,"DEV","PROSEDUR",OffsetDateTime.now().minusDays(1),OffsetDateTime.now().plusMinutes(1),0,25));assertEquals(1,page.total());assertEquals("LOAD",page.items().getFirst().definitionCode());assertEquals("DEV",page.items().getFirst().environmentCode());assertEquals("Developer",page.items().getFirst().initiatorName());
+        long root=jdbc.sql("insert into akis.calistirma_adimi(proje_id,calistirma_id,adim_kodu,tur,sira_no,ad) values(:p,:r,'ROOT','PAKET',1,'Root') returning id").param("p",p).param("r",run.runId()).query(Long.class).single();UUID childUuid=jdbc.sql("insert into akis.calistirma_adimi(proje_id,calistirma_id,ust_adim_id,adim_kodu,tur,sira_no,ad) values(:p,:r,:u,'CHILD','PROSEDUR',1,'Child') returning uuid").param("p",p).param("r",run.runId()).param("u",root).query(UUID.class).single();assertEquals(childUuid,store.listSteps(projectUuid,run.runUuid()).get(1).uuid());assertEquals(store.listSteps(projectUuid,run.runUuid()).getFirst().uuid(),store.listSteps(projectUuid,run.runUuid()).get(1).parentUuid());
+        var cancelled=store.cancelQueued(store.lock(projectUuid,run.runUuid()).orElseThrow(),actor,UUID.randomUUID());assertEquals("IPTAL",cancelled.status());assertEquals(2,store.listEvents(projectUuid,run.runUuid()).size());var eventPage=store.listEvents(projectUuid,run.runUuid(),0,1);assertEquals(1,eventPage.items().size());assertTrue(eventPage.hasMore());assertEquals(1,eventPage.nextCursor());
     }
     private static String required(String n){String v=System.getenv(n);if(v==null||v.isBlank())throw new IllegalStateException(n+" required");return v;}
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isUuid, redactSensitiveValues, toOffsetDateTime } from './utils'
+import { apiErrorMessage, isUuid, redactSensitiveText, redactSensitiveValues, toOffsetDateTime } from './utils'
 
 describe('operations utilities', () => {
   it('redacts sensitive values at every manifest depth without mutating safe context', () => {
@@ -24,5 +24,11 @@ describe('operations utilities', () => {
     expect(toOffsetDateTime('')).toBeNull()
     expect(toOffsetDateTime('2026-09-11T10:30')).toMatch(/^2026-09-11T/)
   })
-})
 
+  it('redacts credentials embedded in plain log and error strings', () => {
+    expect(redactSensitiveText('password=hunter2 Bearer abc.def.ghi')).toBe('password=[REDACTED] Bearer [REDACTED]')
+    expect(redactSensitiveText('jdbc:oracle:thin:user:pass@host')).toBe('jdbc:oracle:thin:user:pass@host')
+    expect(redactSensitiveText('https://user:pass@host/path')).toBe('https://[REDACTED]@host/path')
+    expect(apiErrorMessage(new Error('token:top-secret'), 'fallback')).toBe('token:[REDACTED]')
+  })
+})

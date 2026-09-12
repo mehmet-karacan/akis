@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, FileCode2, Play, Plus, Search } from 'lucide-react'
+import { Activity, ChevronLeft, ChevronRight, Pause, Plus, RefreshCw, Search } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { definitionsApi } from '../definitions/api'
@@ -11,92 +11,63 @@ import { createIdempotencyKey, executionApi, isExecutionDisabled } from './api'
 import { ExecutionDisabledNotice } from './ExecutionDisabledNotice'
 import { useExecutionI18n } from './i18n'
 import { RunStatusBadge } from './RunStatusBadge'
-import { isRunnablePublication, type RunRecord } from './types'
+import { isRunnablePublication, type RunSearchInput, type RunView } from './types'
 import './execution.css'
 
+const views: RunView[] = ['RECENT', 'ACTIVE', 'FAILED', 'HISTORY']
+const activeStatuses = new Set(['BEKLIYOR', 'HAZIRLANIYOR', 'CALISIYOR', 'YAYINLANIYOR', 'IPTAL_ISTENDI', 'MUTABAKAT'])
+const allowedSizes = [25, 50, 100]
+
+function validView(value: string | null): RunView { return views.includes(value as RunView) ? value as RunView : 'RECENT' }
+function positiveInt(value: string | null, fallback: number) { const parsed = Number(value); return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback }
+function duration(startedAt: string | null, finishedAt: string | null, locale: string) {
+  if (!startedAt) return '—'
+  const milliseconds = (finishedAt ? Date.parse(finishedAt) : Date.now()) - Date.parse(startedAt)
+  if (!Number.isFinite(milliseconds) || milliseconds < 0) return '—'
+  const seconds = Math.floor(milliseconds / 1000)
+  if (seconds < 60) return `${new Intl.NumberFormat(locale).format(seconds)} sn`
+  const minutes = Math.floor(seconds / 60); const hours = Math.floor(minutes / 60)
+  return hours ? `${hours} sa ${minutes % 60} dk` : `${minutes} dk`
+}
+
 export function RunsPage() {
-  const { projectUuid = '' } = useParams()
-  const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
-  const { t, locale } = useExecutionI18n()
-  const runs = useRemoteData(() => executionApi.listRuns(projectUuid), [projectUuid])
-  const publications = useRemoteData(() => operationsApi.listPublications(projectUuid), [projectUuid])
-  const definitions = useRemoteData(() => definitionsApi.listDefinitions(projectUuid), [projectUuid])
-  const capabilities = useRemoteData(() => executionApi.getCapabilities(projectUuid), [projectUuid])
-  const runnablePublications = useMemo(() => (publications.data ?? []).filter(isRunnablePublication), [publications.data])
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [publicationUuid, setPublicationUuid] = useState('')
-  const [idempotencyKey, setIdempotencyKey] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [submitError, setSubmitError] = useState('')
-  const [executionDisabled, setExecutionDisabled] = useState(false)
-  const [runDefinitionUuid, setRunDefinitionUuid] = useState('')
-  const handledStart = useRef('')
-  const [expandedObjects, setExpandedObjects] = useState<Set<string>>(new Set())
-  const [query, setQuery] = useState('')
-  const [visibleCount, setVisibleCount] = useState(50)
-  const runtimeUnavailable = executionDisabled || capabilities.data?.runtime.runnable === false
-  const runtimeUnavailableReason = capabilities.data?.runtime.acceptsManualRequests === false || executionDisabled ? 'requests' : 'worker'
+  const { projectUuid = '' } = useParams(); const navigate = useNavigate(); const [searchParams, setSearchParams] = useSearchParams(); const { t, locale } = useExecutionI18n()
+  const view = validView(searchParams.get('view')); const page = positiveInt(searchParams.get('page'), 0); const requestedSize = positiveInt(searchParams.get('size'), 50); const size = allowedSizes.includes(requestedSize) ? requestedSize : 50
+  const query = searchParams.get('query') ?? ''; const status = searchParams.get('statuses') ?? ''; const environment = searchParams.get('environment') ?? ''; const definitionType = searchParams.get('definitionType') ?? ''; const from = searchParams.get('from') ?? ''; const to = searchParams.get('to') ?? ''
+  const [queryDraft, setQueryDraft] = useState(query); const [fromDraft, setFromDraft] = useState(from); const [toDraft, setToDraft] = useState(to); const [live, setLive] = useState(true)
+  const searchInput: RunSearchInput = { view, query, statuses: status, environment, definitionType, from, to, page, size }
+  const runs = useRemoteData(() => executionApi.searchRuns(projectUuid, searchInput), [projectUuid, view, query, status, environment, definitionType, from, to, page, size])
+  const publications = useRemoteData(() => operationsApi.listPublications(projectUuid), [projectUuid]); const definitions = useRemoteData(() => definitionsApi.listDefinitions(projectUuid), [projectUuid]); const capabilities = useRemoteData(() => executionApi.getCapabilities(projectUuid), [projectUuid])
+  const runnablePublications = useMemo(() => (publications.data ?? []).filter(isRunnablePublication), [publications.data]); const definitionByUuid = useMemo(() => new Map((definitions.data ?? []).map((item) => [item.uuid, item])), [definitions.data]); const environmentCodes = useMemo(() => [...new Set((publications.data ?? []).map((item) => item.environmentCode))].sort(), [publications.data])
+  const hasActiveRows = runs.data?.items.some((item) => activeStatuses.has(item.run.status)) ?? false
+  useEffect(() => { if (!live || !hasActiveRows) return; const refresh = () => { if (document.visibilityState === 'visible') void runs.reload() }; const timer = window.setInterval(refresh, 10_000); document.addEventListener('visibilitychange', refresh); return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', refresh) } }, [hasActiveRows, live, runs.reload])
+  const updateFilters = (changes: Record<string, string>) => { const next = new URLSearchParams(searchParams); for (const [key, value] of Object.entries(changes)) { if (value) next.set(key, value); else next.delete(key) } if (!('page' in changes)) next.delete('page'); setSearchParams(next) }
 
-  const definitionByUuid = useMemo(() => new Map((definitions.data ?? []).map((item) => [item.uuid, item])), [definitions.data])
-  const publicationByUuid = useMemo(() => new Map((publications.data ?? []).map((item) => [item.uuid, item])), [publications.data])
-  const runGroups = useMemo(() => {
-    const grouped = new Map<string, { name: string; code: string; runs: RunRecord[] }>()
-    for (const run of runs.data ?? []) {
-      const publication = publicationByUuid.get(run.publicationUuid)
-      const definition = publication ? definitionByUuid.get(publication.definitionUuid) : undefined
-      const key = definition?.uuid ?? publication?.definitionUuid ?? 'unknown'
-      const current = grouped.get(key) ?? { name: definition?.name ?? t('unnamedObject'), code: definition?.code ?? '—', runs: [] }
-      current.runs.push(run); grouped.set(key, current)
-    }
-    const normalized = query.trim().toLocaleLowerCase(locale)
-    return [...grouped.entries()].filter(([, item]) => !normalized || `${item.name} ${item.code}`.toLocaleLowerCase(locale).includes(normalized))
-  }, [definitionByUuid, locale, publicationByUuid, query, runs.data, t])
-
-  const dialogPublications = useMemo(() => runDefinitionUuid ? runnablePublications.filter((item) => item.definitionUuid === runDefinitionUuid) : runnablePublications, [runDefinitionUuid, runnablePublications])
-  const openDialog = (definitionUuid = '') => { const candidates = definitionUuid ? runnablePublications.filter((item) => item.definitionUuid === definitionUuid) : runnablePublications; setRunDefinitionUuid(definitionUuid); setPublicationUuid(candidates[0]?.uuid ?? ''); setIdempotencyKey(createIdempotencyKey()); setSubmitError(''); setDialogOpen(true) }
-  useEffect(() => {
-    const requested = searchParams.get('definition') ?? ''
-    const key = searchParams.get('start') === '1' ? `${requested}:${runnablePublications.length}` : ''
-    if (!key || publications.loading || handledStart.current === key) return
-    handledStart.current = key
-    openDialog(requested)
-    const next = new URLSearchParams(searchParams); next.delete('start'); setSearchParams(next, { replace: true })
-  }, [publications.loading, runnablePublications, searchParams, setSearchParams])
-  const submit = async (event: FormEvent) => {
-    event.preventDefault(); if (!publicationUuid || !idempotencyKey) return
-    setSubmitting(true); setSubmitError('')
-    try { const run = await executionApi.startRun(projectUuid, publicationUuid, idempotencyKey); setDialogOpen(false); await navigate(`/projects/${encodeURIComponent(projectUuid)}/operations/runs/${run.runUuid}`) }
-    catch (error) { if (isExecutionDisabled(error)) { setExecutionDisabled(true); setDialogOpen(false) } else setSubmitError(apiErrorMessage(error, t('requestFailed'))) }
-    finally { setSubmitting(false) }
-  }
-  const publicationLabel = (publication: Publication) => `${definitionByUuid.get(publication.definitionUuid)?.name ?? t('unnamedObject')} · #${publication.publicationNumber} · ${publication.environmentCode}`
+  const [dialogOpen, setDialogOpen] = useState(false); const [publicationUuid, setPublicationUuid] = useState(''); const [productionConfirmed, setProductionConfirmed] = useState(false); const [idempotencyKey, setIdempotencyKey] = useState(''); const [submitting, setSubmitting] = useState(false); const [submitError, setSubmitError] = useState(''); const [executionDisabled, setExecutionDisabled] = useState(false); const handledStart = useRef('')
+  const runtimeUnavailable = executionDisabled || capabilities.data?.runtime.runnable === false; const runtimeUnavailableReason = capabilities.data?.runtime.acceptsManualRequests === false || executionDisabled ? 'requests' : 'worker'
+  const openDialog = (definitionUuid = '') => { const candidates = definitionUuid ? runnablePublications.filter((item) => item.definitionUuid === definitionUuid) : runnablePublications; setPublicationUuid(candidates[0]?.uuid ?? ''); setProductionConfirmed(false); setIdempotencyKey(createIdempotencyKey()); setSubmitError(''); setDialogOpen(true) }
+  useEffect(() => { const requested = searchParams.get('definition') ?? ''; const key = searchParams.get('start') === '1' ? `${requested}:${runnablePublications.length}` : ''; if (!key || publications.loading || handledStart.current === key) return; handledStart.current = key; openDialog(requested); const next = new URLSearchParams(searchParams); next.delete('start'); setSearchParams(next, { replace: true }) }, [publications.loading, runnablePublications, searchParams, setSearchParams])
+  const submit = async (event: FormEvent) => { event.preventDefault(); if (!publicationUuid || !idempotencyKey) return; setSubmitting(true); setSubmitError(''); try { const run = await executionApi.startRun(projectUuid, publicationUuid, idempotencyKey); setDialogOpen(false); await navigate(`/projects/${encodeURIComponent(projectUuid)}/operations/runs/${run.runUuid}`) } catch (error) { if (isExecutionDisabled(error)) { setExecutionDisabled(true); setDialogOpen(false) } else setSubmitError(apiErrorMessage(error, t('requestFailed'))) } finally { setSubmitting(false) } }
+  const publicationLabel = (publication: Publication) => `${definitionByUuid.get(publication.definitionUuid)?.name ?? t('unnamedObject')} · #${publication.publicationNumber} · ${publication.environmentCode}`; const totalPages = Math.max(1, Math.ceil((runs.data?.total ?? 0) / size)); const selectedPublication = runnablePublications.find((item) => item.uuid === publicationUuid); const productionRun = selectedPublication?.environmentRisk === 'URETIM'
 
   return <section className="ops-page execution-page">
-    <PageHeader title={t('runs')} description={t('runsHelp')} actions={<button className="ops-button" type="button" onClick={() => openDialog()} disabled={runtimeUnavailable || capabilities.loading || Boolean(capabilities.error) || publications.loading || runnablePublications.length === 0}><Plus aria-hidden="true" /> {t('startRun')}</button>} />
+    <PageHeader title={t('runs')} description={t('runsOperationalHelp')} actions={<button className="ops-button" type="button" onClick={() => openDialog()} disabled={runtimeUnavailable || capabilities.loading || Boolean(capabilities.error) || publications.loading || runnablePublications.length === 0}><Plus aria-hidden="true" /> {t('startRun')}</button>} />
     {runtimeUnavailable && <ExecutionDisabledNotice reason={runtimeUnavailableReason} />}
-    {!capabilities.loading && Boolean(capabilities.error) && <ErrorState message={t('capabilityUnavailable')} onRetry={() => void capabilities.reload()} />}
-    {!publications.loading && Boolean(publications.error) && <ErrorState message={apiErrorMessage(publications.error, t('requestFailed'))} onRetry={() => void publications.reload()} />}
-    {!publications.loading && !publications.error && runnablePublications.length === 0 && <div className="execution-guidance"><Play aria-hidden="true" /><span>{t('noActivePublication')}</span></div>}
-    <label className="execution-search"><Search aria-hidden="true" /><span className="ops-visually-hidden">{t('searchRuns')}</span><input value={query} onChange={(event) => { setQuery(event.target.value); setVisibleCount(50) }} placeholder={t('searchRunsPlaceholder')} /></label>
-    <Panel>
-      {runs.loading && <LoadingState />}
-      {!runs.loading && Boolean(runs.error) && <ErrorState message={apiErrorMessage(runs.error, t('requestFailed'))} onRetry={() => void runs.reload()} />}
-      {!runs.loading && !runs.error && runs.data?.length === 0 && <EmptyState>{t('emptyRuns')}</EmptyState>}
-      {!runs.loading && !runs.error && runGroups.length === 0 && runs.data && runs.data.length > 0 && <EmptyState>{t('noMatchingRuns')}</EmptyState>}
-      {!runs.loading && !runs.error && runGroups.length > 0 && <ul className="execution-tree" role="tree" aria-label={t('runTree')}>
-        {runGroups.slice(0, visibleCount).map(([uuid, group]) => { const open = expandedObjects.has(uuid); return <li key={uuid} role="treeitem" aria-expanded={open}>
-          <button className="execution-object-row" type="button" onClick={() => setExpandedObjects((current) => { const next = new Set(current); if (next.has(uuid)) next.delete(uuid); else next.add(uuid); return next })}>{open ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" />}<FileCode2 aria-hidden="true" /><span><strong>{group.name}</strong><small>{group.code} · {t('runCount').replace('{{count}}', String(group.runs.length))}</small></span></button>
-          {open && <ul role="group">{group.runs.map((run) => <li key={run.runUuid} role="treeitem"><Link className="execution-run-row" to={`/projects/${encodeURIComponent(projectUuid)}/operations/runs/${run.runUuid}`}><span><strong>{formatDate(run.createdAt, locale)}</strong><small>#{run.attemptNumber} · {run.startType === 'ILK' ? t('startInitial') : run.startType}</small></span><RunStatusBadge status={run.status} /><ChevronRight aria-hidden="true" /></Link></li>)}</ul>}
-        </li> })}
-      </ul>}
-      {runGroups.length > visibleCount && <button className="ops-button ops-button-secondary execution-load-more" type="button" onClick={() => setVisibleCount((count) => count + 50)}>{t('loadMore')}</button>}
+    <nav className="run-view-tabs" aria-label={t('runViews')}>{views.map((item) => <button type="button" key={item} aria-current={view === item ? 'page' : undefined} onClick={() => updateFilters({ view: item })}>{t(`view_${item}`)}</button>)}</nav>
+    <form className="run-filters" onSubmit={(event) => { event.preventDefault(); updateFilters({ query: queryDraft }) }}>
+      <label className="execution-search"><Search aria-hidden="true" /><span className="ops-visually-hidden">{t('searchRuns')}</span><input value={queryDraft} onChange={(event) => setQueryDraft(event.target.value)} placeholder={t('searchRunsPlaceholder')} /></label>
+      <select aria-label={t('status')} value={status} onChange={(event) => updateFilters({ statuses: event.target.value })}><option value="">{t('allStatuses')}</option><option value="CALISIYOR">{t('status_CALISIYOR')}</option><option value="BASARISIZ">{t('status_BASARISIZ')}</option><option value="BASARILI">{t('status_BASARILI')}</option><option value="SONUCU_BILINMIYOR">{t('status_SONUC_BELIRSIZ')}</option></select>
+      <select aria-label={t('environment')} value={environment} onChange={(event) => updateFilters({ environment: event.target.value })}><option value="">{t('allEnvironments')}</option>{environmentCodes.map((code) => <option key={code}>{code}</option>)}</select>
+      <select aria-label={t('objectType')} value={definitionType} onChange={(event) => updateFilters({ definitionType: event.target.value })}><option value="">{t('allObjectTypes')}</option><option value="PROSEDUR">{t('procedure')}</option><option value="MAPPING">{t('mapping')}</option><option value="PAKET">{t('package')}</option></select>
+      <button className="ops-button ops-button-secondary" type="submit">{t('applyFilters')}</button>
+      {(query || status || environment || definitionType || from || to) && <button className="ops-button ops-button-secondary" type="button" onClick={() => { setQueryDraft(''); setFromDraft(''); setToDraft(''); updateFilters({ query: '', statuses: '', environment: '', definitionType: '', from: '', to: '' }) }}>{t('clearFilters')}</button>}
+    </form>
+    {view === 'HISTORY' && <form className="run-date-filter" onSubmit={(event) => { event.preventDefault(); if (fromDraft && toDraft) updateFilters({ from: new Date(fromDraft).toISOString(), to: new Date(toDraft).toISOString() }) }}><label>{t('from')}<input type="datetime-local" value={fromDraft ? fromDraft.slice(0, 16) : ''} onChange={(event) => setFromDraft(event.target.value)} /></label><label>{t('to')}<input type="datetime-local" value={toDraft ? toDraft.slice(0, 16) : ''} onChange={(event) => setToDraft(event.target.value)} /></label><button className="ops-button ops-button-secondary" disabled={!fromDraft || !toDraft}>{t('apply')}</button></form>}
+    <div className="run-scope-bar"><span>{t(`scope_${view}`)}</span><div><button className="ops-button ops-button-secondary" type="button" onClick={() => void runs.reload()} disabled={runs.loading}><RefreshCw aria-hidden="true" />{t('refresh')}</button>{hasActiveRows && <button className="ops-button ops-button-secondary" type="button" onClick={() => setLive((value) => !value)}>{live ? <Pause aria-hidden="true" /> : <Activity aria-hidden="true" />}{live ? t('pauseLive') : t('resumeLive')}</button>}</div></div>
+    <Panel>{runs.loading && !runs.data && <LoadingState />}{Boolean(runs.error) && !runs.data && <ErrorState message={apiErrorMessage(runs.error, t('requestFailed'))} onRetry={() => void runs.reload()} />}{Boolean(runs.error) && runs.data && <div className="ops-alert ops-alert-error" role="alert">{t('refreshFailed')} <button type="button" onClick={() => void runs.reload()}>{t('retry')}</button></div>}{!runs.loading && !runs.error && runs.data?.items.length === 0 && <EmptyState>{t('emptyRuns')}</EmptyState>}
+      {runs.data && runs.data.items.length > 0 && <div className="run-table-wrap"><table className="run-table"><thead><tr><th>{t('status')}</th><th>{t('object')}</th><th>{t('environment')}</th><th>{t('startedAt')}</th><th>{t('duration')}</th><th>{t('rows')}</th><th>{t('initiator')}</th><th>{t('attempt')}</th><th>{t('actions')}</th></tr></thead><tbody>{runs.data.items.map((item) => <tr key={item.run.runUuid}><td><RunStatusBadge status={item.run.status} /></td><td><Link to={`/projects/${encodeURIComponent(projectUuid)}/operations/runs/${item.run.runUuid}`}><strong>{item.definitionName}</strong><small>{item.definitionType} · {item.definitionCode}</small></Link></td><td><strong>{item.environmentName}</strong><small>{item.environmentCode} · {item.environmentRisk}</small></td><td>{formatDate(item.run.startedAt ?? item.run.createdAt, locale)}</td><td>{duration(item.run.startedAt, item.run.finishedAt, locale)}</td><td>—</td><td>{item.initiatorName}</td><td>#{item.run.attemptNumber}</td><td><Link className="ops-link" to={`/projects/${encodeURIComponent(projectUuid)}/operations/runs/${item.run.runUuid}`}>{t('viewDetails')}</Link></td></tr>)}</tbody></table></div>}
+      {runs.data && <footer className="run-pagination"><span>{t('resultCount', { count: runs.data.total })}</span><label>{t('pageSize')}<select value={size} onChange={(event) => updateFilters({ size: event.target.value, page: '0' })}>{allowedSizes.map((value) => <option key={value}>{value}</option>)}</select></label><button type="button" disabled={page === 0} onClick={() => updateFilters({ page: String(page - 1) })} aria-label={t('previousPage')}><ChevronLeft /></button><span>{page + 1} / {totalPages}</span><button type="button" disabled={page + 1 >= totalPages} onClick={() => updateFilters({ page: String(page + 1) })} aria-label={t('nextPage')}><ChevronRight /></button></footer>}
     </Panel>
-    {dialogOpen && <Dialog title={t('startRun')} onClose={() => !submitting && setDialogOpen(false)}><form className="ops-form" onSubmit={(event) => void submit(event)}>
-      {submitError && <div className="ops-alert ops-alert-error" role="alert">{submitError}</div>}
-      {dialogPublications.length === 0 ? <div className="ops-alert ops-alert-error" role="alert">{t('noActivePublication')}</div> : <Field label={t('publication')} hint={t('choosePublication')}><select value={publicationUuid} onChange={(event) => setPublicationUuid(event.target.value)} required>{dialogPublications.map((publication) => <option key={publication.uuid} value={publication.uuid}>{publicationLabel(publication)}</option>)}</select></Field>}
-      <div className="execution-idempotency-note">{t('idempotencyPrepared')}</div>
-      <div className="ops-form-actions"><button className="ops-button ops-button-secondary" type="button" onClick={() => setDialogOpen(false)} disabled={submitting}>{t('close')}</button><button className="ops-button" type="submit" disabled={submitting || !publicationUuid}>{submitting ? t('starting') : t('startRun')}</button></div>
-    </form></Dialog>}
+    {dialogOpen && <Dialog title={t('startRun')} onClose={() => !submitting && setDialogOpen(false)}><form className="ops-form" onSubmit={(event) => void submit(event)}>{submitError && <div className="ops-alert ops-alert-error" role="alert">{submitError}</div>}{runnablePublications.length === 0 ? <div className="ops-alert ops-alert-error" role="alert">{t('noActivePublication')}</div> : <Field label={t('publication')} hint={t('choosePublication')}><select value={publicationUuid} onChange={(event) => { setPublicationUuid(event.target.value); setProductionConfirmed(false) }} required>{runnablePublications.map((publication) => <option key={publication.uuid} value={publication.uuid}>{publicationLabel(publication)}</option>)}</select></Field>}{selectedPublication && <dl className="run-start-evidence"><dt>{t('environment')}</dt><dd>{selectedPublication.environmentCode} · {selectedPublication.environmentRisk}</dd><dt>{t('runnableVersion')}</dt><dd>#{selectedPublication.publicationNumber} · {selectedPublication.releaseHash.slice(0, 12)}</dd><dt>{t('targetSummary')}</dt><dd>{selectedPublication.dependencySummary}</dd></dl>}{productionRun && <label className="run-production-confirm"><input type="checkbox" checked={productionConfirmed} onChange={(event) => setProductionConfirmed(event.target.checked)} /> <span>{t('confirmProductionRun')}</span></label>}<div className="execution-idempotency-note">{t('idempotencyPrepared')}</div><div className="ops-form-actions"><button className="ops-button ops-button-secondary" type="button" onClick={() => setDialogOpen(false)} disabled={submitting}>{t('close')}</button><button className="ops-button" type="submit" disabled={submitting || !publicationUuid || Boolean(productionRun && !productionConfirmed)}>{submitting ? t('starting') : t('startRun')}</button></div></form></Dialog>}
   </section>
 }

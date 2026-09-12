@@ -12,6 +12,7 @@ vi.mock('./api', () => ({
   executionApi: {
     getRun: vi.fn(),
     listEvents: vi.fn(),
+    listEventPage: vi.fn(),
     listSteps: vi.fn(),
     cancelRun: vi.fn(),
   },
@@ -52,7 +53,7 @@ describe('execution UI states', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
     vi.mocked(executionApi.getRun).mockResolvedValue(run)
-    vi.mocked(executionApi.listEvents).mockResolvedValue([])
+    vi.mocked(executionApi.listEventPage).mockResolvedValue({ items: [], nextCursor: null, hasMore: false })
     vi.mocked(executionApi.listSteps).mockResolvedValue([])
     await i18n.changeLanguage('en')
   })

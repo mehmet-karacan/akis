@@ -8,7 +8,10 @@ import tr.com.innova.akis.execution.ExecutionModels.Actor;
 import tr.com.innova.akis.execution.ExecutionModels.IdempotencyReservation;
 import tr.com.innova.akis.execution.ExecutionModels.PublicationContext;
 import tr.com.innova.akis.execution.ExecutionModels.RunEventRow;
+import tr.com.innova.akis.execution.ExecutionModels.RunEventPage;
 import tr.com.innova.akis.execution.ExecutionModels.RunRow;
+import tr.com.innova.akis.execution.ExecutionModels.RunSearch;
+import tr.com.innova.akis.execution.ExecutionModels.RunSummaryPage;
 import tr.com.innova.akis.execution.ExecutionModels.RunStepRow;
 
 interface ExecutionStore {
@@ -51,7 +54,11 @@ interface ExecutionStore {
 
     List<RunRow> list(UUID projectUuid);
 
+    RunSummaryPage search(UUID projectUuid, RunSearch search);
+
     List<RunEventRow> listEvents(UUID projectUuid, UUID runUuid);
+
+    RunEventPage listEvents(UUID projectUuid, UUID runUuid, long after, int size);
 
     List<RunStepRow> listSteps(UUID projectUuid, UUID runUuid);
 

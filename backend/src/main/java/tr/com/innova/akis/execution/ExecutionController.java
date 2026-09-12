@@ -15,12 +15,15 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
 
 import tr.com.innova.akis.execution.ExecutionModels.RunEventRow;
 import tr.com.innova.akis.execution.ExecutionModels.RunRow;
 import tr.com.innova.akis.execution.ExecutionModels.RunStepRow;
+import tr.com.innova.akis.execution.ExecutionModels.RunSearch;
+import tr.com.innova.akis.execution.ExecutionModels.RunSummaryRow;
 import tr.com.innova.akis.execution.ExecutionModels.StartResult;
 import tr.com.innova.akis.security.AuthorizationService;
 import static tr.com.innova.akis.security.PermissionCodes.RUN_CANCEL;
@@ -71,6 +74,26 @@ final class ExecutionController {
         return service.list(projectUuid).stream().map(row -> RunView.from(row, featureFlags)).toList();
     }
 
+    @GetMapping("/search")
+    RunPageView search(
+            @PathVariable UUID projectUuid,
+            @RequestParam(defaultValue = "RECENT") String view,
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) String statuses,
+            @RequestParam(required = false) String environment,
+            @RequestParam(required = false) String definitionType,
+            @RequestParam(required = false) OffsetDateTime from,
+            @RequestParam(required = false) OffsetDateTime to,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        authorization.requireProjectPermission(projectUuid, RUN_READ);
+        var result = service.search(projectUuid, new RunSearch(
+                view, query, statuses, environment, definitionType, from, to, page, size));
+        return new RunPageView(
+                result.items().stream().map(row -> RunSummaryView.from(row, featureFlags)).toList(),
+                result.total(), result.page(), result.size());
+    }
+
     @GetMapping("/{runUuid}")
     RunView get(
             @PathVariable UUID projectUuid,
@@ -87,6 +110,19 @@ final class ExecutionController {
         return service.events(projectUuid, runUuid).stream()
                 .map(RunEventView::from)
                 .toList();
+    }
+
+    @GetMapping("/{runUuid}/events/search")
+    RunEventPageView eventPage(
+            @PathVariable UUID projectUuid,
+            @PathVariable UUID runUuid,
+            @RequestParam(defaultValue = "0") long after,
+            @RequestParam(defaultValue = "100") int size) {
+        authorization.requireProjectPermission(projectUuid, RUN_READ);
+        var result = service.events(projectUuid, runUuid, after, size);
+        return new RunEventPageView(
+                result.items().stream().map(RunEventView::from).toList(),
+                result.nextCursor(), result.hasMore());
     }
 
     @GetMapping("/{runUuid}/steps")
@@ -146,6 +182,29 @@ final class ExecutionController {
     record ActionAvailability(String action, boolean allowed, String reasonCode) {
     }
 
+    record RunPageView(List<RunSummaryView> items, long total, int page, int size) {
+    }
+
+    record RunSummaryView(
+            RunView run,
+            UUID definitionUuid,
+            String definitionCode,
+            String definitionName,
+            String definitionType,
+            UUID environmentUuid,
+            String environmentCode,
+            String environmentName,
+            String environmentRisk,
+            String initiatorName) {
+        static RunSummaryView from(RunSummaryRow row, ExecutionFeatureFlags flags) {
+            return new RunSummaryView(
+                    RunView.from(row.run(), flags), row.definitionUuid(), row.definitionCode(),
+                    row.definitionName(), row.definitionType(), row.environmentUuid(),
+                    row.environmentCode(), row.environmentName(), row.environmentRisk(),
+                    row.initiatorName());
+        }
+    }
+
     record RunEventView(
             UUID uuid,
             long eventNumber,
@@ -159,8 +218,12 @@ final class ExecutionController {
         }
     }
 
+    record RunEventPageView(List<RunEventView> items, Long nextCursor, boolean hasMore) {
+    }
+
     record RunStepView(
             UUID uuid,
+            UUID parentUuid,
             String code,
             String type,
             int ordinal,
@@ -176,7 +239,7 @@ final class ExecutionController {
 
         static RunStepView from(RunStepRow row) {
             return new RunStepView(
-                    row.uuid(), row.code(), row.type(), row.ordinal(), row.name(),
+                    row.uuid(), row.parentUuid(), row.code(), row.type(), row.ordinal(), row.name(),
                     row.status(), row.connectionRole(), row.risk(), row.startedAt(),
                     row.finishedAt(), row.rowCount(), row.byteCount(), row.errorCode());
         }
