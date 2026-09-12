@@ -263,6 +263,9 @@ CREATE TABLE ortam (
     kod VARCHAR(100) NOT NULL,
     ad VARCHAR(200) NOT NULL,
     uretim_mi BOOLEAN NOT NULL DEFAULT FALSE,
+    risk VARCHAR(20) NOT NULL DEFAULT 'DUSUK',
+    politika_sema_surumu INTEGER NOT NULL DEFAULT 1,
+    politika JSONB NOT NULL DEFAULT '{}'::jsonb,
     arsivlenme_zamani TIMESTAMPTZ,
     uuid UUID NOT NULL DEFAULT gen_random_uuid(),
     olusturulma_zamani TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -275,6 +278,10 @@ CREATE TABLE ortam (
     CONSTRAINT uq_ortam_kod UNIQUE (proje_id, kod),
     CONSTRAINT uq_ortam_proje_id UNIQUE (proje_id, id),
     CONSTRAINT ck_ortam_kod CHECK (kod ~ '^[A-Z][A-Z0-9_]{0,99}$'),
+    CONSTRAINT ck_ortam_risk CHECK (risk IN ('DUSUK', 'ORTA', 'YUKSEK', 'URETIM')),
+    CONSTRAINT ck_ortam_uretim CHECK ((risk = 'URETIM') = uretim_mi),
+    CONSTRAINT ck_ortam_politika CHECK
+        (politika_sema_surumu > 0 AND jsonb_typeof(politika) = 'object'),
     CONSTRAINT ck_ortam_audit CHECK (
         versiyon_no > 0
         AND (guncellenme_zamani IS NULL OR guncellenme_zamani >= olusturulma_zamani)

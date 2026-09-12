@@ -35,8 +35,8 @@ public class JdbcPublicationStore implements PublicationStore {
     public boolean projectExists(UUID projectUuid) {
         return jdbc.sql("""
                         select exists(
-                            select 1 from entegrasyon.proje
-                             where uuid = :projectUuid and durum_kodu = 'AKTIF')
+                            select 1 from akis.proje
+                             where uuid = :projectUuid and arsivlenme_zamani is null)
                         """)
                 .param("projectUuid", projectUuid)
                 .query(Boolean.class)
@@ -54,19 +54,19 @@ public class JdbcPublicationStore implements PublicationStore {
                                v.icerik_ozeti as definition_content_hash,
                                s.plan_ozeti, s.plan as scenario_plan,
                                o.id as environment_id, o.uuid as environment_uuid,
-                               o.kod as environment_code, o.risk_kodu,
-                               o.politika_surumu, o.politika
-                          from entegrasyon.senaryo s
-                          join entegrasyon.tanim_surumu v on v.id = s.tanim_surumu_id
-                          join entegrasyon.tanim t on t.id = v.tanim_id
-                          join entegrasyon.proje p on p.id = t.proje_id
-                          join entegrasyon.ortam o on o.proje_id = p.id
+                               o.kod as environment_code, o.risk as risk_kodu,
+                               o.politika_sema_surumu as politika_surumu, o.politika
+                          from akis.senaryo s
+                          join akis.tanim_surumu v on v.id = s.tanim_surumu_id
+                          join akis.tanim t on t.id = v.tanim_id
+                          join akis.proje p on p.id = t.proje_id
+                          join akis.ortam o on o.proje_id = p.id
                          where p.uuid = :projectUuid
-                           and p.durum_kodu = 'AKTIF'
-                           and t.durum_kodu = 'AKTIF'
+                           and p.arsivlenme_zamani is null
+                           and t.arsivlenme_zamani is null
                            and s.uuid = :scenarioUuid
                            and o.uuid = :environmentUuid
-                           and o.durum_kodu = 'AKTIF'
+                           and o.arsivlenme_zamani is null
                          for update of s, o
                         """)
                 .param("projectUuid", projectUuid)
@@ -92,54 +92,53 @@ public class JdbcPublicationStore implements PublicationStore {
         return jdbc.sql("""
                         select tvn.id as definition_data_object_id,
                                tvn.uuid as definition_data_object_uuid,
-                               tvn.dugum_kodu, tvn.rol_kodu,
+                               tvn.dugum_kodu, tvn.rol as rol_kodu,
                                vn.uuid as data_object_uuid, vn.nesne_referansi,
-                               vn.tur_kodu as data_object_type,
-                               vn.durum_kodu as data_object_status,
-                               m.durum_kodu as model_status,
-                               ms.durum_kodu as logical_schema_status,
+                               case vn.tur when 'GORUNUM' then 'VIEW' else vn.tur end as data_object_type,
+                               case when vn.arsivlenme_zamani is null then 'AKTIF' else 'PASIF' end as data_object_status,
+                               case when m.arsivlenme_zamani is null then 'AKTIF' else 'ARSIV' end as model_status,
+                               case when ms.arsivlenme_zamani is null then 'AKTIF' else 'PASIF' end as logical_schema_status,
                                ose.id as environment_binding_id,
                                ose.uuid as environment_binding_uuid,
                                ose.versiyon_no as binding_version,
                                fs.id as physical_schema_id,
                                fs.uuid as physical_schema_uuid,
-                               fs.sema_referansi,
+                               fs.sema_adi as sema_referansi,
                                bs.id as connection_version_id,
                                bs.uuid as connection_version_uuid,
-                               b.veritabani_turu as database_type,
-                               b.durum_kodu as connection_status,
+                               b.saglayici_turu as database_type,
+                               case when b.arsivlenme_zamani is null then 'AKTIF' else 'PASIF' end as connection_status,
                                target_snapshot.id as target_snapshot_id,
                                target_snapshot.uuid as target_snapshot_uuid,
                                target_snapshot.parmak_izi as target_snapshot_fingerprint
-                          from entegrasyon.tanim_veri_nesnesi tvn
-                          join entegrasyon.veri_nesnesi vn
+                          from akis.tanim_veri_nesnesi tvn
+                          join akis.veri_nesnesi vn
                             on vn.proje_id = tvn.proje_id
                            and vn.id = tvn.veri_nesnesi_id
-                           join entegrasyon.model m
+                           join akis.model m
                             on m.proje_id = vn.proje_id
                             and m.id = vn.model_id
-                          join entegrasyon.mantiksal_sema ms
+                          join akis.mantiksal_sema ms
                             on ms.proje_id = m.proje_id
                            and ms.id = m.mantiksal_sema_id
-                          left join entegrasyon.ortam_sema_eslemesi ose
+                          left join akis.sema_eslemesi ose
                             on ose.proje_id = tvn.proje_id
                            and ose.mantiksal_sema_id = m.mantiksal_sema_id
                            and ose.ortam_id = :environmentId
-                           and ose.durum_kodu = 'AKTIF'
-                          left join entegrasyon.fiziksel_sema fs
+                          left join akis.fiziksel_sema fs
                             on fs.proje_id = ose.proje_id
                            and fs.id = ose.fiziksel_sema_id
-                           and fs.durum_kodu = 'AKTIF'
-                          left join entegrasyon.baglanti_surumu bs
+                           and fs.arsivlenme_zamani is null
+                          left join akis.baglanti_surumu bs
                             on bs.proje_id = ose.proje_id
                            and bs.id = ose.baglanti_surumu_id
-                           left join entegrasyon.baglanti b
+                           left join akis.baglanti b
                              on b.proje_id = bs.proje_id
                             and b.id = bs.baglanti_id
                             and b.id = fs.baglanti_id
                           left join lateral (
                               select sg.id, sg.uuid, sg.parmak_izi
-                                from entegrasyon.sema_goruntusu sg
+                                from akis.sema_goruntusu sg
                                where sg.proje_id = tvn.proje_id
                                  and sg.veri_nesnesi_id = tvn.veri_nesnesi_id
                                  and sg.fiziksel_sema_id = ose.fiziksel_sema_id
@@ -150,7 +149,7 @@ public class JdbcPublicationStore implements PublicationStore {
                          where tvn.proje_id = :projectId
                            and tvn.tanim_surumu_id = (
                                select tanim_surumu_id
-                                 from entegrasyon.senaryo
+                                 from akis.senaryo
                                 where id = :scenarioId)
                          order by tvn.dugum_kodu
                         """)
@@ -182,7 +181,7 @@ public class JdbcPublicationStore implements PublicationStore {
     public PublicationRow create(PublicationDraft draft, UUID publicationUuid) {
         Integer publicationNumber = jdbc.sql("""
                         select coalesce(max(yayin_no), 0) + 1
-                          from entegrasyon.yayin
+                          from akis.yayin
                          where senaryo_id = :scenarioId
                            and ortam_id = :environmentId
                         """)
@@ -192,9 +191,9 @@ public class JdbcPublicationStore implements PublicationStore {
                 .single();
 
         long publicationId = jdbc.sql("""
-                        insert into entegrasyon.yayin(
-                            proje_id, senaryo_id, ortam_id, yayin_no, durum_kodu,
-                            bagimlilik_ozeti, fiziksel_manifesto, yayin_zamani, uuid)
+                        insert into akis.yayin(
+                            proje_id, senaryo_id, ortam_id, yayin_no, durum,
+                            bagimlilik_ozeti, fiziksel_manifesto, etkinlestirilme_zamani, uuid)
                         values (:projectId, :scenarioId, :environmentId,
                                 :publicationNumber, :status, :dependencySummary,
                                 cast(:physicalManifest as jsonb),
@@ -215,11 +214,11 @@ public class JdbcPublicationStore implements PublicationStore {
 
         for (ResolvedBinding binding : draft.bindings()) {
             jdbc.sql("""
-                            insert into entegrasyon.yayin_veri_bagi(
+                            insert into akis.yayin_veri_bagi(
                                 proje_id, yayin_id, tanim_veri_nesnesi_id,
-                                ortam_sema_eslemesi_id, fiziksel_sema_id,
+                                sema_eslemesi_id, fiziksel_sema_id,
                                 baglanti_surumu_id, sema_goruntusu_id,
-                                fiziksel_kimlik, bag_versiyon_no)
+                                fiziksel_kimlik, bag_surumu)
                             values (:projectId, :publicationId, :definitionDataObjectId,
                                     :environmentBindingId, :physicalSchemaId,
                                     :connectionVersionId, :targetSnapshotId,
@@ -279,11 +278,14 @@ public class JdbcPublicationStore implements PublicationStore {
     @Override
     public Optional<ApprovalActor> findActiveActor(String provider, String subject) {
         return jdbc.sql("""
-                        select id, uuid, ad
-                          from entegrasyon.kullanici
-                         where oidc_saglayici = :provider
-                           and oidc_ozne = :subject
-                           and durum_kodu = 'AKTIF'
+                        select k.id, k.uuid, k.gorunen_ad as ad
+                          from akis.kullanici k
+                          join akis.harici_kimlik h on h.kullanici_id = k.id
+                         where ((:provider = 'LOCAL_BASIC'
+                                  and h.saglayici_turu = 'YEREL' and h.yayinlayici is null)
+                                or (h.saglayici_turu = 'OIDC' and h.yayinlayici = :provider))
+                           and h.harici_kullanici_anahtari = :subject
+                           and k.devre_disi_birakilma_zamani is null
                         """)
                 .param("provider", provider)
                 .param("subject", subject)
@@ -299,7 +301,7 @@ public class JdbcPublicationStore implements PublicationStore {
         return jdbc.sql(approvalSelect() + """
                          where yo.yayin_id = :publicationId
                            and yo.kullanici_id = :actorId
-                           and yo.karar_kodu = :decision
+                           and yo.karar = :decision
                          order by yo.karar_zamani desc, yo.id desc
                          limit 1
                         """)
@@ -318,13 +320,13 @@ public class JdbcPublicationStore implements PublicationStore {
             String reason,
             UUID approvalUuid) {
         jdbc.sql("""
-                        insert into entegrasyon.yayin_onayi(
+                        insert into akis.yayin_onayi(
                             proje_id, yayin_id, kullanici_id, plan_ozeti,
-                            karar_kodu, karar_zamani, gerekce, uuid,
+                            karar, karar_zamani, gerekce, uuid,
                             olusturan_kullanici_id)
                         select y.proje_id, y.id, :actorId, :planSummary,
                                :decision, current_timestamp, :reason, :uuid, :actorId
-                          from entegrasyon.yayin y
+                          from akis.yayin y
                          where y.id = :publicationId
                         """)
                 .param("publicationId", publication.id())
@@ -341,16 +343,16 @@ public class JdbcPublicationStore implements PublicationStore {
     public PublicationRow transition(
             long publicationId, String expectedStatus, String targetStatus) {
         int updated = jdbc.sql("""
-                        update entegrasyon.yayin
-                           set durum_kodu = :targetStatus,
-                               yayin_zamani = case
+                        update akis.yayin
+                           set durum = :targetStatus,
+                               etkinlestirilme_zamani = case
                                    when :targetStatus = 'AKTIF' then current_timestamp
-                                   else yayin_zamani
+                                   else etkinlestirilme_zamani
                                end,
                                guncellenme_zamani = current_timestamp,
                                versiyon_no = versiyon_no + 1
                          where id = :publicationId
-                           and durum_kodu = :expectedStatus
+                           and durum = :expectedStatus
                         """)
                 .param("publicationId", publicationId)
                 .param("expectedStatus", expectedStatus)
@@ -374,16 +376,16 @@ public class JdbcPublicationStore implements PublicationStore {
                 select y.id, y.uuid, s.uuid as scenario_uuid,
                        t.uuid as definition_uuid, v.uuid as definition_version_uuid,
                        o.uuid as environment_uuid, o.kod as environment_code,
-                       o.risk_kodu, y.yayin_no, y.durum_kodu,
+                       o.risk as risk_kodu, y.yayin_no, y.durum as durum_kodu,
                        y.fiziksel_manifesto ->> 'releaseHash' as release_hash,
                        y.bagimlilik_ozeti, y.fiziksel_manifesto,
-                       y.yayin_zamani, y.olusturulma_zamani, y.versiyon_no
-                  from entegrasyon.yayin y
-                  join entegrasyon.proje p on p.id = y.proje_id
-                  join entegrasyon.senaryo s on s.id = y.senaryo_id
-                  join entegrasyon.tanim_surumu v on v.id = s.tanim_surumu_id
-                  join entegrasyon.tanim t on t.id = v.tanim_id
-                  join entegrasyon.ortam o
+                       y.etkinlestirilme_zamani as yayin_zamani, y.olusturulma_zamani, y.versiyon_no
+                  from akis.yayin y
+                  join akis.proje p on p.id = y.proje_id
+                  join akis.senaryo s on s.id = y.senaryo_id
+                  join akis.tanim_surumu v on v.id = s.tanim_surumu_id
+                  join akis.tanim t on t.id = v.tanim_id
+                  join akis.ortam o
                     on o.proje_id = y.proje_id and o.id = y.ortam_id
                 """;
     }
@@ -391,10 +393,10 @@ public class JdbcPublicationStore implements PublicationStore {
     private String approvalSelect() {
         return """
                 select yo.uuid, y.uuid as publication_uuid, k.uuid as actor_uuid,
-                       k.ad as actor_name, yo.karar_kodu, yo.karar_zamani, yo.gerekce
-                  from entegrasyon.yayin_onayi yo
-                  join entegrasyon.yayin y on y.id = yo.yayin_id
-                  join entegrasyon.kullanici k on k.id = yo.kullanici_id
+                       k.gorunen_ad as actor_name, yo.karar as karar_kodu, yo.karar_zamani, yo.gerekce
+                  from akis.yayin_onayi yo
+                  join akis.yayin y on y.id = yo.yayin_id
+                  join akis.kullanici k on k.id = yo.kullanici_id
                 """;
     }
 

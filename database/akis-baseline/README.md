@@ -119,3 +119,15 @@ Doğrulama sonuçları ve ODI karşılığı olan üretilmiş Scenario kayıtlar
 Scenario, belirli bir değişmez tanım sürümünden kanonik olarak derlenen planı ve
 SHA-256 özetini saklar. Aynı içerik yeniden üretildiğinde ikinci bir Scenario
 oluşturulmaz; doğrulama ve plan kayıtları sonradan değiştirilemez.
+
+Bir Scenario'nun belirli ortamdaki çalıştırılabilir sürümü, sabit veri bağları ve
+eklemeli operasyon onayları için:
+
+```powershell
+.\database\akis-baseline\test-releases.ps1
+```
+
+Bu yapı tasarım ağacında ayrı bir “Yayınlar” çalışma alanı değildir. Çalıştırma
+öncesi kullanılan değişmez fiziksel manifesto ve yüksek riskli işlemlerin onay
+kapısıdır. Ortam riski ile sürümlü, secretsız politika gerçek metadata olarak
+saklanır.

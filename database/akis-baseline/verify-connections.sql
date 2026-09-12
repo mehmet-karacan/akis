@@ -52,9 +52,10 @@ BEGIN
            'baglanti', 'baglanti_surumu', 'baglanti_kimligi', 'baglanti_testi',
            'fiziksel_sema', 'mantiksal_sema', 'ortam', 'sema_eslemesi'
        )
-       AND data_type IN ('json', 'jsonb');
+       AND data_type IN ('json', 'jsonb')
+       AND NOT (table_name = 'ortam' AND column_name = 'politika');
     IF actual <> 0 THEN
-        RAISE EXCEPTION 'Bağlantı ve şema çekirdeği yapılandırılmış kolonlar yerine JSON kullanamaz.';
+        RAISE EXCEPTION 'Sürümlü ortam politikası dışında bağlantı çekirdeği JSON kullanamaz.';
     END IF;
 END
 $$;

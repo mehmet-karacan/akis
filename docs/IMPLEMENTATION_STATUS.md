@@ -23,6 +23,9 @@ Status date: 2026-09-12
 - Validation evidence and generated Scenario plans now run on the clean schema.
   The database enforces source-version scope and successful validation, while
   repository tests prove deterministic compilation and idempotent generation.
+- Environment risk/policy, runnable Scenario releases, pinned physical bindings
+  and append-only approvals now run on the clean schema. “Publication” remains
+  an execution safety boundary, not a top-level design workspace.
 - The connection UI no longer loads or manages separate secret-reference
   objects. It records only the name of a server-side environment variable; its
   value stays outside PostgreSQL, API responses, bundles and Git.

@@ -292,16 +292,21 @@ public class TopologyRepository {
             String name) {
         return jdbc.sql("""
                         insert into akis.ortam(
-                            proje_id, uuid, kod, uretim_mi, ad)
-                        values (:projectId, :uuid, :code, :production, :name)
-                        returning id, uuid, kod,
-                                  case when uretim_mi then 'URETIM' else 'DUSUK' end as risk,
-                                  'AKTIF'::text as durum, ad, versiyon_no
+                            proje_id, uuid, kod, uretim_mi, risk,
+                            politika_sema_surumu, politika, ad)
+                        values (:projectId, :uuid, :code, :production, :risk,
+                                :policyVersion, cast(:policy as jsonb), :name)
+                        returning id, uuid, kod, risk,
+                                  'AKTIF'::text as durum, politika_sema_surumu,
+                                  politika, ad, versiyon_no
                         """)
                 .param("projectId", projectId)
                 .param("uuid", uuid)
                 .param("code", code)
                 .param("production", "URETIM".equals(risk))
+                .param("risk", risk)
+                .param("policyVersion", policyVersion)
+                .param("policy", policy.toString())
                 .param("name", name)
                 .query(this::mapEnvironment)
                 .single();
@@ -462,9 +467,9 @@ public class TopologyRepository {
     private String environmentSelect() {
         return """
                 select id, uuid, kod,
-                       case when uretim_mi then 'URETIM' else 'DUSUK' end as risk,
+                       risk,
                        case when arsivlenme_zamani is null then 'AKTIF' else 'PASIF' end as durum,
-                       ad, versiyon_no
+                       politika_sema_surumu, politika, ad, versiyon_no
                   from akis.ortam
                 """;
     }
@@ -474,7 +479,7 @@ public class TopologyRepository {
         return new EnvironmentRow(
                 rs.getLong("id"), rs.getObject("uuid", UUID.class), rs.getString("kod"),
                 rs.getString("risk"), rs.getString("durum"),
-                1, objectMapper.createObjectNode(),
+                rs.getInt("politika_sema_surumu"), json(rs.getString("politika")),
                 rs.getString("ad"), rs.getLong("versiyon_no"));
     }
 
@@ -551,5 +556,14 @@ public class TopologyRepository {
             case "CLIENT_SERTIFIKA" -> "ISTEMCI_SERTIFIKASI";
             default -> value;
         };
+    }
+
+    private JsonNode json(String value) {
+        try {
+            return objectMapper.readTree(value);
+        }
+        catch (tools.jackson.core.JacksonException exception) {
+            throw new IllegalStateException("Stored environment policy could not be read.", exception);
+        }
     }
 }
