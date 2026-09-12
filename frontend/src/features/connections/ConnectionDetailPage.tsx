@@ -2,6 +2,7 @@ import { ArrowLeft, Pencil, Plus, ShieldAlert, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
 import { AsyncState, Button, Dialog, PageHeader, StatusBadge } from '../../core/ui'
 import { useProjectAccess } from '../../core/auth/ProjectAccessContext'
 import { DatabaseProviderIcon } from '../topology/DatabaseProviderIcon'
@@ -20,7 +21,7 @@ import { endpointLabel } from './catalog'
 import './connections.css'
 
 export function ConnectionDetailPage() {
-  const { projectUuid = '', connectionUuid = '' } = useParams()
+  const { connectionUuid = '' } = useParams(); const projectUuid = useCurrentProjectUuid()
   const { t, i18n } = useTranslation()
   const { can } = useProjectAccess()
   const canWrite = can('BAGLANTI_YONET')

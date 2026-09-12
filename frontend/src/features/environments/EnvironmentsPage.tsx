@@ -1,14 +1,15 @@
 import { Plus } from 'lucide-react'
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
+import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
 import { AsyncState, Button, Dialog, PageHeader } from '../../core/ui'
 import { useProjectAccess } from '../../core/auth/ProjectAccessContext'
 import { topologyApi, type Environment } from '../topology/api'
 import '../schemas/schemas.css'
 
 export function EnvironmentsPage() {
-  const { projectUuid = '' } = useParams(); const { t } = useTranslation(); const { can } = useProjectAccess(); const canManage = can('BAGLANTI_YONET')
+  const projectUuid = useCurrentProjectUuid(); const { t } = useTranslation(); const { can } = useProjectAccess(); const canManage = can('BAGLANTI_YONET')
   const [items, setItems] = useState<Environment[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [open, setOpen] = useState(false); const [busy, setBusy] = useState(false)
   const load = useCallback(async () => { setLoading(true); setError(''); try { setItems(await topologyApi.listEnvironments(projectUuid)) } catch { setError(t('common.loadError')) } finally { setLoading(false) } }, [projectUuid, t])
   useEffect(() => { void load() }, [load])

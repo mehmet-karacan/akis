@@ -7,6 +7,7 @@ import { definitionTypeKey, useDefinitionsI18n } from '../features/definitions/i
 import type { Definition, Folder as ProjectFolder } from '../features/definitions/types'
 import { definitionsApi } from '../features/definitions/api'
 import { useProjectAccess } from '../core/auth/ProjectAccessContext'
+import { projectRoute } from '../features/projects/CurrentProjectContext'
 
 const FLOW_TYPES = new Set(['MAPPING', 'PACKAGE', 'PROCEDURE', 'LOAD_PLAN'])
 const COMPONENT_TYPES = ['VARIABLE', 'SEQUENCE', 'USER_FUNCTION', 'KNOWLEDGE_MODULE'] as const
@@ -88,7 +89,7 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
     if (next.has(uuid)) next.delete(uuid); else next.add(uuid)
     return next
   })
-  const openDefinition = (uuid: string) => onNavigate(`/projects/${encodeURIComponent(projectUuid)}/development/definitions/${encodeURIComponent(uuid)}`)
+  const openDefinition = (uuid: string) => onNavigate(`${projectRoute('/objects/definitions')}/${encodeURIComponent(uuid)}`)
   const openMenu = (definition: Definition, event: MouseEvent) => {
     event.preventDefault(); event.stopPropagation()
     const rect = event.currentTarget.getBoundingClientRect()
@@ -109,7 +110,7 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
   }
   const createComponent = (type: typeof COMPONENT_TYPES[number]) => {
     setCreationMenu(null)
-    onNavigate(`/projects/${encodeURIComponent(projectUuid)}/development?createType=${encodeURIComponent(type)}`)
+    onNavigate(`${projectRoute('/objects')}?createType=${encodeURIComponent(type)}`)
   }
   const compileScenario = async (definition: Definition) => {
     setMenu(null); setNotice(null); setCompilingUuid(definition.uuid)
@@ -165,7 +166,7 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
   const componentsOpen = expanded.has(VIRTUAL.components)
 
   return <section className="sidebar-project-tree" aria-label={shellT('nav.objects')}>
-    <header><span>{shellT('nav.objects')}</span><button type="button" title={shellT('nav.openObjectWorkspace')} aria-label={shellT('nav.openObjectWorkspace')} onClick={() => onNavigate(`/projects/${encodeURIComponent(projectUuid)}/development`)}><PanelRightOpen /></button></header>
+    <header><span>{shellT('nav.objects')}</span><button type="button" title={shellT('nav.openObjectWorkspace')} aria-label={shellT('nav.openObjectWorkspace')} onClick={() => onNavigate(projectRoute('/objects'))}><PanelRightOpen /></button></header>
     {activeDefinitions.length > 0 && <label className="sidebar-tree-search"><Search /><span className="sr-only">{shellT('nav.searchObjects')}</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={shellT('nav.searchObjects')} /></label>}
     {notice && <div className={`sidebar-tree-notice sidebar-tree-notice--${notice.tone}`} role={notice.tone === 'error' ? 'alert' : 'status'}><span>{notice.text}</span><button type="button" aria-label={shellT('common.close')} onClick={() => setNotice(null)}><X /></button></div>}
     <div className="sidebar-tree-scroll">
@@ -182,7 +183,7 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
           {componentsOpen && <ul>{COMPONENT_TYPES.map(componentGroup)}</ul>}
         </li>
         <li className="sidebar-folder sidebar-model-link">
-          <button type="button" className="sidebar-folder-row sidebar-folder-row--link" onClick={() => onNavigate(`/projects/${encodeURIComponent(projectUuid)}/models`)}><span className="sidebar-folder-spacer" /><Database /><span>{shellT('nav.models')}</span><ChevronRight /></button>
+          <button type="button" className="sidebar-folder-row sidebar-folder-row--link" onClick={() => onNavigate(projectRoute('/models'))}><span className="sidebar-folder-spacer" /><Database /><span>{shellT('nav.models')}</span><ChevronRight /></button>
         </li>
       </ul>}
     </div>
@@ -190,11 +191,11 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
       <header><DefinitionTypeIcon type={menu.definition.type} /><span><strong>{menu.definition.name}</strong><small>{menu.definition.code}</small></span></header>
       <button type="button" role="menuitem" onClick={() => { setMenu(null); openDefinition(menu.definition.uuid) }}><ExternalLink />{shellT('nav.openObject')}</button>
       {canValidate && executable(menu.definition) && <button type="button" role="menuitem" disabled={compilingUuid === menu.definition.uuid} onClick={() => void compileScenario(menu.definition)}><WandSparkles />{compilingUuid === menu.definition.uuid ? shellT('nav.creatingScenario') : shellT('nav.createScenario')}</button>}
-      {executable(menu.definition) && <button type="button" role="menuitem" onClick={() => { const uuid = menu.definition.uuid; setMenu(null); onNavigate(`/projects/${encodeURIComponent(projectUuid)}/operations?definition=${encodeURIComponent(uuid)}&start=1`) }}><Play />{shellT('nav.runObject')}</button>}
+      {executable(menu.definition) && <button type="button" role="menuitem" onClick={() => { const uuid = menu.definition.uuid; setMenu(null); onNavigate(`${projectRoute('/operations')}?definition=${encodeURIComponent(uuid)}&start=1`) }}><Play />{shellT('nav.runObject')}</button>}
     </div>}
     {folderMenu && canWrite && <div className="sidebar-object-context-menu" role="menu" style={{ left: Math.min(folderMenu.x, window.innerWidth - 220), top: Math.min(folderMenu.y, window.innerHeight - 120) }} onKeyDown={handleMenuKeys} onClick={(event) => event.stopPropagation()}>
       <header><Folder /><span><strong>{folderMenu.folder.name}</strong><small>{folderMenu.folder.code}</small></span></header>
-      <button type="button" role="menuitem" onClick={() => { const uuid = folderMenu.folder.uuid; setFolderMenu(null); onNavigate(`/projects/${encodeURIComponent(projectUuid)}/development?createFolder=${encodeURIComponent(uuid)}`) }}><FolderPlus />{shellT('nav.createSubfolder')}</button>
+      <button type="button" role="menuitem" onClick={() => { const uuid = folderMenu.folder.uuid; setFolderMenu(null); onNavigate(`${projectRoute('/objects')}?createFolder=${encodeURIComponent(uuid)}`) }}><FolderPlus />{shellT('nav.createSubfolder')}</button>
     </div>}
     {creationMenu && canWrite && <div className="sidebar-object-context-menu" role="menu" style={{ left: Math.min(creationMenu.x, window.innerWidth - 220), top: Math.min(creationMenu.y, window.innerHeight - 230) }} onKeyDown={handleMenuKeys} onClick={(event) => event.stopPropagation()}>
       <header><Blocks /><span><strong>{creationMenu.type ? t(definitionTypeKey[creationMenu.type]) : shellT('nav.commonComponents')}</strong><small>{shellT('nav.createComponent')}</small></span></header>

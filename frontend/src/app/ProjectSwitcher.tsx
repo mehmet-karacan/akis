@@ -38,7 +38,7 @@ export function ProjectSwitcher({ currentProject, projectUuid, onNavigate }: {
       <label>{t('projectSwitcher.search')}<input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('projectSwitcher.searchPlaceholder')} /></label>
       {error && <p className="error-banner" role="alert">{error}</p>}
       <div className="project-switcher-list" role="list">
-        {filtered.map((item) => <button key={item.uuid} type="button" className={item.uuid === projectUuid ? 'is-current' : ''} onClick={() => { rememberProject(item.uuid); setOpen(false); onNavigate(`/projects/${item.uuid}`) }}>
+        {filtered.map((item) => <button key={item.uuid} type="button" className={item.uuid === projectUuid ? 'is-current' : ''} onClick={() => { rememberProject(item.uuid); setOpen(false); onNavigate('/project') }}>
           <span><strong>{item.name}</strong><small>{item.code}</small></span>{item.uuid === projectUuid && <em>{t('projectSwitcher.current')}</em>}
         </button>)}
         {!error && filtered.length === 0 && <p>{t('projectSwitcher.empty')}</p>}

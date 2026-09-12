@@ -1,6 +1,7 @@
 import { ArrowLeft, Ban, CalendarClock, ChevronDown, ChevronRight, ListRestart, RefreshCw } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
 import { operationsApi } from '../operations/api'
 import { CopyValue, Dialog, EmptyState, ErrorState, LoadingState, PageHeader, Panel } from '../operations/OperationsUi'
 import { apiErrorMessage, formatDate, redactSensitiveValues } from '../operations/utils'
@@ -17,7 +18,7 @@ function StepTreeItems({ nodes, selectedUuid, expanded, onSelect, onToggle, loca
 }
 
 export function RunDetailPage() {
-  const { projectUuid = '', runUuid = '' } = useParams()
+  const { runUuid = '' } = useParams(); const projectUuid = useCurrentProjectUuid()
   const { t, locale } = useExecutionI18n()
   const run = useRemoteData(() => executionApi.getRun(projectUuid, runUuid), [projectUuid, runUuid])
   const publication = useRemoteData(() => run.data?.publicationUuid ? operationsApi.getPublication(projectUuid, run.data.publicationUuid) : Promise.resolve(null), [projectUuid, run.data?.publicationUuid])

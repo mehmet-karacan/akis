@@ -2,6 +2,7 @@ import { ArrowLeft, Boxes, Download, FolderTree } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
 import { AsyncState, PageHeader, StatusBadge } from '../../core/ui'
 import { useProjectAccess } from '../../core/auth/ProjectAccessContext'
 import { DataObjectTable } from './DataObjectTable'
@@ -9,7 +10,7 @@ import { topologyApi, type DataObject, type LogicalSchema, type Model, type Sche
 import './models.css'
 
 export function ModelDetailPage() {
-  const { projectUuid = '', modelUuid = '' } = useParams(); const { t, i18n } = useTranslation(); const [params, setParams] = useSearchParams()
+  const { modelUuid = '' } = useParams(); const projectUuid = useCurrentProjectUuid(); const { t, i18n } = useTranslation(); const [params, setParams] = useSearchParams()
   const { can } = useProjectAccess()
   const [model, setModel] = useState<Model | null>(null); const [logical, setLogical] = useState<LogicalSchema | null>(null); const [submodels, setSubmodels] = useState<Submodel[]>([]); const [objects, setObjects] = useState<DataObject[]>([]); const [snapshots, setSnapshots] = useState<SchemaSnapshot[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState('')
   const selectedUuid = params.get('object'); const selected = objects.find((item) => item.uuid === selectedUuid) ?? objects[0]

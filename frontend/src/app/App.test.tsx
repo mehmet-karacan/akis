@@ -17,6 +17,7 @@ function renderApp() {
 describe('application foundation', () => {
   beforeEach(async () => {
     localStorage.clear()
+    sessionStorage.clear()
     await i18n.changeLanguage('en')
   })
 

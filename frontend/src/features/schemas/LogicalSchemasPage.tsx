@@ -1,7 +1,8 @@
 import { Plus } from 'lucide-react'
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
+import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
 import { AsyncState, Button, Dialog, PageHeader } from '../../core/ui'
 import { useProjectAccess } from '../../core/auth/ProjectAccessContext'
 import {
@@ -14,7 +15,7 @@ import {
 import './schemas.css'
 
 export function LogicalSchemasPage() {
-  const { projectUuid = '' } = useParams()
+  const projectUuid = useCurrentProjectUuid()
   const { t } = useTranslation()
   const { can } = useProjectAccess()
   const canManage = can('BAGLANTI_YONET')

@@ -1,4 +1,5 @@
-import { Link, useParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
+import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
 import { operationsApi } from './api'
 import { EmptyState, ErrorState, LoadingState, PageHeader, Panel, StatusBadge } from './OperationsUi'
 import { useOperationsI18n } from './i18n'
@@ -7,7 +8,7 @@ import { useRemoteData } from './useRemoteData'
 import { executionCodeLabel } from '../execution/i18n'
 
 export function PublicationsPage() {
-  const { projectUuid = '' } = useParams()
+  const projectUuid = useCurrentProjectUuid()
   const { t, locale } = useOperationsI18n()
   const publications = useRemoteData(
     () => operationsApi.listPublications(projectUuid),

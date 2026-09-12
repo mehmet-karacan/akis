@@ -20,6 +20,7 @@ import { ApiProblem } from '../../core/api/client'
 import { usePendingChanges } from '../../core/navigation/PendingChangesContext'
 import { useProjectAccess } from '../../core/auth/ProjectAccessContext'
 import { Dialog } from '../../core/ui/Dialog'
+import { ProjectSidebarTree } from '../../app/ProjectSidebarTree'
 import { executionApi } from '../execution/api'
 import type { ProjectCapabilities } from '../execution/types'
 import { operationsApi } from '../operations/api'
@@ -364,7 +365,18 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
     definitionRequest.current += 1
     setSelectedUuid(uuid)
     setTab('draft')
-    void navigate(`/projects/${encodeURIComponent(projectUuid)}/development/definitions/${encodeURIComponent(uuid)}`, { replace: true })
+    void navigate(`/project/objects/definitions/${encodeURIComponent(uuid)}`, { replace: true })
+  }
+
+  function navigateFromExplorer(path: string) {
+    const definitionUuid = path.match(/\/definitions\/([^/?]+)/)?.[1]
+    if (definitionUuid) {
+      const decodedUuid = decodeURIComponent(definitionUuid)
+      if (dirty) setPendingDefinitionUuid(decodedUuid)
+      else applyDefinitionSelection(decodedUuid)
+      return
+    }
+    void navigate(path)
   }
 
   return (
@@ -381,6 +393,18 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
       {environmentLoadError && <div className="definition-notice definition-notice--error" role="alert"><AlertCircle size={16} aria-hidden="true" /><span>{t('environmentLoadError')}</span></div>}
 
       <div className="definitions-shell definitions-shell--workbench">
+        <aside className="definition-object-explorer">
+          <ProjectSidebarTree
+            projectUuid={projectUuid}
+            folders={folders}
+            definitions={definitions}
+            selectedUuid={selectedUuid}
+            loading={loading}
+            failed={Boolean(loadError)}
+            onNavigate={navigateFromExplorer}
+            onRetry={() => void loadWorkspace()}
+          />
+        </aside>
         <section className="definition-workbench" aria-label={t('details')}>
           {loading && <div className="definition-state"><LoaderCircle className="spin" aria-hidden="true" /> {t('loading')}</div>}
           {loadError && <div className="definition-state definition-state--error"><AlertCircle aria-hidden="true" /><p>{loadError}</p><button className="definition-button definition-button--quiet" type="button" onClick={() => void loadWorkspace()}>{t('retry')}</button></div>}
@@ -523,7 +547,7 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
               const created = await definitionsApi.createDefinition(projectUuid, input)
               setDefinitions((current) => [created, ...current])
               setSelectedUuid(created.uuid)
-              navigate(`/projects/${encodeURIComponent(projectUuid)}/development/definitions/${encodeURIComponent(created.uuid)}`, { replace: true })
+              navigate(`/project/objects/definitions/${encodeURIComponent(created.uuid)}`, { replace: true })
               notifyProjectTreeChanged()
               setShowCreate(false)
               setCreateDefinitionType(null)
@@ -791,7 +815,7 @@ function VersionsPanel(props: VersionsPanelProps) {
                 <time dateTime={scenario.createdAt}>{formatter.format(new Date(scenario.createdAt))}</time>
                 {props.canPublish && <div className="definition-runnable-actions">
                   <label><span>{t('environment')}</span><select value={environmentUuid} onChange={(event) => setEnvironmentUuid(event.target.value)} disabled={props.environments.length === 0}>{props.environments.map((environment) => <option key={environment.uuid} value={environment.uuid}>{environment.name} · {environment.code}</option>)}</select></label>
-                  {prepared[scenario.uuid] ? <Link className="definition-button definition-button--quiet" to={`/projects/${props.projectUuid}/publications/${prepared[scenario.uuid]!.uuid}`}>{t('reviewRunnableVersion')}</Link> : <button className="definition-button definition-button--primary" type="button" disabled={!environmentUuid || preparingScenarioUuid === scenario.uuid} onClick={() => void prepare(scenario)}>{preparingScenarioUuid === scenario.uuid ? t('preparingRunnableVersion') : t('prepareRunnableVersion')}</button>}
+                  {prepared[scenario.uuid] ? <Link className="definition-button definition-button--quiet" to={`/project/publications/${prepared[scenario.uuid]!.uuid}`}>{t('reviewRunnableVersion')}</Link> : <button className="definition-button definition-button--primary" type="button" disabled={!environmentUuid || preparingScenarioUuid === scenario.uuid} onClick={() => void prepare(scenario)}>{preparingScenarioUuid === scenario.uuid ? t('preparingRunnableVersion') : t('prepareRunnableVersion')}</button>}
                 </div>}
               </article>
             ))}

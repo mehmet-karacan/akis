@@ -7,9 +7,9 @@ import { resolveWorkspace, WorkspaceNavigation } from './WorkspaceNavigation'
 describe('WorkspaceNavigation', () => {
   beforeEach(async () => { await i18n.changeLanguage('en') })
 
-  it('always exposes the three primary workspaces', () => {
-    render(<MemoryRouter initialEntries={['/projects/p-1/development']}><WorkspaceNavigation projectUuid="p-1" collapsed={false} hasPendingChanges={false} onNavigate={() => undefined} /></MemoryRouter>)
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Project', 'Operations', 'Connections'])
+  it('always exposes the four primary workspaces', () => {
+    render(<MemoryRouter initialEntries={['/project/objects']}><WorkspaceNavigation hasPendingChanges={false} onNavigate={() => undefined} /></MemoryRouter>)
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Project', 'Project objects', 'Operations', 'Connections'])
   })
 
   it('maps legacy routes into the canonical workspace', () => {
@@ -17,10 +17,11 @@ describe('WorkspaceNavigation', () => {
     expect(resolveWorkspace('/projects/p-1/schema-bindings')).toBe('connections')
     expect(resolveWorkspace('/projects/p-1/runs')).toBe('operations')
     expect(resolveWorkspace('/projects/p-1/models')).toBe('development')
+    expect(resolveWorkspace('/projects/p-1')).toBe('project')
   })
 
-  it('keeps all workspaces available but puts operations first for an operator-only role', () => {
-    render(<MemoryRouter><WorkspaceNavigation projectUuid="p-1" collapsed={false} hasPendingChanges={false} operatorOnly onNavigate={() => undefined} /></MemoryRouter>)
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Operations', 'Project', 'Connections'])
+  it('keeps project information as the first tab for every role', () => {
+    render(<MemoryRouter><WorkspaceNavigation hasPendingChanges={false} onNavigate={() => undefined} /></MemoryRouter>)
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Project', 'Project objects', 'Operations', 'Connections'])
   })
 })

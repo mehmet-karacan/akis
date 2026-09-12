@@ -1,7 +1,8 @@
 import { Plus, Search } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
+import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
 import { AsyncState, FilterBar, PageHeader } from '../../core/ui'
 import { useProjectAccess } from '../../core/auth/ProjectAccessContext'
 import { topologyApi } from '../topology/api'
@@ -12,7 +13,7 @@ import './connections.css'
 const pageSize = 25
 
 export function ConnectionsPage() {
-  const { projectUuid = '' } = useParams()
+  const projectUuid = useCurrentProjectUuid()
   const { t, i18n } = useTranslation()
   const [params, setParams] = useSearchParams()
   const [catalog, setCatalog] = useState<ConnectionCatalogItem[]>([])

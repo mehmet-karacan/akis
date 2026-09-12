@@ -29,12 +29,12 @@ export function ProjectsPage() {
   useEffect(() => {
     if (loading) return
     const selected = projects.length === 1 ? projects[0] : projects.find((item) => item.uuid === getRememberedProject())
-    if (selected) { rememberProject(selected.uuid); navigate(`/projects/${selected.uuid}`, { replace: true }) }
+    if (selected) { rememberProject(selected.uuid); navigate('/project', { replace: true }) }
   }, [loading, navigate, projects])
 
   function openProject(projectUuid: string) {
     rememberProject(projectUuid)
-    navigate(`/projects/${projectUuid}`)
+    navigate('/project')
   }
 
   async function create(event: FormEvent<HTMLFormElement>) {
@@ -59,7 +59,7 @@ export function ProjectsPage() {
       {error && <div className="error-banner action-banner" role="alert"><span>{error}</span><button onClick={() => void load()}><RotateCcw size={15} />{t('common.retry')}</button></div>}
       <div className="project-choice-panel">
         <header><span className="project-choice-icon"><Database /></span><div><p className="eyebrow">{t('projects.eyebrow')}</p><h1>{t('projects.title')}</h1><p>{t('projects.description')}</p></div></header>
-        {loading ? <div className="project-choice-loading" aria-label={t('common.loading')}><span /><span /><span /></div> : projects.length === 0 ? <div className="project-choice-empty"><p>{t('projects.empty')}</p><div><button className="button secondary" onClick={() => navigate('/projects/import')}><FolderInput size={17} />{t('projects.import')}</button><button className="button primary" onClick={() => setShowCreate(true)}><Plus size={17} />{t('projects.new')}</button></div></div> : <div className="project-choice-list" role="list">{projects.map((project) => (
+        {loading ? <div className="project-choice-loading" aria-label={t('common.loading')}><span /><span /><span /></div> : projects.length === 0 ? <div className="project-choice-empty"><p>{t('projects.empty')}</p><div><button className="button secondary" onClick={() => navigate('/project/import')}><FolderInput size={17} />{t('projects.import')}</button><button className="button primary" onClick={() => setShowCreate(true)}><Plus size={17} />{t('projects.new')}</button></div></div> : <div className="project-choice-list" role="list">{projects.map((project) => (
           <button type="button" key={project.uuid} onClick={() => openProject(project.uuid)}>
             <span><strong>{project.name}</strong><small>{project.code} · {formatDate(project.createdAt, i18n.language)}</small></span><Check aria-hidden="true" />
           </button>

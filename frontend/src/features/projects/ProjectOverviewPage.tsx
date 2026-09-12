@@ -1,16 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useParams } from 'react-router-dom'
 import { getProject, type Project } from './projectsApi'
-import { useProjectAccess } from '../../core/auth/ProjectAccessContext'
+import { useCurrentProjectUuid } from './CurrentProjectContext'
 
 export function ProjectOverviewPage() {
-  const { projectUuid = '' } = useParams()
+  const projectUuid = useCurrentProjectUuid()
   const { t } = useTranslation()
   const [project, setProject] = useState<Project | null>(null)
   const [error, setError] = useState('')
   const [reloadVersion, setReloadVersion] = useState(0)
-  const { operatorOnly } = useProjectAccess()
 
   useEffect(() => {
     let active = true
@@ -30,9 +28,6 @@ export function ProjectOverviewPage() {
       <p className="eyebrow">{project?.code ?? t('common.loading')}</p>
       <h1>{project?.name ?? t('overview.title')}</h1>
       <p>{project?.description || t('overview.welcome')}</p>
-      <div className="project-entry-actions">
-        {operatorOnly ? <Link className="button primary" to={`/projects/${projectUuid}/operations`}>{t('overview.goToOperations')}</Link> : <><Link className="button primary" to={`/projects/${projectUuid}/development`}>{t('overview.goToDevelopment')}</Link><Link className="button secondary" to={`/projects/${projectUuid}/operations`}>{t('overview.goToOperations')}</Link></>}
-      </div>
     </header>
   </section>
 }

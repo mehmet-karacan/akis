@@ -2,12 +2,13 @@ import { ArrowLeft } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router-dom'
+import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
 import { AsyncState, PageHeader } from '../../core/ui'
 import { topologyApi, type Connection, type Environment, type LogicalSchema, type PhysicalSchema, type SchemaBinding } from '../topology/api'
 import './schemas.css'
 
 function SchemaContextDetailPage({ kind }: { kind: 'logical' | 'environment' }) {
-  const params = useParams(); const projectUuid = params.projectUuid ?? ''; const uuid = kind === 'logical' ? params.logicalSchemaUuid ?? '' : params.environmentUuid ?? ''; const { t } = useTranslation()
+  const params = useParams(); const projectUuid = useCurrentProjectUuid(); const uuid = kind === 'logical' ? params.logicalSchemaUuid ?? '' : params.environmentUuid ?? ''; const { t } = useTranslation()
   const [logical, setLogical] = useState<LogicalSchema[]>([]); const [environments, setEnvironments] = useState<Environment[]>([]); const [physical, setPhysical] = useState<PhysicalSchema[]>([]); const [connections, setConnections] = useState<Connection[]>([]); const [bindings, setBindings] = useState<SchemaBinding[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState('')
   const load = useCallback(async () => { setLoading(true); setError(''); try { const [nextLogical, nextEnvironments, nextPhysical, nextConnections, nextBindings] = await Promise.all([topologyApi.listLogicalSchemas(projectUuid), topologyApi.listEnvironments(projectUuid), topologyApi.listPhysicalSchemas(projectUuid), topologyApi.listConnections(projectUuid), topologyApi.listBindings(projectUuid)]); setLogical(nextLogical); setEnvironments(nextEnvironments); setPhysical(nextPhysical); setConnections(nextConnections); setBindings(nextBindings) } catch { setError(t('common.loadError')) } finally { setLoading(false) } }, [projectUuid, t])
   useEffect(() => { void load() }, [load])

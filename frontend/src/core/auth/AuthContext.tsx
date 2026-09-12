@@ -8,6 +8,7 @@ interface AuthState {
 }
 
 const AuthContext = createContext<AuthState | null>(null)
+const sessionKey = 'akis.localSession'
 
 function basicHeader(username: string, password: string) {
   const bytes = new TextEncoder().encode(`${username}:${password}`)
@@ -16,7 +17,12 @@ function basicHeader(username: string, password: string) {
 }
 
 export function AuthProvider({ children }: PropsWithChildren) {
-  const [username, setUsername] = useState('')
+  const restored = (() => {
+    try { return JSON.parse(sessionStorage.getItem(sessionKey) ?? 'null') as { username: string; authorization: string } | null }
+    catch { return null }
+  })()
+  if (restored?.authorization) setAuthorizationHeader(restored.authorization)
+  const [username, setUsername] = useState(restored?.username ?? '')
 
   const value = useMemo<AuthState>(() => ({
     username,
@@ -24,6 +30,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setAuthorizationHeader(basicHeader(nextUsername, password))
       try {
         await apiRequest('/api/v1/projects')
+        const authorization = basicHeader(nextUsername, password)
+        sessionStorage.setItem(sessionKey, JSON.stringify({ username: nextUsername, authorization }))
         setUsername(nextUsername)
       } catch (error) {
         setAuthorizationHeader(null)
@@ -32,6 +40,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     },
     logout() {
       setAuthorizationHeader(null)
+      sessionStorage.removeItem(sessionKey)
       setUsername('')
     },
   }), [username])

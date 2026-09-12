@@ -32,7 +32,7 @@ describe('persistent project sidebar tree', () => {
     const object = screen.getByTitle('Load Daily · Procedure')
     expect(object.parentElement).toHaveClass('is-selected')
     fireEvent.click(object)
-    expect(navigate).toHaveBeenCalledWith('/projects/project-1/development/definitions/procedure-1')
+    expect(navigate).toHaveBeenCalledWith('/project/objects/definitions/procedure-1')
   })
 
   it('opens the same object action menu from right click and the three-dot button', () => {
@@ -43,7 +43,7 @@ describe('persistent project sidebar tree', () => {
     fireEvent.contextMenu(object.parentElement!)
     expect(screen.getByRole('menuitem', { name: 'Create Scenario' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('menuitem', { name: 'Run' }))
-    expect(navigate).toHaveBeenCalledWith('/projects/project-1/operations?definition=procedure-1&start=1')
+    expect(navigate).toHaveBeenCalledWith('/project/operations?definition=procedure-1&start=1')
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Load Daily' }))
     expect(screen.getByRole('menuitem', { name: 'Open' })).toBeInTheDocument()
@@ -67,7 +67,7 @@ describe('persistent project sidebar tree', () => {
     fireEvent.contextMenu(screen.getByRole('button', { name: 'Actions for Loads' }).parentElement!)
     fireEvent.click(screen.getByRole('menuitem', { name: 'Create Subfolder' }))
 
-    expect(navigate).toHaveBeenCalledWith('/projects/project-1/development?createFolder=folder-1')
+    expect(navigate).toHaveBeenCalledWith('/project/objects?createFolder=folder-1')
   })
 
   it('shows the fixed project groups and opens models directly', () => {
@@ -81,7 +81,7 @@ describe('persistent project sidebar tree', () => {
     expect(screen.getByText('Run Date')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Models' }))
-    expect(navigate).toHaveBeenCalledWith('/projects/project-1/models')
+    expect(navigate).toHaveBeenCalledWith('/project/models')
   })
 
   it('offers component creation from the visible add button and right click', () => {
@@ -90,7 +90,7 @@ describe('persistent project sidebar tree', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Add component' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Add Variable' }))
-    expect(navigate).toHaveBeenCalledWith('/projects/project-1/development?createType=VARIABLE')
+    expect(navigate).toHaveBeenCalledWith('/project/objects?createType=VARIABLE')
 
     fireEvent.contextMenu(screen.getByText('Sequence generator').closest('.sidebar-folder-action-row')!)
     expect(screen.getByRole('menuitem', { name: 'Add Sequence generator' })).toBeInTheDocument()

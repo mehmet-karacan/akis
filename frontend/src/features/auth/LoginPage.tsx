@@ -22,7 +22,7 @@ export function LoginPage() {
     setError('')
     try {
       await login(username.trim(), password)
-      navigate('/projects')
+      navigate('/project/select')
     } catch (cause) {
       setError(cause instanceof ApiProblem ? cause.message : t('auth.connectionError'))
     } finally {

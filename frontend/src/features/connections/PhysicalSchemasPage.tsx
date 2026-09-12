@@ -2,6 +2,7 @@ import { ArrowLeft, Database, Plus } from 'lucide-react'
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router-dom'
+import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
 import { AsyncState, Button, PageHeader } from '../../core/ui'
 import { useProjectAccess } from '../../core/auth/ProjectAccessContext'
 import { topologyApi, type Connection, type ConnectionVersion, type PhysicalSchema } from '../topology/api'
@@ -9,7 +10,7 @@ import '../schemas/schemas.css'
 import './connections.css'
 
 export function PhysicalSchemasPage() {
-  const { projectUuid = '', connectionUuid = '' } = useParams(); const { t } = useTranslation(); const { can } = useProjectAccess(); const canManage = can('BAGLANTI_YONET')
+  const { connectionUuid = '' } = useParams(); const projectUuid = useCurrentProjectUuid(); const { t } = useTranslation(); const { can } = useProjectAccess(); const canManage = can('BAGLANTI_YONET')
   const [connection, setConnection] = useState<Connection | null>(null); const [versions, setVersions] = useState<ConnectionVersion[]>([]); const [items, setItems] = useState<PhysicalSchema[]>([]); const [schemas, setSchemas] = useState<string[]>([]); const [schema, setSchema] = useState(''); const [loading, setLoading] = useState(true); const [discovering, setDiscovering] = useState(false); const [busy, setBusy] = useState(false); const [error, setError] = useState('')
   const load = useCallback(async () => { setLoading(true); setError(''); try { const [nextConnection, nextVersions, nextItems] = await Promise.all([topologyApi.getConnection(projectUuid, connectionUuid), topologyApi.listVersions(projectUuid, connectionUuid), topologyApi.listPhysicalSchemas(projectUuid)]); setConnection(nextConnection); setVersions(nextVersions); setItems(nextItems.filter((item) => item.connectionUuid === connectionUuid)) } catch { setError(t('common.loadError')) } finally { setLoading(false) } }, [connectionUuid, projectUuid, t])
   useEffect(() => { void load() }, [load])

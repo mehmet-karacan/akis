@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import { useAuth } from '../core/auth/AuthContext'
 import { useProjectAccess } from '../core/auth/ProjectAccessContext'
+import { projectRoute, useCurrentProjectUuid } from '../features/projects/CurrentProjectContext'
+import { rememberProject } from '../features/projects/projectPreference'
 import { LoginPage } from '../features/auth/LoginPage'
 import { AppShell } from './AppShell'
 
@@ -35,24 +37,30 @@ function ProtectedShell() {
 }
 
 function DefinitionsRoute() {
-  const { projectUuid = '', definitionUuid } = useParams()
+  const { definitionUuid } = useParams(); const projectUuid = useCurrentProjectUuid()
   return <DefinitionsWorkspace projectUuid={projectUuid} routeDefinitionUuid={definitionUuid} />
 }
 
 export function LegacyTopologyRedirect() {
-  const { projectUuid = '' } = useParams()
-  return <Navigate to={`/projects/${projectUuid}/connections`} replace />
+  return <Navigate to={projectRoute('/connections')} replace />
 }
 
 export function LegacyDefinitionsRedirect() {
-  const { projectUuid = '' } = useParams(); const location = useLocation(); const params = new URLSearchParams(location.search); const definitionUuid = params.get('definition'); params.delete('definition')
+  const location = useLocation(); const params = new URLSearchParams(location.search); const definitionUuid = params.get('definition'); params.delete('definition')
   const suffix = params.toString() ? `?${params.toString()}` : ''
-  return <Navigate to={definitionUuid ? `/projects/${projectUuid}/development/definitions/${encodeURIComponent(definitionUuid)}${suffix}` : `/projects/${projectUuid}/development${suffix}`} replace />
+  return <Navigate to={definitionUuid ? `${projectRoute('/objects/definitions')}/${encodeURIComponent(definitionUuid)}${suffix}` : `${projectRoute('/objects')}${suffix}`} replace />
 }
 
 export function LegacyRunsRedirect({ detail = false }: { detail?: boolean }) {
-  const { projectUuid = '', runUuid = '' } = useParams(); const location = useLocation()
-  return <Navigate to={`/projects/${projectUuid}/operations${detail ? `/runs/${runUuid}` : ''}${location.search}`} replace />
+  const { runUuid = '' } = useParams(); const location = useLocation()
+  return <Navigate to={`${projectRoute('/operations')}${detail ? `/runs/${runUuid}` : ''}${location.search}`} replace />
+}
+
+function LegacyProjectRedirect() {
+  const { projectUuid = '', '*': remainder = '' } = useParams()
+  if (projectUuid) rememberProject(projectUuid)
+  const normalized = remainder.replace(/^development(?=\/|$)/, 'objects')
+  return <Navigate to={projectRoute(normalized ? `/${normalized}` : '')} replace />
 }
 
 function RouteLoading() {
@@ -62,47 +70,49 @@ function RouteLoading() {
 
 function ProjectPermissionRoute({ permission, fallback, children }: { permission: string; fallback: string; children: React.ReactNode }) {
   const { access, can } = useProjectAccess()
-  const { projectUuid = '' } = useParams()
   if (!access) return <RouteLoading />
-  return can(permission) ? children : <Navigate to={fallback.replace(':projectUuid', encodeURIComponent(projectUuid))} replace />
+  return can(permission) ? children : <Navigate to={fallback} replace />
 }
 
 export function App() {
   const { username } = useAuth()
   return (
     <Suspense fallback={<RouteLoading />}><Routes>
-      <Route path="/login" element={username ? <Navigate to="/projects" replace /> : <LoginPage />} />
+      <Route path="/login" element={username ? <Navigate to="/project/select" replace /> : <LoginPage />} />
+      <Route path="/project/select" element={username ? <ProjectsPage /> : <Navigate to="/login" replace />} />
+      <Route path="/projects" element={<Navigate to="/project/select" replace />} />
+      <Route path="/projects/import" element={<Navigate to="/project/import" replace />} />
+      <Route path="/projects/:projectUuid/*" element={<LegacyProjectRedirect />} />
       <Route element={<ProtectedShell />}>
-        <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/project-bundles/import" element={<BundleImportPage />} />
-        <Route path="/projects/import" element={<BundleImportPage />} />
-        <Route path="/projects/:projectUuid" element={<ProjectOverviewPage />} />
-        <Route path="/projects/:projectUuid/topology" element={<LegacyTopologyRedirect />} />
-        <Route path="/projects/:projectUuid/models" element={<ModelsPage />} />
-        <Route path="/projects/:projectUuid/models/:modelUuid/import" element={<ProjectPermissionRoute permission="KATALOG_KESFET" fallback="/projects/:projectUuid/models"><MetadataImportPage /></ProjectPermissionRoute>} />
-        <Route path="/projects/:projectUuid/models/:modelUuid" element={<ModelDetailPage />} />
-        <Route path="/projects/:projectUuid/definitions" element={<LegacyDefinitionsRedirect />} />
-        <Route path="/projects/:projectUuid/development" element={<DefinitionsRoute />} />
-        <Route path="/projects/:projectUuid/development/definitions/:definitionUuid" element={<DefinitionsRoute />} />
-        <Route path="/projects/:projectUuid/publications" element={<PublicationsPage />} />
-        <Route path="/projects/:projectUuid/publications/:publicationUuid" element={<PublicationDetailPage />} />
-        <Route path="/projects/:projectUuid/runs" element={<LegacyRunsRedirect />} />
-        <Route path="/projects/:projectUuid/operations" element={<RunsPage />} />
-        <Route path="/projects/:projectUuid/runs/:runUuid" element={<LegacyRunsRedirect detail />} />
-        <Route path="/projects/:projectUuid/operations/runs/:runUuid" element={<RunDetailPage />} />
-        <Route path="/projects/:projectUuid/team" element={<MembershipsPage />} />
-        <Route path="/projects/:projectUuid/connections" element={<ConnectionsPage />} />
-        <Route path="/projects/:projectUuid/connections/new" element={<ProjectPermissionRoute permission="BAGLANTI_YONET" fallback="/projects/:projectUuid/connections"><ConnectionCreatePage /></ProjectPermissionRoute>} />
-        <Route path="/projects/:projectUuid/connections/:connectionUuid" element={<ConnectionDetailPage />} />
-        <Route path="/projects/:projectUuid/connections/:connectionUuid/physical-schemas" element={<PhysicalSchemasPage />} />
-        <Route path="/projects/:projectUuid/logical-schemas" element={<LogicalSchemasPage />} />
-        <Route path="/projects/:projectUuid/logical-schemas/:logicalSchemaUuid" element={<LogicalSchemaDetailPage />} />
-        <Route path="/projects/:projectUuid/environments" element={<EnvironmentsPage />} />
-        <Route path="/projects/:projectUuid/environments/:environmentUuid" element={<EnvironmentDetailPage />} />
-        <Route path="/projects/:projectUuid/schema-bindings" element={<SchemaBindingsPage />} />
+        <Route path="/project/import" element={<BundleImportPage />} />
+        <Route path="/project" element={<ProjectOverviewPage />} />
+        <Route path="/project/topology" element={<LegacyTopologyRedirect />} />
+        <Route path="/project/models" element={<ModelsPage />} />
+        <Route path="/project/models/:modelUuid/import" element={<ProjectPermissionRoute permission="KATALOG_KESFET" fallback="/project/models"><MetadataImportPage /></ProjectPermissionRoute>} />
+        <Route path="/project/models/:modelUuid" element={<ModelDetailPage />} />
+        <Route path="/project/definitions" element={<LegacyDefinitionsRedirect />} />
+        <Route path="/project/objects" element={<DefinitionsRoute />} />
+        <Route path="/project/objects/definitions/:definitionUuid" element={<DefinitionsRoute />} />
+        <Route path="/project/publications" element={<PublicationsPage />} />
+        <Route path="/project/publications/:publicationUuid" element={<PublicationDetailPage />} />
+        <Route path="/project/runs" element={<LegacyRunsRedirect />} />
+        <Route path="/project/operations" element={<RunsPage />} />
+        <Route path="/project/runs/:runUuid" element={<LegacyRunsRedirect detail />} />
+        <Route path="/project/operations/runs/:runUuid" element={<RunDetailPage />} />
+        <Route path="/project/team" element={<MembershipsPage />} />
+        <Route path="/project/connections" element={<ConnectionsPage />} />
+        <Route path="/project/connections/new" element={<ProjectPermissionRoute permission="BAGLANTI_YONET" fallback="/project/connections"><ConnectionCreatePage /></ProjectPermissionRoute>} />
+        <Route path="/project/connections/:connectionUuid" element={<ConnectionDetailPage />} />
+        <Route path="/project/connections/:connectionUuid/physical-schemas" element={<PhysicalSchemasPage />} />
+        <Route path="/project/logical-schemas" element={<LogicalSchemasPage />} />
+        <Route path="/project/logical-schemas/:logicalSchemaUuid" element={<LogicalSchemaDetailPage />} />
+        <Route path="/project/environments" element={<EnvironmentsPage />} />
+        <Route path="/project/environments/:environmentUuid" element={<EnvironmentDetailPage />} />
+        <Route path="/project/schema-bindings" element={<SchemaBindingsPage />} />
         <Route path="/identity/users" element={<IdentityUsersPage />} />
       </Route>
-      <Route path="*" element={<Navigate to={username ? '/projects' : '/login'} replace />} />
+      <Route path="*" element={<Navigate to={username ? '/project/select' : '/login'} replace />} />
     </Routes></Suspense>
   )
 }

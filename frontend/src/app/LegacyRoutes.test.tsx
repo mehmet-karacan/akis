@@ -11,12 +11,12 @@ function renderRoute(initial: string, legacyPath: string, element: React.ReactNo
 
 describe('legacy route compatibility', () => {
   it('preserves secondary definition filters while producing a canonical object URL', async () => {
-    expect(await renderRoute('/projects/p1/definitions?definition=d1&tab=versions', '/projects/:projectUuid/definitions', <LegacyDefinitionsRedirect />)).toHaveTextContent('/projects/p1/development/definitions/d1?tab=versions')
+    expect(await renderRoute('/projects/p1/definitions?definition=d1&tab=versions', '/projects/:projectUuid/definitions', <LegacyDefinitionsRedirect />)).toHaveTextContent('/project/objects/definitions/d1?tab=versions')
   })
   it('redirects old run detail URLs without losing the query', async () => {
-    expect(await renderRoute('/projects/p1/runs/r1?tab=events', '/projects/:projectUuid/runs/:runUuid', <LegacyRunsRedirect detail />)).toHaveTextContent('/projects/p1/operations/runs/r1?tab=events')
+    expect(await renderRoute('/projects/p1/runs/r1?tab=events', '/projects/:projectUuid/runs/:runUuid', <LegacyRunsRedirect detail />)).toHaveTextContent('/project/operations/runs/r1?tab=events')
   })
   it('redirects topology to the connection workspace', async () => {
-    expect(await renderRoute('/projects/p1/topology', '/projects/:projectUuid/topology', <LegacyTopologyRedirect />)).toHaveTextContent('/projects/p1/connections')
+    expect(await renderRoute('/projects/p1/topology', '/projects/:projectUuid/topology', <LegacyTopologyRedirect />)).toHaveTextContent('/project/connections')
   })
 })

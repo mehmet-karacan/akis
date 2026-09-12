@@ -1,6 +1,7 @@
 import { Activity, ChevronLeft, ChevronRight, Pause, Plus, RefreshCw, Search } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
 import { definitionsApi } from '../definitions/api'
 import { operationsApi } from '../operations/api'
 import type { Publication } from '../operations/types'
@@ -31,7 +32,7 @@ function duration(startedAt: string | null, finishedAt: string | null, locale: s
 }
 
 export function RunsPage() {
-  const { projectUuid = '' } = useParams(); const navigate = useNavigate(); const [searchParams, setSearchParams] = useSearchParams(); const { t, locale } = useExecutionI18n()
+  const projectUuid = useCurrentProjectUuid(); const navigate = useNavigate(); const [searchParams, setSearchParams] = useSearchParams(); const { t, locale } = useExecutionI18n()
   const view = validView(searchParams.get('view')); const page = positiveInt(searchParams.get('page'), 0); const requestedSize = positiveInt(searchParams.get('size'), 50); const size = allowedSizes.includes(requestedSize) ? requestedSize : 50
   const query = searchParams.get('query') ?? ''; const status = searchParams.get('statuses') ?? ''; const environment = searchParams.get('environment') ?? ''; const definitionType = searchParams.get('definitionType') ?? ''; const from = searchParams.get('from') ?? ''; const to = searchParams.get('to') ?? ''
   const [queryDraft, setQueryDraft] = useState(query); const [fromDraft, setFromDraft] = useState(from); const [toDraft, setToDraft] = useState(to); const [live, setLive] = useState(true)

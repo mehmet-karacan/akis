@@ -39,24 +39,37 @@ test.describe('AKIŞ critical browser journeys', () => {
   })
 
   test('loads every primary workspace without a transport error', async ({ page }) => {
-    const projectUuid = await login(page)
+    await login(page)
     const screens = [
-      '', '/development', '/operations', '/connections', '/logical-schemas',
-      '/environments', '/schema-bindings', '/models', '/team', '/publications',
+      '/project', '/project/objects', '/project/operations', '/project/connections', '/project/logical-schemas',
+      '/project/environments', '/project/schema-bindings', '/project/models', '/project/team', '/project/publications',
     ]
 
-    for (const suffix of screens) {
-      await test.step(suffix || '/overview', async () => {
-        await navigateInApp(page, `/projects/${projectUuid}${suffix}`)
+    for (const path of screens) {
+      await test.step(path, async () => {
+        await navigateInApp(page, path)
         await expectHealthyScreen(page)
       })
     }
   })
 
-  test('opens available detail screens and reveals Oracle fields only after provider selection', async ({ page }) => {
-    const projectUuid = await login(page)
+  test('keeps the signed-in session and clean project URL after reload', async ({ page }) => {
+    await login(page)
+    await expect(page).toHaveURL(/\/project$/)
+    await expect(page.locator('.sidebar')).toHaveCount(0)
 
-    await navigateInApp(page, `/projects/${projectUuid}/connections/new`)
+    await page.reload()
+
+    await expect(page).toHaveURL(/\/project$/)
+    await expect(page.locator('input[autocomplete="current-password"]')).toHaveCount(0)
+    await expect(page.locator('.workspace-navigation')).toBeVisible()
+    await expect(page.locator('.sidebar')).toHaveCount(0)
+  })
+
+  test('opens available detail screens and reveals Oracle fields only after provider selection', async ({ page }) => {
+    await login(page)
+
+    await navigateInApp(page, '/project/connections/new')
     await expectHealthyScreen(page)
     const createForm = page.locator('.topology-connection-form')
     await expect(createForm.locator('input[autocomplete="username"]')).toHaveCount(0)
@@ -64,21 +77,23 @@ test.describe('AKIŞ critical browser journeys', () => {
     await expect(createForm.locator('input[autocomplete="username"]')).toBeVisible()
     await expect(createForm.locator('input[autocomplete="new-password"]')).toBeVisible()
 
-    await navigateInApp(page, `/projects/${projectUuid}/connections`)
+    await navigateInApp(page, '/project/connections')
     const connectionHref = await page.locator('.connection-name-link').first().getAttribute('href')
     expect(connectionHref, 'The baseline project must contain a connection').toBeTruthy()
-    await navigateInApp(page, connectionHref!)
+    const connectionUuid = connectionHref!.split('/').at(-1)!
+    await navigateInApp(page, connectionHref!, `/project/connections/${connectionUuid}`)
     await expectHealthyScreen(page)
 
     const physicalHref = await page.locator(`a[href="${connectionHref}/physical-schemas"]`).getAttribute('href')
     expect(physicalHref, 'The connection must expose physical-schema management').toBeTruthy()
-    await navigateInApp(page, physicalHref!)
+    await navigateInApp(page, physicalHref!, `/project/connections/${connectionUuid}/physical-schemas`)
     await expectHealthyScreen(page)
 
-    await navigateInApp(page, `/projects/${projectUuid}/environments`)
+    await navigateInApp(page, '/project/environments')
     const environmentHref = await page.locator('.schema-name-link').first().getAttribute('href')
     expect(environmentHref, 'The baseline project must contain an environment').toBeTruthy()
-    await navigateInApp(page, environmentHref!)
+    const environmentUuid = environmentHref!.split('/').at(-1)!
+    await navigateInApp(page, environmentHref!, `/project/environments/${environmentUuid}`)
     await expectHealthyScreen(page)
   })
 
@@ -97,7 +112,7 @@ test.describe('AKIŞ critical browser journeys', () => {
   })
 
   test('shows a forced connection-catalog failure and recovers through Retry', async ({ page }) => {
-    const projectUuid = await login(page)
+    await login(page)
     const catalogPattern = '**/api/v1/projects/*/connections/catalog'
     await page.route(catalogPattern, async (route) => {
       await route.fulfill({
@@ -107,8 +122,8 @@ test.describe('AKIŞ critical browser journeys', () => {
       })
     })
 
-    await page.locator(`.sidebar a[href="/projects/${projectUuid}/connections"]`).click()
-    await expect(page).toHaveURL(new RegExp(`/projects/${projectUuid}/connections$`))
+    await page.locator('.workspace-navigation a[href="/project/connections"]').click()
+    await expect(page).toHaveURL(/\/project\/connections$/)
     const failure = page.locator('.ui-async-state.error')
     await expect(failure).toBeVisible()
     await page.unroute(catalogPattern)
@@ -117,7 +132,7 @@ test.describe('AKIŞ critical browser journeys', () => {
     await expect(page.locator('.connections-table, .ui-async-state.empty')).toBeVisible()
   })
 
-  test('prioritises operations and hides write actions for an operation-only profile', async ({ page }) => {
+  test('keeps project first and hides write actions for an operation-only profile', async ({ page }) => {
     await page.route('**/api/v1/projects/*/access', async (route) => {
       await route.fulfill({
         status: 200,
@@ -125,17 +140,18 @@ test.describe('AKIŞ critical browser journeys', () => {
         body: JSON.stringify({ roles: ['OPERASYON'], permissions: ['CALISTIRMA_GORUNTULE'] }),
       })
     })
-    const projectUuid = await login(page)
-    const workspaceLinks = page.locator('.sidebar .workspace-navigation a')
-    await expect(workspaceLinks).toHaveCount(3)
-    await expect(workspaceLinks.first()).toHaveAttribute('href', `/projects/${projectUuid}/operations`)
-    await navigateInApp(page, `/projects/${projectUuid}/connections`)
-    await expect(page.locator(`a[href="/projects/${projectUuid}/connections/new"]`)).toHaveCount(0)
+    await login(page)
+    const workspaceLinks = page.locator('.workspace-navigation a')
+    await expect(workspaceLinks).toHaveCount(4)
+    await expect(workspaceLinks.first()).toHaveAttribute('href', '/project')
+    await expect(workspaceLinks.nth(2)).toHaveAttribute('href', '/project/operations')
+    await navigateInApp(page, '/project/connections')
+    await expect(page.locator('a[href="/project/connections/new"]')).toHaveCount(0)
   })
 
   test('keeps the connections workspace inside narrow, tablet and desktop viewports', async ({ page }) => {
-    const projectUuid = await login(page)
-    await navigateInApp(page, `/projects/${projectUuid}/connections`)
+    await login(page)
+    await navigateInApp(page, '/project/connections')
     await expectHealthyScreen(page)
 
     for (const viewport of [
@@ -151,8 +167,8 @@ test.describe('AKIŞ critical browser journeys', () => {
   })
 
   test('redirects legacy topology and runs addresses to their canonical workspaces', async ({ page }) => {
-    const projectUuid = await login(page)
-    await navigateInApp(page, `/projects/${projectUuid}/topology`, `/projects/${projectUuid}/connections`)
-    await navigateInApp(page, `/projects/${projectUuid}/runs`, `/projects/${projectUuid}/operations`)
+    await login(page)
+    await navigateInApp(page, '/project/topology', '/project/connections')
+    await navigateInApp(page, '/project/runs', '/project/operations')
   })
 })

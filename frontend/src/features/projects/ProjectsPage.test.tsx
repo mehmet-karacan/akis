@@ -26,10 +26,10 @@ const firstProject = {
 
 function renderPage() {
   return render(
-    <MemoryRouter initialEntries={['/projects']}>
+    <MemoryRouter initialEntries={['/project/select']}>
       <Routes>
-        <Route path="/projects" element={<ProjectsPage />} />
-        <Route path="/projects/:projectUuid" element={<h1>Selected project</h1>} />
+        <Route path="/project/select" element={<ProjectsPage />} />
+        <Route path="/project" element={<h1>Selected project</h1>} />
       </Routes>
     </MemoryRouter>,
   )

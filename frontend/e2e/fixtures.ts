@@ -12,11 +12,10 @@ export async function login(page: Page) {
   await page.locator('input[autocomplete="username"]').fill(username)
   await page.locator('input[autocomplete="current-password"]').fill(password)
   await page.locator('button[type="submit"]').click()
-  await page.waitForURL(/\/projects\/[0-9a-f-]{36}(?:\/|$)/i)
-
-  const match = new URL(page.url()).pathname.match(/\/projects\/([0-9a-f-]{36})/i)
-  expect(match?.[1], 'A project must be selected after login').toBeTruthy()
-  return match![1]
+  await page.waitForURL(/\/project(?:[?#].*)?$/i)
+  const projectUuid = await page.evaluate(() => localStorage.getItem('akis.lastProjectUuid'))
+  expect(projectUuid, 'A project must be selected after login').toBeTruthy()
+  return projectUuid!
 }
 
 export async function navigateInApp(page: Page, path: string, expectedPath = path) {

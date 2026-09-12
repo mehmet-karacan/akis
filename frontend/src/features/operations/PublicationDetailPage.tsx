@@ -1,6 +1,7 @@
 import { ArrowLeft, CheckCircle2, Database, Scale, ShieldCheck } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
 import { operationsApi } from './api'
 import { CopyValue, ErrorState, Field, LoadingState, PageHeader, Panel, StatusBadge } from './OperationsUi'
 import { useOperationsI18n } from './i18n'
@@ -11,7 +12,7 @@ import { useRemoteData } from './useRemoteData'
 import { executionCodeLabel } from '../execution/i18n'
 
 export function PublicationDetailPage() {
-  const { projectUuid = '', publicationUuid = '' } = useParams()
+  const { publicationUuid = '' } = useParams(); const projectUuid = useCurrentProjectUuid()
   const { t, locale } = useOperationsI18n()
   const remote = useRemoteData(
     () => operationsApi.getPublication(projectUuid, publicationUuid),

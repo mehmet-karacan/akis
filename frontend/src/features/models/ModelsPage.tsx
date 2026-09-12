@@ -1,14 +1,15 @@
 import { Plus } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
+import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
 import { AsyncState, Button, Dialog, PageHeader, StatusBadge } from '../../core/ui'
 import { useProjectAccess } from '../../core/auth/ProjectAccessContext'
 import { topologyApi, type LogicalSchema, type Model } from '../topology/api'
 import './models.css'
 
 export function ModelsPage() {
-  const { projectUuid = '' } = useParams()
+  const projectUuid = useCurrentProjectUuid()
   const { t, i18n } = useTranslation()
   const { can } = useProjectAccess()
   const canManage = can('BAGLANTI_YONET')

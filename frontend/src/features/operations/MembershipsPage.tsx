@@ -1,6 +1,6 @@
 import { Plus } from 'lucide-react'
 import { useMemo, useState, type FormEvent } from 'react'
-import { useParams } from 'react-router-dom'
+import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
 import { operationsApi } from './api'
 import { Dialog, EmptyState, ErrorState, Field, LoadingState, PageHeader, Panel, StatusBadge } from './OperationsUi'
 import { useOperationsI18n } from './i18n'
@@ -11,7 +11,7 @@ import { useRemoteData } from './useRemoteData'
 const roles: ProjectRole[] = ['PROJE_YONETICISI', 'GELISTIRICI', 'OPERASYON', 'YAYIN_ONAYLAYICI', 'GORUNTULEYICI']
 
 export function MembershipsPage() {
-  const { projectUuid = '' } = useParams()
+  const projectUuid = useCurrentProjectUuid()
   const { t, locale } = useOperationsI18n()
   const memberships = useRemoteData(() => operationsApi.listMemberships(projectUuid), [projectUuid])
   const users = useRemoteData(() => operationsApi.listUsers(), [])

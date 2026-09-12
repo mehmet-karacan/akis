@@ -2,6 +2,7 @@ import { ArrowLeft, Database, Download, Search } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router-dom'
+import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
 import { AsyncState, Button, PageHeader } from '../../core/ui'
 import { MetadataDiff } from './MetadataDiff'
 import { compareMetadata } from './metadataComparison'
@@ -9,7 +10,7 @@ import { topologyApi, type Connection, type ConnectionVersion, type DataObject, 
 import './models.css'
 
 export function MetadataImportPage() {
-  const { projectUuid = '', modelUuid = '' } = useParams(); const { t } = useTranslation()
+  const { modelUuid = '' } = useParams(); const projectUuid = useCurrentProjectUuid(); const { t } = useTranslation()
   const [model, setModel] = useState<Model | null>(null); const [environments, setEnvironments] = useState<Environment[]>([]); const [bindings, setBindings] = useState<SchemaBinding[]>([]); const [physical, setPhysical] = useState<PhysicalSchema[]>([]); const [connections, setConnections] = useState<Connection[]>([]); const [versions, setVersions] = useState<ConnectionVersion[]>([]); const [objects, setObjects] = useState<DataObject[]>([])
   const [environmentUuid, setEnvironmentUuid] = useState(''); const [scope, setScope] = useState(''); const [result, setResult] = useState<DiscoveryResult | null>(null); const [selected, setSelected] = useState<Set<string>>(new Set()); const [preview, setPreview] = useState<DiscoveryTable | null>(null); const [previous, setPrevious] = useState<SchemaSnapshot | null>(null)
   const [loading, setLoading] = useState(true); const [discovering, setDiscovering] = useState(false); const [importing, setImporting] = useState(false); const [error, setError] = useState(''); const [notice, setNotice] = useState('')
