@@ -382,11 +382,7 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
   return (
     <div className="definitions-workspace" onKeyDown={handleWorkspaceKeyDown}>
       <header className="definitions-titlebar">
-        <div>
-          <p className="definition-eyebrow">{t('designControl')}</p>
-          <h1>{t('title')}</h1>
-          <p>{t('subtitle')}</p>
-        </div>
+        <h1>{t('title')}</h1>
         {canWrite && <div className="definition-title-actions"><button className="definition-button definition-button--quiet" type="button" onClick={() => setFolderCreateContext({ parentUuid: null })}><FolderPlus size={17} aria-hidden="true" /> {t('newFolder')}</button><button className="definition-button definition-button--primary" type="button" onClick={() => { setCreateDefinitionType(null); setShowCreate(true) }}><CirclePlus size={17} aria-hidden="true" /> {t('newDefinition')}</button></div>}
       </header>
       {capabilityError && <div className="definition-notice definition-notice--info" role="status"><AlertCircle size={16} aria-hidden="true" /><span>{t('capabilityUnavailable')}</span></div>}
@@ -486,7 +482,7 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
                   ) : selectedDefinition.type === 'PROCEDURE' && isProcedureContent(content) ? (
                     <ProcedureEditor projectUuid={projectUuid} value={content} onChange={updateContent} limits={capabilities?.procedure} />
                   ) : selectedDefinition.type === 'PACKAGE' ? (
-                    <PackageEditor projectUuid={projectUuid} definitionUuid={selectedDefinition.uuid} value={content} onChange={updateContent} />
+                    <PackageEditor projectUuid={projectUuid} definitionUuid={selectedDefinition.uuid} value={content} onChange={updateContent} onOpenDefinition={(uuid) => navigateFromExplorer(`/project/objects/definitions/${encodeURIComponent(uuid)}`)} />
                   ) : !['MAPPING', 'PROCEDURE', 'REUSABLE_MAPPING'].includes(selectedDefinition.type) ? (
                     <StructuredDraftEditor type={selectedDefinition.type} value={content} onChange={updateContent} />
                   ) : (

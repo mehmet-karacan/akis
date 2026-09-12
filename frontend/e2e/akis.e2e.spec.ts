@@ -66,6 +66,27 @@ test.describe('AKIŞ critical browser journeys', () => {
     await expect(page.locator('.sidebar')).toHaveCount(0)
   })
 
+  test('keeps package authoring focused on the canvas and opens linked objects on double click', async ({ page }) => {
+    await login(page)
+    await navigateInApp(page, '/project/objects')
+    const packageRow = page.locator('.sidebar-object-row').filter({ has: page.locator('.sidebar-object-icon--package') }).first()
+    await expect(packageRow).toBeVisible()
+    await packageRow.locator('.sidebar-object').click()
+    await expect(page.locator('.package-canvas')).toBeVisible()
+    await expect(page.locator('.package-palette')).toHaveCount(0)
+    await expect(page.locator('.package-accessible-list')).toHaveCount(0)
+    await expect(page.locator('.package-properties')).toHaveCount(0)
+
+    const firstNode = page.locator('.react-flow__node').first()
+    await expect(firstNode).toBeVisible()
+    await firstNode.click({ force: true })
+    await expect(page.locator('.package-properties')).toBeVisible()
+    const packageUrl = page.url()
+    await firstNode.dblclick({ force: true })
+    await expect(page).not.toHaveURL(packageUrl)
+    await expect(page).toHaveURL(/\/project\/objects\/definitions\//)
+  })
+
   test('opens available detail screens and reveals Oracle fields only after provider selection', async ({ page }) => {
     await login(page)
 

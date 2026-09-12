@@ -66,6 +66,10 @@ export function AppShell() {
 
   const activeWorkspace = resolveWorkspace(location.pathname)
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0 })
+  }, [location.pathname])
+
   const changeLanguage = (language: string) => void i18n.changeLanguage(language === 'tr' ? 'tr' : 'en')
   const themeIcon = mode === 'dark' ? <Moon size={16} /> : <Sun size={16} />
 

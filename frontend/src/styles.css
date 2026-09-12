@@ -292,6 +292,7 @@ label { display: grid; gap: 7px; color: var(--ink-soft); font-size: .77rem; font
 .user-menu button { width: 29px; height: 29px; display: grid; place-items: center; color: var(--ink-soft); border: 0; border-radius: 6px; background: transparent; cursor: pointer; }
 .user-menu button:hover { background: var(--surface-strong); }
 .main-content { padding: 24px; }
+.main-content:has(> .definitions-workspace) { padding: 0; }
 .route-loading { min-height: 16rem; display: grid; place-items: center; align-content: center; gap: 12px; color: var(--ink-soft); font-size: .78rem; }
 .route-loading span { width: 28px; height: 28px; border: 3px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: route-spin .8s linear infinite; }
 @keyframes route-spin { to { transform: rotate(360deg); } }

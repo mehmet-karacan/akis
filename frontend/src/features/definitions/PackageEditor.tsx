@@ -1,40 +1,172 @@
-import { Background, Controls, MiniMap, ReactFlow, ReactFlowProvider, applyNodeChanges, type Connection as FlowConnection, type Node, type NodeChange, type ReactFlowInstance } from '@xyflow/react'
-import { AlignCenter, Copy, GitBranch, Play, Plus, Trash2, Undo2 } from 'lucide-react'
+import {
+  Background, Controls, MiniMap, ReactFlow, ReactFlowProvider, applyNodeChanges,
+  type Connection as FlowConnection, type Node, type NodeChange, type ReactFlowInstance,
+} from '@xyflow/react'
+import { AlignCenter, Copy, ExternalLink, GitBranch, Play, Plus, Trash2, Undo2, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type DragEvent } from 'react'
 import { definitionsApi } from './api'
 import { definitionCodeLabel, definitionTypeKey, useDefinitionsI18n } from './i18n'
-import { addPackageTransition, duplicatePackageStep, isPackageContent, nextPackageStepId, packageValidation, removePackageStep, withoutPackageLayout, type PackageContent, type PackageStep, type PackageStepType, type TransitionOutcome } from './packageGraph'
+import {
+  addPackageTransition, duplicatePackageStep, isPackageContent, nextPackageStepId,
+  packageValidation, removePackageStep, withoutPackageLayout, type PackageContent,
+  type PackageStep, type PackageStepType, type TransitionOutcome,
+} from './packageGraph'
 import type { Definition } from './types'
 
 const allowedTypes = new Set(['MAPPING', 'PROCEDURE', 'PACKAGE', 'VARIABLE'])
 const toStepType = (type: Definition['type']): PackageStepType => type === 'VARIABLE' ? 'VARIABLE_EVALUATE' : type as PackageStepType
 const outcomeKey = { SUCCESS: 'outcomeSUCCESS', FAILURE: 'outcomeFAILURE', TRUE: 'outcomeTRUE', FALSE: 'outcomeFALSE', ALWAYS: 'outcomeALWAYS' } as const
-
 type PackagePosition = { x: number; y: number }
 
-function PackageEditorInner({ projectUuid, definitionUuid, value, onChange }: { projectUuid: string; definitionUuid: string; value: unknown; onChange: (value: unknown) => void }) {
-  const { language, t } = useDefinitionsI18n(); const rawContent = isPackageContent(value) ? value : { firstStepId: '', steps: [], transitions: [] } satisfies PackageContent; const content = withoutPackageLayout(rawContent)
-  const storageKey = `akis:package-layout:${projectUuid}:${definitionUuid}`
-  const [definitions, setDefinitions] = useState<Definition[]>([]); const [selectedDefinitionUuid, setSelectedDefinitionUuid] = useState(''); const [selectedStepId, setSelectedStepId] = useState(content.firstStepId); const [instance, setInstance] = useState<ReactFlowInstance | null>(null); const [positions, setPositions] = useState<Record<string, PackagePosition>>({}); const [undoPositions, setUndoPositions] = useState<Record<string, PackagePosition> | null>(null); const [undoValue, setUndoValue] = useState<PackageContent | null>(null); const [pendingDelete, setPendingDelete] = useState(false); const [transitionTarget, setTransitionTarget] = useState(''); const [transitionOutcome, setTransitionOutcome] = useState<TransitionOutcome>('SUCCESS'); const [message, setMessage] = useState(''); const [overview, setOverview] = useState(false)
-  useEffect(() => { try { const stored = localStorage.getItem(storageKey); const legacy = Object.fromEntries(rawContent.steps.filter((step) => step.x != null && step.y != null).map((step) => [step.id, { x: step.x as number, y: step.y as number }])); setPositions(stored ? JSON.parse(stored) as Record<string, PackagePosition> : legacy) } catch { setPositions({}) } setUndoPositions(null) }, [storageKey])
-  useEffect(() => { let active = true; void definitionsApi.listDefinitions(projectUuid).then((items) => { if (active) { const allowed = items.filter((item) => allowedTypes.has(item.type) && item.uuid !== definitionUuid); setDefinitions(allowed); setSelectedDefinitionUuid((current) => allowed.some((item) => item.uuid === current) ? current : allowed[0]?.uuid || '') } }).catch(() => { if (active) setDefinitions([]) }); return () => { active = false } }, [definitionUuid, projectUuid])
-  useEffect(() => { if (!content.steps.some((step) => step.id === selectedStepId)) setSelectedStepId(content.firstStepId || content.steps[0]?.id || '') }, [content.firstStepId, content.steps, selectedStepId])
-  const nodes: Node[] = useMemo(() => content.steps.map((step, index) => ({ id: step.id, position: positions[step.id] ?? { x: (index % 3) * 260, y: Math.floor(index / 3) * 150 }, data: { label: <div className="package-node-label"><span>{content.firstStepId === step.id ? t('startStep') : definitionCodeLabel(step.type, language)}</span><strong>{step.name || step.id}</strong><small>{definitions.find((item) => item.uuid === step.definitionUuid)?.name ?? t('unlinkedStep')}</small></div> }, selected: step.id === selectedStepId })), [content.firstStepId, content.steps, definitions, language, positions, selectedStepId, t])
-  const edges = useMemo(() => content.transitions.map((edge, index) => ({ id: `edge-${index}-${edge.fromStepId}-${edge.toStepId}`, source: edge.fromStepId, target: edge.toStepId, label: t(outcomeKey[edge.outcome ?? 'ALWAYS']), animated: false, style: edge.outcome === 'FAILURE' ? { strokeDasharray: '6 4', stroke: '#b42332' } : undefined })), [content.transitions, t])
-  const persistPositions = (next: Record<string, PackagePosition>) => { setPositions(next); try { localStorage.setItem(storageKey, JSON.stringify(next)) } catch { /* Browser storage is optional; semantics remain intact. */ } }
-  const commit = (next: PackageContent, undo = true) => { if (undo) setUndoValue(structuredClone(content)); setUndoPositions(null); onChange(withoutPackageLayout(next)) }
-  const addStep = (linkedDefinitionUuid: string, position?: { x: number; y: number }) => { const definition = definitions.find((item) => item.uuid === linkedDefinitionUuid); if (!definition) return; const id = nextPackageStepId(content.steps); const step: PackageStep = { id, type: toStepType(definition.type), name: definition.name, definitionUuid: linkedDefinitionUuid }; commit({ ...content, firstStepId: content.firstStepId || id, steps: [...content.steps, step] }); if (position) persistPositions({ ...positions, [id]: position }); setSelectedStepId(id) }
-  const connect = (connection: FlowConnection) => { if (!connection.source || !connection.target) return; const outcomes: TransitionOutcome[] = content.steps.find((item) => item.id === connection.source)?.type === 'VARIABLE_EVALUATE' ? ['TRUE', 'FALSE'] : ['SUCCESS', 'FAILURE']; const outcome = outcomes.find((candidate) => !content.transitions.some((edge) => edge.fromStepId === connection.source && edge.outcome === candidate)); if (!outcome) { setMessage(t('transitionSlotUsed')); return } const next = addPackageTransition(content, { fromStepId: connection.source, toStepId: connection.target, outcome }); if (!next) { setMessage(t('invalidTransition')); return } commit(next); setMessage('') }
-  const nodeChanges = (changes: NodeChange[]) => { if (!changes.some((change) => change.type === 'position')) return; const moved = applyNodeChanges(changes, nodes); persistPositions(Object.fromEntries(moved.map((node) => [node.id, node.position]))) }
-  const selected = content.steps.find((step) => step.id === selectedStepId); const validation = packageValidation(content); const transitionCount = selected ? content.transitions.filter((edge) => edge.fromStepId === selected.id || edge.toStepId === selected.id).length : 0
-  const autoLayout = () => { setUndoPositions(structuredClone(positions)); persistPositions(Object.fromEntries(content.steps.map((step, index) => [step.id, { x: (index % 3) * 260, y: Math.floor(index / 3) * 150 }]))) }
-  const drop = (event: DragEvent) => { event.preventDefault(); const uuid = event.dataTransfer.getData('application/akis-definition'); if (uuid) addStep(uuid, instance?.screenToFlowPosition({ x: event.clientX, y: event.clientY })) }
-  const addAccessibleTransition = () => { if (!selected || !transitionTarget) return; const next = addPackageTransition(content, { fromStepId: selected.id, toStepId: transitionTarget, outcome: transitionOutcome }); if (!next) { setMessage(t('invalidTransition')); return } commit(next); setMessage('') }
-  return <div className="package-editor"><div className="package-editor-tabs"><button type="button" className={!overview ? 'is-active' : ''} onClick={() => setOverview(false)}>{t('diagram')}</button><button type="button" className={overview ? 'is-active' : ''} onClick={() => setOverview(true)}>{t('overview')}</button></div>{overview ? <section className="package-overview"><dl><div><dt>{t('steps')}</dt><dd>{content.steps.length}</dd></div><div><dt>{t('transitions')}</dt><dd>{content.transitions.length}</dd></div><div><dt>{t('startStep')}</dt><dd>{content.firstStepId || t('notSelected')}</dd></div></dl><h3>{t('referencedObjects')}</h3><ul>{content.steps.map((step) => <li key={step.id}>{step.name || step.id} · {definitionCodeLabel(step.type, language)}</li>)}</ul></section> : <>
-    <div className="package-toolbar"><button type="button" disabled={!undoValue && !undoPositions} onClick={() => { if (undoPositions) { persistPositions(undoPositions); setUndoPositions(null) } else if (undoValue) { onChange(undoValue); setUndoValue(null) } }}><Undo2 size={15} />{t('undo')}</button><button type="button" onClick={autoLayout}><AlignCenter size={15} />{t('autoLayout')}</button><button type="button" disabled title={t('simulationUnavailable')}><Play size={15} />{t('simulate')}</button><span>{validation.length ? t('validationErrors', { count: validation.length }) : t('designValid')}</span></div>
-    <div className="package-workbench"><aside className="package-palette"><h3>{t('projectObjects')}</h3><select value={selectedDefinitionUuid} onChange={(event) => setSelectedDefinitionUuid(event.target.value)}>{definitions.map((item) => <option key={item.uuid} value={item.uuid}>{item.name} · {t(definitionTypeKey[item.type])}</option>)}</select><button type="button" onClick={() => addStep(selectedDefinitionUuid)}><Plus size={15} />{t('addToDiagram')}</button><ul>{definitions.map((item) => <li key={item.uuid} draggable onDragStart={(event) => event.dataTransfer.setData('application/akis-definition', item.uuid)}><button type="button" onClick={() => { setSelectedDefinitionUuid(item.uuid); addStep(item.uuid) }}>{item.name}<small>{t(definitionTypeKey[item.type])}</small></button></li>)}</ul></aside><section className="package-canvas" onDragOver={(event) => event.preventDefault()} onDrop={drop}><ReactFlow nodes={nodes} edges={edges} onInit={setInstance} onNodesChange={nodeChanges} onNodeDragStart={() => setUndoPositions(structuredClone(positions))} onNodeClick={(_, node) => setSelectedStepId(node.id)} onConnect={connect} deleteKeyCode={null} minZoom={.25} maxZoom={2} fitView><MiniMap pannable zoomable /><Controls /><Background /></ReactFlow></section>
-      <aside className="package-properties">{message ? <p className="definition-notice definition-notice--error" role="alert">{message}</p> : null}{selected ? <><header><span>{definitionCodeLabel(selected.type, language)}</span><h3>{selected.name || selected.id}</h3></header><label><span>{t('stepName')}</span><input value={selected.name ?? ''} onChange={(event) => onChange({ ...content, steps: content.steps.map((step) => step.id === selected.id ? { ...step, name: event.target.value } : step) })} /></label><button type="button" onClick={() => commit({ ...content, firstStepId: selected.id })}>{t('makeStartStep')}</button><button type="button" onClick={() => commit(duplicatePackageStep(content, selected.id))}><Copy size={15} />{t('duplicate')}</button><button className="danger" type="button" onClick={() => setPendingDelete(true)}><Trash2 size={15} />{t('removeFromPackage')}</button>{pendingDelete ? <div className="package-delete-confirm"><p>{t('packageDeleteImpact', { count: transitionCount })}</p><button type="button" onClick={() => { commit(removePackageStep(content, selected.id)); setPendingDelete(false) }}>{t('confirmRemove')}</button><button type="button" onClick={() => setPendingDelete(false)}>{t('cancel')}</button></div> : null}<section><h4>{t('addTransition')}</h4><label><span>{t('outcome')}</span><select value={transitionOutcome} onChange={(event) => setTransitionOutcome(event.target.value as TransitionOutcome)}>{(selected.type === 'VARIABLE_EVALUATE' ? ['TRUE', 'FALSE'] as const : ['SUCCESS', 'FAILURE'] as const).map((outcome) => <option key={outcome} value={outcome}>{t(outcomeKey[outcome])}</option>)}</select></label><label><span>{t('targetStep')}</span><select value={transitionTarget} onChange={(event) => setTransitionTarget(event.target.value)}><option value="">—</option>{content.steps.filter((step) => step.id !== selected.id).map((step) => <option key={step.id} value={step.id}>{step.name || step.id}</option>)}</select></label><button type="button" disabled={!transitionTarget} onClick={addAccessibleTransition}><GitBranch size={15} />{t('addTransition')}</button></section></> : <p>{t('selectPackageStep')}</p>}</aside></div>
-    <section className="package-accessible-list"><h3>{t('accessibleStepList')}</h3><table><thead><tr><th>{t('startStep')}</th><th>{t('stepName')}</th><th>{t('type')}</th><th>{t('transitions')}</th></tr></thead><tbody>{content.steps.map((step) => <tr key={step.id}><td><input type="radio" name="package-start" checked={content.firstStepId === step.id} onChange={() => commit({ ...content, firstStepId: step.id })} aria-label={`${t('makeStartStep')}: ${step.name || step.id}`} /></td><td><button type="button" onClick={() => setSelectedStepId(step.id)}>{step.name || step.id}</button></td><td>{definitionCodeLabel(step.type, language)}</td><td>{content.transitions.filter((edge) => edge.fromStepId === step.id).map((edge) => `${t(outcomeKey[edge.outcome ?? 'ALWAYS'])} → ${content.steps.find((item) => item.id === edge.toStepId)?.name ?? edge.toStepId}`).join(', ') || '—'}</td></tr>)}</tbody></table></section></>}</div>
+interface PackageEditorProps {
+  projectUuid: string
+  definitionUuid: string
+  value: unknown
+  onChange(value: unknown): void
+  onOpenDefinition?(definitionUuid: string): void
 }
 
-export function PackageEditor(props: { projectUuid: string; definitionUuid: string; value: unknown; onChange: (value: unknown) => void }) { return <ReactFlowProvider><PackageEditorInner {...props} /></ReactFlowProvider> }
+function PackageEditorInner({ projectUuid, definitionUuid, value, onChange, onOpenDefinition }: PackageEditorProps) {
+  const { language, t } = useDefinitionsI18n()
+  const rawContent = isPackageContent(value) ? value : { firstStepId: '', steps: [], transitions: [] } satisfies PackageContent
+  const content = withoutPackageLayout(rawContent)
+  const storageKey = `akis:package-layout:${projectUuid}:${definitionUuid}`
+  const [definitions, setDefinitions] = useState<Definition[]>([])
+  const [selectedDefinitionUuid, setSelectedDefinitionUuid] = useState('')
+  const [selectedStepId, setSelectedStepId] = useState(content.firstStepId)
+  const [inspectorOpen, setInspectorOpen] = useState(false)
+  const [instance, setInstance] = useState<ReactFlowInstance | null>(null)
+  const [positions, setPositions] = useState<Record<string, PackagePosition>>({})
+  const [undoPositions, setUndoPositions] = useState<Record<string, PackagePosition> | null>(null)
+  const [undoValue, setUndoValue] = useState<PackageContent | null>(null)
+  const [pendingDelete, setPendingDelete] = useState(false)
+  const [transitionTarget, setTransitionTarget] = useState('')
+  const [transitionOutcome, setTransitionOutcome] = useState<TransitionOutcome>('SUCCESS')
+  const [message, setMessage] = useState('')
+  const [overview, setOverview] = useState(false)
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(storageKey)
+      const legacy = Object.fromEntries(rawContent.steps.filter((step) => step.x != null && step.y != null).map((step) => [step.id, { x: step.x as number, y: step.y as number }]))
+      setPositions(stored ? JSON.parse(stored) as Record<string, PackagePosition> : legacy)
+    } catch { setPositions({}) }
+    setUndoPositions(null)
+  }, [storageKey])
+
+  useEffect(() => {
+    let active = true
+    void definitionsApi.listDefinitions(projectUuid).then((items) => {
+      if (!active) return
+      const allowed = items.filter((item) => allowedTypes.has(item.type) && item.uuid !== definitionUuid)
+      setDefinitions(allowed)
+      setSelectedDefinitionUuid((current) => allowed.some((item) => item.uuid === current) ? current : allowed[0]?.uuid || '')
+    }).catch(() => { if (active) setDefinitions([]) })
+    return () => { active = false }
+  }, [definitionUuid, projectUuid])
+
+  useEffect(() => {
+    if (!content.steps.some((step) => step.id === selectedStepId)) {
+      setSelectedStepId(content.firstStepId || content.steps[0]?.id || '')
+      setInspectorOpen(false)
+    }
+  }, [content.firstStepId, content.steps, selectedStepId])
+
+  const nodes: Node[] = useMemo(() => content.steps.map((step, index) => ({
+    id: step.id,
+    position: positions[step.id] ?? { x: (index % 3) * 260, y: Math.floor(index / 3) * 150 },
+    data: { label: <div className="package-node-label"><span>{content.firstStepId === step.id ? t('startStep') : definitionCodeLabel(step.type, language)}</span><strong>{step.name || step.id}</strong><small>{definitions.find((item) => item.uuid === step.definitionUuid)?.name ?? t('unlinkedStep')}</small></div> },
+    selected: step.id === selectedStepId,
+  })), [content.firstStepId, content.steps, definitions, language, positions, selectedStepId, t])
+  const edges = useMemo(() => content.transitions.map((edge, index) => ({
+    id: `edge-${index}-${edge.fromStepId}-${edge.toStepId}`,
+    source: edge.fromStepId,
+    target: edge.toStepId,
+    label: t(outcomeKey[edge.outcome ?? 'ALWAYS']),
+    animated: false,
+    style: edge.outcome === 'FAILURE' ? { strokeDasharray: '6 4', stroke: '#b42332' } : undefined,
+  })), [content.transitions, t])
+
+  const persistPositions = (next: Record<string, PackagePosition>) => {
+    setPositions(next)
+    try { localStorage.setItem(storageKey, JSON.stringify(next)) } catch { /* Layout persistence is optional. */ }
+  }
+  const commit = (next: PackageContent, undo = true) => {
+    if (undo) setUndoValue(structuredClone(content))
+    setUndoPositions(null)
+    onChange(withoutPackageLayout(next))
+  }
+  const addStep = (linkedDefinitionUuid: string, position?: PackagePosition) => {
+    const definition = definitions.find((item) => item.uuid === linkedDefinitionUuid)
+    if (!definition) return
+    const id = nextPackageStepId(content.steps)
+    const step: PackageStep = { id, type: toStepType(definition.type), name: definition.name, definitionUuid: linkedDefinitionUuid }
+    commit({ ...content, firstStepId: content.firstStepId || id, steps: [...content.steps, step] })
+    if (position) persistPositions({ ...positions, [id]: position })
+    setSelectedStepId(id)
+    setInspectorOpen(true)
+  }
+  const connect = (connection: FlowConnection) => {
+    if (!connection.source || !connection.target) return
+    const outcomes: TransitionOutcome[] = content.steps.find((item) => item.id === connection.source)?.type === 'VARIABLE_EVALUATE' ? ['TRUE', 'FALSE'] : ['SUCCESS', 'FAILURE']
+    const outcome = outcomes.find((candidate) => !content.transitions.some((edge) => edge.fromStepId === connection.source && edge.outcome === candidate))
+    if (!outcome) { setMessage(t('transitionSlotUsed')); return }
+    const next = addPackageTransition(content, { fromStepId: connection.source, toStepId: connection.target, outcome })
+    if (!next) { setMessage(t('invalidTransition')); return }
+    commit(next)
+    setMessage('')
+  }
+  const nodeChanges = (changes: NodeChange[]) => {
+    if (!changes.some((change) => change.type === 'position')) return
+    const moved = applyNodeChanges(changes, nodes)
+    persistPositions(Object.fromEntries(moved.map((node) => [node.id, node.position])))
+  }
+  const selected = content.steps.find((step) => step.id === selectedStepId)
+  const validation = packageValidation(content)
+  const transitionCount = selected ? content.transitions.filter((edge) => edge.fromStepId === selected.id || edge.toStepId === selected.id).length : 0
+  const autoLayout = () => {
+    setUndoPositions(structuredClone(positions))
+    persistPositions(Object.fromEntries(content.steps.map((step, index) => [step.id, { x: (index % 3) * 260, y: Math.floor(index / 3) * 150 }])))
+  }
+  const drop = (event: DragEvent) => {
+    event.preventDefault()
+    const uuid = event.dataTransfer.getData('application/akis-definition')
+    if (uuid) addStep(uuid, instance?.screenToFlowPosition({ x: event.clientX, y: event.clientY }))
+  }
+  const addTransition = () => {
+    if (!selected || !transitionTarget) return
+    const next = addPackageTransition(content, { fromStepId: selected.id, toStepId: transitionTarget, outcome: transitionOutcome })
+    if (!next) { setMessage(t('invalidTransition')); return }
+    commit(next)
+    setMessage('')
+  }
+  const openLinkedDefinition = (stepId: string) => {
+    const linkedUuid = content.steps.find((step) => step.id === stepId)?.definitionUuid
+    if (linkedUuid) onOpenDefinition?.(linkedUuid)
+  }
+
+  return <div className="package-editor">
+    <div className="package-editor-tabs"><button type="button" className={!overview ? 'is-active' : ''} onClick={() => setOverview(false)}>{t('diagram')}</button><button type="button" className={overview ? 'is-active' : ''} onClick={() => setOverview(true)}>{t('overview')}</button></div>
+    {overview ? <section className="package-overview"><dl><div><dt>{t('steps')}</dt><dd>{content.steps.length}</dd></div><div><dt>{t('transitions')}</dt><dd>{content.transitions.length}</dd></div><div><dt>{t('startStep')}</dt><dd>{content.firstStepId || t('notSelected')}</dd></div></dl><h3>{t('referencedObjects')}</h3><ul>{content.steps.map((step) => <li key={step.id}>{step.name || step.id} · {definitionCodeLabel(step.type, language)}</li>)}</ul></section> : <>
+      <div className="package-toolbar">
+        <div className="package-add-control"><select aria-label={t('projectObjects')} value={selectedDefinitionUuid} onChange={(event) => setSelectedDefinitionUuid(event.target.value)}>{definitions.map((item) => <option key={item.uuid} value={item.uuid}>{item.name} · {t(definitionTypeKey[item.type])}</option>)}</select><button type="button" disabled={!selectedDefinitionUuid} onClick={() => addStep(selectedDefinitionUuid)}><Plus size={15} />{t('addToDiagram')}</button></div>
+        <button type="button" disabled={!undoValue && !undoPositions} onClick={() => { if (undoPositions) { persistPositions(undoPositions); setUndoPositions(null) } else if (undoValue) { onChange(undoValue); setUndoValue(null) } }}><Undo2 size={15} />{t('undo')}</button><button type="button" onClick={autoLayout}><AlignCenter size={15} />{t('autoLayout')}</button><button type="button" disabled title={t('simulationUnavailable')}><Play size={15} />{t('simulate')}</button><span>{validation.length ? t('validationErrors', { count: validation.length }) : t('designValid')}</span>
+      </div>
+      <div className="package-workbench">
+        <section className="package-canvas" onDragOver={(event) => event.preventDefault()} onDrop={drop}><ReactFlow nodes={nodes} edges={edges} onInit={setInstance} onNodesChange={nodeChanges} onNodeDragStart={() => setUndoPositions(structuredClone(positions))} onNodeClick={(_, node) => { setSelectedStepId(node.id); setInspectorOpen(true) }} onNodeDoubleClick={(_, node) => openLinkedDefinition(node.id)} onPaneClick={() => setInspectorOpen(false)} onConnect={connect} deleteKeyCode={null} minZoom={.25} maxZoom={2} fitView><MiniMap pannable zoomable /><Controls /><Background /></ReactFlow></section>
+        {inspectorOpen && selected ? <aside className="package-properties" aria-label={t('details')}>
+          <header className="package-properties-header"><span><small>{definitionCodeLabel(selected.type, language)}</small><strong>{selected.name || selected.id}</strong></span><button type="button" aria-label={t('close')} onClick={() => setInspectorOpen(false)}><X size={16} /></button></header>
+          {message ? <p className="definition-notice definition-notice--error" role="alert">{message}</p> : null}
+          {selected.definitionUuid && onOpenDefinition ? <button type="button" onClick={() => openLinkedDefinition(selected.id)}><ExternalLink size={15} />{t('openDefinition')}</button> : null}
+          <label><span>{t('stepName')}</span><input value={selected.name ?? ''} onChange={(event) => onChange({ ...content, steps: content.steps.map((step) => step.id === selected.id ? { ...step, name: event.target.value } : step) })} /></label><button type="button" onClick={() => commit({ ...content, firstStepId: selected.id })}>{t('makeStartStep')}</button><button type="button" onClick={() => commit(duplicatePackageStep(content, selected.id))}><Copy size={15} />{t('duplicate')}</button><button className="danger" type="button" onClick={() => setPendingDelete(true)}><Trash2 size={15} />{t('removeFromPackage')}</button>
+          {pendingDelete ? <div className="package-delete-confirm"><p>{t('packageDeleteImpact', { count: transitionCount })}</p><button type="button" onClick={() => { commit(removePackageStep(content, selected.id)); setPendingDelete(false); setInspectorOpen(false) }}>{t('confirmRemove')}</button><button type="button" onClick={() => setPendingDelete(false)}>{t('cancel')}</button></div> : null}
+          <section><h4>{t('addTransition')}</h4><label><span>{t('outcome')}</span><select value={transitionOutcome} onChange={(event) => setTransitionOutcome(event.target.value as TransitionOutcome)}>{(selected.type === 'VARIABLE_EVALUATE' ? ['TRUE', 'FALSE'] as const : ['SUCCESS', 'FAILURE'] as const).map((outcome) => <option key={outcome} value={outcome}>{t(outcomeKey[outcome])}</option>)}</select></label><label><span>{t('targetStep')}</span><select value={transitionTarget} onChange={(event) => setTransitionTarget(event.target.value)}><option value="">—</option>{content.steps.filter((step) => step.id !== selected.id).map((step) => <option key={step.id} value={step.id}>{step.name || step.id}</option>)}</select></label><button type="button" disabled={!transitionTarget} onClick={addTransition}><GitBranch size={15} />{t('addTransition')}</button></section>
+        </aside> : null}
+      </div>
+    </>}
+  </div>
+}
+
+export function PackageEditor(props: PackageEditorProps) {
+  return <ReactFlowProvider><PackageEditorInner {...props} /></ReactFlowProvider>
+}

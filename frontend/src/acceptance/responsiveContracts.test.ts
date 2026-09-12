@@ -12,8 +12,10 @@ describe('responsive and input accessibility contracts', () => {
     expect(shellStyles).toContain('focus-visible')
   })
 
-  it('provides a non-graph package representation and narrow authoring layout', () => {
-    expect(definitionStyles).toContain('.package-accessible-list')
+  it('provides a focused package canvas, contextual inspector and narrow authoring layout', () => {
+    expect(definitionStyles).toContain('.package-canvas')
+    expect(definitionStyles).toContain('.package-properties')
+    expect(definitionStyles).not.toContain('.package-accessible-list')
     expect(definitionStyles).toContain('@media (max-width: 820px)')
     expect(definitionStyles).toContain('.procedure-task-grid')
   })

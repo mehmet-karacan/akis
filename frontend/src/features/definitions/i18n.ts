@@ -268,6 +268,7 @@ const en = {
   knowledgeModule: 'Execution module',
   loadPlan: 'Execution plan',
   close: 'Close',
+  openDefinition: 'Open definition',
 } as const
 
 const tr: Record<keyof typeof en, string> = {
@@ -537,6 +538,7 @@ const tr: Record<keyof typeof en, string> = {
   knowledgeModule: 'Yürütme modülü',
   loadPlan: 'Çalıştırma planı',
   close: 'Kapat',
+  openDefinition: 'Tanımı aç',
 }
 
 export type DefinitionsTranslationKey = keyof typeof en
