@@ -183,11 +183,6 @@ label { display: grid; gap: 7px; color: var(--ink-soft); font-size: .77rem; font
 .sidebar-project-tree > header button { width: 26px; height: 26px; display: grid; place-items: center; color: #84979b; border: 0; border-radius: 5px; background: transparent; cursor: pointer; }
 .sidebar-project-tree > header button:hover { color: white; background: rgba(255,255,255,.06); }
 .sidebar-project-tree > header svg { width: 14px; height: 14px; }
-.sidebar-tree-search { height: 31px; display: flex; align-items: center; gap: 6px; margin: 0 6px 8px; padding: 0 8px; color: #64777b; border: 1px solid rgba(255,255,255,.08); border-radius: 6px; background: rgba(255,255,255,.025); }
-.sidebar-tree-search:focus-within { border-color: rgba(97,196,186,.45); }
-.sidebar-tree-search svg { width: 13px; height: 13px; flex: 0 0 auto; }
-.sidebar-tree-search input { min-width: 0; width: 100%; color: #dce5e4; border: 0; outline: 0; background: transparent; font-size: .66rem; }
-.sidebar-tree-search input::placeholder { color: #5e7074; }
 .sidebar-tree-scroll { min-height: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: #36474b transparent; }
 .sidebar-tree, .sidebar-tree ul { margin: 0; padding: 0; list-style: none; }
 .sidebar-tree ul { margin-left: 13px; padding-left: 7px; border-left: 1px solid rgba(255,255,255,.07); }

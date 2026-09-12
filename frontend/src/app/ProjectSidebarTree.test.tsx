@@ -39,6 +39,7 @@ describe('persistent project sidebar tree', () => {
     const navigate = vi.fn()
     render(<ProjectSidebarTree projectUuid="project-1" folders={[folder]} definitions={[definition]} selectedUuid={null} loading={false} failed={false} onNavigate={navigate} onRetry={vi.fn()} />)
 
+    fireEvent.click(screen.getByRole('button', { name: /Procedures1/ }))
     const object = screen.getByTitle('Load Daily · Procedure')
     fireEvent.contextMenu(object.parentElement!)
     expect(screen.getByRole('menuitem', { name: 'Create Scenario' })).toBeInTheDocument()
@@ -51,6 +52,7 @@ describe('persistent project sidebar tree', () => {
 
   it('moves through context menu actions with arrow keys', async () => {
     render(<ProjectSidebarTree projectUuid="project-1" folders={[folder]} definitions={[definition]} selectedUuid={null} loading={false} failed={false} onNavigate={vi.fn()} onRetry={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: /Procedures1/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Load Daily' }))
     const open = await screen.findByRole('menuitem', { name: 'Open' })
     await vi.waitFor(() => expect(open).toHaveFocus())

@@ -2,7 +2,7 @@ import {
   Background, Controls, MiniMap, ReactFlow, ReactFlowProvider, applyNodeChanges,
   type Connection as FlowConnection, type Node, type NodeChange, type ReactFlowInstance,
 } from '@xyflow/react'
-import { AlignCenter, Copy, ExternalLink, GitBranch, Plus, Search, Trash2, Undo2, X } from 'lucide-react'
+import { AlignCenter, CirclePlay, Copy, ExternalLink, GitBranch, Plus, Trash2, Undo2, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type DragEvent } from 'react'
 import { definitionsApi } from './api'
 import { DefinitionTypeIcon } from './DefinitionTypeIcon'
@@ -37,7 +37,6 @@ function PackageEditorInner({ projectUuid, definitionUuid, value, onChange, onOp
   const [selectedStepId, setSelectedStepId] = useState(content.firstStepId)
   const [inspectorOpen, setInspectorOpen] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
-  const [pickerQuery, setPickerQuery] = useState('')
   const [pickerPosition, setPickerPosition] = useState<PackagePosition | undefined>()
   const [instance, setInstance] = useState<ReactFlowInstance | null>(null)
   const [positions, setPositions] = useState<Record<string, PackagePosition>>({})
@@ -77,7 +76,7 @@ function PackageEditorInner({ projectUuid, definitionUuid, value, onChange, onOp
   const nodes: Node[] = useMemo(() => content.steps.map((step, index) => ({
     id: step.id,
     position: positions[step.id] ?? { x: (index % 3) * 260, y: Math.floor(index / 3) * 150 },
-    data: { label: <div className="package-node-label"><span>{content.firstStepId === step.id ? t('startStep') : definitionCodeLabel(step.type, language)}</span><strong>{step.name || step.id}</strong><small>{definitions.find((item) => item.uuid === step.definitionUuid)?.name ?? t('unlinkedStep')}</small></div> },
+    data: { label: <div className="package-node-label"><span className={content.firstStepId === step.id ? 'package-start-badge' : ''}>{content.firstStepId === step.id ? <><CirclePlay />{t('firstStep')}</> : definitionCodeLabel(step.type, language)}</span><strong>{step.name || step.id}</strong><small>{definitions.find((item) => item.uuid === step.definitionUuid)?.name ?? t('unlinkedStep')}</small></div> },
     selected: step.id === selectedStepId,
   })), [content.firstStepId, content.steps, definitions, language, positions, selectedStepId, t])
   const edges = useMemo(() => content.transitions.map((edge, index) => ({
@@ -108,7 +107,6 @@ function PackageEditorInner({ projectUuid, definitionUuid, value, onChange, onOp
     setSelectedStepId(id)
     setInspectorOpen(true)
     setPickerOpen(false)
-    setPickerQuery('')
   }
   const connect = (connection: FlowConnection) => {
     if (!connection.source || !connection.target) return
@@ -150,7 +148,6 @@ function PackageEditorInner({ projectUuid, definitionUuid, value, onChange, onOp
   }
   const openPicker = (position?: PackagePosition) => {
     setPickerPosition(position)
-    setPickerQuery('')
     setPickerOpen(true)
     setInspectorOpen(false)
   }
@@ -159,10 +156,7 @@ function PackageEditorInner({ projectUuid, definitionUuid, value, onChange, onOp
     event.preventDefault()
     openPicker(instance?.screenToFlowPosition({ x: event.clientX, y: event.clientY }))
   }
-  const pickerDefinitions = definitions.filter((item) => {
-    const query = pickerQuery.trim().toLocaleLowerCase(language === 'tr' ? 'tr-TR' : 'en-US')
-    return !query || `${item.name} ${item.code} ${t(definitionTypeKey[item.type])}`.toLocaleLowerCase(language === 'tr' ? 'tr-TR' : 'en-US').includes(query)
-  })
+  const pickerDefinitions = definitions
 
   return <div className="package-editor">
     <div className="package-toolbar">
@@ -173,7 +167,6 @@ function PackageEditorInner({ projectUuid, definitionUuid, value, onChange, onOp
         <section className="package-canvas" onDragOver={(event) => event.preventDefault()} onDrop={drop}><ReactFlow nodes={nodes} edges={edges} onInit={setInstance} onNodesChange={nodeChanges} onNodeDragStart={() => setUndoPositions(structuredClone(positions))} onNodeClick={(_, node) => { setSelectedStepId(node.id); setInspectorOpen(true); setPickerOpen(false) }} onNodeDoubleClick={(_, node) => openLinkedDefinition(node.id)} onPaneClick={() => { setInspectorOpen(false); setPickerOpen(false) }} onPaneContextMenu={openPickerFromCanvas} onConnect={connect} deleteKeyCode={null} minZoom={.25} maxZoom={2} fitView><MiniMap pannable zoomable /><Controls /><Background /></ReactFlow></section>
         {pickerOpen ? <aside className="package-component-picker" aria-label={t('addObject')}>
           <header><strong>{t('addObject')}</strong><button type="button" aria-label={t('close')} onClick={() => setPickerOpen(false)}><X size={16} /></button></header>
-          <label className="package-picker-search"><Search size={15} /><span className="sr-only">{t('searchProjectObjects')}</span><input autoFocus value={pickerQuery} onChange={(event) => setPickerQuery(event.target.value)} placeholder={t('searchProjectObjects')} /></label>
           <div className="package-picker-list">{pickerTypes.map((type) => { const items = pickerDefinitions.filter((item) => item.type === type); return items.length > 0 ? <section key={type}><h4><DefinitionTypeIcon type={type} />{t(definitionTypeKey[type])}<small>{items.length}</small></h4>{items.map((item) => <button key={item.uuid} type="button" onClick={() => addStep(item.uuid, pickerPosition)}><span>{item.name}</span><small>{item.code}</small></button>)}</section> : null })}{pickerDefinitions.length === 0 ? <p>{t('noProjectObjects')}</p> : null}</div>
         </aside> : null}
         {inspectorOpen && selected ? <aside className="package-properties" aria-label={t('details')}>

@@ -1,8 +1,8 @@
-import { Blocks, Braces, ChevronDown, ChevronRight, Database, ExternalLink, FileCode2, Folder, FolderOpen, FolderPlus, Hash, MoreHorizontal, PanelRightOpen, Play, Plus, RefreshCw, Search, Variable, WandSparkles, Workflow, X } from 'lucide-react'
+import { Blocks, Braces, ChevronDown, ChevronRight, Database, ExternalLink, FileCode2, Folder, FolderOpen, FolderPlus, Hash, Minus, MoreHorizontal, PanelRightOpen, Play, Plus, RefreshCw, Variable, WandSparkles, Workflow, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { DefinitionTypeIcon } from '../features/definitions/DefinitionTypeIcon'
-import { buildFolderTree, matchesObjectSearch, type FolderTreeNode } from './ProjectObjectTreeAdapter'
+import { buildFolderTree, type FolderTreeNode } from './ProjectObjectTreeAdapter'
 import { definitionTypeKey, useDefinitionsI18n } from '../features/definitions/i18n'
 import type { Definition, Folder as ProjectFolder } from '../features/definitions/types'
 import { definitionsApi } from '../features/definitions/api'
@@ -37,7 +37,6 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
   const { can } = useProjectAccess()
   const canWrite = can('TANIM_DUZENLE')
   const canValidate = can('TANIM_DOGRULA')
-  const [query, setQuery] = useState('')
   const [menu, setMenu] = useState<{ definition: Definition; x: number; y: number } | null>(null)
   const [folderMenu, setFolderMenu] = useState<{ folder: ProjectFolder; x: number; y: number } | null>(null)
   const [creationMenu, setCreationMenu] = useState<{ type: typeof COMPONENT_TYPES[number] | null; x: number; y: number } | null>(null)
@@ -48,9 +47,6 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const activeDefinitions = useMemo(() => definitions.filter((item) => item.status !== 'PASIF' && item.type !== 'REUSABLE_MAPPING'), [definitions])
   const flowDefinitions = useMemo(() => activeDefinitions.filter((item) => FLOW_TYPES.has(item.type)), [activeDefinitions])
-  const matches = useMemo(() => {
-    return activeDefinitions.filter((item) => matchesObjectSearch(item.name, item.code, t(definitionTypeKey[item.type]), query, locale))
-  }, [activeDefinitions, locale, query, t])
   const definitionsByFolder = useMemo(() => {
     const grouped = new Map<string | null, Definition[]>()
     for (const definition of flowDefinitions) {
@@ -62,9 +58,10 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
 
   useEffect(() => {
     const initiallyOpenFolders = flowDefinitions.length <= 200 ? tree.map((folder) => folder.uuid) : []
-    const initiallyOpenGroups = flowDefinitions.length <= 200 ? flowDefinitions.map((item) => `${item.folderUuid ?? 'unfiled'}:${item.type}`) : []
-    setExpanded(new Set([VIRTUAL.flows, VIRTUAL.components, ...initiallyOpenFolders, ...initiallyOpenGroups]))
-  }, [flowDefinitions.length, projectUuid, tree]) // Large repositories stay responsive by opening folders on demand.
+    const selected = flowDefinitions.find((item) => item.uuid === selectedUuid)
+    const selectedGroup = selected ? [`${selected.folderUuid ?? 'unfiled'}:${selected.type}`] : []
+    setExpanded(new Set([VIRTUAL.flows, VIRTUAL.components, ...initiallyOpenFolders, ...selectedGroup]))
+  }, [flowDefinitions, projectUuid, selectedUuid, tree]) // Type clusters stay collapsed until requested; the active object's cluster remains visible.
 
   useEffect(() => {
     if (!menu && !folderMenu && !creationMenu) return
@@ -147,8 +144,8 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
     const label = shellT(labelKey)
     return <li key={groupUuid} className="sidebar-folder sidebar-type-cluster">
       <div className="sidebar-folder-action-row" onContextMenu={(event) => { event.preventDefault(); createFlow(type, folderUuid) }}>
-        <button type="button" className="sidebar-folder-row" onClick={() => toggle(groupUuid)} aria-expanded={open}><span className="sidebar-folder-spacer" /><DefinitionTypeIcon type={type} /><span>{label}</span><small>{items.length}</small></button>
-        {canWrite && <button type="button" className="sidebar-object-menu-button" aria-label={shellT('nav.addNamed', { name: label })} onClick={() => createFlow(type, folderUuid)}><Plus /></button>}
+        <button type="button" className="sidebar-folder-row" onClick={() => toggle(groupUuid)} aria-expanded={open}>{open ? <Minus /> : <Plus />}<DefinitionTypeIcon type={type} /><span>{label}</span><small>{items.length}</small></button>
+        {canWrite && <button type="button" className="sidebar-object-menu-button" aria-label={shellT('nav.addNamed', { name: label })} onClick={() => createFlow(type, folderUuid)}><MoreHorizontal /></button>}
       </div>
       {open && (items.length > 0 ? <ul>{items.map(definitionItem)}</ul> : <p className="sidebar-group-empty">{shellT('nav.emptyGroup')}</p>)}
     </li>
@@ -187,10 +184,9 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
 
   return <section className="sidebar-project-tree" aria-label={shellT('nav.objects')}>
     <header><span>{shellT('nav.objects')}</span><button type="button" title={shellT('nav.openObjectWorkspace')} aria-label={shellT('nav.openObjectWorkspace')} onClick={() => onNavigate(projectRoute('/objects'))}><PanelRightOpen /></button></header>
-    {activeDefinitions.length > 0 && <label className="sidebar-tree-search"><Search /><span className="sr-only">{shellT('nav.searchObjects')}</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={shellT('nav.searchObjects')} /></label>}
     {notice && <div className={`sidebar-tree-notice sidebar-tree-notice--${notice.tone}`} role={notice.tone === 'error' ? 'alert' : 'status'}><span>{notice.text}</span><button type="button" aria-label={shellT('common.close')} onClick={() => setNotice(null)}><X /></button></div>}
     <div className="sidebar-tree-scroll">
-      {loading ? <p className="sidebar-tree-state">{shellT('common.loading')}</p> : failed ? <button className="sidebar-tree-retry" type="button" onClick={onRetry}><RefreshCw />{shellT('common.retry')}</button> : query.trim() ? matches.length > 0 ? <ul className="sidebar-tree sidebar-tree--results">{matches.map(definitionItem)}</ul> : <p className="sidebar-tree-state">{shellT('nav.noMatchingObjects')}</p> : <ul className="sidebar-tree sidebar-tree--virtual">
+      {loading ? <p className="sidebar-tree-state">{shellT('common.loading')}</p> : failed ? <button className="sidebar-tree-retry" type="button" onClick={onRetry}><RefreshCw />{shellT('common.retry')}</button> : <ul className="sidebar-tree sidebar-tree--virtual">
         <li className="sidebar-folder sidebar-virtual-root">
           <div className="sidebar-folder-action-row" onContextMenu={(event) => { event.preventDefault(); if (canWrite) onNavigate(`${projectRoute('/objects')}?createFolder=`) }}><button type="button" className="sidebar-folder-row" onClick={() => toggle(VIRTUAL.flows)} aria-expanded={flowsOpen}>{flowsOpen ? <ChevronDown /> : <ChevronRight />}<Workflow /><span>{shellT('nav.flows')}</span><small>{flowDefinitions.length}</small></button>{canWrite && <button type="button" className="sidebar-object-menu-button sidebar-object-menu-button--always" aria-label={shellT('nav.createRootFolder')} onClick={() => onNavigate(`${projectRoute('/objects')}?createFolder=`)}><Plus /></button>}</div>
           {flowsOpen && <ul>{tree.map(folderItem)}{unfiled.length > 0 && <li className="sidebar-folder"><div className="sidebar-folder-row sidebar-folder-row--static"><span className="sidebar-folder-spacer" /><Folder /><span>{shellT('nav.unfiled')}</span><small>{unfiled.length}</small></div><ul>{FLOW_GROUPS.filter((group) => unfiled.some((item) => item.type === group.type)).map((group) => flowGroupItem('unfiled', null, group.type, group.label, unfiled.filter((item) => item.type === group.type)))}</ul></li>}{tree.length === 0 && unfiled.length === 0 && <li><p className="sidebar-group-empty"><FileCode2 />{shellT('nav.noFlows')}</p></li>}</ul>}
