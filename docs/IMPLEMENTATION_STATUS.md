@@ -30,13 +30,16 @@ Status date: 2026-09-12
   append-only events now have a clean control-plane model and repository test.
   The step tree supports package/load-plan nesting without duplicating connection
   timeout policy into Procedure steps.
+- Project bundle definition queries and the append-only audit log now run on the
+  clean schema. Their temporary-database acceptance gate covers project/folder/
+  definition round-tripping and immutable audit evidence.
 - The connection UI no longer loads or manages separate secret-reference
   objects. It records only the name of a server-side environment variable; its
   value stays outside PostgreSQL, API responses, bundles and Git.
-- Runnable versions and execution repositories still use the legacy schema
-  until their corresponding clean baseline groups
-  and acceptance tests are complete. The persistent local database has not been
-  destructively cut over.
+- Worker leases, execution transitions, reconciliation and Procedure journals
+  still use the legacy schema until their clean operations gate and acceptance
+  tests are complete. The persistent local database has not been destructively
+  cut over.
 
 ## Current completion estimate
 

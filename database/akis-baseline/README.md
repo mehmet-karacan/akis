@@ -143,3 +143,15 @@ Paket ve Load Plan alt adımları `ust_adim_id` ile ağaç halinde saklanır; AP
 yapıyı operasyon ekranında genişletilebilir adımlar olarak sunabilir. Tasarım
 zamanındaki adım zaman aşımı tekrarlanmaz; çalıştırma bağlantı sürümünün tipli
 zaman aşımı politikasını kullanır.
+
+Proje paketi repository sorguları ile değişmez denetim günlüğünü temiz şemada
+doğrulamak için:
+
+```powershell
+.\database\akis-baseline\test-bundle.ps1
+```
+
+Bu kapı proje, klasör, tanım, taslak ve sürüm verilerinin UUID tabanlı paket
+sözleşmesine çevrilebildiğini; denetim olaylarının da `akis.denetim_olayi`
+üzerinde sonradan değiştirilemeden saklandığını kanıtlar. Bu aşamadaki paket V1
+yalnız tanım metadata'sıdır; tam proje paketi ayrı kabul kapısında tamamlanır.

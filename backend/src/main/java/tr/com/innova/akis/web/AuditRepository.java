@@ -17,7 +17,7 @@ public class AuditRepository {
     }
 
     Optional<Long> findProjectId(UUID projectUuid) {
-        return jdbc.sql("select id from entegrasyon.proje where uuid = :uuid")
+        return jdbc.sql("select id from akis.proje where uuid = :uuid")
                 .param("uuid", projectUuid)
                 .query(Long.class)
                 .optional();
@@ -32,9 +32,9 @@ public class AuditRepository {
             String result,
             JsonNode detail) {
         jdbc.sql("""
-                        insert into entegrasyon.denetim_olayi(
+                        insert into akis.denetim_olayi(
                             proje_id, dis_nesne_uuid, korelasyon_kodu,
-                            aktor_turu, eylem_kodu, sonuc_kodu, olay_zamani, ayrinti)
+                            aktor_turu, eylem_kodu, sonuc, olay_zamani, ayrinti)
                         values (:projectId, :externalObjectUuid, :correlationId,
                                 :actorType, :action, :result, current_timestamp,
                                 cast(:detail as jsonb))

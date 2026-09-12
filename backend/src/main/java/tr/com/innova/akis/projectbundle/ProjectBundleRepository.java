@@ -27,8 +27,10 @@ class ProjectBundleRepository {
 
     Optional<ProjectRow> findProject(UUID projectUuid) {
         return jdbc.sql("""
-                        select id, uuid, kod, durum_kodu, ad, aciklama
-                          from entegrasyon.proje
+                        select id, uuid, kod,
+                               case when arsivlenme_zamani is null then 'AKTIF' else 'ARSIV' end as durum_kodu,
+                               ad, aciklama
+                          from akis.proje
                          where uuid = :uuid
                         """)
                 .param("uuid", projectUuid)
@@ -43,7 +45,7 @@ class ProjectBundleRepository {
     }
 
     boolean projectCodeExists(String code) {
-        return jdbc.sql("select exists(select 1 from entegrasyon.proje where kod = :code)")
+        return jdbc.sql("select exists(select 1 from akis.proje where kod = :code)")
                 .param("code", code)
                 .query(Boolean.class)
                 .single();
@@ -59,8 +61,10 @@ class ProjectBundleRepository {
     ExportSnapshot loadSnapshot(UUID projectUuid) {
         ProjectRow project = findProject(projectUuid).orElseThrow();
         List<FolderRow> folders = jdbc.sql("""
-                        select id, ust_klasor_id, kod, tur_kodu, durum_kodu, ad, aciklama
-                          from entegrasyon.klasor
+                        select id, ust_klasor_id, kod, amac as tur_kodu,
+                               case when arsivlenme_zamani is null then 'AKTIF' else 'ARSIV' end as durum_kodu,
+                               ad, aciklama
+                          from akis.klasor
                          where proje_id = :projectId
                          order by id
                         """)
@@ -75,16 +79,18 @@ class ProjectBundleRepository {
                         rs.getString("aciklama")))
                 .list();
         List<DefinitionRow> definitions = jdbc.sql("""
-                        select id, klasor_id, tur_kodu, kod, durum_kodu, ad, aciklama
-                          from entegrasyon.tanim
+                        select id, klasor_id, tur, kod,
+                               case when arsivlenme_zamani is null then 'AKTIF' else 'ARSIV' end as durum_kodu,
+                               ad, aciklama
+                          from akis.tanim
                          where proje_id = :projectId
-                         order by tur_kodu, kod
+                         order by tur, kod
                         """)
                 .param("projectId", project.id())
                 .query((rs, rowNum) -> new DefinitionRow(
                         rs.getLong("id"),
                         rs.getObject("klasor_id", Long.class),
-                        DefinitionType.valueOf(rs.getString("tur_kodu")),
+                        apiDefinitionType(rs.getString("tur")),
                         rs.getString("kod"),
                         rs.getString("durum_kodu"),
                         rs.getString("ad"),
@@ -92,8 +98,8 @@ class ProjectBundleRepository {
                 .list();
         List<DraftRow> drafts = jdbc.sql("""
                         select tt.tanim_id, tt.sema_surumu, tt.icerik
-                          from entegrasyon.tanim_taslagi tt
-                          join entegrasyon.tanim t on t.id = tt.tanim_id
+                          from akis.tanim_taslagi tt
+                          join akis.tanim t on t.id = tt.tanim_id
                          where t.proje_id = :projectId
                         """)
                 .param("projectId", project.id())
@@ -105,8 +111,8 @@ class ProjectBundleRepository {
         List<VersionRow> versions = jdbc.sql("""
                         select ts.tanim_id, ts.surum_no, ts.sema_surumu, ts.icerik_ozeti,
                                ts.icerik, ts.aciklama, ts.olusturulma_zamani
-                          from entegrasyon.tanim_surumu ts
-                          join entegrasyon.tanim t on t.id = ts.tanim_id
+                          from akis.tanim_surumu ts
+                          join akis.tanim t on t.id = ts.tanim_id
                          where t.proje_id = :projectId
                          order by ts.tanim_id, ts.surum_no
                         """)
@@ -126,9 +132,12 @@ class ProjectBundleRepository {
     ProjectRow insertProject(
             UUID uuid, String code, String status, String name, String description) {
         return jdbc.sql("""
-                        insert into entegrasyon.proje(uuid, kod, durum_kodu, ad, aciklama)
-                        values (:uuid, :code, :status, :name, :description)
-                        returning id, uuid, kod, durum_kodu, ad, aciklama
+                        insert into akis.proje(uuid, kod, ad, aciklama, arsivlenme_zamani)
+                        values (:uuid, :code, :name, :description,
+                                case when :status='AKTIF' then null else current_timestamp end)
+                        returning id, uuid, kod,
+                                  case when arsivlenme_zamani is null then 'AKTIF' else 'ARSIV' end as durum_kodu,
+                                  ad, aciklama
                         """)
                 .param("uuid", uuid)
                 .param("code", code)
@@ -146,9 +155,10 @@ class ProjectBundleRepository {
             long projectId, Long parentId, String code, String type,
             String status, String name, String description) {
         return jdbc.sql("""
-                        insert into entegrasyon.klasor(
-                            proje_id, ust_klasor_id, kod, tur_kodu, durum_kodu, ad, aciklama)
-                        values (:projectId, :parentId, :code, :type, :status, :name, :description)
+                        insert into akis.klasor(
+                            proje_id, ust_klasor_id, kod, amac, ad, aciklama, arsivlenme_zamani)
+                        values (:projectId, :parentId, :code, :type, :name, :description,
+                                case when :status='AKTIF' then null else current_timestamp end)
                         returning id
                         """)
                 .param("projectId", projectId)
@@ -166,16 +176,17 @@ class ProjectBundleRepository {
             long projectId, Long folderId, DefinitionType type, String code,
             String status, String name, String description) {
         return jdbc.sql("""
-                        insert into entegrasyon.tanim(
-                            proje_id, klasor_id, kapsam_kodu, tur_kodu,
-                            kod, durum_kodu, ad, aciklama)
+                        insert into akis.tanim(
+                            proje_id, klasor_id, kapsam, tur,
+                            kod, ad, aciklama, arsivlenme_zamani)
                         values (:projectId, :folderId, 'PROJE', :type,
-                                :code, :status, :name, :description)
+                                :code, :name, :description,
+                                case when :status='AKTIF' then null else current_timestamp end)
                         returning id
                         """)
                 .param("projectId", projectId)
                 .param("folderId", folderId, Types.BIGINT)
-                .param("type", type.name())
+                .param("type", storedDefinitionType(type))
                 .param("code", code)
                 .param("status", status)
                 .param("name", name)
@@ -186,8 +197,9 @@ class ProjectBundleRepository {
 
     void insertDraft(long definitionId, int schemaVersion, JsonNode content) {
         jdbc.sql("""
-                        insert into entegrasyon.tanim_taslagi(tanim_id, sema_surumu, icerik)
-                        values (:definitionId, :schemaVersion, cast(:content as jsonb))
+                        insert into akis.tanim_taslagi(proje_id, tanim_id, sema_surumu, icerik)
+                        select proje_id, id, :schemaVersion, cast(:content as jsonb)
+                          from akis.tanim where id=:definitionId
                         """)
                 .param("definitionId", definitionId)
                 .param("schemaVersion", schemaVersion)
@@ -197,11 +209,12 @@ class ProjectBundleRepository {
 
     void insertVersion(long definitionId, VersionRow version) {
         jdbc.sql("""
-                        insert into entegrasyon.tanim_surumu(
-                            tanim_id, surum_no, sema_surumu, icerik_ozeti,
+                        insert into akis.tanim_surumu(
+                            proje_id, tanim_id, surum_no, sema_surumu, icerik_ozeti,
                             icerik, aciklama, olusturulma_zamani)
-                        values (:definitionId, :versionNumber, :schemaVersion, :contentHash,
-                                cast(:content as jsonb), :description, :createdAt)
+                        select proje_id, id, :versionNumber, :schemaVersion, :contentHash,
+                               cast(:content as jsonb), :description, :createdAt
+                          from akis.tanim where id=:definitionId
                         """)
                 .param("definitionId", definitionId)
                 .param("versionNumber", version.versionNumber())
@@ -220,6 +233,25 @@ class ProjectBundleRepository {
         catch (tools.jackson.core.JacksonException exception) {
             throw new IllegalStateException("Stored bundle JSON could not be read.", exception);
         }
+    }
+
+    private String storedDefinitionType(DefinitionType type) {
+        return switch(type) {
+            case MAPPING -> "MAPPING"; case REUSABLE_MAPPING -> "YENIDEN_KULLANILABILIR_MAPPING";
+            case PACKAGE -> "PAKET"; case PROCEDURE -> "PROSEDUR"; case VARIABLE -> "DEGISKEN";
+            case SEQUENCE -> "SEQUENCE"; case USER_FUNCTION -> "KULLANICI_FONKSIYONU";
+            case KNOWLEDGE_MODULE -> "KNOWLEDGE_MODULE"; case LOAD_PLAN -> "LOAD_PLAN";
+        };
+    }
+
+    private DefinitionType apiDefinitionType(String type) {
+        return switch(type) {
+            case "MAPPING" -> DefinitionType.MAPPING; case "YENIDEN_KULLANILABILIR_MAPPING" -> DefinitionType.REUSABLE_MAPPING;
+            case "PAKET" -> DefinitionType.PACKAGE; case "PROSEDUR" -> DefinitionType.PROCEDURE;
+            case "DEGISKEN" -> DefinitionType.VARIABLE; case "SEQUENCE" -> DefinitionType.SEQUENCE;
+            case "KULLANICI_FONKSIYONU" -> DefinitionType.USER_FUNCTION; case "KNOWLEDGE_MODULE" -> DefinitionType.KNOWLEDGE_MODULE;
+            case "LOAD_PLAN" -> DefinitionType.LOAD_PLAN; default -> throw new IllegalStateException("Unknown definition type: "+type);
+        };
     }
 
     record ProjectRow(long id, UUID uuid, String code, String status, String name, String description) {
