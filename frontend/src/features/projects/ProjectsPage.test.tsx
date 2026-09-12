@@ -37,6 +37,7 @@ function renderPage() {
 
 describe('ProjectsPage', () => {
   beforeEach(async () => {
+    localStorage.clear()
     projectApi.listProjects.mockReset()
     projectApi.createProject.mockReset()
     await i18n.changeLanguage('en')
@@ -56,6 +57,21 @@ describe('ProjectsPage', () => {
     expect(await screen.findByRole('heading', { name: 'Select a project' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /SKY GPU Transfer/ }))
     expect(await screen.findByRole('heading', { name: 'Selected project' })).toBeInTheDocument()
+  })
+
+  it('returns to a remembered project only while it is still accessible', async () => {
+    const secondProject = { ...firstProject, uuid: '22222222-2222-4222-8222-222222222222', code: 'FINANCE', name: 'Finance' }
+    localStorage.setItem('akis.lastProjectUuid', secondProject.uuid)
+    projectApi.listProjects.mockResolvedValue([firstProject, secondProject])
+    renderPage()
+    expect(await screen.findByRole('heading', { name: 'Selected project' })).toBeInTheDocument()
+  })
+
+  it('asks again when the remembered project is no longer accessible', async () => {
+    localStorage.setItem('akis.lastProjectUuid', 'removed-project')
+    projectApi.listProjects.mockResolvedValue([firstProject, { ...firstProject, uuid: '22222222-2222-4222-8222-222222222222', code: 'FINANCE', name: 'Finance' }])
+    renderPage()
+    expect(await screen.findByRole('heading', { name: 'Select a project' })).toBeInTheDocument()
   })
 
   it('opens the created project immediately after successful creation', async () => {

@@ -1,5 +1,6 @@
-import { Check, Clipboard, LoaderCircle, RefreshCw, TriangleAlert } from 'lucide-react'
+import { Check, Clipboard } from 'lucide-react'
 import { useState, type PropsWithChildren, type ReactNode } from 'react'
+import { AsyncState, Field as CoreField, PageHeader as CorePageHeader, StatusBadge as CoreStatusBadge } from '../../core/ui'
 import { Dialog as CoreDialog } from '../../core/ui/Dialog'
 import { useOperationsI18n } from './i18n'
 import './operations.css'
@@ -9,15 +10,7 @@ export function PageHeader({ title, description, actions }: {
   description: string
   actions?: ReactNode
 }) {
-  return (
-    <header className="ops-page-header">
-      <div>
-        <h1>{title}</h1>
-        <p>{description}</p>
-      </div>
-      {actions ? <div className="ops-page-actions">{actions}</div> : null}
-    </header>
-  )
+  return <CorePageHeader title={title} description={description} actions={actions} className="ops-page-header" />
 }
 
 export function Panel({ title, children, className = '' }: PropsWithChildren<{
@@ -34,29 +27,16 @@ export function Panel({ title, children, className = '' }: PropsWithChildren<{
 
 export function LoadingState() {
   const { t } = useOperationsI18n()
-  return (
-    <div className="ops-state" role="status" aria-live="polite">
-      <LoaderCircle className="ops-spin" aria-hidden="true" />
-      <span>{t('loading')}</span>
-    </div>
-  )
+  return <AsyncState state="loading" title={t('loading')} className="ops-state" />
 }
 
 export function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   const { t } = useOperationsI18n()
-  return (
-    <div className="ops-alert ops-alert-error" role="alert">
-      <TriangleAlert aria-hidden="true" />
-      <span>{message}</span>
-      <button className="ops-button ops-button-secondary" type="button" onClick={onRetry}>
-        <RefreshCw aria-hidden="true" /> {t('retry')}
-      </button>
-    </div>
-  )
+  return <AsyncState state="error" title={message} retryLabel={t('retry')} onRetry={onRetry} className="ops-alert ops-alert-error" compact />
 }
 
 export function EmptyState({ children }: PropsWithChildren) {
-  return <div className="ops-state ops-empty">{children}</div>
+  return <AsyncState state="empty" title={children} className="ops-state ops-empty" />
 }
 
 export function Field({ label, error, children, hint }: PropsWithChildren<{
@@ -64,25 +44,15 @@ export function Field({ label, error, children, hint }: PropsWithChildren<{
   error?: string
   hint?: string
 }>) {
-  return (
-    <label className="ops-field">
-      <span>{label}</span>
-      {children}
-      {hint && !error ? <small>{hint}</small> : null}
-      {error ? <small className="ops-field-error">{error}</small> : null}
-    </label>
-  )
+  return <CoreField label={label} hint={hint} error={error} className="ops-field">{children}</CoreField>
 }
 
 export function StatusBadge({ value }: { value: string }) {
   const { t } = useOperationsI18n()
   const key = `status_${value}` as Parameters<typeof t>[0]
   const known = ['ONAY_BEKLIYOR', 'AKTIF', 'IPTAL', 'ETKIN'].includes(value)
-  return (
-    <span className={`ops-status ops-status-${value.toLowerCase().replaceAll('_', '-')}`}>
-      {known ? t(key) : value}
-    </span>
-  )
+  const tone = ['AKTIF', 'ETKIN'].includes(value) ? 'success' : value === 'ONAY_BEKLIYOR' ? 'warning' : value === 'IPTAL' ? 'danger' : 'neutral'
+  return <CoreStatusBadge tone={tone} className={`ops-status ops-status-${value.toLowerCase().replaceAll('_', '-')}`}>{known ? t(key) : value}</CoreStatusBadge>
 }
 
 export function CopyValue({ value }: { value: string }) {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { getProject, type Project } from './projectsApi'
 
 export function ProjectOverviewPage() {
@@ -28,6 +28,10 @@ export function ProjectOverviewPage() {
       <p className="eyebrow">{project?.code ?? t('common.loading')}</p>
       <h1>{project?.name ?? t('overview.title')}</h1>
       <p>{project?.description || t('overview.welcome')}</p>
+      <div className="project-entry-actions">
+        <Link className="button primary" to={`/projects/${projectUuid}/development`}>{t('overview.goToDevelopment')}</Link>
+        <Link className="button secondary" to={`/projects/${projectUuid}/operations`}>{t('overview.goToOperations')}</Link>
+      </div>
     </header>
   </section>
 }

@@ -6,6 +6,7 @@ import { ApiProblem } from '../../core/api/client'
 import { Dialog } from '../../core/ui/Dialog'
 import { formatDate } from '../../core/i18n/formatters'
 import { createProject, listProjects, type Project } from './projectsApi'
+import { getRememberedProject, rememberProject } from './projectPreference'
 
 export function ProjectsPage() {
   const { t, i18n } = useTranslation()
@@ -26,8 +27,15 @@ export function ProjectsPage() {
 
   useEffect(() => { void load() }, [])
   useEffect(() => {
-    if (!loading && projects.length === 1) navigate(`/projects/${projects[0]!.uuid}`, { replace: true })
+    if (loading) return
+    const selected = projects.length === 1 ? projects[0] : projects.find((item) => item.uuid === getRememberedProject())
+    if (selected) { rememberProject(selected.uuid); navigate(`/projects/${selected.uuid}`, { replace: true }) }
   }, [loading, navigate, projects])
+
+  function openProject(projectUuid: string) {
+    rememberProject(projectUuid)
+    navigate(`/projects/${projectUuid}`)
+  }
 
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -40,7 +48,7 @@ export function ProjectsPage() {
         name: String(form.get('name')).trim(),
         description: String(form.get('description')).trim() || undefined,
       })
-      navigate(`/projects/${project.uuid}`)
+      openProject(project.uuid)
     } catch (cause) {
       setError(cause instanceof ApiProblem ? cause.message : t('common.saveError'))
     } finally { setCreating(false) }
@@ -52,7 +60,7 @@ export function ProjectsPage() {
       <div className="project-choice-panel">
         <header><span className="project-choice-icon"><Database /></span><div><p className="eyebrow">{t('projects.eyebrow')}</p><h1>{t('projects.title')}</h1><p>{t('projects.description')}</p></div></header>
         {loading ? <div className="project-choice-loading" aria-label={t('common.loading')}><span /><span /><span /></div> : projects.length === 0 ? <div className="project-choice-empty"><p>{t('projects.empty')}</p><div><button className="button secondary" onClick={() => navigate('/projects/import')}><FolderInput size={17} />{t('projects.import')}</button><button className="button primary" onClick={() => setShowCreate(true)}><Plus size={17} />{t('projects.new')}</button></div></div> : <div className="project-choice-list" role="list">{projects.map((project) => (
-          <button type="button" key={project.uuid} onClick={() => navigate(`/projects/${project.uuid}`)}>
+          <button type="button" key={project.uuid} onClick={() => openProject(project.uuid)}>
             <span><strong>{project.name}</strong><small>{project.code} · {formatDate(project.createdAt, i18n.language)}</small></span><Check aria-hidden="true" />
           </button>
         ))}</div>}

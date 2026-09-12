@@ -1,25 +1,21 @@
 import {
-  ChevronDown, CircleUserRound, DatabaseZap, Gauge,
-  Languages, LogOut, Moon, Network, PanelLeftClose, PanelLeftOpen, Sun,
+  CircleUserRound, DatabaseZap,
+  Languages, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Sun,
 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Outlet, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { apiRequest } from '../core/api/client'
 import { useAuth } from '../core/auth/AuthContext'
 import { PendingChangesContext, type PendingChanges } from '../core/navigation/PendingChangesContext'
 import { useTheme, type ThemeMode } from '../core/theme/ThemeContext'
 import { Dialog } from '../core/ui/Dialog'
-import { ExportProjectButton } from '../features/bundles/ExportProjectButton'
-import { listProjects, type Project } from '../features/projects/projectsApi'
+import type { Project } from '../features/projects/projectsApi'
 import { definitionsApi } from '../features/definitions/api'
 import type { Definition, Folder } from '../features/definitions/types'
 import { ProjectSidebarTree } from './ProjectSidebarTree'
-
-const projectNavigation = [
-  { path: '/operations', key: 'nav.operations', icon: Gauge },
-  { path: '/connections', key: 'nav.connections', icon: Network },
-]
+import { ProjectSwitcher } from './ProjectSwitcher'
+import { resolveWorkspace, WorkspaceNavigation } from './WorkspaceNavigation'
 
 export function AppShell() {
   const { t, i18n } = useTranslation()
@@ -29,10 +25,6 @@ export function AppShell() {
   const location = useLocation()
   const { projectUuid } = useParams()
   const [project, setProject] = useState<Project | null>(null)
-  const [projects, setProjects] = useState<Project[]>([])
-  const [switcherOpen, setSwitcherOpen] = useState(false)
-  const [projectQuery, setProjectQuery] = useState('')
-  const [switcherError, setSwitcherError] = useState('')
   const [pendingChanges, setPendingChangesState] = useState<PendingChanges | null>(null)
   const [pendingPath, setPendingPath] = useState<string | null>(null)
   const [savingBeforeLeave, setSavingBeforeLeave] = useState(false)
@@ -41,6 +33,10 @@ export function AppShell() {
   const [definitions, setDefinitions] = useState<Definition[]>([])
   const [objectsLoading, setObjectsLoading] = useState(false)
   const [objectsFailed, setObjectsFailed] = useState(false)
+  const completeNavigation = useCallback((path: string) => {
+    if (path === '/login') logout()
+    navigate(path)
+  }, [logout, navigate])
 
   useEffect(() => {
     if (!projectUuid) {
@@ -55,12 +51,11 @@ export function AppShell() {
     return () => { active = false }
   }, [projectUuid])
 
-  const closeSwitcher = useCallback(() => setSwitcherOpen(false), [])
   const setPendingChanges = useCallback((value: PendingChanges | null) => setPendingChangesState(value), [])
   const requestNavigation = useCallback((path: string) => {
     if (pendingChanges) setPendingPath(path)
-    else navigate(path)
-  }, [navigate, pendingChanges])
+    else completeNavigation(path)
+  }, [completeNavigation, pendingChanges])
 
   const loadProjectObjects = useCallback(async () => {
     if (!projectUuid) { setFolders([]); setDefinitions([]); return }
@@ -81,16 +76,17 @@ export function AppShell() {
     return () => window.removeEventListener('akis:definitions-changed', reload)
   }, [loadProjectObjects])
 
-  useEffect(() => {
-    if (!switcherOpen) return
-    setSwitcherError('')
-    void listProjects().then(setProjects).catch(() => setSwitcherError(t('common.loadError')))
-  }, [switcherOpen, t])
-
-  const filteredProjects = projects.filter((item) => `${item.code} ${item.name}`.toLocaleLowerCase(i18n.language).includes(projectQuery.trim().toLocaleLowerCase(i18n.language)))
+  const activeWorkspace = resolveWorkspace(location.pathname)
 
   const changeLanguage = (language: string) => void i18n.changeLanguage(language === 'tr' ? 'tr' : 'en')
   const themeIcon = mode === 'dark' ? <Moon size={16} /> : <Sun size={16} />
+
+  useEffect(() => {
+    if (!pendingChanges) return
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [pendingChanges])
 
   return (
     <PendingChangesContext.Provider value={{ pendingChanges, setPendingChanges }}><div className={collapsed ? 'app-shell sidebar-collapsed' : 'app-shell'}>
@@ -98,35 +94,34 @@ export function AppShell() {
       <aside className="sidebar">
         <div className="brand-block">
           <div className="brand-mark" aria-hidden="true"><DatabaseZap size={21} strokeWidth={1.8} /></div>
-          {!collapsed && <div><strong>Akış</strong><span>{t('brand.tagline')}</span></div>}
+          {!collapsed && <div><strong>AKIŞ</strong><span>{t('brand.tagline')}</span></div>}
         </div>
+        {collapsed && project ? <span className="collapsed-project-mark" title={`${project.name} (${project.code})`}>{project.code.slice(0, 2).toLocaleUpperCase(i18n.language)}</span> : null}
         <nav aria-label={t('nav.workspace')}>
           {projectUuid && (
             <div className="nav-section">
-              {!collapsed && <ProjectSidebarTree
-                projectUuid={projectUuid}
-                folders={folders}
-                definitions={definitions}
-                selectedUuid={new URLSearchParams(location.search).get('definition')}
-                loading={objectsLoading}
-                failed={objectsFailed}
-                onNavigate={requestNavigation}
-                onRetry={() => void loadProjectObjects()}
-              />}
-              <div className="project-navigation-links">
-                {projectNavigation.map(({ path, key, icon: Icon }) => (
-                  <NavLink
-                    key={key}
-                    title={collapsed ? t(key) : undefined}
-                    aria-label={t(key)}
-                    to={`/projects/${projectUuid}${path}`}
-                    onClick={(event) => { if (pendingChanges) { event.preventDefault(); requestNavigation(`/projects/${projectUuid}${path}`) } }}
-                    className={({ isActive }) => `nav-item mobile-primary ${isActive ? 'active' : ''}`}
-                  >
-                    <Icon size={18} /><span>{t(key)}</span>
-                  </NavLink>
-                ))}
-              </div>
+              <WorkspaceNavigation projectUuid={projectUuid} collapsed={collapsed} hasPendingChanges={Boolean(pendingChanges)} onNavigate={requestNavigation} />
+              {!collapsed && activeWorkspace === 'development' ? <div className="workspace-subnavigation">
+                <p className="nav-label">{t('nav.projectObjects')}</p>
+                <ProjectSidebarTree
+                  projectUuid={projectUuid}
+                  folders={folders}
+                  definitions={definitions}
+                  selectedUuid={new URLSearchParams(location.search).get('definition')}
+                  loading={objectsLoading}
+                  failed={objectsFailed}
+                  onNavigate={requestNavigation}
+                  onRetry={() => void loadProjectObjects()}
+                />
+              </div> : null}
+              {!collapsed && activeWorkspace === 'operations' ? <div className="workspace-subnavigation workspace-summary">
+                <p className="nav-label">{t('nav.operationsContext')}</p>
+                <span>{t('nav.runs')}</span>
+              </div> : null}
+              {!collapsed && activeWorkspace === 'connections' ? <div className="workspace-subnavigation workspace-summary">
+                <p className="nav-label">{t('nav.connectionsContext')}</p>
+                <span>{t('nav.connectionCatalog')}</span>
+              </div> : null}
             </div>
           )}
         </nav>
@@ -142,17 +137,13 @@ export function AppShell() {
 
       <div className="shell-content">
         <header className="topbar">
-          <button className="project-switcher" onClick={() => setSwitcherOpen(true)} aria-haspopup="dialog" aria-expanded={switcherOpen}>
-            <span className="project-dot" />
-            <span><small>{t('nav.workspace')}</small><strong>{project?.name ?? t('header.noProject')}</strong></span>
-            <ChevronDown size={16} />
-          </button>
+          <ProjectSwitcher currentProject={project} projectUuid={projectUuid} onNavigate={requestNavigation} />
           <div className="topbar-actions">
             <label className="compact-select">
               <Languages size={16} />
               <span className="sr-only">{t('header.language')}</span>
               <select value={i18n.language === 'tr' ? 'tr' : 'en'} onChange={(event) => changeLanguage(event.target.value)}>
-                <option value="en">EN</option><option value="tr">TR</option>
+                <option value="en">English</option><option value="tr">Türkçe</option>
               </select>
             </label>
             <label className="compact-select">
@@ -165,28 +156,15 @@ export function AppShell() {
             </label>
             <div className="user-menu">
               <CircleUserRound size={18} /><span>{username}</span>
-              <button aria-label={t('nav.signOut')} title={t('nav.signOut')} onClick={() => { logout(); navigate('/login') }}><LogOut size={16} /></button>
+              <button aria-label={t('nav.signOut')} title={t('nav.signOut')} onClick={() => requestNavigation('/login')}><LogOut size={16} /></button>
             </div>
           </div>
         </header>
         <main id="main-content" className="main-content" tabIndex={-1}><Outlet /></main>
       </div>
-      <Dialog open={switcherOpen} title={t('projectSwitcher.title')} eyebrow={t('projectSwitcher.eyebrow')} closeLabel={t('common.close')} onClose={closeSwitcher} className="project-switcher-dialog">
-        <label>{t('projectSwitcher.search')}<input autoFocus value={projectQuery} onChange={(event) => setProjectQuery(event.target.value)} placeholder={t('projectSwitcher.searchPlaceholder')} /></label>
-        {switcherError && <p className="error-banner" role="alert">{switcherError}</p>}
-        <div className="project-switcher-list" role="list">
-          {filteredProjects.map((item) => <button key={item.uuid} type="button" className={item.uuid === projectUuid ? 'is-current' : ''} onClick={() => { closeSwitcher(); requestNavigation(`/projects/${item.uuid}`) }}>
-            <span><strong>{item.name}</strong><small>{item.code}</small></span>{item.uuid === projectUuid && <em>{t('projectSwitcher.current')}</em>}
-          </button>)}
-          {!switcherError && filteredProjects.length === 0 && <p>{t('projectSwitcher.empty')}</p>}
-        </div>
-        <footer>
-          {projectUuid && project ? <ExportProjectButton projectUuid={projectUuid} projectCode={project.code} className="project-switcher-export" /> : null}
-        </footer>
-      </Dialog>
       <Dialog open={pendingPath !== null} title={t('pendingChanges.title')} eyebrow={t('pendingChanges.eyebrow')} closeLabel={t('common.close')} busy={savingBeforeLeave} onClose={() => setPendingPath(null)}>
         <p className="dialog-description">{t('pendingChanges.description')}</p>
-        <footer className="dialog-actions"><button className="button secondary" type="button" onClick={() => setPendingPath(null)}>{t('pendingChanges.stay')}</button><button className="button secondary" type="button" onClick={() => { const path = pendingPath; setPendingChangesState(null); setPendingPath(null); if (path) navigate(path) }}>{t('pendingChanges.discard')}</button><button className="button primary" type="button" disabled={savingBeforeLeave} onClick={async () => { if (!pendingChanges || !pendingPath) return; setSavingBeforeLeave(true); const saved = await pendingChanges.save(); setSavingBeforeLeave(false); if (saved) { const path = pendingPath; setPendingChangesState(null); setPendingPath(null); navigate(path) } }}>{savingBeforeLeave ? t('pendingChanges.saving') : t('pendingChanges.save')}</button></footer>
+        <footer className="dialog-actions"><button className="button secondary" type="button" onClick={() => setPendingPath(null)}>{t('pendingChanges.stay')}</button><button className="button secondary" type="button" onClick={() => { const path = pendingPath; setPendingChangesState(null); setPendingPath(null); if (path) completeNavigation(path) }}>{t('pendingChanges.discard')}</button><button className="button primary" type="button" disabled={savingBeforeLeave} onClick={async () => { if (!pendingChanges || !pendingPath) return; setSavingBeforeLeave(true); const saved = await pendingChanges.save(); setSavingBeforeLeave(false); if (saved) { const path = pendingPath; setPendingChangesState(null); setPendingPath(null); completeNavigation(path) } }}>{savingBeforeLeave ? t('pendingChanges.saving') : t('pendingChanges.save')}</button></footer>
       </Dialog>
     </div></PendingChangesContext.Provider>
   )
