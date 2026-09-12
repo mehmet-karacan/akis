@@ -24,6 +24,7 @@ import tools.jackson.databind.node.ObjectNode;
 import tr.com.innova.akis.execution.ProcedureRuntimePlan.BatchInput;
 import tr.com.innova.akis.execution.ProcedureRuntimePlan.ConnectionRole;
 import tr.com.innova.akis.execution.ProcedureRuntimePlan.ErrorPolicy;
+import tr.com.innova.akis.execution.ProcedureRuntimePlan.LogCounter;
 import tr.com.innova.akis.execution.ProcedureRuntimePlan.RiskClass;
 import tr.com.innova.akis.execution.ProcedureRuntimePlan.RowsetOutput;
 import tr.com.innova.akis.execution.ProcedureRuntimePlan.Task;
@@ -277,7 +278,7 @@ public final class ProcedureRuntimePlanResolver {
                     node,
                     Set.of("id", "name", "type", "connectionRole", "riskClass",
                             "command", "requiresApproval", "onError", "timeoutSeconds",
-                            "output", "input"),
+                            "output", "input", "logCounter"),
                     "Procedure task", ProcedurePlanFailure.UNSUPPORTED_PROCEDURE_SHAPE);
             String id = requireText(node, "id");
             String command = requireText(node, "command");
@@ -302,6 +303,9 @@ public final class ProcedureRuntimePlanResolver {
             ErrorPolicy errorPolicy = node.has("onError")
                     ? parseEnum(ErrorPolicy.class, requireText(node, "onError"))
                     : ErrorPolicy.STOP;
+            LogCounter logCounter = node.has("logCounter")
+                    ? parseEnum(LogCounter.class, requireText(node, "logCounter"))
+                    : LogCounter.NONE;
             if ((output != null || input != null) && errorPolicy != ErrorPolicy.STOP) {
                 throw shape("Row transfer tasks must use STOP in Procedure V1.");
             }
@@ -325,7 +329,8 @@ public final class ProcedureRuntimePlanResolver {
                     timeout,
                     output,
                     input,
-                    namedBinds));
+                    namedBinds,
+                    logCounter));
         }
         for (int index = 0; index < tasks.size(); index++) {
             Task task = tasks.get(index);
@@ -804,6 +809,9 @@ public final class ProcedureRuntimePlanResolver {
             node.put("commandHash", task.commandHash());
             node.put("connectionRole", task.connectionRole().name());
             node.put("id", task.id());
+            if (task.logCounter() != LogCounter.NONE) {
+                node.put("logCounter", task.logCounter().name());
+            }
             if (task.input() != null) {
                 ObjectNode input = objectMapper.createObjectNode();
                 input.put("batchSize", task.input().batchSize());

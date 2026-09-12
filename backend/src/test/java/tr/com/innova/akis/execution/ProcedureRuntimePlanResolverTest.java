@@ -40,6 +40,9 @@ class ProcedureRuntimePlanResolverTest {
                 List.of("TRUNCATE_TARGET", "READ_SOURCE", "INSERT_TARGET", "GATHER_STATS"),
                 plan.tasks().stream().map(ProcedureRuntimePlan.Task::id).toList());
         assertEquals(List.of("ID", "ACIKLAMA"), plan.tasks().get(2).namedBinds());
+        assertEquals(ProcedureRuntimePlan.LogCounter.INSERT, plan.tasks().get(2).logCounter());
+        assertEquals("STATISTICS", plan.canonicalPlan().get("tasks").get(3)
+                .get("logCounter").stringValue());
         assertEquals(4, plan.bindings().size());
         assertEquals(fixture.runtimeHash(), plan.runtimePlanHash());
         assertFalse(plan.canonicalPlan().toString().contains("TRUNCATE TABLE"));
@@ -198,20 +201,24 @@ class ProcedureRuntimePlanResolverTest {
                 {"tasks":[
                   {"id":"TRUNCATE_TARGET","name":"Clear","type":"SQL",
                    "connectionRole":"TARGET","riskClass":"DESTRUCTIVE",
+                   "logCounter":"DELETE",
                    "requiresApproval":true,"onError":"STOP","timeoutSeconds":60,
                    "command":"TRUNCATE TABLE INNOVA_ODI.STG_HAKEDIS_TIPI"},
                   {"id":"READ_SOURCE","name":"Read","type":"SQL",
                    "connectionRole":"SOURCE","riskClass":"READ_ONLY",
+                   "logCounter":"ANALYSIS",
                    "onError":"STOP","timeoutSeconds":300,
                    "command":"SELECT ID, ACIKLAMA FROM TTBP.HAKEDIS_TIPI",
                    "output":{"kind":"ROWSET","maxRows":1000}},
                   {"id":"INSERT_TARGET","name":"Write","type":"SQL",
                    "connectionRole":"TARGET","riskClass":"DML",
+                   "logCounter":"INSERT",
                    "onError":"STOP","timeoutSeconds":300,
                    "command":"INSERT INTO INNOVA_ODI.STG_HAKEDIS_TIPI (ID, ACIKLAMA) VALUES (:ID, :ACIKLAMA)",
                    "input":{"fromTask":"READ_SOURCE","mode":"BATCH","batchSize":250}},
                    {"id":"GATHER_STATS","name":"Stats","type":"PLSQL",
                     "connectionRole":"TARGET","riskClass":"DESTRUCTIVE",
+                   "logCounter":"STATISTICS",
                    "requiresApproval":true,"onError":"STOP","timeoutSeconds":300,
                    "command":"BEGIN DBMS_STATS.GATHER_TABLE_STATS('INNOVA_ODI','STG_HAKEDIS_TIPI'); END;"}
                 ]}

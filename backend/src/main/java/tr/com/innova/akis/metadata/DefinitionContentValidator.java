@@ -37,6 +37,8 @@ public final class DefinitionContentValidator {
     private static final Set<String> PROCEDURE_RISK_CLASSES = Set.of(
             "READ_ONLY", "DML", "DDL", "DESTRUCTIVE");
     private static final Set<String> PROCEDURE_ERROR_POLICIES = Set.of("STOP", "CONTINUE");
+    private static final Set<String> PROCEDURE_LOG_COUNTERS = Set.of(
+            "NONE", "INSERT", "UPDATE", "DELETE", "STATISTICS", "ANALYSIS");
     private static final Set<String> DATASET_ROLES = Set.of("SOURCE", "TARGET");
     private static final Set<String> V1_WRITE_STRATEGIES = Set.of(
             "APPEND", "STAGED_REPLACE", "MERGE", "TRUNCATE_LOAD");
@@ -233,6 +235,10 @@ public final class DefinitionContentValidator {
                     task, "connectionRole", PROCEDURE_CONNECTION_ROLES, path);
             String risk = requireAllowed(task, "riskClass", PROCEDURE_RISK_CLASSES, path);
             String command = requireText(task, "command", path);
+            JsonNode logCounter = task.get("logCounter");
+            if (logCounter != null && !logCounter.isNull()) {
+                requireAllowed(task, "logCounter", PROCEDURE_LOG_COUNTERS, path);
+            }
             validateCommandRisk(path, command, risk);
             if (("DDL".equals(risk) || "DESTRUCTIVE".equals(risk))
                     && !task.path("requiresApproval").isBoolean()) {

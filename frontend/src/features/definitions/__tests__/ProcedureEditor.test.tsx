@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import i18n from '../../../core/i18n'
 import { DEFAULT_PROCEDURE, isProcedureContent } from '../defaults'
 import { applyAutomaticRowHandoffs, groupProcedureTasks, inferProcedureTaskMetadata, isProcedureSideConfigured, pageProcedureTasks, ProcedureEditor } from '../ProcedureEditor'
+import { inferProcedureLogCounter } from '../procedureCatalog'
 import type { ProcedureContent } from '../types'
 
 function Harness() {
@@ -74,6 +75,24 @@ describe('ProcedureEditor', () => {
     expect(inferProcedureTaskMetadata(target, 'truncate table INNOVA_ODI.STG_X')).toEqual({ type: 'SQL', riskClass: 'DESTRUCTIVE', requiresApproval: true })
     expect(inferProcedureTaskMetadata(target, "begin dbms_stats.gather_table_stats('A', 'B'); end;")).toEqual({ type: 'PLSQL', riskClass: 'DESTRUCTIVE', requiresApproval: true })
     expect(inferProcedureTaskMetadata(target, 'insert into T values (:ID)')).toEqual({ type: 'SQL', riskClass: 'DML', requiresApproval: undefined })
+  })
+
+  it('uses the shared log counter catalog for common SQL operations', () => {
+    expect(inferProcedureLogCounter('insert into T values (1)')).toBe('INSERT')
+    expect(inferProcedureLogCounter('update T set C = 1')).toBe('UPDATE')
+    expect(inferProcedureLogCounter('delete from T')).toBe('DELETE')
+    expect(inferProcedureLogCounter('truncate table T')).toBe('DELETE')
+    expect(inferProcedureLogCounter("begin dbms_stats.gather_table_stats('A', 'B'); end;")).toBe('STATISTICS')
+    expect(inferProcedureLogCounter('select * from T')).toBe('ANALYSIS')
+  })
+
+  it('renders added steps as full-width master rows above the selected detail', () => {
+    const { container } = render(<Harness />)
+    fireEvent.click(screen.getByRole('button', { name: 'Add Step' }))
+    const rows = container.querySelectorAll('.procedure-task-list > .procedure-task')
+    expect(rows).toHaveLength(2)
+    expect(rows[0]?.parentElement).toBe(rows[1]?.parentElement)
+    expect(screen.getByLabelText('Log Counter')).toBeInTheDocument()
   })
 
   it('marks a command configured only when its execution context is complete', () => {

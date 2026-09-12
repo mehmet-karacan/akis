@@ -14,6 +14,10 @@ import {
   type LogicalSchema,
 } from "../topology/api";
 import { useDefinitionsI18n } from "./i18n";
+import {
+  inferProcedureLogCounter,
+  PROCEDURE_LOG_COUNTERS,
+} from "./procedureCatalog";
 import type {
   ProcedureConnectionRole,
   ProcedureContent,
@@ -31,6 +35,14 @@ interface Props {
   };
 }
 const PAGE_SIZE = 100;
+const LOG_COUNTER_LABEL_KEYS = {
+  NONE: "logCounterNONE",
+  INSERT: "logCounterINSERT",
+  UPDATE: "logCounterUPDATE",
+  DELETE: "logCounterDELETE",
+  STATISTICS: "logCounterSTATISTICS",
+  ANALYSIS: "logCounterANALYSIS",
+} as const;
 
 export function pageProcedureTasks(
   tasks: ProcedureTask[],
@@ -78,6 +90,7 @@ function nextTask(
       role === "SOURCE"
         ? "SELECT * FROM SOURCE_TABLE"
         : "INSERT INTO TARGET_TABLE (ID) VALUES (:ID)",
+    logCounter: role === "SOURCE" ? "ANALYSIS" : "INSERT",
     onError: "STOP",
   };
 }
@@ -96,8 +109,7 @@ export function groupProcedureTasks(tasks: ProcedureTask[]): ProcedureStepUnit[]
     const next = tasks[index + 1];
     if (
       task.connectionRole === "SOURCE" &&
-      next?.connectionRole === "TARGET" &&
-      (!next.input || next.input.fromTask === task.id)
+      next?.connectionRole === "TARGET"
     ) {
       units.push({ tasks: [task, next], source: task, target: next, firstIndex: index });
       index += 1;
@@ -342,13 +354,31 @@ export function ProcedureEditor({
                 {environments.map((item) => <option key={item.uuid} value={item.uuid}>{item.name}</option>)}
               </select>
             </label>
+            <label>
+              <span>{t("logCounter")}</span>
+              <select
+                value={task?.logCounter ?? inferProcedureLogCounter(task?.command ?? "")}
+                onChange={(event) => updateSide(role, task, { logCounter: event.target.value as ProcedureTask["logCounter"] })}
+              >
+                {PROCEDURE_LOG_COUNTERS.map((counter) => (
+                  <option key={counter} value={counter}>{t(LOG_COUNTER_LABEL_KEYS[counter])}</option>
+                ))}
+              </select>
+            </label>
             <span className={`procedure-side-state ${configured ? "is-configured" : ""}`}>{t(configured ? "configured" : "notConfigured")}</span>
           </div>
           <label className="procedure-command">
             <span>{t(role === "SOURCE" ? "sourceSql" : "targetSql")}</span>
             <SqlEditor label={t(role === "SOURCE" ? "sourceSql" : "targetSql")} value={task?.command ?? ""} onChange={(command) => {
               const base = task ?? nextTask(role, value.tasks);
-              updateSide(role, task, { command, ...inferProcedureTaskMetadata(base, command) });
+              updateSide(role, task, {
+                command,
+                logCounter:
+                  !task?.logCounter || task.logCounter === inferProcedureLogCounter(task.command)
+                    ? inferProcedureLogCounter(command)
+                    : task.logCounter,
+                ...inferProcedureTaskMetadata(base, command),
+              });
             }} />
           </label>
       </section>
@@ -437,6 +467,7 @@ export function ProcedureEditor({
                     <strong>{task.name || task.id}</strong>
                     <small className="procedure-step-route"><span className={isProcedureSideConfigured(unit.source) ? "is-ready" : ""}>{t("source")}</span><span aria-hidden="true">→</span><span className={isProcedureSideConfigured(unit.target) ? "is-ready" : ""}>{t("target")}</span></small>
                   </div>
+                  <small className="procedure-step-counter">{t("logCounter")}: {t(LOG_COUNTER_LABEL_KEYS[(unit.target ?? unit.source)?.logCounter ?? inferProcedureLogCounter((unit.target ?? unit.source)?.command ?? "")])}</small>
                 </button>
                 <div className="procedure-task-actions">
                   <button

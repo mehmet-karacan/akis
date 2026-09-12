@@ -111,6 +111,15 @@ test.describe('AKIŞ critical browser journeys', () => {
     await expect(page.locator('.procedure-side--source')).toBeVisible()
     await page.getByRole('tab', { name: /Target Command|Hedef Komutu/ }).click()
     await expect(page.locator('.procedure-side--target')).toBeVisible()
+    await expect(page.getByLabel(/Log Counter|Log Sayacı/)).toBeVisible()
+    await page.getByRole('button', { name: /Add Step|Adım Ekle/ }).click()
+    const masterRows = page.locator('.procedure-task-list > .procedure-task')
+    await expect(masterRows).toHaveCount(2)
+    const firstMasterRow = await masterRows.nth(0).boundingBox()
+    const secondMasterRow = await masterRows.nth(1).boundingBox()
+    expect(firstMasterRow).not.toBeNull()
+    expect(secondMasterRow).not.toBeNull()
+    expect(secondMasterRow!.y).toBeGreaterThan(firstMasterRow!.y + firstMasterRow!.height - 1)
     await expect(page.getByText(/Step ID|Adım Kimliği/)).toHaveCount(0)
     await expect(page.getByText(/Task type|Görev Türü|Connection role|Bağlantı Rolü|Risk class|Risk Sınıfı|On error|Hata Durumunda/)).toHaveCount(0)
     await expect(page.getByRole('tab', { name: /Data Bindings|Veri Bağları/ })).toHaveCount(0)
@@ -119,10 +128,17 @@ test.describe('AKIŞ critical browser journeys', () => {
     const dimensions = await page.evaluate(() => {
       const panel = document.querySelector('.definition-editor-panel')?.getBoundingClientRect()
       const workbench = document.querySelector('.definition-workbench')?.getBoundingClientRect()
-      return { ratio: panel && workbench ? panel.width / workbench.width : 0, pageFits: document.documentElement.scrollHeight <= document.documentElement.clientHeight + 2 }
+      const procedure = document.querySelector('.procedure-workbench')?.getBoundingClientRect()
+      return {
+        ratio: panel && workbench ? panel.width / workbench.width : 0,
+        scrollHeight: document.documentElement.scrollHeight,
+        clientHeight: document.documentElement.clientHeight,
+        procedureFillsScreen: procedure ? procedure.bottom >= window.innerHeight * .88 : false,
+      }
     })
     expect(dimensions.ratio).toBeGreaterThan(.95)
-    expect(dimensions.pageFits).toBe(true)
+    expect(dimensions.scrollHeight).toBeLessThanOrEqual(dimensions.clientHeight + 2)
+    expect(dimensions.procedureFillsScreen).toBe(true)
   })
 
   test('opens available detail screens and reveals Oracle fields only after provider selection', async ({ page }) => {

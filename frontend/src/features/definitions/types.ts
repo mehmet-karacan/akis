@@ -138,6 +138,9 @@ export interface MappingContent {
 export type ProcedureTaskType = 'SQL' | 'PLSQL' | 'STORED_PROCEDURE'
 export type ProcedureConnectionRole = 'SOURCE' | 'TARGET'
 export type ProcedureRiskClass = 'READ_ONLY' | 'DML' | 'DDL' | 'DESTRUCTIVE'
+export type { ProcedureLogCounter } from './procedureCatalog'
+
+import type { ProcedureLogCounter } from './procedureCatalog'
 
 export interface ProcedureTask {
   id: string
@@ -146,6 +149,7 @@ export interface ProcedureTask {
   connectionRole: ProcedureConnectionRole
   riskClass: ProcedureRiskClass
   command: string
+  logCounter?: ProcedureLogCounter
   logicalSchemaUuid?: string
   environmentUuid?: string
   requiresApproval?: boolean

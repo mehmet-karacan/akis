@@ -23,6 +23,7 @@ export const DEFAULT_PROCEDURE: ProcedureContent = {
       connectionRole: 'SOURCE',
       riskClass: 'READ_ONLY',
       command: 'SELECT ID FROM SOURCE_TABLE',
+      logCounter: 'ANALYSIS',
       onError: 'STOP',
       timeoutSeconds: 300,
       output: { kind: 'ROWSET', maxRows: 1000 },
@@ -34,6 +35,7 @@ export const DEFAULT_PROCEDURE: ProcedureContent = {
       connectionRole: 'TARGET',
       riskClass: 'DML',
       command: 'INSERT INTO TARGET_TABLE (ID) VALUES (:ID)',
+      logCounter: 'INSERT',
       onError: 'STOP',
       timeoutSeconds: 300,
       input: { fromTask: 'READ_SOURCE', mode: 'BATCH', batchSize: 250 },
@@ -102,7 +104,9 @@ export function isProcedureContent(value: unknown): value is ProcedureContent {
       typeof candidate.command !== 'string' ||
       !['SQL', 'PLSQL', 'STORED_PROCEDURE'].includes(String(candidate.type)) ||
       !['SOURCE', 'TARGET'].includes(String(candidate.connectionRole)) ||
-      !['READ_ONLY', 'DML', 'DDL', 'DESTRUCTIVE'].includes(String(candidate.riskClass))
+      !['READ_ONLY', 'DML', 'DDL', 'DESTRUCTIVE'].includes(String(candidate.riskClass)) ||
+      (candidate.logCounter !== undefined &&
+        !['NONE', 'INSERT', 'UPDATE', 'DELETE', 'STATISTICS', 'ANALYSIS'].includes(String(candidate.logCounter)))
     ) return false
     if (candidate.output !== undefined) {
       if (!candidate.output || typeof candidate.output !== 'object' || Array.isArray(candidate.output)) return false

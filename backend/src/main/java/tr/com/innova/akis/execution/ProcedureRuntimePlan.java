@@ -48,10 +48,31 @@ public record ProcedureRuntimePlan(
             int timeoutSeconds,
             RowsetOutput output,
             BatchInput input,
-            List<String> namedBinds) {
+            List<String> namedBinds,
+            LogCounter logCounter) {
 
         public Task {
             namedBinds = List.copyOf(namedBinds);
+            logCounter = logCounter == null ? LogCounter.NONE : logCounter;
+        }
+
+        public Task(
+                String id,
+                String name,
+                TaskType type,
+                ConnectionRole connectionRole,
+                RiskClass riskClass,
+                String command,
+                String commandHash,
+                boolean requiresApproval,
+                ErrorPolicy onError,
+                int timeoutSeconds,
+                RowsetOutput output,
+                BatchInput input,
+                List<String> namedBinds) {
+            this(id, name, type, connectionRole, riskClass, command, commandHash,
+                    requiresApproval, onError, timeoutSeconds, output, input,
+                    namedBinds, LogCounter.NONE);
         }
     }
 
@@ -99,5 +120,14 @@ public record ProcedureRuntimePlan(
     public enum ErrorPolicy {
         STOP,
         CONTINUE
+    }
+
+    public enum LogCounter {
+        NONE,
+        INSERT,
+        UPDATE,
+        DELETE,
+        STATISTICS,
+        ANALYSIS
     }
 }
