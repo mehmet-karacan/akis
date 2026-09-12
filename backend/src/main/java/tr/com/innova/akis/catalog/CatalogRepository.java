@@ -29,7 +29,7 @@ public class CatalogRepository {
     }
 
     Optional<ProjectRef> findProject(UUID projectUuid) {
-        return jdbc.sql("select id from entegrasyon.proje where uuid = :uuid")
+        return jdbc.sql("select id from akis.proje where uuid = :uuid")
                 .param("uuid", projectUuid)
                 .query((rs, rowNum) -> new ProjectRef(rs.getLong("id")))
                 .optional();
@@ -38,7 +38,7 @@ public class CatalogRepository {
     Optional<LogicalSchemaRef> findLogicalSchema(long projectId, UUID uuid) {
         return jdbc.sql("""
                         select id, uuid
-                          from entegrasyon.mantiksal_sema
+                          from akis.mantiksal_sema
                          where proje_id = :projectId and uuid = :uuid
                         """)
                 .param("projectId", projectId)
@@ -56,7 +56,7 @@ public class CatalogRepository {
             String name,
             String description) {
         jdbc.sql("""
-                        insert into entegrasyon.model(
+                        insert into akis.model(
                             proje_id, mantiksal_sema_id, uuid, kod, ad, aciklama)
                         values (:projectId, :logicalSchemaId, :uuid, :code, :name, :description)
                         """)
@@ -93,7 +93,7 @@ public class CatalogRepository {
             String code,
             String name) {
         jdbc.sql("""
-                        insert into entegrasyon.alt_model(
+                        insert into akis.alt_model(
                             proje_id, model_id, ust_alt_model_id, uuid, kod, ad)
                         values (:projectId, :modelId, :parentId, :uuid, :code, :name)
                         """)
@@ -137,9 +137,9 @@ public class CatalogRepository {
             JsonNode queryDefinition,
             String name) {
         jdbc.sql("""
-                        insert into entegrasyon.veri_nesnesi(
+                        insert into akis.veri_nesnesi(
                             proje_id, model_id, alt_model_id, uuid, kod, nesne_referansi,
-                            tur_kodu, sorgu_tanim_surumu, sorgu_tanimi, ad)
+                            tur, sorgu_sema_surumu, sorgu_tanimi, ad)
                         values (:projectId, :modelId, :submodelId, :uuid, :code, :objectReference,
                                 :type, :querySchemaVersion, cast(:queryDefinition as jsonb), :name)
                         """)
@@ -149,7 +149,7 @@ public class CatalogRepository {
                 .param("uuid", uuid)
                 .param("code", code)
                 .param("objectReference", objectReference)
-                .param("type", type)
+                .param("type", databaseDataObjectType(type))
                 .param("querySchemaVersion", querySchemaVersion, Types.INTEGER)
                 .param("queryDefinition",
                         queryDefinition == null ? null : queryDefinition.toString(), Types.VARCHAR)
@@ -179,10 +179,11 @@ public class CatalogRepository {
     private String modelSelect() {
         return """
                 select m.id, m.uuid, m.mantiksal_sema_id,
-                       l.uuid as logical_schema_uuid, m.kod, m.durum_kodu,
+                       l.uuid as logical_schema_uuid, m.kod,
+                       case when m.arsivlenme_zamani is null then 'AKTIF' else 'ARSIV' end as durum_kodu,
                        m.ad, m.aciklama, m.versiyon_no
-                  from entegrasyon.model m
-                  join entegrasyon.mantiksal_sema l on l.id = m.mantiksal_sema_id
+                  from akis.model m
+                  join akis.mantiksal_sema l on l.id = m.mantiksal_sema_id
                 """;
     }
 
@@ -199,9 +200,9 @@ public class CatalogRepository {
         return """
                 select s.id, s.uuid, s.model_id, m.uuid as model_uuid,
                        p.uuid as parent_uuid, s.kod, s.ad, s.versiyon_no
-                  from entegrasyon.alt_model s
-                  join entegrasyon.model m on m.id = s.model_id
-                  left join entegrasyon.alt_model p on p.id = s.ust_alt_model_id
+                  from akis.alt_model s
+                  join akis.model m on m.id = s.model_id
+                  left join akis.alt_model p on p.id = s.ust_alt_model_id
                 """;
     }
 
@@ -217,11 +218,14 @@ public class CatalogRepository {
         return """
                 select d.id, d.uuid, d.model_id, m.uuid as model_uuid,
                        d.alt_model_id, s.uuid as submodel_uuid, d.kod,
-                       d.nesne_referansi, d.tur_kodu, d.durum_kodu,
-                       d.sorgu_tanim_surumu, d.sorgu_tanimi, d.ad, d.versiyon_no
-                  from entegrasyon.veri_nesnesi d
-                  join entegrasyon.model m on m.id = d.model_id
-                  left join entegrasyon.alt_model s on s.id = d.alt_model_id
+                       d.nesne_referansi,
+                       case d.tur when 'GORUNUM' then 'VIEW' else d.tur end as tur_kodu,
+                       case when d.arsivlenme_zamani is null then 'AKTIF' else 'PASIF' end as durum_kodu,
+                       d.sorgu_sema_surumu as sorgu_tanim_surumu,
+                       d.sorgu_tanimi, d.ad, d.versiyon_no
+                  from akis.veri_nesnesi d
+                  join akis.model m on m.id = d.model_id
+                  left join akis.alt_model s on s.id = d.alt_model_id
                 """;
     }
 
@@ -248,5 +252,9 @@ public class CatalogRepository {
         catch (JacksonException exception) {
             throw new IllegalStateException("Stored JSON could not be read.", exception);
         }
+    }
+
+    private String databaseDataObjectType(String type) {
+        return "VIEW".equals(type) ? "GORUNUM" : type;
     }
 }

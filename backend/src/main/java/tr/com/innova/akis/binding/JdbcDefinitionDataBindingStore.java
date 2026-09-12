@@ -34,7 +34,7 @@ public class JdbcDefinitionDataBindingStore implements DefinitionDataBindingStor
 
     @Override
     public Optional<ProjectRef> findProject(UUID projectUuid) {
-        return jdbc.sql("select id from entegrasyon.proje where uuid = :uuid")
+        return jdbc.sql("select id from akis.proje where uuid = :uuid")
                 .param("uuid", projectUuid)
                 .query((rs, rowNum) -> new ProjectRef(rs.getLong("id")))
                 .optional();
@@ -45,10 +45,10 @@ public class JdbcDefinitionDataBindingStore implements DefinitionDataBindingStor
             long projectId, UUID definitionUuid, UUID definitionVersionUuid) {
         return jdbc.sql("""
                         select ts.id, t.uuid as definition_uuid,
-                               ts.uuid as definition_version_uuid, t.tur_kodu,
+                               ts.uuid as definition_version_uuid, t.tur,
                                ts.icerik
-                          from entegrasyon.tanim t
-                          join entegrasyon.tanim_surumu ts on ts.tanim_id = t.id
+                          from akis.tanim t
+                          join akis.tanim_surumu ts on ts.tanim_id = t.id
                          where t.proje_id = :projectId
                            and t.uuid = :definitionUuid
                            and ts.uuid = :definitionVersionUuid
@@ -60,7 +60,7 @@ public class JdbcDefinitionDataBindingStore implements DefinitionDataBindingStor
                         rs.getLong("id"),
                         rs.getObject("definition_uuid", UUID.class),
                         rs.getObject("definition_version_uuid", UUID.class),
-                        DefinitionType.valueOf(rs.getString("tur_kodu")),
+                        apiDefinitionType(rs.getString("tur")),
                         readJson(rs.getString("icerik"))))
                 .optional();
     }
@@ -69,7 +69,7 @@ public class JdbcDefinitionDataBindingStore implements DefinitionDataBindingStor
     public Optional<DataObjectRef> findDataObject(long projectId, UUID dataObjectUuid) {
         return jdbc.sql("""
                         select id, uuid
-                          from entegrasyon.veri_nesnesi
+                          from akis.veri_nesnesi
                          where proje_id = :projectId and uuid = :uuid
                         """)
                 .param("projectId", projectId)
@@ -84,20 +84,20 @@ public class JdbcDefinitionDataBindingStore implements DefinitionDataBindingStor
             long projectId, UUID schemaSnapshotUuid) {
         return jdbc.sql("""
                         select sg.id, sg.uuid, sg.veri_nesnesi_id
-                          from entegrasyon.sema_goruntusu sg
-                          join entegrasyon.baglanti_surumu bs
+                          from akis.sema_goruntusu sg
+                          join akis.baglanti_surumu bs
                             on bs.proje_id = sg.proje_id
                            and bs.id = sg.baglanti_surumu_id
-                          join entegrasyon.baglanti b
+                          join akis.baglanti b
                             on b.proje_id = sg.proje_id
                            and b.id = bs.baglanti_id
                          where sg.proje_id = :projectId
                            and sg.uuid = :uuid
                            and (
-                               b.veritabani_turu <> 'ORACLE'
+                               b.saglayici_turu <> 'ORACLE'
                                or exists (
                                    select 1
-                                     from entegrasyon.sema_goruntusu_oracle_kaniti ok
+                                     from akis.sema_goruntusu_oracle_kaniti ok
                                     where ok.proje_id = sg.proje_id
                                       and ok.sema_goruntusu_id = sg.id
                                       and ok.baglanti_surumu_id = sg.baglanti_surumu_id
@@ -117,7 +117,7 @@ public class JdbcDefinitionDataBindingStore implements DefinitionDataBindingStor
         return jdbc.sql("""
                         select exists(
                             select 1
-                              from entegrasyon.tanim_veri_nesnesi
+                              from akis.tanim_veri_nesnesi
                              where tanim_surumu_id = :definitionVersionId
                                and dugum_kodu = :nodeCode)
                         """)
@@ -130,9 +130,9 @@ public class JdbcDefinitionDataBindingStore implements DefinitionDataBindingStor
     @Override
     public BindingRow create(CreateBinding binding) {
         return jdbc.sql("""
-                        insert into entegrasyon.tanim_veri_nesnesi(
+                        insert into akis.tanim_veri_nesnesi(
                             proje_id, tanim_surumu_id, veri_nesnesi_id,
-                            sema_goruntusu_id, dugum_kodu, rol_kodu, uuid)
+                            sema_goruntusu_id, dugum_kodu, rol, uuid)
                         values (:projectId, :definitionVersionId, :dataObjectId,
                                 :schemaSnapshotId, :nodeCode, :role, :uuid)
                         returning olusturulma_zamani
@@ -192,60 +192,55 @@ public class JdbcDefinitionDataBindingStore implements DefinitionDataBindingStor
                                sg.kesif_zamani as discovered_at,
                                fs.uuid as physical_schema_uuid,
                                fs.kod as physical_schema_code,
-                               fs.sema_referansi as physical_schema_reference,
+                               fs.sema_adi as physical_schema_reference,
                                b.uuid as connection_uuid,
                                b.kod as connection_code,
                                b.ad as connection_name,
                                bs.uuid as connection_version_uuid,
                                bs.surum_no as connection_version_number,
                                array_agg(distinct o.kod order by o.kod) as environment_codes
-                          from entegrasyon.sema_goruntusu sg
-                          join entegrasyon.sema_goruntusu_oracle_kaniti ok
+                          from akis.sema_goruntusu sg
+                          join akis.sema_goruntusu_oracle_kaniti ok
                             on ok.proje_id = sg.proje_id
                            and ok.sema_goruntusu_id = sg.id
                            and ok.baglanti_surumu_id = sg.baglanti_surumu_id
-                          join entegrasyon.veri_nesnesi vn
+                          join akis.veri_nesnesi vn
                             on vn.proje_id = sg.proje_id
                            and vn.id = sg.veri_nesnesi_id
-                          join entegrasyon.model m
+                          join akis.model m
                             on m.proje_id = sg.proje_id and m.id = vn.model_id
-                          join entegrasyon.mantiksal_sema ms
+                          join akis.mantiksal_sema ms
                             on ms.proje_id = sg.proje_id
                            and ms.id = m.mantiksal_sema_id
-                          join entegrasyon.fiziksel_sema fs
+                          join akis.fiziksel_sema fs
                             on fs.proje_id = sg.proje_id
                            and fs.id = sg.fiziksel_sema_id
-                          join entegrasyon.baglanti_surumu bs
+                          join akis.baglanti_surumu bs
                             on bs.proje_id = sg.proje_id
                            and bs.id = sg.baglanti_surumu_id
-                          join entegrasyon.baglanti b
+                          join akis.baglanti b
                             on b.proje_id = sg.proje_id
                            and b.id = bs.baglanti_id
-                          join entegrasyon.baglanti_surumu_yasam_dongusu yd
-                            on yd.proje_id = sg.proje_id
-                           and yd.baglanti_id = b.id
-                           and yd.baglanti_surumu_id = bs.id
-                          join entegrasyon.ortam_sema_eslemesi ose
+                          join akis.sema_eslemesi ose
                             on ose.proje_id = sg.proje_id
                            and ose.mantiksal_sema_id = ms.id
                            and ose.fiziksel_sema_id = fs.id
                            and ose.baglanti_surumu_id = bs.id
-                          join entegrasyon.ortam o
+                          join akis.ortam o
                             on o.proje_id = sg.proje_id and o.id = ose.ortam_id
                          where sg.proje_id = :projectId
-                           and b.veritabani_turu = 'ORACLE'
-                           and b.durum_kodu = 'AKTIF'
-                           and yd.durum_kodu = 'ACTIVE'
-                           and fs.durum_kodu = 'AKTIF'
-                           and ms.durum_kodu = 'AKTIF'
-                           and m.durum_kodu = 'AKTIF'
-                           and vn.durum_kodu = 'AKTIF'
-                           and vn.tur_kodu = 'TABLO'
-                           and ose.durum_kodu = 'AKTIF'
-                           and o.durum_kodu = 'AKTIF'
+                           and b.saglayici_turu = 'ORACLE'
+                           and b.arsivlenme_zamani is null
+                           and bs.durum = 'ETKIN'
+                           and fs.arsivlenme_zamani is null
+                           and ms.arsivlenme_zamani is null
+                           and m.arsivlenme_zamani is null
+                           and vn.arsivlenme_zamani is null
+                           and vn.tur = 'TABLO'
+                           and o.arsivlenme_zamani is null
                          group by vn.uuid, vn.kod, vn.ad, vn.nesne_referansi,
                                   sg.uuid, sg.parmak_izi, sg.kesif_zamani,
-                                  fs.uuid, fs.kod, fs.sema_referansi,
+                                  fs.uuid, fs.kod, fs.sema_adi,
                                   b.uuid, b.kod, b.ad,
                                   bs.uuid, bs.surum_no
                          order by b.kod, fs.kod, vn.kod, sg.kesif_zamani desc
@@ -275,13 +270,13 @@ public class JdbcDefinitionDataBindingStore implements DefinitionDataBindingStor
         return """
                 select tvn.uuid, t.uuid as definition_uuid,
                        ts.uuid as definition_version_uuid, tvn.dugum_kodu,
-                       tvn.rol_kodu, vn.uuid as data_object_uuid,
+                       tvn.rol as rol_kodu, vn.uuid as data_object_uuid,
                        sg.uuid as schema_snapshot_uuid, tvn.olusturulma_zamani
-                  from entegrasyon.tanim_veri_nesnesi tvn
-                  join entegrasyon.tanim_surumu ts on ts.id = tvn.tanim_surumu_id
-                  join entegrasyon.tanim t on t.id = ts.tanim_id
-                  join entegrasyon.veri_nesnesi vn on vn.id = tvn.veri_nesnesi_id
-                  join entegrasyon.sema_goruntusu sg on sg.id = tvn.sema_goruntusu_id
+                  from akis.tanim_veri_nesnesi tvn
+                  join akis.tanim_surumu ts on ts.id = tvn.tanim_surumu_id
+                  join akis.tanim t on t.id = ts.tanim_id
+                  join akis.veri_nesnesi vn on vn.id = tvn.veri_nesnesi_id
+                  join akis.sema_goruntusu sg on sg.id = tvn.sema_goruntusu_id
                 """;
     }
 
@@ -303,5 +298,20 @@ public class JdbcDefinitionDataBindingStore implements DefinitionDataBindingStor
         catch (Exception exception) {
             throw new IllegalStateException("Stored definition content is invalid JSON.", exception);
         }
+    }
+
+    private DefinitionType apiDefinitionType(String type) {
+        return switch (type) {
+            case "MAPPING" -> DefinitionType.MAPPING;
+            case "YENIDEN_KULLANILABILIR_MAPPING" -> DefinitionType.REUSABLE_MAPPING;
+            case "PAKET" -> DefinitionType.PACKAGE;
+            case "PROSEDUR" -> DefinitionType.PROCEDURE;
+            case "DEGISKEN" -> DefinitionType.VARIABLE;
+            case "SEQUENCE" -> DefinitionType.SEQUENCE;
+            case "KULLANICI_FONKSIYONU" -> DefinitionType.USER_FUNCTION;
+            case "KNOWLEDGE_MODULE" -> DefinitionType.KNOWLEDGE_MODULE;
+            case "LOAD_PLAN" -> DefinitionType.LOAD_PLAN;
+            default -> throw new IllegalStateException("Bilinmeyen tanım türü: " + type);
+        };
     }
 }

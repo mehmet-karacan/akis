@@ -104,26 +104,27 @@ public class OracleDiscoveryRepository {
             UUID physicalSchemaUuid,
             UUID connectionVersionUuid) {
         return jdbc.sql("""
-                        select vn.uuid, vn.nesne_referansi, vn.tur_kodu, vn.durum_kodu
-                          from entegrasyon.veri_nesnesi vn
-                          join entegrasyon.model m
+                        select vn.uuid, vn.nesne_referansi,
+                               case vn.tur when 'GORUNUM' then 'VIEW' else vn.tur end as tur_kodu,
+                               case when vn.arsivlenme_zamani is null then 'AKTIF' else 'PASIF' end as durum_kodu
+                          from akis.veri_nesnesi vn
+                          join akis.model m
                             on m.proje_id = vn.proje_id
                            and m.id = vn.model_id
                          where vn.proje_id = :projectId
                            and vn.uuid = :dataObjectUuid
-                           and m.durum_kodu = 'AKTIF'
+                           and m.arsivlenme_zamani is null
                            and exists (
                                select 1
-                                 from entegrasyon.ortam_sema_eslemesi ose
-                                 join entegrasyon.fiziksel_sema fs
+                                 from akis.sema_eslemesi ose
+                                 join akis.fiziksel_sema fs
                                    on fs.proje_id = ose.proje_id
                                   and fs.id = ose.fiziksel_sema_id
-                                 join entegrasyon.baglanti_surumu bs
+                                 join akis.baglanti_surumu bs
                                    on bs.proje_id = ose.proje_id
                                   and bs.id = ose.baglanti_surumu_id
                                 where ose.proje_id = vn.proje_id
                                   and ose.mantiksal_sema_id = m.mantiksal_sema_id
-                                  and ose.durum_kodu = 'AKTIF'
                                   and fs.uuid = :physicalSchemaUuid
                                   and bs.uuid = :connectionVersionUuid)
                         """)

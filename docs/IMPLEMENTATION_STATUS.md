@@ -15,11 +15,16 @@ Status date: 2026-09-12
   schema contract. Repository acceptance tests cover folder movement, typed
   definition mapping, optimistic draft updates, immutable version creation and
   project/system scope separation.
+- Models, submodels, data objects, immutable schema/column/constraint snapshots,
+  Oracle connection-test provenance and definition-version data bindings now
+  use the clean `akis` schema. Temporary PostgreSQL acceptance tests exercise
+  catalog vocabulary translation, hierarchy creation, deterministic snapshot
+  deduplication and ordered relational metadata.
 - The connection UI no longer loads or manages separate secret-reference
   objects. It records only the name of a server-side environment variable; its
   value stays outside PostgreSQL, API responses, bundles and Git.
-- Catalog/snapshot, runnable versions and execution repositories
-  still use the legacy schema until their corresponding clean baseline groups
+- Runnable versions and execution repositories still use the legacy schema
+  until their corresponding clean baseline groups
   and acceptance tests are complete. The persistent local database has not been
   destructively cut over.
 

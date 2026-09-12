@@ -97,3 +97,15 @@ doğrulamak için:
 Bu kapı klasör döngülerini ve projeler arası bağları reddeder. Mapping, Paket,
 Prosedür, Değişken, Sequence ve diğer geliştirme nesneleri ortak `tanim`
 kimliğini ve yalnız içerik için JSON kullanan sürüm sözleşmesini paylaşır.
+
+Model, alt model, veri nesnesi, değişmez kolon/kısıt görüntüleri ve tanım-veri
+bağlarını doğrulamak için:
+
+```powershell
+.\database\akis-baseline\test-catalog.ps1
+```
+
+Bu kapı gerçek katalog ve keşif repository sorgularını çalıştırır. Aynı metadata
+yeniden keşfedildiğinde tek parmak izli görüntüye çözülür; kolon ve kısıt kolon
+sıraları ilişkisel tutulur. Oracle görüntüsü ayrıca başarılı bağlantı testine ve
+hedef parmak izine sabitlenmiş değişmez bir kanıt kaydı taşır.

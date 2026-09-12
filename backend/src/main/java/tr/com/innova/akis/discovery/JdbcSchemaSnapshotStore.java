@@ -40,7 +40,7 @@ public class JdbcSchemaSnapshotStore implements SchemaSnapshotStore {
 
     @Override
     public Optional<ProjectRef> findProject(UUID projectUuid) {
-        return jdbc.sql("select id from entegrasyon.proje where uuid = :uuid")
+        return jdbc.sql("select id from akis.proje where uuid = :uuid")
                 .param("uuid", projectUuid)
                 .query((rs, rowNum) -> new ProjectRef(rs.getLong("id")))
                 .optional();
@@ -50,7 +50,7 @@ public class JdbcSchemaSnapshotStore implements SchemaSnapshotStore {
     public Optional<DataObjectRef> findDataObject(long projectId, UUID dataObjectUuid) {
         return jdbc.sql("""
                         select id, uuid
-                          from entegrasyon.veri_nesnesi
+                          from akis.veri_nesnesi
                          where proje_id = :projectId and uuid = :uuid
                         """)
                 .param("projectId", projectId)
@@ -65,7 +65,7 @@ public class JdbcSchemaSnapshotStore implements SchemaSnapshotStore {
             long projectId, UUID physicalSchemaUuid) {
         return jdbc.sql("""
                         select id, uuid, baglanti_id
-                          from entegrasyon.fiziksel_sema
+                          from akis.fiziksel_sema
                          where proje_id = :projectId and uuid = :uuid
                         """)
                 .param("projectId", projectId)
@@ -81,8 +81,8 @@ public class JdbcSchemaSnapshotStore implements SchemaSnapshotStore {
             long projectId, UUID connectionVersionUuid) {
         return jdbc.sql("""
                         select v.id, v.uuid, v.baglanti_id
-                          from entegrasyon.baglanti_surumu v
-                          join entegrasyon.baglanti b on b.id = v.baglanti_id
+                          from akis.baglanti_surumu v
+                          join akis.baglanti b on b.id = v.baglanti_id
                          where b.proje_id = :projectId and v.uuid = :uuid
                         """)
                 .param("projectId", projectId)
@@ -96,13 +96,15 @@ public class JdbcSchemaSnapshotStore implements SchemaSnapshotStore {
     @Override
     public SnapshotRow create(CreateSnapshot snapshot) {
         Optional<Long> insertedSnapshotId = jdbc.sql("""
-                        insert into entegrasyon.sema_goruntusu(
+                        insert into akis.sema_goruntusu(
                             proje_id, veri_nesnesi_id, fiziksel_sema_id,
-                            baglanti_surumu_id, uuid, parmak_izi, motor_surumu,
-                            kesif_zamani, ozellik_surumu, ozellik)
-                        values (:projectId, :dataObjectId, :physicalSchemaId,
-                                :connectionVersionId, :uuid, :fingerprint, :engineVersion,
-                                :discoveredAt, :propertyVersion, cast(:properties as jsonb))
+                            baglanti_id, baglanti_surumu_id, uuid, parmak_izi, motor_surumu,
+                            kesif_zamani, ozellik_sema_surumu, ozellik)
+                        select :projectId, :dataObjectId, :physicalSchemaId,
+                               fs.baglanti_id, :connectionVersionId, :uuid, :fingerprint, :engineVersion,
+                               :discoveredAt, :propertyVersion, cast(:properties as jsonb)
+                          from akis.fiziksel_sema fs
+                         where fs.proje_id = :projectId and fs.id = :physicalSchemaId
                         on conflict (veri_nesnesi_id, fiziksel_sema_id,
                                      baglanti_surumu_id, parmak_izi) do nothing
                         returning id
@@ -123,7 +125,7 @@ public class JdbcSchemaSnapshotStore implements SchemaSnapshotStore {
         if (insertedSnapshotId.isEmpty()) {
             UUID existingUuid = jdbc.sql("""
                             select uuid
-                              from entegrasyon.sema_goruntusu
+                              from akis.sema_goruntusu
                              where veri_nesnesi_id = :dataObjectId
                                and fiziksel_sema_id = :physicalSchemaId
                                and baglanti_surumu_id = :connectionVersionId
@@ -157,9 +159,9 @@ public class JdbcSchemaSnapshotStore implements SchemaSnapshotStore {
 
     private long insertColumn(long projectId, long snapshotId, ColumnInput column) {
         return jdbc.sql("""
-                        insert into entegrasyon.kolon_goruntusu(
+                        insert into akis.kolon_goruntusu(
                             proje_id, sema_goruntusu_id, uuid, kolon_referansi,
-                            uretici_tip_kodu, kanonik_tip_kodu, sira_no, hassasiyet,
+                            uretici_tipi, kanonik_tip, sira_no, hassasiyet,
                             olcek, uzunluk, zaman_hassasiyeti, null_olabilir,
                             varsayilan_ifade, ad)
                         values (:projectId, :snapshotId, :uuid, :reference,
@@ -189,9 +191,9 @@ public class JdbcSchemaSnapshotStore implements SchemaSnapshotStore {
     private long insertConstraint(
             long projectId, long snapshotId, ConstraintInput constraint) {
         return jdbc.sql("""
-                        insert into entegrasyon.kisit_goruntusu(
+                        insert into akis.kisit_goruntusu(
                             proje_id, sema_goruntusu_id, uuid, dis_referans,
-                            tur_kodu, etkin, ayrinti_surumu, ayrinti, ad)
+                            tur, etkin_mi, ayrinti_sema_surumu, ayrinti, ad)
                         values (:projectId, :snapshotId, :uuid, :externalReference,
                                 :type, :enabled, :detailVersion, cast(:details as jsonb), :name)
                         returning id
@@ -200,7 +202,7 @@ public class JdbcSchemaSnapshotStore implements SchemaSnapshotStore {
                 .param("snapshotId", snapshotId)
                 .param("uuid", UUID.randomUUID())
                 .param("externalReference", constraint.externalReference())
-                .param("type", constraint.type())
+                .param("type", databaseConstraintType(constraint.type()))
                 .param("enabled", constraint.enabled())
                 .param("detailVersion", constraint.detailVersion())
                 .param("details", constraint.details().toString())
@@ -212,7 +214,7 @@ public class JdbcSchemaSnapshotStore implements SchemaSnapshotStore {
     private void insertConstraintColumn(
             long projectId, long constraintId, long columnId, int ordinal) {
         jdbc.sql("""
-                        insert into entegrasyon.kisit_kolonu(
+                        insert into akis.kisit_kolonu(
                             proje_id, kisit_goruntusu_id, kolon_goruntusu_id,
                             sira_no, uuid)
                         values (:projectId, :constraintId, :columnId, :ordinal, :uuid)
@@ -253,11 +255,11 @@ public class JdbcSchemaSnapshotStore implements SchemaSnapshotStore {
 
     private SnapshotRow loadChildren(SnapshotRow snapshot) {
         List<ColumnRow> columns = jdbc.sql("""
-                        select uuid, kolon_referansi, uretici_tip_kodu,
-                               kanonik_tip_kodu, sira_no, hassasiyet, olcek,
+                        select uuid, kolon_referansi, uretici_tipi,
+                               kanonik_tip, sira_no, hassasiyet, olcek,
                                uzunluk, zaman_hassasiyeti, null_olabilir,
                                varsayilan_ifade, ad
-                          from entegrasyon.kolon_goruntusu
+                          from akis.kolon_goruntusu
                          where sema_goruntusu_id = :snapshotId
                          order by sira_no
                         """)
@@ -265,9 +267,12 @@ public class JdbcSchemaSnapshotStore implements SchemaSnapshotStore {
                 .query(this::mapColumn)
                 .list();
         List<ConstraintRow> constraints = jdbc.sql("""
-                        select id, uuid, dis_referans, tur_kodu, etkin,
-                               ayrinti_surumu, ayrinti, ad
-                          from entegrasyon.kisit_goruntusu
+                        select id, uuid, dis_referans,
+                               case tur when 'BIRINCIL_ANAHTAR' then 'PK'
+                                   when 'BENZERSIZ' then 'UK' when 'YABANCI_ANAHTAR' then 'FK'
+                                   when 'KONTROL' then 'CHECK' end as tur_kodu,
+                               etkin_mi as etkin, ayrinti_sema_surumu as ayrinti_surumu, ayrinti, ad
+                          from akis.kisit_goruntusu
                          where sema_goruntusu_id = :snapshotId
                          order by dis_referans
                         """)
@@ -287,12 +292,12 @@ public class JdbcSchemaSnapshotStore implements SchemaSnapshotStore {
                 select s.id, s.uuid, d.uuid as data_object_uuid,
                        p.uuid as physical_schema_uuid,
                        v.uuid as connection_version_uuid, s.parmak_izi,
-                       s.motor_surumu, s.kesif_zamani, s.ozellik_surumu,
+                       s.motor_surumu, s.kesif_zamani, s.ozellik_sema_surumu as ozellik_surumu,
                        s.ozellik, s.olusturulma_zamani
-                  from entegrasyon.sema_goruntusu s
-                  join entegrasyon.veri_nesnesi d on d.id = s.veri_nesnesi_id
-                  join entegrasyon.fiziksel_sema p on p.id = s.fiziksel_sema_id
-                  join entegrasyon.baglanti_surumu v on v.id = s.baglanti_surumu_id
+                  from akis.sema_goruntusu s
+                  join akis.veri_nesnesi d on d.id = s.veri_nesnesi_id
+                  join akis.fiziksel_sema p on p.id = s.fiziksel_sema_id
+                  join akis.baglanti_surumu v on v.id = s.baglanti_surumu_id
                 """;
     }
 
@@ -311,7 +316,7 @@ public class JdbcSchemaSnapshotStore implements SchemaSnapshotStore {
     private ColumnRow mapColumn(ResultSet rs, int rowNum) throws SQLException {
         return new ColumnRow(
                 rs.getObject("uuid", UUID.class), rs.getString("kolon_referansi"),
-                rs.getString("uretici_tip_kodu"), rs.getString("kanonik_tip_kodu"),
+                rs.getString("uretici_tipi"), rs.getString("kanonik_tip"),
                 rs.getInt("sira_no"), rs.getObject("hassasiyet", Integer.class),
                 rs.getObject("olcek", Integer.class), rs.getObject("uzunluk", Long.class),
                 rs.getObject("zaman_hassasiyeti", Integer.class),
@@ -323,8 +328,8 @@ public class JdbcSchemaSnapshotStore implements SchemaSnapshotStore {
         long constraintId = rs.getLong("id");
         List<String> columnReferences = jdbc.sql("""
                         select c.kolon_referansi
-                          from entegrasyon.kisit_kolonu k
-                          join entegrasyon.kolon_goruntusu c
+                          from akis.kisit_kolonu k
+                          join akis.kolon_goruntusu c
                             on c.id = k.kolon_goruntusu_id
                          where k.kisit_goruntusu_id = :constraintId
                          order by k.sira_no
@@ -346,5 +351,15 @@ public class JdbcSchemaSnapshotStore implements SchemaSnapshotStore {
         catch (JacksonException exception) {
             throw new IllegalStateException("Stored schema JSON could not be read.", exception);
         }
+    }
+
+    private String databaseConstraintType(String type) {
+        return switch (type) {
+            case "PK" -> "BIRINCIL_ANAHTAR";
+            case "UK" -> "BENZERSIZ";
+            case "FK" -> "YABANCI_ANAHTAR";
+            case "CHECK" -> "KONTROL";
+            default -> throw new IllegalArgumentException("Unsupported constraint type: " + type);
+        };
     }
 }
