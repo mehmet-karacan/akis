@@ -86,3 +86,14 @@ arası ya da farklı bağlantılar arası hatalı şema eşleştirmelerinin redd
 de kontrol eder. Bağlantı, okuma, ağ ve sorgu zaman aşımı değerleri bağlantı
 sürümünün tipli kolonlarıdır; prosedür adımlarında veya serbest JSON içinde
 tekrarlanmaz. Bir bağlantının aynı anda yalnız bir etkin sürümü olabilir.
+
+Klasör, tanım, taslak, değişmez tanım sürümü ve sürümler arası bağımlılık grubunu
+doğrulamak için:
+
+```powershell
+.\database\akis-baseline\test-definitions.ps1
+```
+
+Bu kapı klasör döngülerini ve projeler arası bağları reddeder. Mapping, Paket,
+Prosedür, Değişken, Sequence ve diğer geliştirme nesneleri ortak `tanim`
+kimliğini ve yalnız içerik için JSON kullanan sürüm sözleşmesini paylaşır.

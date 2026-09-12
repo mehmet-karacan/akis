@@ -35,7 +35,7 @@ public class MetadataRepository {
     }
 
     void lockFolderHierarchy(long projectId) {
-        jdbc.sql("select id from entegrasyon.proje where id = :projectId for update")
+        jdbc.sql("select id from akis.proje where id = :projectId for update")
                 .param("projectId", projectId)
                 .query(Long.class)
                 .single();
@@ -177,8 +177,8 @@ public class MetadataRepository {
             String name,
             String description) {
         jdbc.sql("""
-                        insert into entegrasyon.klasor(
-                            proje_id, uuid, ust_klasor_id, kod, tur_kodu, ad, aciklama)
+                        insert into akis.klasor(
+                            proje_id, uuid, ust_klasor_id, kod, amac, ad, aciklama)
                         values (:projectId, :uuid, :parentId, :code, :type, :name, :description)
                         """)
                 .param("projectId", projectId)
@@ -213,7 +213,7 @@ public class MetadataRepository {
             Long parentId,
             long expectedVersion) {
         int changed = jdbc.sql("""
-                        update entegrasyon.klasor
+                        update akis.klasor
                            set ust_klasor_id = :parentId,
                                guncellenme_zamani = current_timestamp,
                                versiyon_no = versiyon_no + 1
@@ -248,15 +248,14 @@ public class MetadataRepository {
             String name,
             String description) {
         jdbc.sql("""
-                        insert into entegrasyon.tanim(
-                            proje_id, klasor_id, kapsam_kodu, tur_kodu,
-                            kod, ad, aciklama, uuid)
-                        values (:projectId, :folderId, 'PROJE', :type,
+                        insert into akis.tanim(
+                            proje_id, klasor_id, tur, kod, ad, aciklama, uuid)
+                        values (:projectId, :folderId, :type,
                                 :code, :name, :description, :uuid)
                         """)
                 .param("projectId", projectId)
                 .param("folderId", folderId, Types.BIGINT)
-                .param("type", type.name())
+                .param("type", storedDefinitionType(type))
                 .param("code", code)
                 .param("name", name)
                 .param("description", description, Types.VARCHAR)
@@ -272,11 +271,11 @@ public class MetadataRepository {
             String name,
             String description) {
         jdbc.sql("""
-                        insert into entegrasyon.tanim(
-                            kapsam_kodu, tur_kodu, kod, ad, aciklama, uuid)
-                        values ('GLOBAL', :type, :code, :name, :description, :uuid)
+                        insert into akis.tanim(
+                            kapsam, tur, kod, ad, aciklama, uuid)
+                        values ('SISTEM', :type, :code, :name, :description, :uuid)
                         """)
-                .param("type", type.name())
+                .param("type", storedDefinitionType(type))
                 .param("code", code)
                 .param("name", name)
                 .param("description", description, Types.VARCHAR)
@@ -288,12 +287,12 @@ public class MetadataRepository {
     List<DefinitionRow> listDefinitions(long projectId, DefinitionType type) {
         String sql = definitionSelect() + " where t.proje_id = :projectId";
         if (type != null) {
-            sql += " and t.tur_kodu = :type";
+            sql += " and t.tur = :type";
         }
-        sql += " order by t.tur_kodu, t.kod";
+        sql += " order by t.tur, t.kod";
         JdbcClient.StatementSpec query = jdbc.sql(sql).param("projectId", projectId);
         if (type != null) {
-            query = query.param("type", type.name());
+            query = query.param("type", storedDefinitionType(type));
         }
         return query.query(this::mapDefinition).list();
     }
@@ -312,7 +311,7 @@ public class MetadataRepository {
             Long folderId,
             long expectedVersion) {
         int changed = jdbc.sql("""
-                        update entegrasyon.tanim
+                        update akis.tanim
                            set klasor_id = :folderId,
                                guncellenme_zamani = current_timestamp,
                                versiyon_no = versiyon_no + 1
@@ -339,27 +338,27 @@ public class MetadataRepository {
     }
 
     List<DefinitionRow> listGlobalDefinitions(DefinitionType type) {
-        String sql = definitionSelect() + " where t.proje_id is null";
+        String sql = definitionSelect() + " where t.kapsam = 'SISTEM'";
         if (type != null) {
-            sql += " and t.tur_kodu = :type";
+            sql += " and t.tur = :type";
         }
-        sql += " order by t.tur_kodu, t.kod";
+        sql += " order by t.tur, t.kod";
         JdbcClient.StatementSpec query = jdbc.sql(sql);
         if (type != null) {
-            query = query.param("type", type.name());
+            query = query.param("type", storedDefinitionType(type));
         }
         return query.query(this::mapDefinition).list();
     }
 
     Optional<DefinitionRow> findGlobalDefinition(UUID uuid) {
-        return jdbc.sql(definitionSelect() + " where t.proje_id is null and t.uuid = :uuid")
+        return jdbc.sql(definitionSelect() + " where t.kapsam = 'SISTEM' and t.uuid = :uuid")
                 .param("uuid", uuid)
                 .query(this::mapDefinition)
                 .optional();
     }
 
     void lockDefinition(long definitionId) {
-        jdbc.sql("select id from entegrasyon.tanim where id = :definitionId for update")
+        jdbc.sql("select id from akis.tanim where id = :definitionId for update")
                 .param("definitionId", definitionId)
                 .query(Long.class)
                 .single();
@@ -369,7 +368,7 @@ public class MetadataRepository {
         return jdbc.sql("""
                         select uuid, tanim_id, sema_surumu, icerik,
                                versiyon_no
-                          from entegrasyon.tanim_taslagi
+                          from akis.tanim_taslagi
                          where tanim_id = :definitionId
                         """)
                 .param("definitionId", definitionId)
@@ -384,9 +383,10 @@ public class MetadataRepository {
 
     DraftRow createDraft(long definitionId, int schemaVersion, JsonNode content) {
         jdbc.sql("""
-                        insert into entegrasyon.tanim_taslagi(
-                            tanim_id, sema_surumu, icerik)
-                        values (:definitionId, :schemaVersion, cast(:content as jsonb))
+                        insert into akis.tanim_taslagi(
+                            proje_id, tanim_id, sema_surumu, icerik)
+                        select proje_id, id, :schemaVersion, cast(:content as jsonb)
+                          from akis.tanim where id = :definitionId
                         """)
                 .param("definitionId", definitionId)
                 .param("schemaVersion", schemaVersion)
@@ -401,7 +401,7 @@ public class MetadataRepository {
             int schemaVersion,
             JsonNode content) {
         int changed = jdbc.sql("""
-                        update entegrasyon.tanim_taslagi
+                        update akis.tanim_taslagi
                            set sema_surumu = :schemaVersion,
                                icerik = cast(:content as jsonb),
                                guncellenme_zamani = current_timestamp,
@@ -431,18 +431,19 @@ public class MetadataRepository {
             String description) {
         Integer nextVersion = jdbc.sql("""
                         select coalesce(max(surum_no), 0) + 1
-                          from entegrasyon.tanim_surumu
+                          from akis.tanim_surumu
                          where tanim_id = :definitionId
                         """)
                 .param("definitionId", definitionId)
                 .query(Integer.class)
                 .single();
         return jdbc.sql("""
-                        insert into entegrasyon.tanim_surumu(
-                            tanim_id, surum_no, sema_surumu, icerik_ozeti,
+                        insert into akis.tanim_surumu(
+                            proje_id, tanim_id, surum_no, sema_surumu, icerik_ozeti,
                             icerik, aciklama)
-                        values (:definitionId, :versionNumber, :schemaVersion,
-                                :contentHash, cast(:content as jsonb), :description)
+                        select proje_id, id, :versionNumber, :schemaVersion,
+                               :contentHash, cast(:content as jsonb), :description
+                          from akis.tanim where id = :definitionId
                         returning uuid, surum_no, sema_surumu, icerik_ozeti,
                                   icerik, aciklama, olusturulma_zamani
                         """)
@@ -465,11 +466,10 @@ public class MetadataRepository {
 
     void activateDraftDefinition(long definitionId) {
         jdbc.sql("""
-                        update entegrasyon.tanim
-                           set durum_kodu = 'AKTIF',
-                               guncellenme_zamani = current_timestamp,
+                        update akis.tanim
+                           set guncellenme_zamani = current_timestamp,
                                versiyon_no = versiyon_no + 1
-                         where id = :id and durum_kodu = 'TASLAK'
+                         where id = :id and arsivlenme_zamani is null
                         """)
                 .param("id", definitionId)
                 .update();
@@ -479,7 +479,7 @@ public class MetadataRepository {
         return jdbc.sql("""
                         select uuid, surum_no, sema_surumu, icerik_ozeti,
                                icerik, aciklama, olusturulma_zamani
-                          from entegrasyon.tanim_surumu
+                          from akis.tanim_surumu
                          where tanim_id = :definitionId
                          order by surum_no desc
                         """)
@@ -498,10 +498,12 @@ public class MetadataRepository {
     private String folderSelect() {
         return """
                 select k.id, k.proje_id, k.uuid, p.uuid as parent_uuid,
-                       k.kod, k.tur_kodu, k.durum_kodu, k.ad, k.aciklama,
+                       k.kod, k.amac,
+                       case when k.arsivlenme_zamani is null then 'AKTIF' else 'ARSIVLENDI' end as durum,
+                       k.ad, k.aciklama,
                        k.versiyon_no
-                  from entegrasyon.klasor k
-                  left join entegrasyon.klasor p on p.id = k.ust_klasor_id
+                  from akis.klasor k
+                  left join akis.klasor p on p.id = k.ust_klasor_id
                 """;
     }
 
@@ -512,8 +514,8 @@ public class MetadataRepository {
                 rs.getObject("uuid", UUID.class),
                 rs.getObject("parent_uuid", UUID.class),
                 rs.getString("kod"),
-                rs.getString("tur_kodu"),
-                rs.getString("durum_kodu"),
+                rs.getString("amac"),
+                rs.getString("durum"),
                 rs.getString("ad"),
                 rs.getString("aciklama"),
                 rs.getLong("versiyon_no"));
@@ -522,10 +524,12 @@ public class MetadataRepository {
     private String definitionSelect() {
         return """
                 select t.id, t.proje_id, t.uuid, k.uuid as folder_uuid,
-                       t.tur_kodu, t.kod, t.durum_kodu, t.ad, t.aciklama,
+                       t.tur, t.kod,
+                       case when t.arsivlenme_zamani is null then 'AKTIF' else 'ARSIVLENDI' end as durum,
+                       t.ad, t.aciklama,
                        t.versiyon_no
-                  from entegrasyon.tanim t
-                  left join entegrasyon.klasor k on k.id = t.klasor_id
+                  from akis.tanim t
+                  left join akis.klasor k on k.id = t.klasor_id
                 """;
     }
 
@@ -536,12 +540,41 @@ public class MetadataRepository {
                 rs.getObject("proje_id", Long.class),
                 rs.getObject("uuid", UUID.class),
                 rs.getObject("folder_uuid", UUID.class),
-                DefinitionType.valueOf(rs.getString("tur_kodu")),
+                apiDefinitionType(rs.getString("tur")),
                 rs.getString("kod"),
-                rs.getString("durum_kodu"),
+                rs.getString("durum"),
                 rs.getString("ad"),
                 rs.getString("aciklama"),
                 rs.getLong("versiyon_no"));
+    }
+
+    private String storedDefinitionType(DefinitionType type) {
+        return switch (type) {
+            case MAPPING -> "MAPPING";
+            case REUSABLE_MAPPING -> "YENIDEN_KULLANILABILIR_MAPPING";
+            case PACKAGE -> "PAKET";
+            case PROCEDURE -> "PROSEDUR";
+            case VARIABLE -> "DEGISKEN";
+            case SEQUENCE -> "SEQUENCE";
+            case USER_FUNCTION -> "KULLANICI_FONKSIYONU";
+            case KNOWLEDGE_MODULE -> "KNOWLEDGE_MODULE";
+            case LOAD_PLAN -> "LOAD_PLAN";
+        };
+    }
+
+    private DefinitionType apiDefinitionType(String type) {
+        return switch (type) {
+            case "MAPPING" -> DefinitionType.MAPPING;
+            case "YENIDEN_KULLANILABILIR_MAPPING" -> DefinitionType.REUSABLE_MAPPING;
+            case "PAKET" -> DefinitionType.PACKAGE;
+            case "PROSEDUR" -> DefinitionType.PROCEDURE;
+            case "DEGISKEN" -> DefinitionType.VARIABLE;
+            case "SEQUENCE" -> DefinitionType.SEQUENCE;
+            case "KULLANICI_FONKSIYONU" -> DefinitionType.USER_FUNCTION;
+            case "KNOWLEDGE_MODULE" -> DefinitionType.KNOWLEDGE_MODULE;
+            case "LOAD_PLAN" -> DefinitionType.LOAD_PLAN;
+            default -> throw new IllegalStateException("Bilinmeyen tanım türü: " + type);
+        };
     }
 
     private JsonNode json(String value) {

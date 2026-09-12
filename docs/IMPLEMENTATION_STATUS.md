@@ -10,10 +10,15 @@ Status date: 2026-09-12
   physical/logical schemas, environments and schema bindings now have clean
   repository coverage. Connection test evidence and revision activation no
   longer depend on the legacy lifecycle tables.
+- Project folders, project definitions, allowed system-library definitions,
+  drafts, immutable versions and version dependencies now have a clean Turkish
+  schema contract. Repository acceptance tests cover folder movement, typed
+  definition mapping, optimistic draft updates, immutable version creation and
+  project/system scope separation.
 - The connection UI no longer loads or manages separate secret-reference
   objects. It records only the name of a server-side environment variable; its
   value stays outside PostgreSQL, API responses, bundles and Git.
-- Catalog/snapshot, definitions, runnable versions and execution repositories
+- Catalog/snapshot, runnable versions and execution repositories
   still use the legacy schema until their corresponding clean baseline groups
   and acceptance tests are complete. The persistent local database has not been
   destructively cut over.
