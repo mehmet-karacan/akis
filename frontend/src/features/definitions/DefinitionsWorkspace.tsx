@@ -5,13 +5,13 @@ import {
   CirclePlus,
   FileCode2,
   FolderInput,
+  FolderPlus,
   GitBranch,
   Layers3,
   LoaderCircle,
   Plus,
   RefreshCw,
   Save,
-  Search,
   ShieldCheck,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
@@ -31,7 +31,6 @@ import { definitionTypeKey, useDefinitionsI18n } from './i18n'
 import { JsonDraftEditor } from './JsonDraftEditor'
 import { MappingGrid } from './MappingGrid'
 import { ProcedureEditor } from './ProcedureEditor'
-import { ProjectExplorer } from './ProjectExplorer'
 import { StructuredDraftEditor } from './StructuredDraftEditor'
 import type {
   DataBinding,
@@ -50,6 +49,8 @@ import type {
 } from './types'
 import { DEFINITION_TYPES } from './types'
 import './definitions.css'
+
+const notifyProjectTreeChanged = () => window.dispatchEvent(new Event('akis:definitions-changed'))
 
 interface DefinitionsWorkspaceProps {
   projectUuid: string
@@ -77,7 +78,7 @@ function errorMessage(error: unknown, fallback: string) {
 }
 
 export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps) {
-  const { language, t } = useDefinitionsI18n()
+  const { t } = useDefinitionsI18n()
   const { setPendingChanges } = usePendingChanges()
   const [searchParams, setSearchParams] = useSearchParams()
   const initialSelection = useRef({ projectUuid, uuid: searchParams.get('definition') })
@@ -89,8 +90,6 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
   const [folders, setFolders] = useState<Folder[]>([])
   const [types, setTypes] = useState<DefinitionTypeDescriptor[]>(fallbackTypes)
   const [selectedUuid, setSelectedUuid] = useState<string | null>(null)
-  const [query, setQuery] = useState('')
-  const [typeFilter, setTypeFilter] = useState<DefinitionType | ''>('')
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
@@ -164,6 +163,15 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
   }, [loadWorkspace])
 
   useEffect(() => {
+    const requestedUuid = searchParams.get('definition')
+    if (!requestedUuid || requestedUuid === selectedUuid || dirty
+        || !definitions.some((definition) => definition.uuid === requestedUuid)) return
+    definitionRequest.current += 1
+    setSelectedUuid(requestedUuid)
+    setTab('draft')
+  }, [definitions, dirty, searchParams, selectedUuid])
+
+  useEffect(() => {
     let active = true
     setCapabilities(null); setCapabilityError(false)
     void executionApi.getCapabilities(projectUuid).then((value) => { if (active) setCapabilities(value) }).catch(() => { if (active) setCapabilityError(true) })
@@ -231,34 +239,6 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
       active = false
     }
   }, [projectUuid, selectedDefinition, selectedVersionUuid])
-
-  const filteredDefinitions = useMemo(() => {
-    const normalized = query.trim().toLocaleLowerCase(language)
-    return definitions.filter((definition) => {
-      if (typeFilter && definition.type !== typeFilter) return false
-      if (!normalized) return true
-      return `${definition.code} ${definition.name} ${typeLabel(definition.type)}`
-        .toLocaleLowerCase(language)
-        .includes(normalized)
-    })
-  }, [definitions, language, query, typeFilter, typeLabel])
-
-  const explorerFolders = useMemo(() => {
-    const activeFolders = folders.filter((folder) => folder.status === 'AKTIF')
-    if (!query.trim() && !typeFilter) return activeFolders
-    const byUuid = new Map(activeFolders.map((folder) => [folder.uuid, folder]))
-    const visible = new Set<string>()
-    for (const definition of filteredDefinitions) {
-      let folderUuid = definition.folderUuid
-      const path = new Set<string>()
-      while (folderUuid && !path.has(folderUuid)) {
-        path.add(folderUuid)
-        visible.add(folderUuid)
-        folderUuid = byUuid.get(folderUuid)?.parentUuid ?? null
-      }
-    }
-    return activeFolders.filter((folder) => visible.has(folder.uuid))
-  }, [filteredDefinitions, folders, query, typeFilter])
 
   async function saveDraft(): Promise<boolean> {
     if (!selectedDefinition || saving || !jsonValid) return false
@@ -365,12 +345,6 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
     setSearchParams(nextParams, { replace: true })
   }
 
-  function selectDefinition(uuid: string) {
-    if (uuid === selectedUuid) return
-    if (dirty) { setPendingDefinitionUuid(uuid); return }
-    applyDefinitionSelection(uuid)
-  }
-
   return (
     <div className="definitions-workspace" onKeyDown={handleWorkspaceKeyDown}>
       <header className="definitions-titlebar">
@@ -379,51 +353,15 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
           <h1>{t('title')}</h1>
           <p>{t('subtitle')}</p>
         </div>
-        <button className="definition-button definition-button--primary" type="button" onClick={() => setShowCreate(true)}>
-          <CirclePlus size={17} aria-hidden="true" /> {t('newDefinition')}
-        </button>
+        <div className="definition-title-actions"><button className="definition-button definition-button--quiet" type="button" onClick={() => setShowCreateFolder(true)}><FolderPlus size={17} aria-hidden="true" /> {t('newFolder')}</button><button className="definition-button definition-button--primary" type="button" onClick={() => setShowCreate(true)}><CirclePlus size={17} aria-hidden="true" /> {t('newDefinition')}</button></div>
       </header>
       {capabilityError && <div className="definition-notice definition-notice--info" role="status"><AlertCircle size={16} aria-hidden="true" /><span>{t('capabilityUnavailable')}</span></div>}
       {environmentLoadError && <div className="definition-notice definition-notice--error" role="alert"><AlertCircle size={16} aria-hidden="true" /><span>{t('environmentLoadError')}</span></div>}
 
-      <div className="definitions-shell">
-        <aside className="definitions-browser" aria-label={t('title')}>
-          <div className="definitions-browser-tools">
-            <label className="definition-search">
-              <Search size={17} aria-hidden="true" />
-              <span className="sr-only">{t('search')}</span>
-              <input value={query} placeholder={t('searchPlaceholder')} onChange={(event) => setQuery(event.target.value)} />
-            </label>
-            <label>
-              <span className="sr-only">{t('filterType')}</span>
-              <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as DefinitionType | '')}>
-                <option value="">{t('allTypes')}</option>
-                {types.map((type) => <option key={type.code} value={type.code}>{typeLabel(type.code)}</option>)}
-              </select>
-            </label>
-          </div>
-
-          {loading ? (
-            <div className="definition-state"><LoaderCircle className="spin" aria-hidden="true" /> {t('loading')}</div>
-          ) : loadError ? (
-            <div className="definition-state definition-state--error">
-              <AlertCircle aria-hidden="true" />
-              <p>{loadError}</p>
-              <button className="definition-button definition-button--quiet" type="button" onClick={() => void loadWorkspace()}>{t('retry')}</button>
-            </div>
-          ) : (
-            <ProjectExplorer
-              folders={explorerFolders}
-              definitions={filteredDefinitions}
-              selectedUuid={selectedUuid}
-              onSelect={selectDefinition}
-              onCreateFolder={() => setShowCreateFolder(true)}
-              onMoveFolder={setFolderToMove}
-            />
-          )}
-        </aside>
-
+      <div className="definitions-shell definitions-shell--workbench">
         <section className="definition-workbench" aria-label={t('details')}>
+          {loading && <div className="definition-state"><LoaderCircle className="spin" aria-hidden="true" /> {t('loading')}</div>}
+          {loadError && <div className="definition-state definition-state--error"><AlertCircle aria-hidden="true" /><p>{loadError}</p><button className="definition-button definition-button--quiet" type="button" onClick={() => void loadWorkspace()}>{t('retry')}</button></div>}
           {status && (
             <div className={`definition-notice definition-notice--${status.tone}`} role={status.tone === 'error' ? 'alert' : 'status'}>
               {status.tone === 'success' ? <Check size={16} aria-hidden="true" /> : <AlertCircle size={16} aria-hidden="true" />}
@@ -569,6 +507,7 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
               const nextParams = new URLSearchParams(searchParams)
               nextParams.set('definition', created.uuid)
               setSearchParams(nextParams, { replace: true })
+              notifyProjectTreeChanged()
               setShowCreate(false)
               setTab('draft')
             } catch (error) {
@@ -589,6 +528,7 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
             try {
               const created = await definitionsApi.createFolder(projectUuid, input)
               setFolders((current) => [...current, created])
+              notifyProjectTreeChanged()
               setShowCreateFolder(false)
               setStatus({ tone: 'success', text: t('folderCreated') })
             } catch (error) {
@@ -611,6 +551,7 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
             try {
               const moved = await definitionsApi.moveDefinition(projectUuid, selectedDefinition.uuid, input)
               setDefinitions((current) => current.map((definition) => definition.uuid === moved.uuid ? moved : definition))
+              notifyProjectTreeChanged()
               setShowMoveDefinition(false)
               setStatus({ tone: 'success', text: t('definitionMoved') })
             } catch (error) {
@@ -632,6 +573,7 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
             try {
               const moved = await definitionsApi.moveFolder(projectUuid, folderToMove.uuid, input)
               setFolders((current) => current.map((folder) => folder.uuid === moved.uuid ? moved : folder))
+              notifyProjectTreeChanged()
               setFolderToMove(null)
               setStatus({ tone: 'success', text: t('folderMoved') })
             } catch (error) {

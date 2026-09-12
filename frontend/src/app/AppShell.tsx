@@ -1,10 +1,10 @@
 import {
-  Braces, ChevronDown, CircleUserRound, DatabaseZap, FolderKanban, Gauge,
+  ChevronDown, CircleUserRound, DatabaseZap, FolderKanban, Gauge,
   Languages, LogOut, Moon, Network, PanelLeftClose, PanelLeftOpen, Sun,
 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { apiRequest } from '../core/api/client'
 import { useAuth } from '../core/auth/AuthContext'
 import { PendingChangesContext, type PendingChanges } from '../core/navigation/PendingChangesContext'
@@ -12,9 +12,11 @@ import { useTheme, type ThemeMode } from '../core/theme/ThemeContext'
 import { Dialog } from '../core/ui/Dialog'
 import { ExportProjectButton } from '../features/bundles/ExportProjectButton'
 import { listProjects, type Project } from '../features/projects/projectsApi'
+import { definitionsApi } from '../features/definitions/api'
+import type { Definition, Folder } from '../features/definitions/types'
+import { ProjectSidebarTree } from './ProjectSidebarTree'
 
 const projectNavigation = [
-  { path: '/development', key: 'nav.development', icon: Braces },
   { path: '/operations', key: 'nav.operations', icon: Gauge },
   { path: '/connections', key: 'nav.connections', icon: Network },
 ]
@@ -24,6 +26,7 @@ export function AppShell() {
   const { username, logout } = useAuth()
   const { mode, setMode } = useTheme()
   const navigate = useNavigate()
+  const location = useLocation()
   const { projectUuid } = useParams()
   const [project, setProject] = useState<Project | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
@@ -34,6 +37,10 @@ export function AppShell() {
   const [pendingPath, setPendingPath] = useState<string | null>(null)
   const [savingBeforeLeave, setSavingBeforeLeave] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
+  const [folders, setFolders] = useState<Folder[]>([])
+  const [definitions, setDefinitions] = useState<Definition[]>([])
+  const [objectsLoading, setObjectsLoading] = useState(false)
+  const [objectsFailed, setObjectsFailed] = useState(false)
 
   useEffect(() => {
     if (!projectUuid) {
@@ -54,6 +61,25 @@ export function AppShell() {
     if (pendingChanges) setPendingPath(path)
     else navigate(path)
   }, [navigate, pendingChanges])
+
+  const loadProjectObjects = useCallback(async () => {
+    if (!projectUuid) { setFolders([]); setDefinitions([]); return }
+    setObjectsLoading(true); setObjectsFailed(false)
+    try {
+      const [nextFolders, nextDefinitions] = await Promise.all([
+        definitionsApi.listFolders(projectUuid), definitionsApi.listDefinitions(projectUuid),
+      ])
+      setFolders(nextFolders); setDefinitions(nextDefinitions)
+    } catch { setObjectsFailed(true) }
+    finally { setObjectsLoading(false) }
+  }, [projectUuid])
+
+  useEffect(() => { void loadProjectObjects() }, [loadProjectObjects])
+  useEffect(() => {
+    const reload = () => void loadProjectObjects()
+    window.addEventListener('akis:definitions-changed', reload)
+    return () => window.removeEventListener('akis:definitions-changed', reload)
+  }, [loadProjectObjects])
 
   useEffect(() => {
     if (!switcherOpen) return
@@ -93,6 +119,16 @@ export function AppShell() {
                   <Icon size={18} /><span>{t(key)}</span>
                 </NavLink>
               ))}
+              {!collapsed && <ProjectSidebarTree
+                projectUuid={projectUuid}
+                folders={folders}
+                definitions={definitions}
+                selectedUuid={new URLSearchParams(location.search).get('definition')}
+                loading={objectsLoading}
+                failed={objectsFailed}
+                onNavigate={requestNavigation}
+                onRetry={() => void loadProjectObjects()}
+              />}
             </div>
           )}
         </nav>

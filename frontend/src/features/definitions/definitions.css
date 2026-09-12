@@ -48,6 +48,8 @@
 .definition-eyebrow { color: var(--df-accent) !important; font-size: .72rem !important; font-weight: 800; letter-spacing: .13em; }
 
 .definitions-shell { display: grid; grid-template-columns: minmax(17rem, 22rem) minmax(0, 1fr); min-height: calc(100vh - 13rem); background: var(--df-bg); }
+.definitions-shell--workbench { grid-template-columns: minmax(0, 1fr); }
+.definition-title-actions { display: flex; flex-wrap: wrap; gap: .55rem; }
 .definitions-browser { position: sticky; top: 4.25rem; align-self: start; max-height: calc(100vh - 4.25rem); overflow: auto; border-right: 1px solid var(--df-line); background: var(--df-panel); min-width: 0; }
 .definitions-browser-tools { display: grid; gap: .65rem; padding: .9rem; border-bottom: 1px solid var(--df-line); }
 .definitions-browser-tools > label > select { width: 100%; }
