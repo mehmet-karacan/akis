@@ -8,6 +8,7 @@ import type { ApprovalDecision } from './types'
 import type { ProcedurePilotVerification, ProcedureSourcePreflight, ProcedureTargetPreflight } from './types'
 import { apiErrorMessage, formatDate, redactSensitiveValues } from './utils'
 import { useRemoteData } from './useRemoteData'
+import { executionCodeLabel } from '../execution/i18n'
 
 export function PublicationDetailPage() {
   const { projectUuid = '', publicationUuid = '' } = useParams()
@@ -106,7 +107,7 @@ export function PublicationDetailPage() {
             <Panel title={t('publicationContext')}>
               <dl className="ops-kv">
                 <dt>{t('status')}</dt><dd><StatusBadge value={publication.status} /></dd>
-                <dt>{t('environment')}</dt><dd>{publication.environmentCode} · {publication.environmentRisk}</dd>
+                <dt>{t('environment')}</dt><dd>{publication.environmentCode} · {executionCodeLabel(publication.environmentRisk, locale)}</dd>
                 <dt>{t('createdAt')}</dt><dd>{formatDate(publication.createdAt, locale)}</dd>
                 <dt>{t('publishedAt')}</dt><dd>{formatDate(publication.publishedAt, locale)}</dd>
               </dl>

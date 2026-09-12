@@ -576,3 +576,14 @@ export const definitionTypeKey = {
   KNOWLEDGE_MODULE: 'knowledgeModule',
   LOAD_PLAN: 'loadPlan',
 } as const
+
+const codeLabels: Record<'en' | 'tr', Record<string, string>> = {
+  en: { STRING: 'Text', NUMBER: 'Number', DATE: 'Date', BOOLEAN: 'Boolean', PROJECT: 'Project', PACKAGE: 'Package', LATEST: 'Latest value', HISTORY: 'Keep history', INPUT: 'Input', DEFAULT: 'Default value', REPOSITORY: 'Repository', NATIVE: 'Database native', SQL: 'SQL', PLSQL: 'PL/SQL', STORED_PROCEDURE: 'Stored procedure', SOURCE: 'Source', TARGET: 'Target', READ_ONLY: 'Read only', DML: 'Data change (DML)', DDL: 'Structure change (DDL)', DESTRUCTIVE: 'Destructive', STOP: 'Stop', CONTINUE: 'Continue', APPEND: 'Append', STAGED_REPLACE: 'Staged replace', MERGE: 'Merge', TRUNCATE_LOAD: 'Truncate and load', ATOMIC_DELETE_INSERT: 'Atomic delete and insert', VARIABLE_EVALUATE: 'Variable evaluation', PROCEDURE: 'Procedure', MAPPING: 'Data flow' },
+  tr: { STRING: 'Metin', NUMBER: 'Sayı', DATE: 'Tarih', BOOLEAN: 'Mantıksal', PROJECT: 'Proje', PACKAGE: 'Paket', LATEST: 'Son değer', HISTORY: 'Geçmişi tut', INPUT: 'Girdi', DEFAULT: 'Varsayılan değer', REPOSITORY: 'Depo', NATIVE: 'Veritabanı yerel', SQL: 'SQL', PLSQL: 'PL/SQL', STORED_PROCEDURE: 'Saklı prosedür', SOURCE: 'Kaynak', TARGET: 'Hedef', READ_ONLY: 'Salt okunur', DML: 'Veri değişikliği (DML)', DDL: 'Yapı değişikliği (DDL)', DESTRUCTIVE: 'Yıkıcı', STOP: 'Durdur', CONTINUE: 'Devam et', APPEND: 'Sonuna ekle', STAGED_REPLACE: 'Aşamalı değiştir', MERGE: 'Birleştir', TRUNCATE_LOAD: 'Boşalt ve yükle', ATOMIC_DELETE_INSERT: 'Atomik sil ve ekle', VARIABLE_EVALUATE: 'Değişken değerlendirme', PROCEDURE: 'Prosedür', MAPPING: 'Veri akışı' },
+}
+
+export function definitionCodeLabel(code: string, language: string) {
+  const locale = language === 'tr' ? 'tr-TR' : 'en-US'
+  return codeLabels[language === 'tr' ? 'tr' : 'en'][code]
+    ?? code.toLocaleLowerCase(locale).replaceAll('_', ' ').replace(/(^|\s)\S/g, (value) => value.toLocaleUpperCase(locale))
+}

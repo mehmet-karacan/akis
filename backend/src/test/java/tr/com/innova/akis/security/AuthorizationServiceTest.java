@@ -22,6 +22,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import tr.com.innova.akis.metadata.ApiException;
 import tr.com.innova.akis.security.AuthorizationRepository.PrincipalIdentity;
 import tr.com.innova.akis.security.AuthorizationRepository.ProjectAccess;
+import tr.com.innova.akis.security.AuthorizationRepository.ProjectGrant;
 
 class AuthorizationServiceTest {
 
@@ -71,6 +72,21 @@ class AuthorizationServiceTest {
 
         assertEquals(HttpStatus.FORBIDDEN, error.status());
         assertEquals("PERMISSION_DENIED", error.code());
+    }
+
+    @Test
+    void projectsCurrentRolesAndPermissionsForRoleAwareUi() {
+        FakeRepository repository = new FakeRepository(new ProjectAccess(true, true), false);
+        repository.grants = List.of(
+                new ProjectGrant("OPERASYON", PermissionCodes.PROJECT_READ),
+                new ProjectGrant("OPERASYON", PermissionCodes.RUN_READ));
+        AuthorizationService service = new AuthorizationService(repository, "oidc");
+        authenticateOidc("https://identity.example", "operator", "operator");
+
+        var access = service.projectAuthorization(PROJECT_UUID);
+
+        assertEquals(java.util.Set.of("OPERASYON"), access.roles());
+        assertEquals(java.util.Set.of(PermissionCodes.PROJECT_READ, PermissionCodes.RUN_READ), access.permissions());
     }
 
     @Test
@@ -200,6 +216,7 @@ class AuthorizationServiceTest {
         private PrincipalIdentity principal;
         private String permissionCode;
         private int callCount;
+        private List<ProjectGrant> grants = List.of();
 
         private FakeRepository(ProjectAccess projectAccess, boolean systemPermission) {
             super(null);
@@ -226,6 +243,11 @@ class AuthorizationServiceTest {
             this.permissionCode = permissionCode;
             callCount++;
             return systemPermission;
+        }
+
+        @Override
+        public List<ProjectGrant> projectGrants(PrincipalIdentity principal, UUID projectUuid) {
+            return grants;
         }
     }
 }

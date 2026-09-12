@@ -15,9 +15,10 @@ import {
   ShieldCheck,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ApiProblem } from '../../core/api/client'
 import { usePendingChanges } from '../../core/navigation/PendingChangesContext'
+import { useProjectAccess } from '../../core/auth/ProjectAccessContext'
 import { Dialog } from '../../core/ui/Dialog'
 import { executionApi } from '../execution/api'
 import type { ProjectCapabilities } from '../execution/types'
@@ -54,6 +55,7 @@ const notifyProjectTreeChanged = () => window.dispatchEvent(new Event('akis:defi
 
 interface DefinitionsWorkspaceProps {
   projectUuid: string
+  routeDefinitionUuid?: string
 }
 
 type WorkspaceTab = 'draft' | 'versions' | 'bindings'
@@ -76,13 +78,19 @@ function errorMessage(error: unknown, fallback: string) {
   return fallback
 }
 
-export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps) {
+export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: DefinitionsWorkspaceProps) {
   const { t } = useDefinitionsI18n()
+  const navigate = useNavigate()
   const { setPendingChanges } = usePendingChanges()
+  const { can } = useProjectAccess()
+  const canWrite = can('TANIM_DUZENLE')
+  const canValidate = can('TANIM_DOGRULA')
+  const canPublish = can('CALISTIRILABILIR_SURUM_OLUSTUR')
   const [searchParams, setSearchParams] = useSearchParams()
-  const initialSelection = useRef({ projectUuid, uuid: searchParams.get('definition') })
+  const requestedDefinitionUuid = routeDefinitionUuid ?? searchParams.get('definition')
+  const initialSelection = useRef({ projectUuid, uuid: requestedDefinitionUuid })
   if (initialSelection.current.projectUuid !== projectUuid) {
-    initialSelection.current = { projectUuid, uuid: searchParams.get('definition') }
+    initialSelection.current = { projectUuid, uuid: requestedDefinitionUuid }
   }
   const definitionRequest = useRef(0)
   const [definitions, setDefinitions] = useState<Definition[]>([])
@@ -181,13 +189,13 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
   }, [loadWorkspace])
 
   useEffect(() => {
-    const requestedUuid = searchParams.get('definition')
+    const requestedUuid = routeDefinitionUuid ?? searchParams.get('definition')
     if (!requestedUuid || requestedUuid === selectedUuid || dirty
         || !definitions.some((definition) => definition.uuid === requestedUuid)) return
     definitionRequest.current += 1
     setSelectedUuid(requestedUuid)
     setTab('draft')
-  }, [definitions, dirty, searchParams, selectedUuid])
+  }, [definitions, dirty, routeDefinitionUuid, searchParams, selectedUuid])
 
   useEffect(() => {
     let active = true
@@ -285,9 +293,9 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
   saveDraftAction.current = saveDraft
 
   useEffect(() => {
-    setPendingChanges(dirty ? { save: () => saveDraftAction.current() } : null)
+    setPendingChanges(dirty && canWrite ? { save: () => saveDraftAction.current() } : null)
     return () => setPendingChanges(null)
-  }, [dirty, setPendingChanges])
+  }, [canWrite, dirty, setPendingChanges])
 
   useEffect(() => {
     if (!dirty) return
@@ -356,10 +364,7 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
     definitionRequest.current += 1
     setSelectedUuid(uuid)
     setTab('draft')
-    const nextParams = new URLSearchParams(searchParams)
-    nextParams.set('definition', uuid)
-    nextParams.delete('tab')
-    setSearchParams(nextParams, { replace: true })
+    void navigate(`/projects/${encodeURIComponent(projectUuid)}/development/definitions/${encodeURIComponent(uuid)}`, { replace: true })
   }
 
   return (
@@ -370,7 +375,7 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
           <h1>{t('title')}</h1>
           <p>{t('subtitle')}</p>
         </div>
-        <div className="definition-title-actions"><button className="definition-button definition-button--quiet" type="button" onClick={() => setFolderCreateContext({ parentUuid: null })}><FolderPlus size={17} aria-hidden="true" /> {t('newFolder')}</button><button className="definition-button definition-button--primary" type="button" onClick={() => { setCreateDefinitionType(null); setShowCreate(true) }}><CirclePlus size={17} aria-hidden="true" /> {t('newDefinition')}</button></div>
+        {canWrite && <div className="definition-title-actions"><button className="definition-button definition-button--quiet" type="button" onClick={() => setFolderCreateContext({ parentUuid: null })}><FolderPlus size={17} aria-hidden="true" /> {t('newFolder')}</button><button className="definition-button definition-button--primary" type="button" onClick={() => { setCreateDefinitionType(null); setShowCreate(true) }}><CirclePlus size={17} aria-hidden="true" /> {t('newDefinition')}</button></div>}
       </header>
       {capabilityError && <div className="definition-notice definition-notice--info" role="status"><AlertCircle size={16} aria-hidden="true" /><span>{t('capabilityUnavailable')}</span></div>}
       {environmentLoadError && <div className="definition-notice definition-notice--error" role="alert"><AlertCircle size={16} aria-hidden="true" /><span>{t('environmentLoadError')}</span></div>}
@@ -406,9 +411,9 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
                   {selectedDefinition.description && <p>{selectedDefinition.description}</p>}
                 </div>
                 <div className="definition-document-actions">
-                  <button className="definition-button definition-button--quiet" type="button" onClick={() => setShowMoveDefinition(true)}>
+                  {canWrite && <button className="definition-button definition-button--quiet" type="button" onClick={() => setShowMoveDefinition(true)}>
                     <FolderInput size={16} aria-hidden="true" /> {t('moveDefinition')}
-                  </button>
+                  </button>}
                   <button className="definition-icon-button" type="button" aria-label={t('reloadDraft')} onClick={() => void loadDefinition()}>
                     <RefreshCw size={17} aria-hidden="true" />
                   </button>
@@ -445,14 +450,14 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
                       <strong>{draft ? t('draftVersion', { version: draft.version }) : t('noDraft')}</strong>
                       {dirty && <span>{t('unsaved')}</span>}
                     </div>
-                    <div className="definition-editor-actions">
+                    {canWrite && <div className="definition-editor-actions">
                       <button className="definition-button definition-button--primary" type="button" disabled={saving || !dirty} onClick={() => void saveDraft()}>
                         {saving ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Save size={16} aria-hidden="true" />}
                         {saving ? t('saving') : t('saveDraft')}
                       </button>
-                    </div>
+                    </div>}
                   </div>
-                  {selectedDefinition.type === 'MAPPING' && isMappingContent(content) ? (
+                  <fieldset className="definition-readonly-gate" disabled={!canWrite}>{selectedDefinition.type === 'MAPPING' && isMappingContent(content) ? (
                     <MappingGrid projectUuid={projectUuid} value={content} onChange={updateContent} />
                   ) : selectedDefinition.type === 'PROCEDURE' && isProcedureContent(content) ? (
                     <ProcedureEditor projectUuid={projectUuid} value={content} onChange={updateContent} limits={capabilities?.procedure} />
@@ -461,8 +466,8 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
                   ) : !['MAPPING', 'PROCEDURE', 'REUSABLE_MAPPING'].includes(selectedDefinition.type) ? (
                     <StructuredDraftEditor type={selectedDefinition.type} value={content} onChange={updateContent} />
                   ) : (
-                    <div className="definition-state definition-state--error"><AlertCircle aria-hidden="true" /><p>{t('unsupportedDraftShape')}</p><button className="definition-button definition-button--quiet" type="button" onClick={() => updateContent(createDefaultContent(selectedDefinition.type))}>{t('resetStructuredDraft')}</button></div>
-                  )}
+                    <div className="definition-state definition-state--error"><AlertCircle aria-hidden="true" /><p>{t('unsupportedDraftShape')}</p>{canWrite && <button className="definition-button definition-button--quiet" type="button" onClick={() => updateContent(createDefaultContent(selectedDefinition.type))}>{t('resetStructuredDraft')}</button>}</div>
+                  )}</fieldset>
                 </section>
               ) : tab === 'versions' ? (
                 <VersionsPanel
@@ -482,6 +487,9 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
                   compileScenario={compileScenario}
                   environments={environments}
                   onError={(text) => setStatus({ tone: 'error', text })}
+                  canWrite={canWrite}
+                  canValidate={canValidate}
+                  canPublish={canPublish}
                 />
               ) : (
                 <BindingsPanel
@@ -493,6 +501,7 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
                   bindings={bindings}
                   onCreated={(binding) => setBindings((current) => [binding, ...current])}
                   onError={(text) => setStatus({ tone: 'error', text })}
+                  canWrite={canWrite}
                 />
               )}
             </>
@@ -500,7 +509,7 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
         </section>
       </div>
 
-      {showCreate && (
+      {showCreate && canWrite && (
         <CreateDefinitionDialog
           projectUuid={projectUuid}
           folders={folders}
@@ -514,9 +523,7 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
               const created = await definitionsApi.createDefinition(projectUuid, input)
               setDefinitions((current) => [created, ...current])
               setSelectedUuid(created.uuid)
-              const nextParams = new URLSearchParams(searchParams)
-              nextParams.set('definition', created.uuid)
-              setSearchParams(nextParams, { replace: true })
+              navigate(`/projects/${encodeURIComponent(projectUuid)}/development/definitions/${encodeURIComponent(created.uuid)}`, { replace: true })
               notifyProjectTreeChanged()
               setShowCreate(false)
               setCreateDefinitionType(null)
@@ -529,7 +536,7 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
           }}
         />
       )}
-      {folderCreateContext && (
+      {folderCreateContext && canWrite && (
         <CreateFolderDialog
           parentUuid={folderCreateContext.parentUuid}
           parentName={folders.find((folder) => folder.uuid === folderCreateContext.parentUuid)?.name ?? null}
@@ -718,6 +725,9 @@ interface VersionsPanelProps {
   compileScenario: () => void
   environments: Environment[]
   onError: (message: string) => void
+  canWrite: boolean
+  canValidate: boolean
+  canPublish: boolean
 }
 
 function VersionsPanel(props: VersionsPanelProps) {
@@ -742,7 +752,7 @@ function VersionsPanel(props: VersionsPanelProps) {
   return (
     <section id="definition-panel-versions" className="definition-version-layout" role="tabpanel" aria-labelledby="definition-tab-versions">
       <div className="definition-version-column">
-        <form className="definition-version-form" onSubmit={props.createVersion}>
+        {props.canWrite && <form className="definition-version-form" onSubmit={props.createVersion}>
           <label>
             <span>{t('versionDescription')}</span>
             <input value={props.versionDescription} placeholder={t('versionDescriptionPlaceholder')} onChange={(event) => props.setVersionDescription(event.target.value)} />
@@ -751,7 +761,7 @@ function VersionsPanel(props: VersionsPanelProps) {
             {props.creatingVersion ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}
             {props.creatingVersion ? t('creatingVersion') : t('createVersion')}
           </button>
-        </form>
+        </form>}
         <div className="definition-version-list">
           {props.versions.length === 0 ? <p className="definition-state">{t('noVersions')}</p> : props.versions.map((version) => (
             <button key={version.uuid} type="button" className={version.uuid === props.selectedVersionUuid ? 'is-selected' : ''} onClick={() => props.setSelectedVersionUuid(version.uuid)}>
@@ -765,7 +775,7 @@ function VersionsPanel(props: VersionsPanelProps) {
       <div className="definition-scenario-column">
         <div className="definition-panel-heading">
           <div><h3>{t('scenarios')}</h3>{selected && <p>{t('version')} {selected.versionNumber} · <code>{selected.contentHash.slice(0, 12)}</code></p>}</div>
-          {props.executable && selected && (
+          {props.canValidate && props.executable && selected && (
             <button className="definition-button definition-button--primary" type="button" disabled={props.compiling} onClick={props.compileScenario}>
               {props.compiling ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <GitBranch size={16} aria-hidden="true" />}
               {props.compiling ? t('compiling') : t('compile')}
@@ -779,10 +789,10 @@ function VersionsPanel(props: VersionsPanelProps) {
                 <div><strong>{t('scenarioVersion', { version: scenario.scenarioVersion })}</strong><span>{t('planVersion', { version: scenario.planVersion })}</span></div>
                 <code>{scenario.planHash}</code>
                 <time dateTime={scenario.createdAt}>{formatter.format(new Date(scenario.createdAt))}</time>
-                <div className="definition-runnable-actions">
+                {props.canPublish && <div className="definition-runnable-actions">
                   <label><span>{t('environment')}</span><select value={environmentUuid} onChange={(event) => setEnvironmentUuid(event.target.value)} disabled={props.environments.length === 0}>{props.environments.map((environment) => <option key={environment.uuid} value={environment.uuid}>{environment.name} · {environment.code}</option>)}</select></label>
                   {prepared[scenario.uuid] ? <Link className="definition-button definition-button--quiet" to={`/projects/${props.projectUuid}/publications/${prepared[scenario.uuid]!.uuid}`}>{t('reviewRunnableVersion')}</Link> : <button className="definition-button definition-button--primary" type="button" disabled={!environmentUuid || preparingScenarioUuid === scenario.uuid} onClick={() => void prepare(scenario)}>{preparingScenarioUuid === scenario.uuid ? t('preparingRunnableVersion') : t('prepareRunnableVersion')}</button>}
-                </div>
+                </div>}
               </article>
             ))}
           </div>
@@ -801,6 +811,7 @@ interface BindingsPanelProps {
   bindings: DataBinding[]
   onCreated: (binding: DataBinding) => void
   onError: (message: string) => void
+  canWrite: boolean
 }
 
 function BindingsPanel(props: BindingsPanelProps) {
@@ -885,7 +896,7 @@ function BindingsPanel(props: BindingsPanelProps) {
         <h3>{t('binding')}</h3>
         <label><span>{t('version')}</span><select value={props.selectedVersion?.uuid ?? ''} onChange={(event) => props.selectVersion(event.target.value)}><option value="">—</option>{props.versions.map((version) => <option key={version.uuid} value={version.uuid}>v{version.versionNumber}</option>)}</select></label>
       </div>
-      <form className="definition-binding-form" onSubmit={submit}>
+      {props.canWrite && <form className="definition-binding-form" onSubmit={submit}>
         {nodes.length > 0 ? <>
           <label><span>{t('stepOrDataset')}</span><select required value={input.nodeCode} onChange={(event) => selectNode(event.target.value)}><option value="">—</option>{availableNodes.map((node) => <option key={node.code} value={node.code}>{node.name} · {node.code} · {node.role === 'KAYNAK' ? t('source') : t('target')}</option>)}</select></label>
           <label><span>{t('catalogSnapshot')}</span><select required value={input.schemaSnapshotUuid} onChange={(event) => selectCandidate(event.target.value)} disabled={loadingCandidates || candidates.length === 0}><option value="">—</option>{candidates.map((candidate) => <option key={candidate.schemaSnapshotUuid} value={candidate.schemaSnapshotUuid}>{candidateLabel(candidate)}</option>)}</select></label>
@@ -893,7 +904,7 @@ function BindingsPanel(props: BindingsPanelProps) {
           <label><span>{t('environments')}</span><input readOnly value={selectedCandidate?.environmentCodes.join(', ') ?? '—'} /></label>
         </> : <p className="definition-state">{t('structuredBindingUnavailable')}</p>}
         <button className="definition-button definition-button--primary" type="submit" disabled={!props.selectedVersion || saving || nodes.length === 0 || !input.nodeCode || !selectedCandidate}>{saving ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}{t('saveBinding')}</button>
-      </form>
+      </form>}
       {loadingCandidates && <p className="definition-state"><LoaderCircle className="spin" aria-hidden="true" /> {t('loadingBindingCandidates')}</p>}
       {candidateError && <p className="definition-state definition-state--error" role="alert"><AlertCircle aria-hidden="true" /> {candidateError}</p>}
       {!loadingCandidates && !candidateError && nodes.length > 0 && candidates.length === 0 && <p className="definition-state">{t('noTrustedSnapshots')}</p>}

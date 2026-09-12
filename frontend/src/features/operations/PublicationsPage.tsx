@@ -4,6 +4,7 @@ import { EmptyState, ErrorState, LoadingState, PageHeader, Panel, StatusBadge } 
 import { useOperationsI18n } from './i18n'
 import { apiErrorMessage, formatDate } from './utils'
 import { useRemoteData } from './useRemoteData'
+import { executionCodeLabel } from '../execution/i18n'
 
 export function PublicationsPage() {
   const { projectUuid = '' } = useParams()
@@ -49,7 +50,7 @@ export function PublicationsPage() {
                     <td>#{publication.publicationNumber}</td>
                     <td>
                       {publication.environmentCode}
-                      <span className="ops-cell-secondary">{publication.environmentRisk}</span>
+                      <span className="ops-cell-secondary">{executionCodeLabel(publication.environmentRisk, locale)}</span>
                     </td>
                     <td><StatusBadge value={publication.status} /></td>
                     <td><code title={publication.releaseHash}>{publication.releaseHash.slice(0, 12)}…</code></td>

@@ -49,6 +49,17 @@ class AuthorizationRepositoryIT {
     }
 
     @Test
+    void returnsTheEffectiveRoleProfileForTheSelectedProject() {
+        Fixture fixture = projectFixture("OPERASYON");
+
+        var grants = repository.projectGrants(fixture.principal(), fixture.projectUuid());
+
+        assertTrue(grants.stream().allMatch(grant -> "OPERASYON".equals(grant.roleCode())));
+        assertTrue(grants.stream().anyMatch(grant -> "CALISTIRMA_GORUNTULE".equals(grant.permissionCode())));
+        assertFalse(grants.stream().anyMatch(grant -> "TANIM_DUZENLE".equals(grant.permissionCode())));
+    }
+
+    @Test
     void suspendedMembershipHidesProjectAndRevokedRoleRemovesPermission() {
         Fixture suspended = projectFixture("GELISTIRICI");
         jdbc.sql("""

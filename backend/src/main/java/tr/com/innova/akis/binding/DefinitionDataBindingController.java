@@ -1,7 +1,7 @@
 package tr.com.innova.akis.binding;
 
-import static tr.com.innova.akis.security.PermissionCodes.PROJECT_READ;
-import static tr.com.innova.akis.security.PermissionCodes.PROJECT_WRITE;
+import static tr.com.innova.akis.security.PermissionCodes.DEFINITION_READ;
+import static tr.com.innova.akis.security.PermissionCodes.DEFINITION_WRITE;
 
 import java.net.URI;
 import java.time.OffsetDateTime;
@@ -42,7 +42,7 @@ final class DefinitionDataBindingController {
             @PathVariable UUID definitionUuid,
             @PathVariable UUID definitionVersionUuid,
             @Valid @RequestBody CreateBindingRequest request) {
-        authorization.requireProjectPermission(projectUuid, PROJECT_WRITE);
+        authorization.requireProjectPermission(projectUuid, DEFINITION_WRITE);
         BindingRow row = service.create(
                 projectUuid, definitionUuid, definitionVersionUuid,
                 request.nodeCode(), request.role(), request.dataObjectUuid(),
@@ -59,7 +59,7 @@ final class DefinitionDataBindingController {
             @PathVariable UUID projectUuid,
             @PathVariable UUID definitionUuid,
             @PathVariable UUID definitionVersionUuid) {
-        authorization.requireProjectPermission(projectUuid, PROJECT_READ);
+        authorization.requireProjectPermission(projectUuid, DEFINITION_READ);
         return service.list(projectUuid, definitionUuid, definitionVersionUuid).stream()
                 .map(BindingView::from)
                 .toList();
@@ -70,7 +70,7 @@ final class DefinitionDataBindingController {
             @PathVariable UUID projectUuid,
             @PathVariable UUID definitionUuid,
             @PathVariable UUID definitionVersionUuid) {
-        authorization.requireProjectPermission(projectUuid, PROJECT_READ);
+        authorization.requireProjectPermission(projectUuid, DEFINITION_READ);
         return service.candidates(projectUuid, definitionUuid, definitionVersionUuid)
                 .stream()
                 .map(BindingCandidateView::from)
@@ -83,7 +83,7 @@ final class DefinitionDataBindingController {
             @PathVariable UUID definitionUuid,
             @PathVariable UUID definitionVersionUuid,
             @PathVariable UUID bindingUuid) {
-        authorization.requireProjectPermission(projectUuid, PROJECT_READ);
+        authorization.requireProjectPermission(projectUuid, DEFINITION_READ);
         return BindingView.from(service.get(
                 projectUuid, definitionUuid, definitionVersionUuid, bindingUuid));
     }

@@ -1,11 +1,12 @@
 import { Blocks, Braces, ChevronDown, ChevronRight, Database, ExternalLink, FileCode2, Folder, FolderOpen, FolderPlus, Hash, MoreHorizontal, PanelRightOpen, Play, Plus, RefreshCw, Search, Variable, WandSparkles, Workflow, X } from 'lucide-react'
-import { useEffect, useMemo, useState, type MouseEvent } from 'react'
+import { useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { DefinitionTypeIcon } from '../features/definitions/DefinitionTypeIcon'
 import { buildFolderTree, matchesObjectSearch, type FolderTreeNode } from './ProjectObjectTreeAdapter'
 import { definitionTypeKey, useDefinitionsI18n } from '../features/definitions/i18n'
 import type { Definition, Folder as ProjectFolder } from '../features/definitions/types'
 import { definitionsApi } from '../features/definitions/api'
+import { useProjectAccess } from '../core/auth/ProjectAccessContext'
 
 const FLOW_TYPES = new Set(['MAPPING', 'PACKAGE', 'PROCEDURE', 'LOAD_PLAN'])
 const COMPONENT_TYPES = ['VARIABLE', 'SEQUENCE', 'USER_FUNCTION', 'KNOWLEDGE_MODULE'] as const
@@ -26,6 +27,9 @@ interface Props {
 export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading, failed, onNavigate, onRetry, projectUuid }: Props) {
   const { t: shellT, i18n } = useTranslation()
   const { t } = useDefinitionsI18n()
+  const { can } = useProjectAccess()
+  const canWrite = can('TANIM_DUZENLE')
+  const canValidate = can('TANIM_DOGRULA')
   const [query, setQuery] = useState('')
   const [menu, setMenu] = useState<{ definition: Definition; x: number; y: number } | null>(null)
   const [folderMenu, setFolderMenu] = useState<{ folder: ProjectFolder; x: number; y: number } | null>(null)
@@ -57,19 +61,34 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
   useEffect(() => {
     if (!menu && !folderMenu && !creationMenu) return
     const close = () => { setMenu(null); setFolderMenu(null); setCreationMenu(null) }
-    const closeWithEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') close() }
+    const closeWithEscape = (event: globalThis.KeyboardEvent) => { if (event.key === 'Escape') close() }
     window.addEventListener('click', close)
     window.addEventListener('scroll', close, true)
     window.addEventListener('keydown', closeWithEscape)
     return () => { window.removeEventListener('click', close); window.removeEventListener('scroll', close, true); window.removeEventListener('keydown', closeWithEscape) }
   }, [creationMenu, folderMenu, menu])
 
+  useEffect(() => {
+    if (!menu && !folderMenu && !creationMenu) return
+    const frame = window.requestAnimationFrame(() => document.querySelector<HTMLElement>('.sidebar-object-context-menu [role="menuitem"]')?.focus())
+    return () => window.cancelAnimationFrame(frame)
+  }, [creationMenu, folderMenu, menu])
+
+  const handleMenuKeys = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const items = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')]
+    if (!items.length || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
+    event.preventDefault()
+    const current = items.indexOf(document.activeElement as HTMLButtonElement)
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : (current + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length
+    items[next]?.focus()
+  }
+
   const toggle = (uuid: string) => setExpanded((current) => {
     const next = new Set(current)
     if (next.has(uuid)) next.delete(uuid); else next.add(uuid)
     return next
   })
-  const openDefinition = (uuid: string) => onNavigate(`/projects/${encodeURIComponent(projectUuid)}/development?definition=${encodeURIComponent(uuid)}`)
+  const openDefinition = (uuid: string) => onNavigate(`/projects/${encodeURIComponent(projectUuid)}/development/definitions/${encodeURIComponent(uuid)}`)
   const openMenu = (definition: Definition, event: MouseEvent) => {
     event.preventDefault(); event.stopPropagation()
     const rect = event.currentTarget.getBoundingClientRect()
@@ -167,17 +186,17 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
         </li>
       </ul>}
     </div>
-    {menu && <div className="sidebar-object-context-menu" role="menu" style={{ left: Math.min(menu.x, window.innerWidth - 220), top: Math.min(menu.y, window.innerHeight - 190) }} onClick={(event) => event.stopPropagation()}>
+    {menu && <div className="sidebar-object-context-menu" role="menu" style={{ left: Math.min(menu.x, window.innerWidth - 220), top: Math.min(menu.y, window.innerHeight - 190) }} onKeyDown={handleMenuKeys} onClick={(event) => event.stopPropagation()}>
       <header><DefinitionTypeIcon type={menu.definition.type} /><span><strong>{menu.definition.name}</strong><small>{menu.definition.code}</small></span></header>
       <button type="button" role="menuitem" onClick={() => { setMenu(null); openDefinition(menu.definition.uuid) }}><ExternalLink />{shellT('nav.openObject')}</button>
-      {executable(menu.definition) && <button type="button" role="menuitem" disabled={compilingUuid === menu.definition.uuid} onClick={() => void compileScenario(menu.definition)}><WandSparkles />{compilingUuid === menu.definition.uuid ? shellT('nav.creatingScenario') : shellT('nav.createScenario')}</button>}
+      {canValidate && executable(menu.definition) && <button type="button" role="menuitem" disabled={compilingUuid === menu.definition.uuid} onClick={() => void compileScenario(menu.definition)}><WandSparkles />{compilingUuid === menu.definition.uuid ? shellT('nav.creatingScenario') : shellT('nav.createScenario')}</button>}
       {executable(menu.definition) && <button type="button" role="menuitem" onClick={() => { const uuid = menu.definition.uuid; setMenu(null); onNavigate(`/projects/${encodeURIComponent(projectUuid)}/operations?definition=${encodeURIComponent(uuid)}&start=1`) }}><Play />{shellT('nav.runObject')}</button>}
     </div>}
-    {folderMenu && <div className="sidebar-object-context-menu" role="menu" style={{ left: Math.min(folderMenu.x, window.innerWidth - 220), top: Math.min(folderMenu.y, window.innerHeight - 120) }} onClick={(event) => event.stopPropagation()}>
+    {folderMenu && canWrite && <div className="sidebar-object-context-menu" role="menu" style={{ left: Math.min(folderMenu.x, window.innerWidth - 220), top: Math.min(folderMenu.y, window.innerHeight - 120) }} onKeyDown={handleMenuKeys} onClick={(event) => event.stopPropagation()}>
       <header><Folder /><span><strong>{folderMenu.folder.name}</strong><small>{folderMenu.folder.code}</small></span></header>
       <button type="button" role="menuitem" onClick={() => { const uuid = folderMenu.folder.uuid; setFolderMenu(null); onNavigate(`/projects/${encodeURIComponent(projectUuid)}/development?createFolder=${encodeURIComponent(uuid)}`) }}><FolderPlus />{shellT('nav.createSubfolder')}</button>
     </div>}
-    {creationMenu && <div className="sidebar-object-context-menu" role="menu" style={{ left: Math.min(creationMenu.x, window.innerWidth - 220), top: Math.min(creationMenu.y, window.innerHeight - 230) }} onClick={(event) => event.stopPropagation()}>
+    {creationMenu && canWrite && <div className="sidebar-object-context-menu" role="menu" style={{ left: Math.min(creationMenu.x, window.innerWidth - 220), top: Math.min(creationMenu.y, window.innerHeight - 230) }} onKeyDown={handleMenuKeys} onClick={(event) => event.stopPropagation()}>
       <header><Blocks /><span><strong>{creationMenu.type ? t(definitionTypeKey[creationMenu.type]) : shellT('nav.commonComponents')}</strong><small>{shellT('nav.createComponent')}</small></span></header>
       {(creationMenu.type ? [creationMenu.type] : COMPONENT_TYPES).map((type) => { const Icon = componentIcon[type]; return <button type="button" role="menuitem" key={type} onClick={() => createComponent(type)}><Icon />{shellT('nav.addNamed', { name: t(definitionTypeKey[type]) })}</button> })}
     </div>}

@@ -1,8 +1,12 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render as testingRender, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import i18n from '../core/i18n'
 import { ProjectSidebarTree } from './ProjectSidebarTree'
 import type { Definition, Folder } from '../features/definitions/types'
+import { ProjectAccessProvider } from '../core/auth/ProjectAccessContext'
+
+const access = { roles: ['GELISTIRICI'], permissions: ['TANIM_DUZENLE', 'TANIM_DOGRULA'] }
+const render = (element: React.ReactElement) => testingRender(<ProjectAccessProvider value={access}>{element}</ProjectAccessProvider>)
 
 const folder: Folder = {
   uuid: 'folder-1', parentUuid: null, code: 'LOADS',
@@ -28,7 +32,7 @@ describe('persistent project sidebar tree', () => {
     const object = screen.getByTitle('Load Daily · Procedure')
     expect(object.parentElement).toHaveClass('is-selected')
     fireEvent.click(object)
-    expect(navigate).toHaveBeenCalledWith('/projects/project-1/development?definition=procedure-1')
+    expect(navigate).toHaveBeenCalledWith('/projects/project-1/development/definitions/procedure-1')
   })
 
   it('opens the same object action menu from right click and the three-dot button', () => {
@@ -43,6 +47,17 @@ describe('persistent project sidebar tree', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Load Daily' }))
     expect(screen.getByRole('menuitem', { name: 'Open' })).toBeInTheDocument()
+  })
+
+  it('moves through context menu actions with arrow keys', async () => {
+    render(<ProjectSidebarTree projectUuid="project-1" folders={[folder]} definitions={[definition]} selectedUuid={null} loading={false} failed={false} onNavigate={vi.fn()} onRetry={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Load Daily' }))
+    const open = await screen.findByRole('menuitem', { name: 'Open' })
+    await vi.waitFor(() => expect(open).toHaveFocus())
+    fireEvent.keyDown(open.closest('[role="menu"]')!, { key: 'ArrowDown' })
+    expect(screen.getByRole('menuitem', { name: 'Create Scenario' })).toHaveFocus()
+    fireEvent.keyDown(open.closest('[role="menu"]')!, { key: 'End' })
+    expect(screen.getByRole('menuitem', { name: 'Run' })).toHaveFocus()
   })
 
   it('creates a subfolder from the selected folder context', () => {

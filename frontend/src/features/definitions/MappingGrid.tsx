@@ -2,7 +2,7 @@ import { Plus, Search, Trash2, Undo2 } from 'lucide-react'
 import { Fragment, useEffect, useMemo, useState, type KeyboardEvent } from 'react'
 import { topologyApi, type DataObject, type Model, type SchemaSnapshot } from '../topology/api'
 import { ExpressionBuilder, expressionSummary } from './ExpressionBuilder'
-import { useDefinitionsI18n } from './i18n'
+import { definitionCodeLabel, useDefinitionsI18n } from './i18n'
 import { filterMappingRows, MAPPING_PAGE_SIZE, pageCount, safePage } from './mappingUtils'
 import type { ColumnMapping, MappingContent, MappingDataset } from './types'
 
@@ -30,7 +30,7 @@ function createRow(value: MappingContent): ColumnMapping {
 interface CatalogEntry { model: Model; object: DataObject; snapshot?: SchemaSnapshot }
 
 export function MappingGrid({ projectUuid, value, onChange }: MappingGridProps) {
-  const { t } = useDefinitionsI18n()
+  const { language, t } = useDefinitionsI18n()
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(0)
   const [catalog, setCatalog] = useState<CatalogEntry[]>([])
@@ -358,11 +358,7 @@ export function MappingGrid({ projectUuid, value, onChange }: MappingGridProps) 
               })
             }}
           >
-            <option value="APPEND">APPEND</option>
-            <option value="STAGED_REPLACE">STAGED_REPLACE</option>
-            <option value="MERGE">MERGE</option>
-            <option value="TRUNCATE_LOAD">TRUNCATE_LOAD</option>
-            <option value="ATOMIC_DELETE_INSERT">ATOMIC_DELETE_INSERT</option>
+            {(['APPEND', 'STAGED_REPLACE', 'MERGE', 'TRUNCATE_LOAD', 'ATOMIC_DELETE_INSERT'] as const).map((kind) => <option key={kind} value={kind}>{definitionCodeLabel(kind, language)}</option>)}
           </select>
         </label>
         {value.writeStrategy.kind === 'MERGE' && (

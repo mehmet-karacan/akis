@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { AsyncState, FilterBar, PageHeader } from '../../core/ui'
+import { useProjectAccess } from '../../core/auth/ProjectAccessContext'
 import { topologyApi } from '../topology/api'
 import type { ConnectionCatalogItem } from './catalog'
 import { ConnectionsTable } from './ConnectionsTable'
@@ -17,6 +18,7 @@ export function ConnectionsPage() {
   const [catalog, setCatalog] = useState<ConnectionCatalogItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const { can } = useProjectAccess()
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
@@ -51,7 +53,7 @@ export function ConnectionsPage() {
   const labels = { provider: t('connections.provider'), connection: t('connections.connection'), endpoint: t('connections.endpoint'), revision: t('connections.revision'), physical: t('connections.physicalShort'), logical: t('connections.logicalShort'), status: t('connections.status'), actions: t('connections.actions'), open: t('connections.open'), active: t('connections.active'), tested: t('connections.tested'), draft: t('connections.draft') }
 
   return <section className="page-stack connections-page">
-    <PageHeader eyebrow={t('connections.eyebrow')} title={t('connections.title')} description={t('connections.description')} actions={<Link className="button primary" to={`/projects/${projectUuid}/connections/new`}><Plus size={16} />{t('connections.add')}</Link>} />
+    <PageHeader eyebrow={t('connections.eyebrow')} title={t('connections.title')} description={t('connections.description')} actions={can('BAGLANTI_YONET') ? <Link className="button primary" to={`/projects/${projectUuid}/connections/new`}><Plus size={16} />{t('connections.add')}</Link> : undefined} />
     <FilterBar>
       <label className="connections-search"><Search size={16} /><span className="sr-only">{t('connections.search')}</span><input value={query} onChange={(event) => updateParam('q', event.target.value)} placeholder={t('connections.searchPlaceholder')} /></label>
       <label><span className="sr-only">{t('connections.provider')}</span><select value={provider} onChange={(event) => updateParam('provider', event.target.value)}><option value="ALL">{t('connections.allProviders')}</option><option value="ORACLE">Oracle</option></select></label>

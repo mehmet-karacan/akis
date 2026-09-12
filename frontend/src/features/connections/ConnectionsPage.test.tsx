@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import i18n from '../../core/i18n'
 import { topologyApi, type ConnectionCatalogProjection } from '../topology/api'
 import { ConnectionsPage } from './ConnectionsPage'
+import { ProjectAccessProvider } from '../../core/auth/ProjectAccessContext'
 
 const catalog = Array.from({ length: 30 }, (_, index): ConnectionCatalogProjection => ({
   connection: { uuid: `connection-${index}`, code: `SKY_${String(index).padStart(2, '0')}`, databaseType: 'ORACLE', status: 'AKTIF', name: `Sky ${String(index).padStart(2, '0')}`, version: 1 },
@@ -29,5 +30,11 @@ describe('ConnectionsPage', () => {
     fireEvent.change(screen.getByPlaceholderText('Search by name, code or provider'), { target: { value: 'SKY_01' } })
     await waitFor(() => expect(screen.getByTestId('location')).not.toHaveTextContent('page=2'))
     expect(screen.getByText('1 connection')).toBeInTheDocument()
+  })
+
+  it('does not offer a write action to a read-only operator', async () => {
+    render(<ProjectAccessProvider value={{ roles: ['OPERASYON'], permissions: ['BAGLANTI_GORUNTULE'] }}><MemoryRouter initialEntries={['/projects/project/connections']}><Routes><Route path="/projects/:projectUuid/connections" element={<ConnectionsPage />} /></Routes></MemoryRouter></ProjectAccessProvider>)
+    expect(await screen.findByText('30 connections')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Add Connection' })).not.toBeInTheDocument()
   })
 })

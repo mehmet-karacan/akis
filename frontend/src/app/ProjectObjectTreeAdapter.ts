@@ -8,7 +8,9 @@ export function buildFolderTree(folders: Folder[], locale = 'en'): FolderTreeNod
   const known = new Set(sorted.map((folder) => folder.uuid))
   for (const folder of sorted) {
     const parent = folder.parentUuid && known.has(folder.parentUuid) ? folder.parentUuid : null
-    byParent.set(parent, [...(byParent.get(parent) ?? []), folder])
+    const siblings = byParent.get(parent)
+    if (siblings) siblings.push(folder)
+    else byParent.set(parent, [folder])
   }
   const visited = new Set<string>()
   const visit = (folder: Folder, ancestors: Set<string>): FolderTreeNode | null => {

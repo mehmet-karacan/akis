@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { Outlet, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { apiRequest } from '../core/api/client'
 import { useAuth } from '../core/auth/AuthContext'
+import { ProjectAccessProvider, type ProjectAccess } from '../core/auth/ProjectAccessContext'
 import { PendingChangesContext, type PendingChanges } from '../core/navigation/PendingChangesContext'
 import { useTheme, type ThemeMode } from '../core/theme/ThemeContext'
 import { Dialog } from '../core/ui/Dialog'
@@ -26,6 +27,7 @@ export function AppShell() {
   const location = useLocation()
   const { projectUuid } = useParams()
   const [project, setProject] = useState<Project | null>(null)
+  const [projectAccess, setProjectAccess] = useState<ProjectAccess | null>(null)
   const [pendingChanges, setPendingChangesState] = useState<PendingChanges | null>(null)
   const [pendingPath, setPendingPath] = useState<string | null>(null)
   const [savingBeforeLeave, setSavingBeforeLeave] = useState(false)
@@ -42,13 +44,18 @@ export function AppShell() {
   useEffect(() => {
     if (!projectUuid) {
       setProject(null)
+      setProjectAccess(null)
       return
     }
     setProject(null)
+    setProjectAccess(null)
     let active = true
     void apiRequest<Project>(`/api/v1/projects/${projectUuid}`)
       .then((value) => { if (active) setProject(value) })
       .catch(() => { if (active) setProject(null) })
+    void apiRequest<ProjectAccess>(`/api/v1/projects/${projectUuid}/access`)
+      .then((value) => { if (active) setProjectAccess(value) })
+      .catch(() => { if (active) setProjectAccess(null) })
     return () => { active = false }
   }, [projectUuid])
 
@@ -90,7 +97,7 @@ export function AppShell() {
   }, [pendingChanges])
 
   return (
-    <PendingChangesContext.Provider value={{ pendingChanges, setPendingChanges }}><div className={collapsed ? 'app-shell sidebar-collapsed' : 'app-shell'}>
+    <ProjectAccessProvider value={projectAccess}><PendingChangesContext.Provider value={{ pendingChanges, setPendingChanges }}><div className={collapsed ? 'app-shell sidebar-collapsed' : 'app-shell'}>
       <a className="skip-link" href="#main-content">{t('common.skipToContent')}</a>
       <aside className="sidebar">
         <div className="brand-block">
@@ -101,14 +108,14 @@ export function AppShell() {
         <nav aria-label={t('nav.workspace')}>
           {projectUuid && (
             <div className="nav-section">
-              <WorkspaceNavigation projectUuid={projectUuid} collapsed={collapsed} hasPendingChanges={Boolean(pendingChanges)} onNavigate={requestNavigation} />
+              <WorkspaceNavigation projectUuid={projectUuid} collapsed={collapsed} hasPendingChanges={Boolean(pendingChanges)} operatorOnly={projectAccess?.roles.includes('OPERASYON') === true && !projectAccess.permissions.includes('TANIM_DUZENLE')} onNavigate={requestNavigation} />
               {!collapsed && activeWorkspace === 'development' ? <div className="workspace-subnavigation">
                 <p className="nav-label">{t('nav.projectObjects')}</p>
                 <ProjectSidebarTree
                   projectUuid={projectUuid}
                   folders={folders}
                   definitions={definitions}
-                  selectedUuid={new URLSearchParams(location.search).get('definition')}
+                  selectedUuid={location.pathname.match(/\/development\/definitions\/([^/]+)$/)?.[1] ?? new URLSearchParams(location.search).get('definition')}
                   loading={objectsLoading}
                   failed={objectsFailed}
                   onNavigate={requestNavigation}
@@ -164,6 +171,6 @@ export function AppShell() {
         <p className="dialog-description">{t('pendingChanges.description')}</p>
         <footer className="dialog-actions"><button className="button secondary" type="button" onClick={() => setPendingPath(null)}>{t('pendingChanges.stay')}</button><button className="button secondary" type="button" onClick={() => { const path = pendingPath; setPendingChangesState(null); setPendingPath(null); if (path) completeNavigation(path) }}>{t('pendingChanges.discard')}</button><button className="button primary" type="button" disabled={savingBeforeLeave} onClick={async () => { if (!pendingChanges || !pendingPath) return; setSavingBeforeLeave(true); const saved = await pendingChanges.save(); setSavingBeforeLeave(false); if (saved) { const path = pendingPath; setPendingChangesState(null); setPendingPath(null); completeNavigation(path) } }}>{savingBeforeLeave ? t('pendingChanges.saving') : t('pendingChanges.save')}</button></footer>
       </Dialog>
-    </div></PendingChangesContext.Provider>
+    </div></PendingChangesContext.Provider></ProjectAccessProvider>
   )
 }

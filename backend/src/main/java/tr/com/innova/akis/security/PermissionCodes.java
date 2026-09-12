@@ -5,6 +5,9 @@ public final class PermissionCodes {
     public static final String PROJECT_CREATE = "PROJE_OLUSTUR";
     public static final String PROJECT_READ = "PROJE_GORUNTULE";
     public static final String PROJECT_WRITE = "PROJE_YONET";
+    public static final String DEFINITION_READ = "TANIM_GORUNTULE";
+    public static final String DEFINITION_WRITE = "TANIM_DUZENLE";
+    public static final String DEFINITION_VALIDATE = "TANIM_DOGRULA";
     public static final String GLOBAL_DEFINITION_READ = "GLOBAL_DEFINITION_READ";
     public static final String GLOBAL_DEFINITION_WRITE = "GLOBAL_DEFINITION_WRITE";
     public static final String TOPOLOGY_READ = "BAGLANTI_GORUNTULE";

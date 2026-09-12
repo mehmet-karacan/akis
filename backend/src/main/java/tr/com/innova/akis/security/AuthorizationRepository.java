@@ -1,6 +1,7 @@
 package tr.com.innova.akis.security;
 
 import java.util.Set;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -116,6 +117,34 @@ public class AuthorizationRepository {
                 .single();
     }
 
+    public List<ProjectGrant> projectGrants(PrincipalIdentity principal, UUID projectUuid) {
+        return jdbc.sql("""
+                        select distinct r.kod as role_code, y.kod as permission_code
+                          from akis.proje p
+                          join akis.proje_uyeligi pu on pu.proje_id = p.id
+                          join akis.kullanici k on k.id = pu.kullanici_id
+                          join akis.harici_kimlik hk on hk.kullanici_id = k.id
+                          join akis.kullanici_rol kr on kr.proje_id = p.id
+                           and kr.kullanici_id = k.id and kr.rol_kapsami = 'PROJE'
+                           and kr.iptal_zamani is null
+                          join akis.rol r on r.id = kr.rol_id and r.kapsam = 'PROJE' and r.etkin_mi
+                          left join akis.rol_yetki ry on ry.rol_id = r.id and ry.kapsam = 'PROJE'
+                          left join akis.yetki y on y.id = ry.yetki_id and y.kapsam = 'PROJE'
+                         where p.uuid = :projectUuid and p.arsivlenme_zamani is null
+                           and ((:provider = 'LOCAL_BASIC' and hk.saglayici_turu = 'YEREL' and hk.yayinlayici is null)
+                                or (hk.saglayici_turu = 'OIDC' and hk.yayinlayici = :provider))
+                           and hk.harici_kullanici_anahtari = :subject
+                           and k.devre_disi_birakilma_zamani is null
+                           and pu.durum = 'AKTIF' and pu.gecerlilik_baslangici <= current_timestamp
+                           and (pu.gecerlilik_sonu is null or pu.gecerlilik_sonu >= current_timestamp)
+                        """)
+                .param("projectUuid", projectUuid)
+                .param("provider", principal.provider())
+                .param("subject", principal.subject())
+                .query((rs, rowNum) -> new ProjectGrant(rs.getString("role_code"), rs.getString("permission_code")))
+                .list();
+    }
+
     public Set<UUID> visibleProjectUuids(PrincipalIdentity principal) {
         return jdbc.sql("""
                         select p.uuid
@@ -152,5 +181,8 @@ public class AuthorizationRepository {
     }
 
     public record ProjectAccess(boolean visible, boolean permitted) {
+    }
+
+    public record ProjectGrant(String roleCode, String permissionCode) {
     }
 }

@@ -16,17 +16,18 @@ export function resolveWorkspace(pathname: string): WorkspaceId {
   return 'development'
 }
 
-export function WorkspaceNavigation({ projectUuid, collapsed, hasPendingChanges, onNavigate }: {
+export function WorkspaceNavigation({ projectUuid, collapsed, hasPendingChanges, operatorOnly = false, onNavigate }: {
   projectUuid: string
   collapsed: boolean
   hasPendingChanges: boolean
+  operatorOnly?: boolean
   onNavigate: (path: string) => void
 }) {
   const { t } = useTranslation()
   return (
     <div className="workspace-navigation">
       {!collapsed && <p className="nav-label">{t('nav.workspaces')}</p>}
-      {workspaces.map(({ path, key, icon: Icon }) => {
+      {[...workspaces].sort((left, right) => operatorOnly ? Number(right.id === 'operations') - Number(left.id === 'operations') : 0).map(({ path, key, icon: Icon }) => {
         const target = `/projects/${projectUuid}${path}`
         return <NavLink
           key={key}

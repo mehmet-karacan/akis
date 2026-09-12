@@ -18,4 +18,9 @@ describe('WorkspaceNavigation', () => {
     expect(resolveWorkspace('/projects/p-1/runs')).toBe('operations')
     expect(resolveWorkspace('/projects/p-1/models')).toBe('development')
   })
+
+  it('keeps all workspaces available but puts operations first for an operator-only role', () => {
+    render(<MemoryRouter><WorkspaceNavigation projectUuid="p-1" collapsed={false} hasPendingChanges={false} operatorOnly onNavigate={() => undefined} /></MemoryRouter>)
+    expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['Operations', 'Development', 'Connections'])
+  })
 })

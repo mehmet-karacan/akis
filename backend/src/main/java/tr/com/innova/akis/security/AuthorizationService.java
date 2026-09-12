@@ -2,6 +2,7 @@ package tr.com.innova.akis.security;
 
 import java.util.Locale;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.UUID;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -96,6 +97,32 @@ public class AuthorizationService {
     public PrincipalIdentity currentPrincipalIdentity() {
         return resolvePrincipal(currentAuthentication());
     }
+
+    public ProjectAuthorization projectAuthorization(UUID projectUuid) {
+        UUID safeProjectUuid = requiredProjectUuid(projectUuid);
+        Authentication authentication = currentAuthentication();
+        if (isLoopbackDevelopmentAdministrator(authentication)) {
+            return new ProjectAuthorization(Set.of("GELISTIRICI"), Set.of(
+                    PermissionCodes.PROJECT_READ, PermissionCodes.PROJECT_WRITE,
+                    PermissionCodes.DEFINITION_READ, PermissionCodes.DEFINITION_WRITE, PermissionCodes.DEFINITION_VALIDATE,
+                    PermissionCodes.TOPOLOGY_READ, PermissionCodes.TOPOLOGY_WRITE,
+                    PermissionCodes.CATALOG_READ, PermissionCodes.CATALOG_WRITE,
+                    PermissionCodes.SCENARIO_READ, PermissionCodes.SCENARIO_COMPILE, PermissionCodes.PUBLICATION_APPROVE,
+                    PermissionCodes.RUN_READ, PermissionCodes.RUN_START, PermissionCodes.RUN_CANCEL,
+                    PermissionCodes.PROJECT_MEMBERSHIP_MANAGE));
+        }
+        PrincipalIdentity principal = resolvePrincipal(authentication);
+        ProjectAccess visibility = repository.projectAccess(principal, safeProjectUuid, PermissionCodes.PROJECT_READ);
+        if (!visibility.visible()) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "PROJECT_NOT_FOUND", "Proje bulunamadı.");
+        }
+        var grants = repository.projectGrants(principal, safeProjectUuid);
+        return new ProjectAuthorization(
+                grants.stream().map(AuthorizationRepository.ProjectGrant::roleCode).collect(Collectors.toUnmodifiableSet()),
+                grants.stream().map(AuthorizationRepository.ProjectGrant::permissionCode).filter(java.util.Objects::nonNull).collect(Collectors.toUnmodifiableSet()));
+    }
+
+    public record ProjectAuthorization(Set<String> roles, Set<String> permissions) { }
 
     PrincipalIdentity resolvePrincipal(Authentication authentication) {
         if (authentication == null

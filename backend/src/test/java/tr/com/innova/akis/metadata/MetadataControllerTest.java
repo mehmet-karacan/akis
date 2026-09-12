@@ -2,7 +2,7 @@ package tr.com.innova.akis.metadata;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static tr.com.innova.akis.security.PermissionCodes.PROJECT_CREATE;
-import static tr.com.innova.akis.security.PermissionCodes.PROJECT_WRITE;
+import static tr.com.innova.akis.security.PermissionCodes.DEFINITION_WRITE;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -38,7 +38,7 @@ class MetadataControllerTest {
     }
 
     @Test
-    void protectsFolderMoveWithProjectWritePermission() {
+    void protectsFolderMoveWithDefinitionWritePermission() {
         CapturingAuthorization authorization = new CapturingAuthorization();
         MetadataController controller = new MetadataController(new StubMetadataService(), authorization);
 
@@ -47,11 +47,11 @@ class MetadataControllerTest {
                 new MetadataController.MoveFolderRequest(null, 1L));
 
         assertEquals(PROJECT_UUID, authorization.projectUuid);
-        assertEquals(PROJECT_WRITE, authorization.permission);
+        assertEquals(DEFINITION_WRITE, authorization.permission);
     }
 
     @Test
-    void protectsDefinitionMoveWithProjectWritePermission() {
+    void protectsDefinitionMoveWithDefinitionWritePermission() {
         CapturingAuthorization authorization = new CapturingAuthorization();
         MetadataController controller = new MetadataController(new StubMetadataService(), authorization);
 
@@ -60,7 +60,7 @@ class MetadataControllerTest {
                 new MetadataController.MoveDefinitionRequest(FOLDER_UUID, 1L));
 
         assertEquals(PROJECT_UUID, authorization.projectUuid);
-        assertEquals(PROJECT_WRITE, authorization.permission);
+        assertEquals(DEFINITION_WRITE, authorization.permission);
     }
 
     private static final class CapturingAuthorization extends AuthorizationService {

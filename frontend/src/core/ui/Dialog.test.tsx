@@ -29,4 +29,15 @@ describe('Dialog', () => {
     fireEvent.keyDown(document, { key: 'Tab' })
     expect(close).toHaveFocus()
   })
+
+  it('makes sibling content inert while open and restores it on close', () => {
+    render(<Harness />)
+    const trigger = screen.getByRole('button', { name: 'Open' })
+    fireEvent.click(trigger)
+    expect(trigger).toHaveAttribute('aria-hidden', 'true')
+    expect(trigger).toHaveProperty('inert', true)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(trigger).not.toHaveAttribute('aria-hidden')
+    expect(trigger.inert).not.toBe(true)
+  })
 })

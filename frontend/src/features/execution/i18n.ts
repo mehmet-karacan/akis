@@ -30,6 +30,7 @@ const en = {
   runnableVersion: 'Runnable version', targetSummary: 'Pinned target summary', confirmProductionRun: 'I confirm this run will use the production environment and the pinned targets shown above.',
   pinnedContextUnavailable: 'Pinned environment and target context could not be loaded; run evidence remains available.', availableInterventions: 'Interventions', rerun: 'Run again', resumeRun: 'Resume from failed step', actionReason: 'Unavailable: {{reason}}',
   evidence: 'Run evidence', tab_SUMMARY: 'Summary', tab_LOGS: 'Logs', tab_EVENTS: 'Events', errorMessageUnavailable: 'A safe error message was not recorded for this step. Inspect the structured events.', metricScope: 'Metrics below belong to the selected step; unknown values are not shown as zero.', operationalEventLog: 'Operational event log', eventLogScope: 'Structured run events; task stdout is not available in this runtime.', noStepLog: 'No structured event lines are available. The step may not have started.',
+  expandStep: 'Expand step', collapseStep: 'Collapse step',
 } as const
 
 const tr: Record<keyof typeof en, string> = {
@@ -62,9 +63,21 @@ const tr: Record<keyof typeof en, string> = {
   runnableVersion: 'Çalıştırılabilir sürüm', targetSummary: 'Sabitlenmiş hedef özeti', confirmProductionRun: 'Bu çalıştırmanın üretim ortamını ve yukarıda gösterilen sabitlenmiş hedefleri kullanacağını onaylıyorum.',
   pinnedContextUnavailable: 'Sabitlenmiş ortam ve hedef bağlamı yüklenemedi; çalıştırma kanıtları görüntülenmeye devam ediyor.', availableInterventions: 'Müdahaleler', rerun: 'Yeniden çalıştır', resumeRun: 'Başarısız adımdan devam et', actionReason: 'Kullanılamıyor: {{reason}}',
   evidence: 'Çalıştırma kanıtları', tab_SUMMARY: 'Özet', tab_LOGS: 'Loglar', tab_EVENTS: 'Olaylar', errorMessageUnavailable: 'Bu adım için güvenli bir hata mesajı kaydedilmedi. Yapılandırılmış olayları inceleyin.', metricScope: 'Aşağıdaki metrikler seçili adıma aittir; bilinmeyen değerler sıfır gösterilmez.', operationalEventLog: 'Operasyonel olay günlüğü', eventLogScope: 'Yapılandırılmış çalıştırma olaylarıdır; bu runtime görev stdout’u sunmuyor.', noStepLog: 'Yapılandırılmış olay satırı yok. Adım henüz başlamamış olabilir.',
+  expandStep: 'Adımı genişlet', collapseStep: 'Adımı daralt',
 }
 
 export type ExecutionMessageKey = keyof typeof en
+
+const codeLabels: Record<'en' | 'tr', Record<string, string>> = {
+  en: { MANUAL: 'Manual', SCHEDULED: 'Scheduled', API: 'API', PROSEDUR: 'Procedure', MAPPING: 'Data flow', PAKET: 'Package', LOAD_PLAN: 'Load plan', URETIM: 'Production', TEST: 'Test', GELISTIRME: 'Development', SOURCE: 'Source', TARGET: 'Target', SQL: 'SQL', TRUNCATE: 'Truncate', INSERT: 'Insert', GATHER_STATS: 'Gather statistics' },
+  tr: { MANUAL: 'Manuel', SCHEDULED: 'Zamanlanmış', API: 'API', PROSEDUR: 'Prosedür', MAPPING: 'Veri akışı', PAKET: 'Paket', LOAD_PLAN: 'Yükleme planı', URETIM: 'Üretim', TEST: 'Test', GELISTIRME: 'Geliştirme', SOURCE: 'Kaynak', TARGET: 'Hedef', SQL: 'SQL', TRUNCATE: 'Tabloyu boşalt', INSERT: 'Veri ekle', GATHER_STATS: 'İstatistikleri topla' },
+}
+
+export function executionCodeLabel(code: string | null | undefined, locale: string) {
+  if (!code) return '—'
+  const language = locale.startsWith('tr') ? 'tr' : 'en'
+  return codeLabels[language][code] ?? code.toLocaleLowerCase(language === 'tr' ? 'tr-TR' : 'en-US').replaceAll('_', ' ').replace(/(^|\s)\S/g, (value) => value.toLocaleUpperCase(language === 'tr' ? 'tr-TR' : 'en-US'))
+}
 
 export function useExecutionI18n() {
   const { i18n } = useTranslation()

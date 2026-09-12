@@ -7,13 +7,13 @@ import { apiErrorMessage, formatDate, redactSensitiveValues } from '../operation
 import { useRemoteData } from '../operations/useRemoteData'
 import { executionApi, isExecutionDisabled } from './api'
 import { ExecutionDisabledNotice } from './ExecutionDisabledNotice'
-import { useExecutionI18n } from './i18n'
+import { executionCodeLabel, useExecutionI18n } from './i18n'
 import { RunStatusBadge } from './RunStatusBadge'
 import { buildRunStepTree, firstFailedPath, type RunStepNode } from './runTree'
 import './execution.css'
 
-function StepTreeItems({ nodes, selectedUuid, expanded, onSelect, onToggle }: { nodes: RunStepNode[]; selectedUuid?: string; expanded: Set<string>; onSelect: (uuid: string) => void; onToggle: (uuid: string) => void }) {
-  return nodes.map((step) => { const hasChildren = step.children.length > 0; const open = expanded.has(step.uuid); return <li key={step.uuid} role="treeitem" aria-selected={selectedUuid === step.uuid} aria-expanded={hasChildren ? open : undefined}><div className="execution-tree-step-row">{hasChildren ? <button className="execution-tree-toggle" type="button" onClick={() => onToggle(step.uuid)} aria-label={open ? 'Collapse' : 'Expand'}>{open ? <ChevronDown /> : <ChevronRight />}</button> : <span className="execution-tree-spacer" />}<button type="button" onClick={() => onSelect(step.uuid)}><span><small>{step.ordinal}</small><strong>{step.name}</strong><em>{step.type} · {step.code}</em></span><RunStatusBadge status={step.status} /></button></div>{hasChildren && open ? <ul role="group"><StepTreeItems nodes={step.children} selectedUuid={selectedUuid} expanded={expanded} onSelect={onSelect} onToggle={onToggle} /></ul> : null}</li> })
+function StepTreeItems({ nodes, selectedUuid, expanded, onSelect, onToggle, locale, expandLabel, collapseLabel }: { nodes: RunStepNode[]; selectedUuid?: string; expanded: Set<string>; onSelect: (uuid: string) => void; onToggle: (uuid: string) => void; locale: string; expandLabel: string; collapseLabel: string }) {
+  return nodes.map((step) => { const hasChildren = step.children.length > 0; const open = expanded.has(step.uuid); return <li key={step.uuid} role="treeitem" aria-selected={selectedUuid === step.uuid} aria-expanded={hasChildren ? open : undefined}><div className="execution-tree-step-row">{hasChildren ? <button className="execution-tree-toggle" type="button" onClick={() => onToggle(step.uuid)} aria-label={open ? collapseLabel : expandLabel}>{open ? <ChevronDown /> : <ChevronRight />}</button> : <span className="execution-tree-spacer" />}<button type="button" onClick={() => onSelect(step.uuid)}><span><small>{step.ordinal}</small><strong>{step.name}</strong><em>{executionCodeLabel(step.type, locale)} · {step.code}</em></span><RunStatusBadge status={step.status} /></button></div>{hasChildren && open ? <ul role="group"><StepTreeItems nodes={step.children} selectedUuid={selectedUuid} expanded={expanded} onSelect={onSelect} onToggle={onToggle} locale={locale} expandLabel={expandLabel} collapseLabel={collapseLabel} /></ul> : null}</li> })
 }
 
 export function RunDetailPage() {
@@ -65,7 +65,7 @@ export function RunDetailPage() {
       <Link className="ops-link execution-back" to={`/projects/${encodeURIComponent(projectUuid)}/operations`}><ArrowLeft aria-hidden="true" /> {t('backToRuns')}</Link>
       <PageHeader
         title={t('runDetail')}
-        description={run.data ? `${t('runAttempt', { number: run.data.attemptNumber })} · ${run.data.startType}` : t('runDetail')}
+        description={run.data ? `${t('runAttempt', { number: run.data.attemptNumber })} · ${executionCodeLabel(run.data.startType, locale)}` : t('runDetail')}
         actions={<>
           <button className="ops-button ops-button-secondary" type="button" onClick={() => void refresh()} disabled={run.loading || events.loading}><RefreshCw aria-hidden="true" /> {t('refresh')}</button>
           {canCancel ? <button className="ops-button ops-button-danger" type="button" onClick={() => setConfirmOpen(true)} disabled={executionDisabled}><Ban aria-hidden="true" /> {t('cancelRun')}</button> : null}
@@ -82,12 +82,12 @@ export function RunDetailPage() {
             <dl className="ops-kv">
               <dt>{t('status')}</dt><dd><RunStatusBadge status={run.data.status} /></dd>
               <dt>{t('attempt')}</dt><dd>#{run.data.attemptNumber}</dd>
-              <dt>{t('startType')}</dt><dd>{run.data.startType}</dd>
+              <dt>{t('startType')}</dt><dd>{executionCodeLabel(run.data.startType, locale)}</dd>
               <dt>{t('createdAt')}</dt><dd>{formatDate(run.data.createdAt, locale)}</dd>
               <dt>{t('startedAt')}</dt><dd>{formatDate(run.data.startedAt, locale)}</dd>
               <dt>{t('finishedAt')}</dt><dd>{formatDate(run.data.finishedAt, locale)}</dd>
               <dt>{t('cancellationRequestedAt')}</dt><dd>{formatDate(run.data.cancellationRequestedAt, locale)}</dd>
-              <dt>{t('environment')}</dt><dd>{publication.data ? `${publication.data.environmentCode} · ${publication.data.environmentRisk}` : '—'}</dd>
+              <dt>{t('environment')}</dt><dd>{publication.data ? `${publication.data.environmentCode} · ${executionCodeLabel(publication.data.environmentRisk, locale)}` : '—'}</dd>
               <dt>{t('runnableVersion')}</dt><dd>{publication.data ? `#${publication.data.publicationNumber}` : '—'}</dd>
               <dt>{t('targetSummary')}</dt><dd>{publication.data?.dependencySummary ?? '—'}</dd>
             </dl>
@@ -106,12 +106,12 @@ export function RunDetailPage() {
             {!steps.loading && steps.error ? <ErrorState message={apiErrorMessage(steps.error, t('requestFailed'))} onRetry={() => void steps.reload()} /> : null}
             {!steps.loading && !steps.error && steps.data?.length === 0 ? <EmptyState>{t('emptySteps')}</EmptyState> : null}
             {!steps.loading && steps.data && steps.data.length > 0 ? <div className="execution-step-layout">
-              <ul className="execution-step-tree" role="tree" aria-label={t('steps')}><StepTreeItems nodes={stepTree} selectedUuid={selectedStep?.uuid} expanded={expandedSteps} onSelect={setSelectedStepUuid} onToggle={(uuid) => setExpandedSteps((current) => { const next = new Set(current); if (next.has(uuid)) next.delete(uuid); else next.add(uuid); return next })} /></ul>
+              <ul className="execution-step-tree" role="tree" aria-label={t('steps')}><StepTreeItems nodes={stepTree} selectedUuid={selectedStep?.uuid} expanded={expandedSteps} onSelect={setSelectedStepUuid} onToggle={(uuid) => setExpandedSteps((current) => { const next = new Set(current); if (next.has(uuid)) next.delete(uuid); else next.add(uuid); return next })} locale={locale} expandLabel={t('expandStep')} collapseLabel={t('collapseStep')} /></ul>
               {selectedStep ? <section className="execution-step-detail" aria-label={t('stepDetail')}><h3>{selectedStep.name}</h3><dl className="ops-kv">
                 <dt>{t('status')}</dt><dd><RunStatusBadge status={selectedStep.status} /></dd>
-                <dt>{t('type')}</dt><dd>{selectedStep.type}</dd>
-                <dt>{t('connectionRole')}</dt><dd>{selectedStep.connectionRole ?? '—'}</dd>
-                <dt>{t('risk')}</dt><dd>{selectedStep.risk ?? '—'}</dd>
+                <dt>{t('type')}</dt><dd>{executionCodeLabel(selectedStep.type, locale)}</dd>
+                <dt>{t('connectionRole')}</dt><dd>{executionCodeLabel(selectedStep.connectionRole, locale)}</dd>
+                <dt>{t('risk')}</dt><dd>{executionCodeLabel(selectedStep.risk, locale)}</dd>
                 <dt>{t('startedAt')}</dt><dd>{formatDate(selectedStep.startedAt, locale)}</dd>
                 <dt>{t('finishedAt')}</dt><dd>{formatDate(selectedStep.finishedAt, locale)}</dd>
                 <dt>{t('rowCount')}</dt><dd>{selectedStep.rowCount ?? '—'}</dd>
@@ -123,7 +123,7 @@ export function RunDetailPage() {
           <Panel title={t('evidence')} className="execution-events-panel">
             <div className="execution-evidence-tabs" role="tablist" aria-label={t('evidence')}>{(['SUMMARY', 'LOGS', 'EVENTS'] as const).map((tab) => <button type="button" role="tab" aria-selected={evidenceTab === tab} key={tab} onClick={() => setEvidenceTab(tab)}>{t(`tab_${tab}`)}</button>)}</div>
             {evidenceTab === 'SUMMARY' && selectedStep ? <section className="execution-evidence-summary"><h3>{selectedStep.name}</h3>{selectedStep.errorCode ? <div className="ops-alert ops-alert-error" role="alert"><strong>{selectedStep.errorCode}</strong><p>{t('errorMessageUnavailable')}</p></div> : null}<p>{t('metricScope')}</p><dl className="ops-kv"><dt>{t('rowCount')}</dt><dd>{selectedStep.rowCount ?? '—'}</dd><dt>{t('byteCount')}</dt><dd>{selectedStep.byteCount ?? '—'}</dd><dt>{t('startedAt')}</dt><dd>{formatDate(selectedStep.startedAt, locale)}</dd><dt>{t('finishedAt')}</dt><dd>{formatDate(selectedStep.finishedAt, locale)}</dd></dl></section> : null}
-            {evidenceTab === 'LOGS' && <section className="execution-log-viewer"><header><strong>{t('operationalEventLog')}</strong><span>{t('eventLogScope')}</span></header>{events.loading ? <LoadingState /> : null}{!events.loading && events.error ? <ErrorState message={apiErrorMessage(events.error, t('requestFailed'))} onRetry={() => void events.reload()} /> : null}{!events.loading && !events.error && !events.data?.items.length ? <EmptyState>{t('noStepLog')}</EmptyState> : null}{events.data?.items.map((event) => <div className="execution-log-line" key={event.uuid}><time dateTime={event.eventTime}>{formatDate(event.eventTime, locale)}</time><span>INFO</span><strong>{event.type}</strong><em>#{event.eventNumber}</em></div>)}{events.data?.hasMore ? <button className="ops-button ops-button-secondary" type="button" onClick={() => void loadMoreEvents()}>{t('loadMore')}</button> : null}</section>}
+            {evidenceTab === 'LOGS' && <section className="execution-log-viewer"><header><strong>{t('operationalEventLog')}</strong><span>{t('eventLogScope')}</span></header>{events.loading ? <LoadingState /> : null}{!events.loading && events.error ? <ErrorState message={apiErrorMessage(events.error, t('requestFailed'))} onRetry={() => void events.reload()} /> : null}{!events.loading && !events.error && !events.data?.items.length ? <EmptyState>{t('noStepLog')}</EmptyState> : null}{events.data?.items.map((event) => <div className="execution-log-line" key={event.uuid}><time dateTime={event.eventTime}>{formatDate(event.eventTime, locale)}</time><span>INFO</span><strong>{executionCodeLabel(event.type, locale)}</strong><em>#{event.eventNumber}</em></div>)}{events.data?.hasMore ? <button className="ops-button ops-button-secondary" type="button" onClick={() => void loadMoreEvents()}>{t('loadMore')}</button> : null}</section>}
             {evidenceTab === 'EVENTS' && events.loading ? <LoadingState /> : null}
             {evidenceTab === 'EVENTS' && !events.loading && events.error ? <ErrorState message={apiErrorMessage(events.error, t('requestFailed'))} onRetry={() => void events.reload()} /> : null}
             {evidenceTab === 'EVENTS' && !events.loading && !events.error && events.data?.items.length === 0 ? <EmptyState>{t('emptyEvents')}</EmptyState> : null}
@@ -132,7 +132,7 @@ export function RunDetailPage() {
                 <li key={event.uuid}>
                   <span className="execution-event-marker"><ListRestart aria-hidden="true" /></span>
                   <article>
-                    <header><div><strong>{event.type}</strong><span>#{event.eventNumber}</span></div><time dateTime={event.eventTime}><CalendarClock aria-hidden="true" />{formatDate(event.eventTime, locale)}</time></header>
+                    <header><div><strong>{executionCodeLabel(event.type, locale)}</strong><span>#{event.eventNumber}</span></div><time dateTime={event.eventTime}><CalendarClock aria-hidden="true" />{formatDate(event.eventTime, locale)}</time></header>
                     {event.data == null || (typeof event.data === 'object' && Object.keys(event.data as object).length === 0)
                       ? <p className="ops-muted">{t('noEventData')}</p>
                       : <details><summary>{t('eventData')}</summary><pre>{JSON.stringify(redactSensitiveValues(event.data), null, 2)}</pre></details>}
