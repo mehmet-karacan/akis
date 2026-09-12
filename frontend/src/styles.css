@@ -146,6 +146,11 @@ label { display: grid; gap: 7px; color: var(--ink-soft); font-size: .77rem; font
 .sidebar-tree-scroll { min-height: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: #36474b transparent; }
 .sidebar-tree, .sidebar-tree ul { margin: 0; padding: 0; list-style: none; }
 .sidebar-tree ul { margin-left: 13px; padding-left: 7px; border-left: 1px solid rgba(255,255,255,.07); }
+.sidebar-tree--virtual { padding: 0 5px 7px; }
+.sidebar-virtual-root + .sidebar-virtual-root { margin-top: 3px; }
+.sidebar-virtual-root > .sidebar-folder-row, .sidebar-virtual-root > .sidebar-folder-action-row { background: rgba(255,255,255,.018); }
+.sidebar-virtual-root > .sidebar-folder-row:hover, .sidebar-virtual-root > .sidebar-folder-action-row:hover { background: rgba(255,255,255,.055); }
+.sidebar-virtual-root > .sidebar-folder-row > span, .sidebar-virtual-root > .sidebar-folder-action-row .sidebar-folder-row > span { color: #c1cdcc; font-weight: 700; }
 .sidebar-folder-row, .sidebar-object { width: 100%; min-height: 32px; display: flex; align-items: center; gap: 6px; padding: 4px 7px; color: #93a3a6; text-align: left; border: 0; border-radius: 5px; background: transparent; cursor: pointer; }
 .sidebar-folder-row:hover, .sidebar-object-row:hover { color: #edf3f2; background: rgba(255,255,255,.045); }
 .sidebar-folder-row > svg:first-child { width: 12px; height: 12px; color: #617579; }
@@ -153,6 +158,7 @@ label { display: grid; gap: 7px; color: var(--ink-soft); font-size: .77rem; font
 .sidebar-folder-row > span { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .72rem; font-weight: 650; }
 .sidebar-folder-row > small { color: #5f7276; font-size: .6rem; }
 .sidebar-folder-row--static { cursor: default; }
+.sidebar-folder-row--link > svg:last-child { width: 12px; height: 12px; color: #617579; }
 .sidebar-folder-spacer { flex: 0 0 12px !important; }
 .sidebar-folder-action-row { position: relative; display: flex; align-items: center; border-radius: 5px; }
 .sidebar-folder-action-row > .sidebar-folder-row { min-width: 0; flex: 1; }
@@ -165,6 +171,7 @@ label { display: grid; gap: 7px; color: var(--ink-soft); font-size: .77rem; font
 .sidebar-object-row:hover .sidebar-object, .sidebar-object-row.is-selected .sidebar-object { color: inherit; }
 .sidebar-object-menu-button { width: 27px; height: 27px; display: grid; flex: 0 0 auto; place-items: center; margin-right: 3px; color: #718589; border: 0; border-radius: 5px; background: transparent; cursor: pointer; opacity: 0; }
 .sidebar-object-row:hover .sidebar-object-menu-button, .sidebar-object-menu-button:focus, .sidebar-object-menu-button[aria-expanded="true"] { opacity: 1; }
+.sidebar-object-menu-button--always { color: #76bdb6; opacity: 1; }
 .sidebar-object-menu-button:hover { color: white; background: rgba(255,255,255,.07); }
 .sidebar-object-menu-button svg { width: 14px; height: 14px; }
 .sidebar-object-icon { width: 22px; height: 22px; display: grid; flex: 0 0 auto; place-items: center; color: #61bfb6; border-radius: 5px; background: rgba(97,196,186,.08); }
@@ -172,6 +179,9 @@ label { display: grid; gap: 7px; color: var(--ink-soft); font-size: .77rem; font
 .sidebar-object > span:last-child { min-width: 0; display: grid; }
 .sidebar-object strong { overflow: hidden; font-size: .69rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .sidebar-object small { margin-top: 1px; color: #5e7276; font-size: .55rem; }
+.sidebar-component-group > .sidebar-folder-action-row .sidebar-folder-row > svg:nth-child(2) { color: #71aea9; }
+.sidebar-group-empty { min-height: 30px; display: flex; align-items: center; gap: 6px; margin: 0 6px; padding: 5px 7px; color: #566a6e; font-size: .6rem; }
+.sidebar-group-empty svg { width: 13px; height: 13px; }
 .sidebar-tree-state { min-height: 70px; display: grid; place-items: center; align-content: center; gap: 6px; margin: 0; color: #617579; font-size: .66rem; text-align: center; }
 .sidebar-tree-state svg { width: 17px; }
 .sidebar-tree-retry { margin: 8px; display: flex; align-items: center; gap: 6px; color: #aebbbc; border: 0; background: transparent; cursor: pointer; font-size: .67rem; }

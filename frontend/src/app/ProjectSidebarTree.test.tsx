@@ -12,6 +12,10 @@ const definition: Definition = {
   uuid: 'procedure-1', folderUuid: folder.uuid, type: 'PROCEDURE', code: 'LOAD_DAILY',
   status: 'TASLAK', name: 'Load Daily', description: null, version: 1,
 }
+const variable: Definition = {
+  uuid: 'variable-1', folderUuid: null, type: 'VARIABLE', code: 'RUN_DATE',
+  status: 'TASLAK', name: 'Run Date', description: null, version: 1,
+}
 
 describe('persistent project sidebar tree', () => {
   beforeEach(async () => { await i18n.changeLanguage('en') })
@@ -49,5 +53,38 @@ describe('persistent project sidebar tree', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'Create Subfolder' }))
 
     expect(navigate).toHaveBeenCalledWith('/projects/project-1/development?createFolder=folder-1')
+  })
+
+  it('shows the fixed project groups and opens models directly', () => {
+    const navigate = vi.fn()
+    render(<ProjectSidebarTree projectUuid="project-1" folders={[folder]} definitions={[definition, variable]} selectedUuid={null} loading={false} failed={false} onNavigate={navigate} onRetry={vi.fn()} />)
+
+    expect(screen.getByRole('button', { name: /Flows/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Models' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Shared Components/ })).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Variable').closest('button')!)
+    expect(screen.getByText('Run Date')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Models' }))
+    expect(navigate).toHaveBeenCalledWith('/projects/project-1/models')
+  })
+
+  it('offers component creation from the visible add button and right click', () => {
+    const navigate = vi.fn()
+    render(<ProjectSidebarTree projectUuid="project-1" folders={[]} definitions={[]} selectedUuid={null} loading={false} failed={false} onNavigate={navigate} onRetry={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add component' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Add Variable' }))
+    expect(navigate).toHaveBeenCalledWith('/projects/project-1/development?createType=VARIABLE')
+
+    fireEvent.contextMenu(screen.getByText('Sequence generator').closest('.sidebar-folder-action-row')!)
+    expect(screen.getByRole('menuitem', { name: 'Add Sequence generator' })).toBeInTheDocument()
+  })
+
+  it('keeps reusable mappings out of the project navigation', () => {
+    const reusable: Definition = { ...definition, uuid: 'reusable-1', type: 'REUSABLE_MAPPING', name: 'Legacy Reusable' }
+    render(<ProjectSidebarTree projectUuid="project-1" folders={[]} definitions={[reusable]} selectedUuid={null} loading={false} failed={false} onNavigate={vi.fn()} onRetry={vi.fn()} />)
+
+    expect(screen.queryByText('Legacy Reusable')).not.toBeInTheDocument()
   })
 })

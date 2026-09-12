@@ -93,6 +93,7 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
+  const [createDefinitionType, setCreateDefinitionType] = useState<DefinitionType | null>(null)
   const [folderCreateContext, setFolderCreateContext] = useState<{ parentUuid: string | null } | null>(null)
   const [showMoveDefinition, setShowMoveDefinition] = useState(false)
   const [pendingDefinitionUuid, setPendingDefinitionUuid] = useState<string | null>(null)
@@ -125,6 +126,17 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
     setFolderCreateContext({ parentUuid: parentUuid || null })
     const nextParams = new URLSearchParams(searchParams)
     nextParams.delete('createFolder')
+    setSearchParams(nextParams, { replace: true })
+  }, [searchParams, setSearchParams])
+  useEffect(() => {
+    const requestedType = searchParams.get('createType')
+    if (!requestedType) return
+    if (DEFINITION_TYPES.includes(requestedType as DefinitionType) && requestedType !== 'REUSABLE_MAPPING') {
+      setCreateDefinitionType(requestedType as DefinitionType)
+      setShowCreate(true)
+    }
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('createType')
     setSearchParams(nextParams, { replace: true })
   }, [searchParams, setSearchParams])
   const [capabilities, setCapabilities] = useState<ProjectCapabilities | null>(null)
@@ -362,7 +374,7 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
           <h1>{t('title')}</h1>
           <p>{t('subtitle')}</p>
         </div>
-        <div className="definition-title-actions"><button className="definition-button definition-button--quiet" type="button" onClick={() => setFolderCreateContext({ parentUuid: null })}><FolderPlus size={17} aria-hidden="true" /> {t('newFolder')}</button><button className="definition-button definition-button--primary" type="button" onClick={() => setShowCreate(true)}><CirclePlus size={17} aria-hidden="true" /> {t('newDefinition')}</button></div>
+        <div className="definition-title-actions"><button className="definition-button definition-button--quiet" type="button" onClick={() => setFolderCreateContext({ parentUuid: null })}><FolderPlus size={17} aria-hidden="true" /> {t('newFolder')}</button><button className="definition-button definition-button--primary" type="button" onClick={() => { setCreateDefinitionType(null); setShowCreate(true) }}><CirclePlus size={17} aria-hidden="true" /> {t('newDefinition')}</button></div>
       </header>
       {capabilityError && <div className="definition-notice definition-notice--info" role="status"><AlertCircle size={16} aria-hidden="true" /><span>{t('capabilityUnavailable')}</span></div>}
       {environmentLoadError && <div className="definition-notice definition-notice--error" role="alert"><AlertCircle size={16} aria-hidden="true" /><span>{t('environmentLoadError')}</span></div>}
@@ -504,9 +516,10 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
         <CreateDefinitionDialog
           projectUuid={projectUuid}
           folders={folders}
-          types={types}
+          types={types.filter((type) => type.code !== 'REUSABLE_MAPPING')}
+          initialType={createDefinitionType}
           creating={creating}
-          close={() => setShowCreate(false)}
+          close={() => { setShowCreate(false); setCreateDefinitionType(null) }}
           onCreate={async (input) => {
             setCreating(true)
             try {
@@ -518,6 +531,7 @@ export function DefinitionsWorkspace({ projectUuid }: DefinitionsWorkspaceProps)
               setSearchParams(nextParams, { replace: true })
               notifyProjectTreeChanged()
               setShowCreate(false)
+              setCreateDefinitionType(null)
               setTab('draft')
             } catch (error) {
               setStatus({ tone: 'error', text: errorMessage(error, t('requestError')) })
@@ -910,26 +924,28 @@ interface CreateDefinitionDialogProps {
   projectUuid: string
   folders: Folder[]
   types: DefinitionTypeDescriptor[]
+  initialType: DefinitionType | null
   creating: boolean
   close: () => void
   onCreate: (input: NewDefinitionInput) => Promise<void>
 }
 
-function CreateDefinitionDialog({ folders, types, creating, close, onCreate }: CreateDefinitionDialogProps) {
+function CreateDefinitionDialog({ folders, types, initialType, creating, close, onCreate }: CreateDefinitionDialogProps) {
   const { t } = useDefinitionsI18n()
-  const [input, setInput] = useState<NewDefinitionInput>({ folderUuid: null, type: 'MAPPING', code: '', name: '', description: '' })
+  const [input, setInput] = useState<NewDefinitionInput>({ folderUuid: null, type: initialType ?? 'MAPPING', code: '', name: '', description: '' })
   const descriptor = types.find((type) => type.code === input.type)
+  const fixedComponentType = initialType !== null && !descriptor?.folderRequired
   async function submit(event: FormEvent) {
     event.preventDefault()
     if (descriptor?.folderRequired && !input.folderUuid) return
     await onCreate(input)
   }
   return (
-    <Dialog open title={t('newDefinition')} eyebrow={t('designControl')} closeLabel={t('close')} onClose={close} busy={creating} className="definition-dialog" backdropClassName="definition-dialog-backdrop">
+    <Dialog open title={initialType ? t('newDefinitionNamed', { name: t(definitionTypeKey[initialType]) }) : t('newDefinition')} eyebrow={t('designControl')} closeLabel={t('close')} onClose={close} busy={creating} className={`definition-dialog ${fixedComponentType ? 'definition-dialog--compact' : ''}`} backdropClassName="definition-dialog-backdrop">
         <form onSubmit={submit}>
           <div className="definition-form-grid">
-            <label><span>{t('type')}</span><select value={input.type} onChange={(event) => setInput({ ...input, type: event.target.value as DefinitionType, folderUuid: null })}>{types.map((type) => <option key={type.code} value={type.code}>{t(definitionTypeKey[type.code])}</option>)}</select></label>
-            <label><span>{t('folder')}</span><select required={descriptor?.folderRequired} value={input.folderUuid ?? ''} onChange={(event) => setInput({ ...input, folderUuid: event.target.value || null })}><option value="">{t('noFolder')}</option>{folders.filter((folder) => folder.status === 'AKTIF').map((folder) => <option key={folder.uuid} value={folder.uuid}>{folder.name} · {folder.code}</option>)}</select>{descriptor?.folderRequired && !input.folderUuid && <small>{t('folderRequired')}</small>}</label>
+            {!initialType && <label><span>{t('type')}</span><select value={input.type} onChange={(event) => setInput({ ...input, type: event.target.value as DefinitionType, folderUuid: null })}>{types.map((type) => <option key={type.code} value={type.code}>{t(definitionTypeKey[type.code])}</option>)}</select></label>}
+            {!fixedComponentType && <label><span>{t('folder')}</span><select required={descriptor?.folderRequired} value={input.folderUuid ?? ''} onChange={(event) => setInput({ ...input, folderUuid: event.target.value || null })}><option value="">{t('noFolder')}</option>{folders.filter((folder) => folder.status === 'AKTIF').map((folder) => <option key={folder.uuid} value={folder.uuid}>{folder.name} · {folder.code}</option>)}</select>{descriptor?.folderRequired && !input.folderUuid && <small>{t('folderRequired')}</small>}</label>}
             <label><span>{t('code')}</span><input autoFocus required pattern="[A-Z][A-Z0-9_]{0,99}" placeholder="CUSTOMER_LOAD" value={input.code} onChange={(event) => setInput({ ...input, code: event.target.value.toLocaleUpperCase('en-US').replace(/[^A-Z0-9_]/g, '') })} /></label>
             <label><span>{t('name')}</span><input required value={input.name} onChange={(event) => setInput({ ...input, name: event.target.value })} /></label>
             <label className="definition-form-grid--wide"><span>{t('description')}</span><textarea rows={3} value={input.description} onChange={(event) => setInput({ ...input, description: event.target.value })} /></label>

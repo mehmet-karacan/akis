@@ -8,15 +8,25 @@ ekranındayken de aynı proje bağlamını görmeye devam eder.
 
 ```text
 Proje
-├─ Klasör
-│  ├─ Alt klasör
-│  ├─ Paket
-│  ├─ Prosedür
-│  └─ Mapping / Interface
-├─ Değişken
-└─ Sequence
+├─ Akışlar
+│  └─ Klasör
+│     ├─ Alt klasör
+│     ├─ Paket
+│     ├─ Prosedür
+│     ├─ Veri akışı / Interface
+│     └─ Çalıştırma planı
+├─ Ortak Bileşenler
+│  ├─ Değişkenler
+│  ├─ Sıra üreteçleri
+│  ├─ Kullanıcı fonksiyonları
+│  └─ Yürütme modülleri
+└─ Modeller
 ```
 
+- `Akışlar`, `Modeller` ve `Ortak Bileşenler` sabit sanal gruplardır; veri
+  tabanında yapay klasör kayıtları oluşturmazlar.
+- Günlük kullanım sırası `Akışlar`, `Ortak Bileşenler`, `Modeller` şeklindedir;
+  daha seyrek kullanılan model alanı ağacın sonunda yer alır.
 - Her nesne kendi tür ikonuyla gösterilir.
 - Klasörler daraltılıp genişletilebilir.
 - Klasörler nötr hiyerarşi düğümleridir; geliştirme, model veya yükleme planı
@@ -25,6 +35,11 @@ Proje
   bağlamdan alınır. Form yalnız ad, kod ve açıklama ister.
 - Bir nesne seçildiğinde doğrudan o nesnenin editörü açılır; ayrı bir
   `Geliştirme` menü adımı gerekmez.
+- Ortak bileşenler, başlığın yanındaki görünür `+` düğmesinden seçilerek
+  eklenebilir. Aynı oluşturma işlemleri grup üzerinde sağ tıklamayla da
+  erişilebilir; temel işlemler yalnız sağ tık keşfedilebilirliğine bırakılmaz.
+- Yeniden kullanılabilir mapping, alt akış çağırma sözleşmesi tanımlanana kadar
+  oluşturma seçeneklerinde ve proje ağacında gösterilmez.
 - Nesneye sağ tıklama ve satırdaki üç nokta düğmesi aynı bağlamsal işlem
   menüsünü açar. Menü nesne türüne göre `Aç`, `Senaryo Oluştur` ve `Çalıştır`
   eylemlerini gösterir.
