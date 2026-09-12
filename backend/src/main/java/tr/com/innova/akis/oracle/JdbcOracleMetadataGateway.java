@@ -52,6 +52,11 @@ final class JdbcOracleMetadataGateway implements OracleMetadataGateway {
                    SYS_CONTEXT('USERENV', 'CON_NAME') AS CON_NAME
               FROM SYS.DUAL
             """;
+    private static final String ACCESSIBLE_SCHEMAS_SQL = """
+            SELECT USERNAME AS OWNER
+              FROM ALL_USERS
+             ORDER BY USERNAME
+            """;
 
     private final OracleDatabaseIdentityFingerprintV1 identityFingerprint =
             new OracleDatabaseIdentityFingerprintV1();
@@ -82,6 +87,29 @@ final class JdbcOracleMetadataGateway implements OracleMetadataGateway {
         }
         catch (SQLException exception) {
             throw connectionFailed();
+        }
+    }
+
+    @Override
+    public List<String> listSchemas(ConnectionProfile profile, Credentials credentials) {
+        try (Connection connection = open(profile, credentials)) {
+            DatabaseMetaData metadata = connection.getMetaData();
+            ensureOracle19c(metadata);
+            verifyPinnedTargetIdentity(profile, readDatabaseIdentity(connection));
+            Set<String> schemas = new LinkedHashSet<>();
+            try (PreparedStatement statement = connection.prepareStatement(ACCESSIBLE_SCHEMAS_SQL);
+                    ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    schemas.add(resultSet.getString("OWNER"));
+                }
+            }
+            return List.copyOf(schemas);
+        }
+        catch (SQLException exception) {
+            LOGGER.warn(
+                    "Oracle schema listing failed (vendorCode={}, sqlState={}).",
+                    exception.getErrorCode(), exception.getSQLState());
+            throw discoveryFailed();
         }
     }
 

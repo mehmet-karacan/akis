@@ -117,6 +117,11 @@ export interface PhysicalSchema {
   version: number
 }
 
+export interface CreatePhysicalSchemaRequest extends JsonRecord {
+  connectionUuid: string
+  schema: string
+}
+
 export interface LogicalSchema {
   uuid: string
   code: string
@@ -324,8 +329,10 @@ export const topologyApi = {
     versionUuid: string,
     body: { testUuid: string; expectedStateVersion: number },
   ) => post<ConnectionVersionLifecycle>(`${connectionVersionV2(projectUuid, connectionUuid, versionUuid)}/activate`, body),
+  listOracleSchemas: (projectUuid: string, connectionUuid: string, versionUuid: string) =>
+    get<string[]>(`${base(projectUuid)}/connections/${encodeURIComponent(connectionUuid)}/versions/${encodeURIComponent(versionUuid)}/schemas`),
   listPhysicalSchemas: (projectUuid: string) => get<PhysicalSchema[]>(`${base(projectUuid)}/physical-schemas`),
-  createPhysicalSchema: (projectUuid: string, body: JsonRecord) => post<PhysicalSchema>(`${base(projectUuid)}/physical-schemas`, body),
+  createPhysicalSchema: (projectUuid: string, body: CreatePhysicalSchemaRequest) => post<PhysicalSchema>(`${base(projectUuid)}/physical-schemas`, body),
   listLogicalSchemas: (projectUuid: string) => get<LogicalSchema[]>(`${base(projectUuid)}/logical-schemas`),
   createLogicalSchema: (projectUuid: string, body: JsonRecord) => post<LogicalSchema>(`${base(projectUuid)}/logical-schemas`, body),
   listEnvironments: (projectUuid: string) => get<Environment[]>(`${base(projectUuid)}/environments`),

@@ -133,6 +133,18 @@ describe('topology API contracts', () => {
     expect(JSON.parse(String(init.body))).toEqual({ code: 'TEST', name: 'Test Ortamı' })
   })
 
+  it('loads Oracle schemas and creates a physical schema from one user-facing value', async () => {
+    const fetchMock = mockResponse(['TTBP', 'INNOVA_ODI'])
+
+    await topologyApi.listOracleSchemas('project', 'connection', 'version')
+    await topologyApi.createPhysicalSchema('project', { connectionUuid: 'connection', schema: 'TTBP' })
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/projects/project/connections/connection/versions/version/schemas')
+    const [createPath, createInit] = fetchMock.mock.calls[1] as [string, RequestInit]
+    expect(createPath).toBe('/api/v1/projects/project/physical-schemas')
+    expect(JSON.parse(String(createInit.body))).toEqual({ connectionUuid: 'connection', schema: 'TTBP' })
+  })
+
   it('captures a server-produced schema snapshot without sending client metadata', async () => {
     const fetchMock = mockResponse({ uuid: 'snapshot', serverProduced: true })
 

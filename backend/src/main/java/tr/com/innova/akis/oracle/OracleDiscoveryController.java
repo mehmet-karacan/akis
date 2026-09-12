@@ -9,6 +9,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -46,6 +47,15 @@ final class OracleDiscoveryController {
         authorization.requireProjectPermission(projectUuid, DISCOVERY_WRITE);
         return ConnectionTestView.from(lifecycleService.test(
                 projectUuid, connectionUuid, connectionVersionUuid));
+    }
+
+    @GetMapping("/schemas")
+    List<String> listSchemas(
+            @PathVariable UUID projectUuid,
+            @PathVariable UUID connectionUuid,
+            @PathVariable UUID connectionVersionUuid) {
+        authorization.requireProjectPermission(projectUuid, DISCOVERY_WRITE);
+        return service.listSchemas(projectUuid, connectionUuid, connectionVersionUuid);
     }
 
     @PostMapping("/physical-schemas/{physicalSchemaUuid}/discover")

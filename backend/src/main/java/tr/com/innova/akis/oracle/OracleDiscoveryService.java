@@ -1,5 +1,6 @@
 package tr.com.innova.akis.oracle;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
@@ -121,6 +122,22 @@ public class OracleDiscoveryService {
                 : identifier(tableName, "Tablo adı");
         try (Credentials credentials = credentials(profile)) {
             return gateway.discover(profile, credentials, owner, normalizedTableName, limit);
+        }
+    }
+
+    public List<String> listSchemas(
+            UUID projectUuid,
+            UUID connectionUuid,
+            UUID connectionVersionUuid) {
+        ConnectionProfile profile = profile(projectUuid, connectionUuid, connectionVersionUuid);
+        if (!Set.of("TESTED", "ACTIVE").contains(profile.lifecycleStatus())) {
+            throw new ApiException(
+                    HttpStatus.CONFLICT,
+                    "CONNECTION_VERSION_NOT_TESTED",
+                    "Oracle şemaları okunmadan önce bağlantı başarıyla test edilmelidir.");
+        }
+        try (Credentials credentials = credentials(profile)) {
+            return gateway.listSchemas(profile, credentials);
         }
     }
 

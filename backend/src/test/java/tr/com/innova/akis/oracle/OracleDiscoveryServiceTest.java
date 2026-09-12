@@ -47,6 +47,21 @@ class OracleDiscoveryServiceTest {
     }
 
     @Test
+    void schemaListUsesTheTestedConnectionAndWipesTheResolvedPassword() {
+        StubRepository repository = repository(7L);
+        CapturingGateway gateway = new CapturingGateway();
+
+        List<String> result = service(repository, gateway).listSchemas(
+                OracleDiscoveryTestFixtures.PROJECT_UUID,
+                OracleDiscoveryTestFixtures.CONNECTION_UUID,
+                OracleDiscoveryTestFixtures.VERSION_UUID);
+
+        assertEquals(List.of("APP_OWNER", "TTBP"), result);
+        assertEquals(1, gateway.schemaListCalls);
+        assertArrayEquals(new char[PASSWORD.length()], gateway.passwordReference);
+    }
+
+    @Test
     void draftConnectionTestUsesTransientFieldsWithoutRepositoryMetadata() {
         StubRepository repository = repository(7L);
         CapturingGateway gateway = new CapturingGateway();
@@ -304,12 +319,20 @@ class OracleDiscoveryServiceTest {
         private String tableName;
         private int limit;
         private int captureCalls;
+        private int schemaListCalls;
         private SnapshotCapture capture;
 
         @Override
         public ConnectionProbe test(ConnectionProfile profile, Credentials credentials) {
             passwordReference = credentials.password();
             return probe;
+        }
+
+        @Override
+        public List<String> listSchemas(ConnectionProfile profile, Credentials credentials) {
+            schemaListCalls++;
+            passwordReference = credentials.password();
+            return List.of("APP_OWNER", "TTBP");
         }
 
         @Override

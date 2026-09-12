@@ -258,15 +258,13 @@ public class TopologyService {
     PhysicalSchemaRow createPhysicalSchema(
             UUID projectUuid,
             UUID connectionUuid,
-            String code,
-            String schemaReference,
-            String name) {
+            String schema) {
         ProjectRef project = project(projectUuid);
         ConnectionRow connection = connection(project, connectionUuid);
+        String normalizedSchema = normalizeCode(schema);
         return repository.createPhysicalSchema(
-                project.id(), connection.id(), UUID.randomUUID(), normalizeCode(code),
-                required(schemaReference, "Fiziksel şema referansı", 300),
-                normalizeName(name));
+                project.id(), connection.id(), UUID.randomUUID(), normalizedSchema,
+                normalizedSchema, normalizedSchema);
     }
 
     List<PhysicalSchemaRow> listPhysicalSchemas(UUID projectUuid) {

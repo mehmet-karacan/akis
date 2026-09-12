@@ -17,4 +17,13 @@ class TopologyApiContractTest {
 
         assertEquals(Set.of("code", "name"), fields);
     }
+
+    @Test
+    void physicalSchemaCreationAcceptsOnlyConnectionAndSchema() {
+        Set<String> fields = Arrays.stream(TopologyController.CreatePhysicalSchemaRequest.class.getRecordComponents())
+                .map(component -> component.getName())
+                .collect(Collectors.toSet());
+
+        assertEquals(Set.of("connectionUuid", "schema"), fields);
+    }
 }

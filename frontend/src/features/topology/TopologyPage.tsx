@@ -112,6 +112,10 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
   const [actionError, setActionError] = useState('')
   const [busy, setBusy] = useState('')
   const [selectedConnectionUuid, setSelectedConnectionUuid] = useState('')
+  const [physicalConnectionUuid, setPhysicalConnectionUuid] = useState('')
+  const [oracleSchemas, setOracleSchemas] = useState<string[]>([])
+  const [schemasLoading, setSchemasLoading] = useState(false)
+  const [schemaLoadError, setSchemaLoadError] = useState('')
   const [versions, setVersions] = useState<ConnectionVersion[]>([])
   const [connectionVersions, setConnectionVersions] = useState<Record<string, ConnectionVersion[]>>({})
   const [versionsLoading, setVersionsLoading] = useState(false)
@@ -169,6 +173,23 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
       .finally(() => active && setVersionsLoading(false))
     return () => { active = false }
   }, [projectUuid, selectedConnectionUuid, tr])
+
+  useEffect(() => {
+    setOracleSchemas([])
+    setSchemaLoadError('')
+    if (form !== 'physical' || !projectUuid || !physicalConnectionUuid) return
+    const candidates = connectionVersions[physicalConnectionUuid] ?? []
+    const version = candidates.find((item) => item.lifecycleStatus === 'ACTIVE')
+      ?? candidates.find((item) => item.lifecycleStatus === 'TESTED')
+    if (!version) return
+    let active = true
+    setSchemasLoading(true)
+    topologyApi.listOracleSchemas(projectUuid, physicalConnectionUuid, version.uuid)
+      .then((items) => active && setOracleSchemas(items))
+      .catch(() => active && setSchemaLoadError(tr('schemaLoadFailed')))
+      .finally(() => active && setSchemasLoading(false))
+    return () => { active = false }
+  }, [connectionVersions, form, physicalConnectionUuid, projectUuid, tr])
 
   useEffect(() => {
     if (!projectUuid || !selectedModelUuid) {
@@ -319,8 +340,8 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
 
           {tab === 'schemas' && (
             <div className="topology-columns topology-columns--three" id="topology-panel-schemas" role="tabpanel" aria-labelledby="topology-tab-schemas">
-              <section className="topology-panel"><PanelHeading icon={<Database />} title={tr('physical')} count={resources.physicalSchemas.length} action={<button className="topology-button topology-button--icon" onClick={() => setForm('physical')} aria-label={tr('addPhysical')} disabled={resources.connections.length === 0}><Plus /></button>} />
-                {resources.physicalSchemas.length === 0 ? <Empty>{tr('noItems')}</Empty> : <div className="topology-simple-list">{resources.physicalSchemas.map((item) => <article key={item.uuid}><div><strong>{item.name}</strong><small>{item.code} · {item.schemaReference}</small></div><Status value={item.status} /></article>)}</div>}
+              <section className="topology-panel"><PanelHeading icon={<Database />} title={tr('physical')} count={resources.physicalSchemas.length} action={<button className="topology-button topology-button--icon" onClick={() => { setPhysicalConnectionUuid(selectedConnectionUuid || resources.connections[0]?.uuid || ''); setForm('physical') }} aria-label={tr('addPhysical')} disabled={resources.connections.length === 0}><Plus /></button>} />
+                {resources.physicalSchemas.length === 0 ? <Empty>{tr('noItems')}</Empty> : <div className="topology-simple-list">{resources.physicalSchemas.map((item) => <article key={item.uuid}><div><strong>{item.name}</strong><small>{resources.connections.find((connection) => connection.uuid === item.connectionUuid)?.name ?? item.code}</small></div><Status value={item.status} /></article>)}</div>}
               </section>
               <section className="topology-panel"><PanelHeading icon={<Layers3 />} title={tr('logical')} count={resources.logicalSchemas.length} action={<button className="topology-button topology-button--icon" onClick={() => setForm('logical')} aria-label={tr('addLogical')}><Plus /></button>} />
                 {resources.logicalSchemas.length === 0 ? <Empty>{tr('noItems')}</Empty> : <div className="topology-simple-list">{resources.logicalSchemas.map((item) => <article key={item.uuid}><div><strong>{item.name}</strong><small>{item.code}</small></div><Status value={item.status} /></article>)}</div>}
@@ -403,7 +424,12 @@ export function TopologyPage({ projectUuid: projectUuidProp, initialTab = 'conne
 
       <Dialog open={form !== null} className="topology-dialog" title={form ? formTitle[form] : ''} closeLabel={tr('close')} busy={Boolean(busy)} onClose={() => setForm(null)}>
         {form === 'connection' && <OracleConnectionCreateForm projectUuid={projectUuid} copy={c} onClose={() => setForm(null)} onConnectionCreated={async (connectionUuid) => { await loadAll(); setSelectedConnectionUuid(connectionUuid) }} />}
-        {form === 'physical' && <form className="topology-form" onSubmit={(event) => void submit('physical', event, (data) => topologyApi.createPhysicalSchema(projectUuid, { connectionUuid: textValue(data, 'connectionUuid'), code: textValue(data, 'code'), schemaReference: textValue(data, 'schemaReference'), name: textValue(data, 'name') }))}><Field label={tr('name')} name="name" /><Field label={tr('code')} name="code" /><Field label={tr('connection')} name="connectionUuid"><select name="connectionUuid" required defaultValue={selectedConnectionUuid}><option value="">—</option>{resources.connections.map((item) => <option key={item.uuid} value={item.uuid}>{item.name}</option>)}</select></Field><Field label={tr('schemaReference')} name="schemaReference" /><Submit busy={busy === 'physical'} c={c} /></form>}
+        {form === 'physical' && <form className="topology-form" onSubmit={(event) => void submit('physical', event, (data) => topologyApi.createPhysicalSchema(projectUuid, { connectionUuid: textValue(data, 'connectionUuid'), schema: textValue(data, 'schema') }))}>
+          <Field label={tr('connection')} name="connectionUuid"><select name="connectionUuid" required value={physicalConnectionUuid} onChange={(event) => setPhysicalConnectionUuid(event.target.value)}><option value="">—</option>{resources.connections.map((item) => <option key={item.uuid} value={item.uuid}>{item.name}</option>)}</select></Field>
+          <Field label={tr('schemaUser')} name="schema"><input name="schema" list="oracle-schema-options" autoComplete="off" required /><datalist id="oracle-schema-options">{oracleSchemas.map((schema) => <option key={schema} value={schema} />)}</datalist></Field>
+          <p className="topology-hint">{schemasLoading ? tr('schemaLoading') : schemaLoadError || ((connectionVersions[physicalConnectionUuid] ?? []).some((item) => item.lifecycleStatus === 'ACTIVE' || item.lifecycleStatus === 'TESTED') ? tr('schemaHint') : tr('schemaVersionRequired'))}</p>
+          <Submit busy={busy === 'physical'} c={c} />
+        </form>}
         {form === 'logical' && <form className="topology-form" onSubmit={(event) => void submit('logical', event, (data) => topologyApi.createLogicalSchema(projectUuid, { code: textValue(data, 'code'), name: textValue(data, 'name'), description: optionalValue(data, 'description') }))}><Field label={tr('name')} name="name" /><Field label={tr('code')} name="code" /><Field label={tr('description')} name="description" optional><textarea name="description" rows={3} /></Field><Submit busy={busy === 'logical'} c={c} /></form>}
         {form === 'environment' && <form className="topology-form" onSubmit={(event) => void submit('environment', event, (data) => topologyApi.createEnvironment(projectUuid, { code: textValue(data, 'code'), name: textValue(data, 'name') }))}><Field label={tr('name')} name="name" /><Field label={tr('code')} name="code" /><Submit busy={busy === 'environment'} c={c} /></form>}
         {form === 'binding' && <form className="topology-form" onSubmit={(event) => void submit('binding', event, (data) => topologyApi.createBinding(projectUuid, { logicalSchemaUuid: textValue(data, 'logicalSchemaUuid'), environmentUuid: textValue(data, 'environmentUuid'), physicalSchemaUuid: textValue(data, 'physicalSchemaUuid'), connectionVersionUuid: textValue(data, 'connectionVersionUuid') }))}><Field label={tr('logicalSchema')} name="logicalSchemaUuid"><select name="logicalSchemaUuid" required>{resources.logicalSchemas.map((item) => <option key={item.uuid} value={item.uuid}>{item.name}</option>)}</select></Field><Field label={tr('environment')} name="environmentUuid"><select name="environmentUuid" required>{resources.environments.map((item) => <option key={item.uuid} value={item.uuid}>{item.name}</option>)}</select></Field><Field label={tr('physicalSchema')} name="physicalSchemaUuid"><select name="physicalSchemaUuid" required value={selectedPhysicalUuid} onChange={(event) => {

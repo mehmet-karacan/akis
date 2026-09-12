@@ -99,8 +99,7 @@ final class TopologyController {
             @Valid @RequestBody CreatePhysicalSchemaRequest request) {
         authorization.requireProjectPermission(projectUuid, TOPOLOGY_WRITE);
         PhysicalSchemaRow row = service.createPhysicalSchema(
-                projectUuid, request.connectionUuid(), request.code(),
-                request.schemaReference(), request.name());
+                projectUuid, request.connectionUuid(), request.schema());
         return ResponseEntity.created(URI.create(
                 "/api/v1/projects/" + projectUuid + "/physical-schemas/" + row.uuid()))
                 .body(PhysicalSchemaView.from(row));
@@ -194,9 +193,7 @@ final class TopologyController {
 
     record CreatePhysicalSchemaRequest(
             @NotNull UUID connectionUuid,
-            @NotBlank String code,
-            @NotBlank String schemaReference,
-            @NotBlank String name) {
+            @NotBlank String schema) {
     }
 
     record CreateLogicalSchemaRequest(
