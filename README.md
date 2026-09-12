@@ -76,11 +76,13 @@ UI çalıştırma (ayrı terminalde):
 UI varsayılan olarak İngilizce açılır; Türkçe ile açık, koyu ve sistem temaları
 uygulama içinden seçilebilir. Yerel giriş parolası browser storage alanına yazılmaz.
 
-Proje taşınabilir tasarım paketi; proje, klasörler, JSON tanım taslakları ve
-değişmez tanım sürümlerini tek bir checksum korumalı JSON dosyasıyla export/import
-eder. Import önce bağımsız validation ve zorunlu dry-run çalıştırır. V1 fiziksel
-topoloji, secret, kullanıcı/yetki, Scenario, publication ve runtime kayıtlarını
-bilinçli olarak taşımaz. Sözleşme:
+Proje taşınabilir tasarım paketi; proje, klasörler, JSON tanım taslakları,
+değişmez tanım sürümleri, bağlantı sürümleri, fiziksel/mantıksal şemalar, ortam
+eşlemeleri ve katalog tasarımını tek bir checksum korumalı JSON dosyasıyla
+export/import eder. Import önce bağımsız validation ve zorunlu dry-run çalıştırır.
+V2 secret değerlerini, kullanıcı/yetkiyi, test/çalıştırma kanıtlarını, Scenario,
+publication ve keşif snapshot'larını bilinçli olarak taşımaz. İçe alınan bağlantı
+sürümleri yeniden test edilmek üzere taslağa döner. Sözleşme:
 `docs/architecture/PROJECT_BUNDLE_FORMAT.md`.
 
 Sağlık uç noktası: http://localhost:8080/actuator/health
@@ -91,10 +93,10 @@ snapshot'ı yeniden doğrular, en fazla 1000 satırı tip/byte sınırları içi
 ve API'de yalnız özet/hash döndürür. Sözleşme:
 `docs/architecture/PROCEDURE_SOURCE_PREFLIGHT.md`.
 
-Manuel run oluşturma varsayılan olarak kapalıdır. Yalnız kontrol düzlemi testi için
-`.env` içinde `AKIS_EXECUTION_ACCEPT_MANUAL_REQUESTS=true` yapılabilir. Worker
-bayrağı target-local Oracle ledger kurulup crash/reconciliation kapıları geçilene
-kadar `false` kalmalıdır; uygulama `true` değerinde fail-closed açılmaz.
+Manuel run, worker ve Prosedür runtime varsayılan ve mevcut yerel ortamda kapalıdır.
+Bu üç bayrak yalnız ayrı bir kontrollü kabul kararıyla etkinleştirilir; CI/CD veya
+GitHub workflow tarafından açılamaz. Worker bayrağı target-local Oracle ledger
+ve crash/reconciliation kapıları olmadan `true` değerinde fail-closed açılmaz.
 PostgreSQL claim/heartbeat/target generation sözleşmeleri hazırdır fakat kendi
 başına veri taşımaz. Sözleşmeler: `docs/architecture/MANUAL_RUN_CONTROL_PLANE.md`
 ve `docs/architecture/TARGET_LEDGER_AND_FENCING_CONTRACT.md`.

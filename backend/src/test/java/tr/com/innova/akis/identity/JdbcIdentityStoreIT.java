@@ -93,7 +93,9 @@ class JdbcIdentityStoreIT {
                 .query(Long.class)
                 .single();
         ProjectRoleRef role = store.findProjectRole("OPERASYON").orElseThrow();
-        OffsetDateTime startsAt = OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(5);
+        OffsetDateTime startsAt = OffsetDateTime.now(ZoneOffset.UTC)
+                .truncatedTo(ChronoUnit.MICROS)
+                .plusMinutes(5);
         OffsetDateTime endsAt = startsAt.plusDays(7);
 
         MembershipRow membership = store.createMembership(

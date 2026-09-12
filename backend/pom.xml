@@ -82,8 +82,11 @@
                 <directory>src/main/resources</directory>
             </resource>
             <resource>
-                <directory>${project.basedir}/../database/migrations</directory>
-                <targetPath>db/migration</targetPath>
+                <directory>${project.basedir}/../database/akis-baseline</directory>
+                <targetPath>db/akis</targetPath>
+                <includes>
+                    <include>V*.sql</include>
+                </includes>
             </resource>
         </resources>
         <plugins>

@@ -1,4 +1,4 @@
-CREATE SCHEMA akis;
+CREATE SCHEMA IF NOT EXISTS akis;
 SET search_path TO akis, public;
 
 CREATE TABLE kullanici (

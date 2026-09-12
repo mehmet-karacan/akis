@@ -44,13 +44,26 @@ Tablolar arası foreign key'ler `BIGINT id` üzerinden kurulur; API ve proje
 import/export işlemleri `uuid` kullanır. Sistem işlemlerinde oluşturan veya
 güncelleyen kullanıcı alanı `NULL` kalabilir; sahte kullanıcı oluşturulmaz.
 
-Mevcut `entegrasyon` şeması, uygulama repository'leri grup grup taşınırken yalnız
-geçici geri dönüş kaynağı olarak korunur. Buraya yeni şema özelliği eklenmez. Tüm
-gruplar temiz veritabanı kabul testlerini geçince bu dosyalar eski Flyway zincirinin
-yerini alır ve eski şema kaldırılır.
+Uygulamanın üretim Flyway konumu `classpath:db/akis` olup yalnız bu dizindeki
+`V*.sql` dosyalarını paketler. Eski `entegrasyon` migration zinciri tarihsel test
+girdisi olarak kaynak ağacında kalır; çalışan uygulama tarafından yüklenmez.
 
 Migration içinde başlangıç kullanıcısı veya parola bulunmaz. İlk yönetici ayrı ve
 açık bir yerel başlangıç akışıyla oluşturulur.
+
+Yerel geliştirme yöneticisini, parola saklamadan HTTP Basic kullanıcı adıyla
+eşlemek için `bootstrap-local-admin.sql` psql değişkenleriyle çalıştırılır:
+
+```powershell
+Get-Content .\database\akis-baseline\bootstrap-local-admin.sql -Raw |
+  docker exec -i akis-metadata-db-1 psql -X -U akis_app -d akis_metadata \
+    -v local_user="<AKIS_DEV_USERNAME>" \
+    -v display_name="Local Administrator" \
+    -v email="<email>"
+```
+
+Betik tekrar çalıştırılabilir; aynı yerel kimliği veya rol atamasını çoğaltmaz.
+Parola yalnız Git dışındaki `.env` dosyasında kalır.
 
 ## Doğrulama
 
@@ -153,8 +166,10 @@ doğrulamak için:
 
 Bu kapı proje, klasör, tanım, taslak ve sürüm verilerinin UUID tabanlı paket
 sözleşmesine çevrilebildiğini; denetim olaylarının da `akis.denetim_olayi`
-üzerinde sonradan değiştirilemeden saklandığını kanıtlar. Bu aşamadaki paket V1
-yalnız tanım metadata'sıdır; tam proje paketi ayrı kabul kapısında tamamlanır.
+üzerinde sonradan değiştirilemeden saklandığını kanıtlar. Proje Paketi V2 ayrıca
+bağlantı sürümlerini, fiziksel/mantıksal şemaları, ortam eşlemelerini ve katalog
+tasarımını taşır. Secret değerleri, test/çalıştırma kanıtları ve keşif snapshot'ları
+pakete girmez; içe alınan bağlantı sürümleri yeniden test edilmek üzere taslaktır.
 
 Worker profili, koşu lease'i, yaşam sinyali ve hedef fencing işlemleri için:
 
