@@ -45,31 +45,31 @@ public class JdbcPilotPublishIntentStore implements PilotPublishIntentPort {
                                pyn.payload_ozeti,
                                pyn.satir_sayisi,
                                pyn.bayt_sayisi
-                          from entegrasyon.pilot_yayin_niyeti pyn
-                          join entegrasyon.calistirma c
+                          from akis.pilot_yayin_niyeti pyn
+                          join akis.calistirma c
                             on c.proje_id = pyn.proje_id
                            and c.id = pyn.calistirma_id
-                          join entegrasyon.proje p
+                          join akis.proje p
                             on p.id = pyn.proje_id
-                          join entegrasyon.is_talebi it
+                          join akis.is_talebi it
                             on it.proje_id = pyn.proje_id
                            and it.id = pyn.is_talebi_id
-                          join entegrasyon.yayin y
+                          join akis.yayin y
                             on y.proje_id = it.proje_id
                            and y.id = it.yayin_id
-                          join entegrasyon.calistirma_durumu cd
+                          join akis.calistirma_durumu cd
                             on cd.proje_id = pyn.proje_id
                            and cd.calistirma_id = pyn.calistirma_id
-                          join entegrasyon.hedef_kaynagi hk
+                          join akis.hedef_kaynagi hk
                             on hk.id = pyn.hedef_kaynagi_id
                          where c.uuid = :runUuid
-                           and cd.durum_kodu = 'YAYINLANIYOR'
+                           and cd.durum = 'YAYINLANIYOR'
                            and cd.nesil_no = pyn.calistirma_nesil_no
                            and cd.isleyici_referansi = pyn.isleyici_referansi
                            and cd.kiralama_bitis_zamani > clock_timestamp()
                            and cd.hedef_kaynagi_id = pyn.hedef_kaynagi_id
                            and cd.hedef_nesil_no = pyn.hedef_nesil_no
-                           and hk.durum_kodu = 'SAHIPLENILDI'
+                           and hk.durum = 'SAHIPLENILDI'
                            and hk.calistirma_id = pyn.calistirma_id
                            and hk.nesil_no = pyn.hedef_nesil_no
                            and hk.kiralama_bitis_zamani > clock_timestamp()

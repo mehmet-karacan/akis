@@ -164,5 +164,6 @@ Worker profili, koşu lease'i, yaşam sinyali ve hedef fencing işlemleri için:
 
 Bu kapı aynı koşunun iki kez sahiplenilememesini, süresi dolmamış lease'in
 uzatılmasını ve bir koşunun tek bir kanonik hedef kimliğine sabitlenmesini gerçek
-PostgreSQL üzerinde doğrular. Worker ve manuel çalıştırma bayrakları varsayılan
-olarak kapalı kalır.
+PostgreSQL üzerinde doğrular. Aynı test preflight, değişmez yayın niyeti ve kesin
+başarı kontrol noktası geçişini de uçtan uca yürütür. Worker ve manuel çalıştırma
+bayrakları varsayılan olarak kapalı kalır.

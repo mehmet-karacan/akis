@@ -35,13 +35,14 @@ Status date: 2026-09-12
   definition round-tripping and immutable audit evidence.
 - Worker profiles, single-flight run claims, bounded heartbeats and target
   fencing now use the clean schema and pass a generated-database acceptance test.
+- Pilot preflight, immutable publish intent, durable checkpoint and successful
+  terminal transition now execute against the clean schema with exact evidence.
 - The connection UI no longer loads or manages separate secret-reference
   objects. It records only the name of a server-side environment variable; its
   value stays outside PostgreSQL, API responses, bundles and Git.
-- Worker leases, execution transitions, reconciliation and Procedure journals
-  still use the legacy schema until their clean operations gate and acceptance
-  tests are complete. The persistent local database has not been destructively
-  cut over.
+- Reconciliation and Procedure task journals still use the legacy schema until
+  their clean operations gate and acceptance tests are complete. The persistent
+  local database has not been destructively cut over.
 
 ## Current completion estimate
 

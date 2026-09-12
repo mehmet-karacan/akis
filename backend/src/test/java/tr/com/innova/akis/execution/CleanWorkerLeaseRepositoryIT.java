@@ -12,6 +12,7 @@ import tools.jackson.databind.ObjectMapper;
 
 class CleanWorkerLeaseRepositoryIT {
     private static JdbcRunLeaseStore leases;
+    private static JdbcRunExecutionTransitionStore transitions;
     private static RunLeasePort.WorkerIdentity worker;
 
     @BeforeAll static void connect() {
@@ -34,7 +35,7 @@ class CleanWorkerLeaseRepositoryIT {
         var actorRow=execution.findActiveActor("LOCAL_BASIC","worker-developer").orElseThrow();
         execution.createQueuedRun(publication,actorRow,"d".repeat(64),UUID.randomUUID(),UUID.randomUUID(),UUID.randomUUID(),UUID.randomUUID());
         UUID profile=jdbc.sql("insert into akis.worker_profili(kod,ad,yetenek) values ('LOCAL','Local worker','{\"ORACLE_PROCEDURE_V1\":true}') returning uuid").query(UUID.class).single();
-        leases=new JdbcRunLeaseStore(jdbc);worker=new RunLeasePort.WorkerIdentity("worker-1",profile);
+        leases=new JdbcRunLeaseStore(jdbc);transitions=new JdbcRunExecutionTransitionStore(jdbc);worker=new RunLeasePort.WorkerIdentity("worker-1",profile);
     }
 
     @Test void claimsHeartbeatsAndFencesExactlyOneQueuedRun() {
@@ -45,6 +46,11 @@ class CleanWorkerLeaseRepositoryIT {
         var target=leases.acquireTarget(heartbeat.refreshedToken(),"e".repeat(64),1);
         assertEquals(1,target.targetGeneration());
         assertThrows(RuntimeException.class,()->leases.acquireTarget(claimed.token(),"f".repeat(64),1));
+        var active=new RunExecutionTransitionPort.ActiveExecutionToken(heartbeat.refreshedToken(),target);
+        assertEquals(RunExecutionTransitionPort.MutationOutcome.ACCEPTED,transitions.completePreflight(active).outcome());
+        var evidence=new RunExecutionTransitionPort.PublishIntentEvidence("1".repeat(64),"2".repeat(64),"3".repeat(64),33,1024);
+        assertEquals(RunExecutionTransitionPort.MutationOutcome.ACCEPTED,transitions.beginPublish(active,evidence).outcome());
+        assertEquals(RunExecutionTransitionPort.MutationOutcome.ACCEPTED,transitions.completeSuccessfully(active,evidence).outcome());
     }
 
     private static String required(String name){String value=System.getenv(name);if(value==null||value.isBlank())throw new IllegalStateException(name+" required");return value;}
