@@ -83,4 +83,6 @@ ortam eşleştirmesi grubunu doğrulamak için:
 
 Bu kapı açık parola saklanmadığını, bütün audit foreign key'lerini ve projeler
 arası ya da farklı bağlantılar arası hatalı şema eşleştirmelerinin reddedildiğini
-de kontrol eder.
+de kontrol eder. Bağlantı, okuma, ağ ve sorgu zaman aşımı değerleri bağlantı
+sürümünün tipli kolonlarıdır; prosedür adımlarında veya serbest JSON içinde
+tekrarlanmaz. Bir bağlantının aynı anda yalnız bir etkin sürümü olabilir.

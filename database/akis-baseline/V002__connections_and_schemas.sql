@@ -43,6 +43,11 @@ CREATE TABLE baglanti_surumu (
     veritabani_adi VARCHAR(500),
     jndi_adi VARCHAR(500),
     tls_modu VARCHAR(20) NOT NULL DEFAULT 'DEVRE_DISI',
+    baglanti_zaman_asimi_ms INTEGER NOT NULL DEFAULT 10000,
+    okuma_zaman_asimi_ms INTEGER NOT NULL DEFAULT 60000,
+    ag_zaman_asimi_ms INTEGER NOT NULL DEFAULT 60000,
+    sorgu_zaman_asimi_saniye INTEGER NOT NULL DEFAULT 60,
+    kullanim_amaci VARCHAR(64),
     durum VARCHAR(20) NOT NULL DEFAULT 'TASLAK',
     son_basarili_test_uuid UUID,
     test_edilme_zamani TIMESTAMPTZ,
@@ -64,6 +69,15 @@ CREATE TABLE baglanti_surumu (
     CONSTRAINT ck_baglanti_surumu_mod CHECK (baglanti_modu IN ('JDBC', 'JNDI')),
     CONSTRAINT ck_baglanti_surumu_tls CHECK (
         tls_modu IN ('DEVRE_DISI', 'ZORUNLU', 'SERTIFIKA_DOGRULA', 'TAM_DOGRULA')
+    ),
+    CONSTRAINT ck_baglanti_surumu_zaman_asimlari CHECK (
+        baglanti_zaman_asimi_ms BETWEEN 1000 AND 120000
+        AND okuma_zaman_asimi_ms BETWEEN 1000 AND 300000
+        AND ag_zaman_asimi_ms BETWEEN 1000 AND 300000
+        AND sorgu_zaman_asimi_saniye BETWEEN 1 AND 300
+    ),
+    CONSTRAINT ck_baglanti_surumu_kullanim_amaci CHECK (
+        kullanim_amaci IS NULL OR kullanim_amaci ~ '^[A-Z][A-Z0-9_]{0,63}$'
     ),
     CONSTRAINT ck_baglanti_surumu_durum CHECK (
         durum IN ('TASLAK', 'TEST_EDILDI', 'ETKIN', 'KULLANIM_DISI')
@@ -288,6 +302,9 @@ CREATE TABLE sema_eslemesi (
 
 CREATE INDEX ix_baglanti_proje ON baglanti(proje_id) WHERE arsivlenme_zamani IS NULL;
 CREATE INDEX ix_baglanti_surumu_baglanti ON baglanti_surumu(baglanti_id, surum_no DESC);
+CREATE UNIQUE INDEX uq_baglanti_surumu_etkin
+    ON baglanti_surumu(baglanti_id)
+    WHERE durum = 'ETKIN';
 CREATE INDEX ix_baglanti_testi_surum ON baglanti_testi(baglanti_surumu_id, deneme_no DESC);
 CREATE INDEX ix_fiziksel_sema_baglanti ON fiziksel_sema(baglanti_id) WHERE arsivlenme_zamani IS NULL;
 CREATE INDEX ix_sema_eslemesi_fiziksel ON sema_eslemesi(fiziksel_sema_id);

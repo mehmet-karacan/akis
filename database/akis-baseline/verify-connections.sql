@@ -44,6 +44,18 @@ BEGIN
     IF actual <> 0 THEN
         RAISE EXCEPTION 'Metadata şemasında açık gizli değer kolonu bulunamaz.';
     END IF;
+
+    SELECT COUNT(*) INTO actual
+      FROM information_schema.columns
+     WHERE table_schema = 'akis'
+       AND table_name IN (
+           'baglanti', 'baglanti_surumu', 'baglanti_kimligi', 'baglanti_testi',
+           'fiziksel_sema', 'mantiksal_sema', 'ortam', 'sema_eslemesi'
+       )
+       AND data_type IN ('json', 'jsonb');
+    IF actual <> 0 THEN
+        RAISE EXCEPTION 'Bağlantı ve şema çekirdeği yapılandırılmış kolonlar yerine JSON kullanamaz.';
+    END IF;
 END
 $$;
 
@@ -106,6 +118,17 @@ BEGIN
     END;
 
     BEGIN
+        INSERT INTO baglanti_surumu(
+            proje_id, baglanti_id, surum_no, baglanti_modu,
+            surucu_sinifi, sunucu_adi, port, sid, baglanti_zaman_asimi_ms)
+        VALUES (910001, 910010, 3, 'JDBC', 'oracle.jdbc.OracleDriver',
+                'source.example', 1907, 'TTBP2', 999999);
+        RAISE EXCEPTION 'Sınır dışı bağlantı zaman aşımı kabul edildi.';
+    EXCEPTION
+        WHEN check_violation THEN NULL;
+    END;
+
+    BEGIN
         INSERT INTO sema_eslemesi(
             proje_id, ortam_id, mantiksal_sema_id, baglanti_id,
             fiziksel_sema_id, baglanti_surumu_id)
@@ -113,6 +136,60 @@ BEGIN
         RAISE EXCEPTION 'Başka projeye ait fiziksel şema eşlendi.';
     EXCEPTION
         WHEN foreign_key_violation THEN NULL;
+    END;
+END
+$$;
+
+INSERT INTO baglanti_testi(
+    id, proje_id, baglanti_surumu_id, deneme_no, sonuc,
+    urun_adi, urun_surumu, surucu_adi, surucu_surumu,
+    baslama_zamani, tamamlanma_zamani, sure_milisaniye, uuid)
+VALUES
+    (910060, 910001, 910020, 1, 'BASARILI',
+        'Oracle Database', '19c', 'Oracle JDBC', '23',
+        current_timestamp, current_timestamp, 0,
+        '91000000-0000-0000-0000-000000000060'),
+    (910061, 910001, 910021, 1, 'BASARILI',
+        'Oracle Database', '19c', 'Oracle JDBC', '23',
+        current_timestamp, current_timestamp, 0,
+        '91000000-0000-0000-0000-000000000061');
+
+UPDATE baglanti_surumu
+   SET durum = 'ETKIN',
+       son_basarili_test_uuid = '91000000-0000-0000-0000-000000000061',
+       test_edilme_zamani = current_timestamp,
+       etkinlestirilme_zamani = current_timestamp
+ WHERE id = 910021;
+
+INSERT INTO baglanti_surumu(
+    id, proje_id, baglanti_id, surum_no, baglanti_modu, surucu_sinifi,
+    sunucu_adi, port, servis_adi)
+VALUES (
+    910022, 910001, 910011, 2, 'JDBC', 'oracle.jdbc.OracleDriver',
+    'target-2.example', 1521, 'CT_GPU_TESTDB');
+
+INSERT INTO baglanti_testi(
+    id, proje_id, baglanti_surumu_id, deneme_no, sonuc,
+    urun_adi, urun_surumu, surucu_adi, surucu_surumu,
+    baslama_zamani, tamamlanma_zamani, sure_milisaniye, uuid)
+VALUES (
+    910062, 910001, 910022, 1, 'BASARILI',
+    'Oracle Database', '19c', 'Oracle JDBC', '23',
+    current_timestamp, current_timestamp, 0,
+    '91000000-0000-0000-0000-000000000062');
+
+DO $$
+BEGIN
+    BEGIN
+        UPDATE baglanti_surumu
+           SET durum = 'ETKIN',
+               son_basarili_test_uuid = '91000000-0000-0000-0000-000000000062',
+               test_edilme_zamani = current_timestamp,
+               etkinlestirilme_zamani = current_timestamp
+         WHERE id = 910022;
+        RAISE EXCEPTION 'Bir bağlantı için ikinci etkin sürüm kabul edildi.';
+    EXCEPTION
+        WHEN unique_violation THEN NULL;
     END;
 END
 $$;
