@@ -353,6 +353,8 @@ span.explorer-toggle { pointer-events: none; }
 .procedure-command-tabs { display: flex; gap: .2rem; padding: .35rem .75rem 0; border-bottom: 1px solid var(--df-line); background: var(--df-panel-muted); }
 .procedure-command-tabs button { display: inline-flex; min-height: 2.6rem; align-items: center; gap: .55rem; padding: .45rem .75rem; color: var(--df-muted); border: 0; border-bottom: 2px solid transparent; background: transparent; font-size: .78rem; font-weight: 760; }
 .procedure-command-tabs button[aria-selected='true'] { color: var(--df-text); border-bottom-color: var(--df-accent); }
+.procedure-command-tabs .procedure-command-copy { margin-left: auto; border: 1px solid var(--df-line); border-bottom-color: var(--df-line); border-radius: .4rem .4rem 0 0; background: var(--df-panel); }
+.procedure-command-tabs .procedure-command-copy:hover:not(:disabled) { color: var(--df-accent); background: var(--df-accent-soft); }
 .procedure-command-tabs button > span { padding: .12rem .38rem; border-radius: 999px; background: var(--df-bg); color: var(--df-muted); font-size: .6rem; }
 .procedure-command-tabs button > span.is-configured { background: var(--df-success-soft); color: var(--df-success); }
 .procedure-command-detail { min-height: 0; overflow: auto; }
@@ -360,8 +362,6 @@ span.explorer-toggle { pointer-events: none; }
 .procedure-side-context { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); align-items: end; gap: .6rem; }
 .procedure-side-context label { display: grid; gap: .3rem; }
 .procedure-side-context label > span, .procedure-side .procedure-command > span { color: var(--df-muted); font-size: .68rem; font-weight: 720; }
-.procedure-command-header { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
-.procedure-command-header > button { display: inline-flex; align-items: center; gap: .35rem; padding: .28rem .48rem; border: 1px solid var(--df-line); border-radius: .35rem; background: var(--df-panel); color: var(--df-text); font-size: .66rem; font-weight: 720; }
 .procedure-side-context select { width: 100%; }
 .procedure-side-state { min-width: 6.5rem; padding: .6rem .7rem; border: 1px solid var(--df-line); border-radius: .45rem; color: var(--df-muted); background: var(--df-bg); font-size: .67rem; font-weight: 760; text-align: center; }
 .procedure-side-state.is-configured { border-color: color-mix(in srgb, var(--df-success) 35%, var(--df-line)); color: var(--df-success); background: var(--df-success-soft); }
@@ -372,7 +372,7 @@ span.explorer-toggle { pointer-events: none; }
 .procedure-general-properties .procedure-checkbox { grid-column: 1 / -1; }
 .procedure-general-properties > p { grid-column: 1 / -1; margin: 0; color: var(--df-muted); font-size: .7rem; }
 .procedure-side .procedure-command { display: grid; grid-template-rows: auto minmax(10rem, 1fr); min-height: 0; padding: 0; }
-.procedure-side .procedure-command .ui-sql-editor, .procedure-side .procedure-command .cm-editor { min-height: 12rem; height: 100%; }
+.procedure-side .procedure-command .ui-sql-editor, .procedure-side .procedure-command .cm-editor { min-height: 18rem; height: 100%; }
 .procedure-task-grid { display: grid; grid-template-columns: repeat(4, minmax(9rem, 1fr)); gap: .65rem; padding: .75rem; }
 .procedure-task-grid label, .procedure-command, .procedure-flow-options label { display: grid; gap: .3rem; }
 .procedure-task-grid label > span, .procedure-command > span, .procedure-flow-options label > span { color: var(--df-muted); font-size: .68rem; font-weight: 720; }

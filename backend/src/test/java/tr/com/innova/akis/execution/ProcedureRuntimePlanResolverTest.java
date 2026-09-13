@@ -54,6 +54,23 @@ class ProcedureRuntimePlanResolverTest {
     }
 
     @Test
+    void acceptsAuthoringTopologyReferencesThatAreReplacedByPinnedManifestBindings() {
+        ObjectNode definition = definition();
+        definition.withArray("tasks").forEach(task -> {
+            ((ObjectNode) task).put("logicalSchemaUuid", UUID.randomUUID().toString());
+            ((ObjectNode) task).put("environmentUuid", UUID.randomUUID().toString());
+        });
+        ObjectNode scenario = scenario(definition);
+        String scenarioHash = sha256(canonicalize(scenario).toString());
+        ObjectNode manifest = manifest(definition, scenario, scenarioHash);
+
+        String runtimeHash = resolver.compileHashForPublication(
+                scenarioHash, scenario, manifest);
+
+        assertTrue(runtimeHash.matches("[0-9a-f]{64}"));
+    }
+
+    @Test
     void rejectsMissingExtraDuplicateAndWrongRoleBindings() {
         Fixture missing = fixture();
         ((ArrayNode) missing.unsignedManifest().get("bindings")).remove(3);

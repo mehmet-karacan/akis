@@ -60,7 +60,13 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
     const initiallyOpenFolders = flowDefinitions.length <= 200 ? tree.map((folder) => folder.uuid) : []
     const selected = flowDefinitions.find((item) => item.uuid === selectedUuid)
     const selectedGroup = selected ? [`${selected.folderUuid ?? 'unfiled'}:${selected.type}`] : []
-    setExpanded(new Set([VIRTUAL.flows, VIRTUAL.components, ...initiallyOpenFolders, ...selectedGroup]))
+    setExpanded((current) => new Set([
+      ...current,
+      VIRTUAL.flows,
+      VIRTUAL.components,
+      ...initiallyOpenFolders,
+      ...selectedGroup,
+    ]))
   }, [flowDefinitions, projectUuid, selectedUuid, tree]) // Type clusters stay collapsed until requested; the active object's cluster remains visible.
 
   useEffect(() => {

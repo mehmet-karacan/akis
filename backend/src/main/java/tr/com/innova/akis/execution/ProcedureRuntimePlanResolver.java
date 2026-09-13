@@ -282,7 +282,8 @@ public final class ProcedureRuntimePlanResolver {
                     Set.of("id", "name", "type", "connectionRole", "riskClass",
                             "command", "requiresApproval", "onError", "timeoutSeconds",
                             "output", "input", "logCounter", "transactionMode",
-                            "transactionChannel", "transactionIsolation", "commitMode"),
+                            "transactionChannel", "transactionIsolation", "commitMode",
+                            "logicalSchemaUuid", "environmentUuid"),
                     "Procedure task", ProcedurePlanFailure.UNSUPPORTED_PROCEDURE_SHAPE);
             String id = requireText(node, "id");
             String command = requireText(node, "command");

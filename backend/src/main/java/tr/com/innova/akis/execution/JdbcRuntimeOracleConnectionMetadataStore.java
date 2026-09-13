@@ -44,7 +44,11 @@ public class JdbcRuntimeOracleConnectionMetadataStore
                                bs.servis_adi,
                                bs.sid,
                                bs.port,
-                               bs.tls_modu,
+                               case bs.tls_modu
+                                 when 'DEVRE_DISI' then 'DISABLED'
+                                 when 'ZORUNLU' then 'REQUIRED'
+                                 else bs.tls_modu
+                               end as tls_modu,
                                jsonb_build_object(
                                   'connectTimeoutMs',bs.baglanti_zaman_asimi_ms,
                                   'readTimeoutMs',bs.okuma_zaman_asimi_ms,

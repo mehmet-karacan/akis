@@ -403,13 +403,8 @@ export function ProcedureEditor({
               </select>
             </label> : null}
           </div>
-          <label className="procedure-command">
-            <span className="procedure-command-header"><span>{t(role === "SOURCE" ? "sourceSql" : "targetSql")}</span><button type="button" disabled={!task?.command} onClick={async () => {
-              if (!task?.command) return;
-              await navigator.clipboard.writeText(task.command);
-              setCopiedRole(role);
-              window.setTimeout(() => setCopiedRole((current) => current === role ? null : current), 1600);
-            }}>{copiedRole === role ? <Check size={14} /> : <Copy size={14} />}{t(copiedRole === role ? "copied" : "copySql")}</button></span>
+          <div className="procedure-command">
+            <span>{t(role === "SOURCE" ? "sourceSql" : "targetSql")}</span>
             <SqlEditor label={t(role === "SOURCE" ? "sourceSql" : "targetSql")} value={task?.command ?? ""} onChange={(command) => {
               const base = task ?? nextTask(role, value.tasks);
               const metadata = inferProcedureTaskMetadata(base, command);
@@ -423,7 +418,7 @@ export function ProcedureEditor({
                 } : {}),
               });
             }} errors={sqlIssues} />
-          </label>
+          </div>
       </section>
     );
   };
@@ -607,6 +602,16 @@ export function ProcedureEditor({
               <button type="button" role="tab" aria-selected={selectedDetail === "GENERAL"} onClick={() => setSelectedDetail("GENERAL")}>{t("general")}</button>
               <button type="button" role="tab" aria-selected={selectedDetail === "TARGET"} onClick={() => { setSelectedRole("TARGET"); setSelectedDetail("TARGET"); }}>{t("targetCommand")}</button>
               <button type="button" role="tab" aria-selected={selectedDetail === "SOURCE"} onClick={() => { setSelectedRole("SOURCE"); setSelectedDetail("SOURCE"); }}>{t("sourceCommand")}</button>
+              {selectedDetail !== "GENERAL" ? (() => {
+                const commandTask = selectedDetail === "SOURCE" ? selectedUnit.source : selectedUnit.target;
+                const role = selectedDetail as ProcedureConnectionRole;
+                return <button className="procedure-command-copy" type="button" disabled={!commandTask?.command} onClick={async () => {
+                  if (!commandTask?.command) return;
+                  await navigator.clipboard.writeText(commandTask.command);
+                  setCopiedRole(role);
+                  window.setTimeout(() => setCopiedRole((current) => current === role ? null : current), 1600);
+                }}>{copiedRole === role ? <Check size={14} /> : <Copy size={14} />}{t(copiedRole === role ? "copied" : "copySql")}</button>;
+              })() : null}
             </div>
             <div className="procedure-command-detail">
               {selectedDetail === "GENERAL" ? (() => {
