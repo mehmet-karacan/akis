@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import i18n from '../../core/i18n'
@@ -107,5 +107,25 @@ describe('execution UI states', () => {
 
     expect(await screen.findByText('Sürüm özeti')).toBeInTheDocument()
     expect(screen.getByText('Plan özeti')).toBeInTheDocument()
+  })
+
+  it('opens run evidence in a panel with a run tree and transfer row metrics', async () => {
+    vi.mocked(executionApi.listSteps).mockResolvedValue([
+      { uuid: 'read', parentUuid: null, code: 'READ_SOURCE', type: 'PROCEDURE', ordinal: 1, name: 'Read rows', status: 'BASARILI', connectionRole: 'SOURCE', risk: 'READ_ONLY', startedAt: null, finishedAt: null, rowCount: 33, byteCount: 1200, errorCode: null },
+      { uuid: 'insert', parentUuid: null, code: 'INSERT_TARGET', type: 'PROCEDURE', ordinal: 2, name: 'Insert rows', status: 'BASARILI', connectionRole: 'TARGET', risk: 'DML', startedAt: null, finishedAt: null, rowCount: 33, byteCount: 0, errorCode: null },
+    ])
+    const close = vi.fn()
+    const { container } = render(<MemoryRouter initialEntries={['/projects/project-id/runs/run-id']}><Routes><Route path="/projects/:projectUuid/runs/:runUuid" element={<RunDetailPage runUuidOverride="run-id" panel onClose={close} objectName="Customer Load" />} /></Routes></MemoryRouter>)
+
+    expect(await screen.findByRole('dialog', { name: 'Run detail' })).toBeInTheDocument()
+    expect(screen.getByRole('treeitem', { name: /Customer Load/ })).toHaveAttribute('aria-expanded', 'true')
+    const metrics = container.querySelector('.execution-row-metrics')
+    expect(metrics).not.toBeNull()
+    expect(within(metrics as HTMLElement).getByText('Rows Selected')).toBeInTheDocument()
+    expect(within(metrics as HTMLElement).getByText('Rows Inserted')).toBeInTheDocument()
+    expect(within(metrics as HTMLElement).getAllByText('33')).toHaveLength(2)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(close).toHaveBeenCalledOnce()
   })
 })

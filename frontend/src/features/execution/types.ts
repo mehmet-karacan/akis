@@ -51,6 +51,8 @@ export interface RunSummary {
   environmentName: string
   environmentRisk: string
   initiatorName: string
+  selectedRows: number | null
+  insertedRows: number | null
 }
 
 export interface RunPage {

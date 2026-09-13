@@ -322,7 +322,18 @@ public class JdbcExecutionStore implements ExecutionStore {
                                t.ad as definition_name, t.tur as definition_type,
                                o.uuid as environment_uuid, o.kod as environment_code,
                                o.ad as environment_name, o.risk as environment_risk,
-                               coalesce(k.gorunen_ad, '—') as initiator_name
+                               coalesce(k.gorunen_ad, '—') as initiator_name,
+                               (select sum(ad.satir_sayisi)::bigint
+                                  from akis.calistirma_adimi ca
+                                  join akis.prosedur_adim_kaniti ak on ak.calistirma_adimi_id = ca.id
+                                  join akis.prosedur_adim_durumu ad on ad.calistirma_adimi_id = ca.id
+                                 where ca.calistirma_id = r.id
+                                   and ak.baglanti_rolu = 'SOURCE') as selected_rows,
+                               (select sum(ad.satir_sayisi)::bigint
+                                  from akis.calistirma_adimi ca
+                                  join akis.prosedur_adim_durumu ad on ad.calistirma_adimi_id = ca.id
+                                 where ca.calistirma_id = r.id
+                                   and upper(ca.adim_kodu) like '%INSERT%') as inserted_rows
                         """ + joinsAndFilter + """
                          order by r.olusturulma_zamani desc, r.id desc
                          limit :size offset :offset
@@ -335,7 +346,9 @@ public class JdbcExecutionStore implements ExecutionStore {
                         rs.getString("definition_type"),
                         rs.getObject("environment_uuid", UUID.class),
                         rs.getString("environment_code"), rs.getString("environment_name"),
-                        rs.getString("environment_risk"), rs.getString("initiator_name")))
+                        rs.getString("environment_risk"), rs.getString("initiator_name"),
+                        rs.getObject("selected_rows", Long.class),
+                        rs.getObject("inserted_rows", Long.class)))
                 .list();
         return new RunSummaryPage(items, total, search.page(), search.size());
     }

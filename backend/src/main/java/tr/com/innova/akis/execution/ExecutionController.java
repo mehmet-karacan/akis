@@ -195,13 +195,15 @@ final class ExecutionController {
             String environmentCode,
             String environmentName,
             String environmentRisk,
-            String initiatorName) {
+            String initiatorName,
+            Long selectedRows,
+            Long insertedRows) {
         static RunSummaryView from(RunSummaryRow row, ExecutionFeatureFlags flags) {
             return new RunSummaryView(
                     RunView.from(row.run(), flags), row.definitionUuid(), row.definitionCode(),
                     row.definitionName(), row.definitionType(), row.environmentUuid(),
                     row.environmentCode(), row.environmentName(), row.environmentRisk(),
-                    row.initiatorName());
+                    row.initiatorName(), row.selectedRows(), row.insertedRows());
         }
     }
 

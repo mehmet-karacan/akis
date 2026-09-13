@@ -1,4 +1,4 @@
-import { ArrowLeft, Ban, CalendarClock, ChevronDown, ChevronRight, ListRestart, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Ban, CalendarClock, ChevronDown, ChevronRight, ListRestart, RefreshCw, Workflow, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
@@ -17,8 +17,27 @@ function StepTreeItems({ nodes, selectedUuid, expanded, onSelect, onToggle, loca
   return nodes.map((step) => { const hasChildren = step.children.length > 0; const open = expanded.has(step.uuid); return <li key={step.uuid} role="treeitem" aria-selected={selectedUuid === step.uuid} aria-expanded={hasChildren ? open : undefined}><div className="execution-tree-step-row">{hasChildren ? <button className="execution-tree-toggle" type="button" onClick={() => onToggle(step.uuid)} aria-label={open ? collapseLabel : expandLabel}>{open ? <ChevronDown /> : <ChevronRight />}</button> : <span className="execution-tree-spacer" />}<button type="button" onClick={() => onSelect(step.uuid)}><span><small>{step.ordinal}</small><strong>{step.name}</strong><em>{executionCodeLabel(step.type, locale)} · {step.code}</em></span><RunStatusBadge status={step.status} /></button></div>{hasChildren && open ? <ul role="group"><StepTreeItems nodes={step.children} selectedUuid={selectedUuid} expanded={expanded} onSelect={onSelect} onToggle={onToggle} locale={locale} expandLabel={expandLabel} collapseLabel={collapseLabel} /></ul> : null}</li> })
 }
 
-export function RunDetailPage() {
-  const { runUuid = '' } = useParams(); const projectUuid = useCurrentProjectUuid()
+interface RunDetailPageProps {
+  runUuidOverride?: string
+  panel?: boolean
+  onClose?: () => void
+  objectName?: string
+}
+
+function sumRows(steps: RunStepNode[], predicate: (step: RunStepNode) => boolean): number | null {
+  const flattened: RunStepNode[] = []
+  const visit = (items: RunStepNode[]) => items.forEach((step) => { flattened.push(step); visit(step.children) })
+  visit(steps)
+  const values = flattened.filter(predicate).map((step) => step.rowCount).filter((value): value is number => value !== null)
+  return values.length ? values.reduce((total, value) => total + value, 0) : null
+}
+
+function isInsertStep(step: RunStepNode) {
+  return `${step.code} ${step.type}`.toLocaleUpperCase('en-US').includes('INSERT')
+}
+
+export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectName }: RunDetailPageProps = {}) {
+  const { runUuid: routeRunUuid = '' } = useParams(); const runUuid = runUuidOverride ?? routeRunUuid; const projectUuid = useCurrentProjectUuid()
   const { t, locale } = useExecutionI18n()
   const run = useRemoteData(() => executionApi.getRun(projectUuid, runUuid), [projectUuid, runUuid])
   const publication = useRemoteData(() => run.data?.publicationUuid ? operationsApi.getPublication(projectUuid, run.data.publicationUuid) : Promise.resolve(null), [projectUuid, run.data?.publicationUuid])
@@ -34,8 +53,18 @@ export function RunDetailPage() {
   const cancelAvailability = run.data?.allowedActions?.find((action) => action.action === 'CANCEL')
   const canCancel = cancelAvailability?.allowed ?? false
   const stepTree = useMemo(() => buildRunStepTree(steps.data ?? []), [steps.data])
+  const selectedRows = useMemo(() => sumRows(stepTree, (step) => step.connectionRole === 'SOURCE'), [stepTree])
+  const insertedRows = useMemo(() => sumRows(stepTree, isInsertStep), [stepTree])
   useEffect(() => { if (!steps.data?.length || selectedStepUuid) return; const failurePath = firstFailedPath(stepTree); setSelectedStepUuid(failurePath.at(-1) ?? steps.data[0]!.uuid); setExpandedSteps(new Set(failurePath.slice(0, -1))) }, [selectedStepUuid, stepTree, steps.data])
   const selectedStep = steps.data?.find((step) => step.uuid === selectedStepUuid) ?? steps.data?.[0]
+  const selectedStepRowLabel = selectedStep?.connectionRole === 'SOURCE' ? t('selectedRows') : selectedStep && isInsertStep(selectedStep as RunStepNode) ? t('insertedRows') : t('rowCount')
+
+  useEffect(() => {
+    if (!panel || !onClose) return
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [onClose, panel])
 
   const refresh = async () => {
     await Promise.all([run.reload(), steps.reload(), events.reload()])
@@ -61,15 +90,16 @@ export function RunDetailPage() {
     }
   }
 
-  return (
-    <section className="ops-page execution-page">
-      <Link className="ops-link execution-back" to={`/projects/${encodeURIComponent(projectUuid)}/operations`}><ArrowLeft aria-hidden="true" /> {t('backToRuns')}</Link>
+  const content = (
+    <section className={`ops-page execution-page ${panel ? 'execution-page--panel' : ''}`}>
+      {!panel ? <Link className="ops-link execution-back" to="/project/operations"><ArrowLeft aria-hidden="true" /> {t('backToRuns')}</Link> : null}
       <PageHeader
         title={t('runDetail')}
         description={run.data ? `${t('runAttempt', { number: run.data.attemptNumber })} · ${executionCodeLabel(run.data.startType, locale)}` : t('runDetail')}
         actions={<>
           <button className="ops-button ops-button-secondary" type="button" onClick={() => void refresh()} disabled={run.loading || events.loading}><RefreshCw aria-hidden="true" /> {t('refresh')}</button>
           {canCancel ? <button className="ops-button ops-button-danger" type="button" onClick={() => setConfirmOpen(true)} disabled={executionDisabled}><Ban aria-hidden="true" /> {t('cancelRun')}</button> : null}
+          {panel && onClose ? <button className="ops-button ops-button-secondary execution-panel-close" type="button" onClick={onClose} aria-label={t('close')}><X aria-hidden="true" /></button> : null}
         </>}
       />
       {executionDisabled ? <ExecutionDisabledNotice /> : null}
@@ -107,7 +137,7 @@ export function RunDetailPage() {
             {!steps.loading && steps.error ? <ErrorState message={apiErrorMessage(steps.error, t('requestFailed'))} onRetry={() => void steps.reload()} /> : null}
             {!steps.loading && !steps.error && steps.data?.length === 0 ? <EmptyState>{t('emptySteps')}</EmptyState> : null}
             {!steps.loading && steps.data && steps.data.length > 0 ? <div className="execution-step-layout">
-              <ul className="execution-step-tree" role="tree" aria-label={t('steps')}><StepTreeItems nodes={stepTree} selectedUuid={selectedStep?.uuid} expanded={expandedSteps} onSelect={setSelectedStepUuid} onToggle={(uuid) => setExpandedSteps((current) => { const next = new Set(current); if (next.has(uuid)) next.delete(uuid); else next.add(uuid); return next })} locale={locale} expandLabel={t('expandStep')} collapseLabel={t('collapseStep')} /></ul>
+              <div className="execution-step-master"><div className="execution-row-metrics">{selectedRows !== null ? <div><span>{t('selectedRows')}</span><strong>{new Intl.NumberFormat(locale).format(selectedRows)}</strong></div> : null}{insertedRows !== null ? <div><span>{t('insertedRows')}</span><strong>{new Intl.NumberFormat(locale).format(insertedRows)}</strong></div> : null}</div><ul className="execution-step-tree" role="tree" aria-label={t('steps')}><li className="execution-run-tree-root" role="treeitem" aria-expanded="true"><div className="execution-run-tree-root-row"><Workflow aria-hidden="true" /><span><strong>{objectName ?? t('executionRoot')}</strong><em>{run.data ? t('runAttempt', { number: run.data.attemptNumber }) : t('executionRoot')}</em></span>{run.data ? <RunStatusBadge status={run.data.status} /> : null}</div><ul role="group"><StepTreeItems nodes={stepTree} selectedUuid={selectedStep?.uuid} expanded={expandedSteps} onSelect={setSelectedStepUuid} onToggle={(uuid) => setExpandedSteps((current) => { const next = new Set(current); if (next.has(uuid)) next.delete(uuid); else next.add(uuid); return next })} locale={locale} expandLabel={t('expandStep')} collapseLabel={t('collapseStep')} /></ul></li></ul></div>
               {selectedStep ? <section className="execution-step-detail" aria-label={t('stepDetail')}><h3>{selectedStep.name}</h3><dl className="ops-kv">
                 <dt>{t('status')}</dt><dd><RunStatusBadge status={selectedStep.status} /></dd>
                 <dt>{t('type')}</dt><dd>{executionCodeLabel(selectedStep.type, locale)}</dd>
@@ -115,7 +145,7 @@ export function RunDetailPage() {
                 <dt>{t('risk')}</dt><dd>{executionCodeLabel(selectedStep.risk, locale)}</dd>
                 <dt>{t('startedAt')}</dt><dd>{formatDate(selectedStep.startedAt, locale)}</dd>
                 <dt>{t('finishedAt')}</dt><dd>{formatDate(selectedStep.finishedAt, locale)}</dd>
-                <dt>{t('rowCount')}</dt><dd>{selectedStep.rowCount ?? '—'}</dd>
+                <dt>{selectedStepRowLabel}</dt><dd>{selectedStep.rowCount ?? '—'}</dd>
                 <dt>{t('byteCount')}</dt><dd>{selectedStep.byteCount ?? '—'}</dd>
                 <dt>{t('errorCode')}</dt><dd>{selectedStep.errorCode ?? '—'}</dd>
               </dl></section> : null}
@@ -123,7 +153,7 @@ export function RunDetailPage() {
           </Panel>
           <Panel title={t('evidence')} className="execution-events-panel">
             <div className="execution-evidence-tabs" role="tablist" aria-label={t('evidence')}>{(['SUMMARY', 'LOGS', 'EVENTS'] as const).map((tab) => <button type="button" role="tab" aria-selected={evidenceTab === tab} key={tab} onClick={() => setEvidenceTab(tab)}>{t(`tab_${tab}`)}</button>)}</div>
-            {evidenceTab === 'SUMMARY' && selectedStep ? <section className="execution-evidence-summary"><h3>{selectedStep.name}</h3>{selectedStep.errorCode ? <div className="ops-alert ops-alert-error" role="alert"><strong>{selectedStep.errorCode}</strong><p>{t('errorMessageUnavailable')}</p></div> : null}<p>{t('metricScope')}</p><dl className="ops-kv"><dt>{t('rowCount')}</dt><dd>{selectedStep.rowCount ?? '—'}</dd><dt>{t('byteCount')}</dt><dd>{selectedStep.byteCount ?? '—'}</dd><dt>{t('startedAt')}</dt><dd>{formatDate(selectedStep.startedAt, locale)}</dd><dt>{t('finishedAt')}</dt><dd>{formatDate(selectedStep.finishedAt, locale)}</dd></dl></section> : null}
+            {evidenceTab === 'SUMMARY' && selectedStep ? <section className="execution-evidence-summary"><h3>{selectedStep.name}</h3>{selectedStep.errorCode ? <div className="ops-alert ops-alert-error" role="alert"><strong>{selectedStep.errorCode}</strong><p>{t('errorMessageUnavailable')}</p></div> : null}<p>{t('metricScope')}</p><dl className="ops-kv"><dt>{selectedStepRowLabel}</dt><dd>{selectedStep.rowCount ?? '—'}</dd><dt>{t('byteCount')}</dt><dd>{selectedStep.byteCount ?? '—'}</dd><dt>{t('startedAt')}</dt><dd>{formatDate(selectedStep.startedAt, locale)}</dd><dt>{t('finishedAt')}</dt><dd>{formatDate(selectedStep.finishedAt, locale)}</dd></dl></section> : null}
             {evidenceTab === 'LOGS' && <section className="execution-log-viewer"><header><strong>{t('operationalEventLog')}</strong><span>{t('eventLogScope')}</span></header>{events.loading ? <LoadingState /> : null}{!events.loading && events.error ? <ErrorState message={apiErrorMessage(events.error, t('requestFailed'))} onRetry={() => void events.reload()} /> : null}{!events.loading && !events.error && !events.data?.items.length ? <EmptyState>{t('noStepLog')}</EmptyState> : null}{events.data?.items.map((event) => <div className="execution-log-line" key={event.uuid}><time dateTime={event.eventTime}>{formatDate(event.eventTime, locale)}</time><span>INFO</span><strong>{executionCodeLabel(event.type, locale)}</strong><em>#{event.eventNumber}</em></div>)}{events.data?.hasMore ? <button className="ops-button ops-button-secondary" type="button" onClick={() => void loadMoreEvents()}>{t('loadMore')}</button> : null}</section>}
             {evidenceTab === 'EVENTS' && events.loading ? <LoadingState /> : null}
             {evidenceTab === 'EVENTS' && !events.loading && events.error ? <ErrorState message={apiErrorMessage(events.error, t('requestFailed'))} onRetry={() => void events.reload()} /> : null}
@@ -156,4 +186,5 @@ export function RunDetailPage() {
       ) : null}
     </section>
   )
+  return panel ? <div className="execution-panel-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose?.() }}><aside className="execution-detail-panel" role="dialog" aria-modal="true" aria-label={t('runDetail')}>{content}</aside></div> : content
 }

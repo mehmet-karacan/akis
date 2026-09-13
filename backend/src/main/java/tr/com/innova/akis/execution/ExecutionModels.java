@@ -71,7 +71,9 @@ final class ExecutionModels {
             String environmentCode,
             String environmentName,
             String environmentRisk,
-            String initiatorName) {
+            String initiatorName,
+            Long selectedRows,
+            Long insertedRows) {
     }
 
     record RunSearch(
