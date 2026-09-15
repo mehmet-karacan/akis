@@ -1,3 +1,6 @@
+import { Button as AntActionButton } from '../../core/ui/Button'
+import { DataGrid } from '../../core/ui/DataGrid'
+import { Input as AntInput } from 'antd'
 import { Plus } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { operationsApi } from './api'
@@ -60,7 +63,7 @@ export function IdentityUsersPage() {
       <PageHeader
         title={t('users')}
         description={t('usersHelp')}
-        actions={<button className="ops-button" type="button" onClick={() => setDialogOpen(true)}><Plus aria-hidden="true" /> {t('newUser')}</button>}
+        actions={<AntActionButton tone="ghost" className="ops-button" type="button" onClick={() => setDialogOpen(true)}><Plus aria-hidden="true" /> {t('newUser')}</AntActionButton>}
       />
       <Panel>
         {users.loading ? <LoadingState /> : null}
@@ -68,7 +71,7 @@ export function IdentityUsersPage() {
         {!users.loading && !users.error && users.data?.length === 0 ? <EmptyState>{t('emptyUsers')}</EmptyState> : null}
         {!users.loading && users.data && users.data.length > 0 ? (
           <div className="ops-table-wrap">
-            <table className="ops-table">
+            <DataGrid className="ops-table">
               <thead><tr><th scope="col">{t('name')}</th><th scope="col">{t('issuer')}</th><th scope="col">{t('subject')}</th><th scope="col">{t('status')}</th><th scope="col">{t('createdAt')}</th></tr></thead>
               <tbody>
                 {users.data.map((user) => (
@@ -81,7 +84,7 @@ export function IdentityUsersPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </DataGrid>
           </div>
         ) : null}
       </Panel>
@@ -91,14 +94,14 @@ export function IdentityUsersPage() {
           <form className="ops-form" onSubmit={(event) => void submit(event)} noValidate>
             {submitError ? <div className="ops-alert ops-alert-error" role="alert">{submitError}</div> : null}
             <div className="ops-form-grid">
-              <Field label={t('issuer')} error={errors.issuer}><input value={issuer} onChange={(event) => setIssuer(event.target.value)} required aria-invalid={Boolean(errors.issuer)} /></Field>
-              <Field label={t('subject')} error={errors.subject}><input value={subject} onChange={(event) => setSubject(event.target.value)} required aria-invalid={Boolean(errors.subject)} /></Field>
-              <Field label={t('name')} error={errors.name}><input value={name} onChange={(event) => setName(event.target.value)} required aria-invalid={Boolean(errors.name)} /></Field>
-              <Field label={t('email')} error={errors.email}><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} aria-invalid={Boolean(errors.email)} /></Field>
+              <Field label={t('issuer')} error={errors.issuer}><AntInput value={issuer} onChange={(event) => setIssuer(event.target.value)} required aria-invalid={Boolean(errors.issuer)} /></Field>
+              <Field label={t('subject')} error={errors.subject}><AntInput value={subject} onChange={(event) => setSubject(event.target.value)} required aria-invalid={Boolean(errors.subject)} /></Field>
+              <Field label={t('name')} error={errors.name}><AntInput value={name} onChange={(event) => setName(event.target.value)} required aria-invalid={Boolean(errors.name)} /></Field>
+              <Field label={t('email')} error={errors.email}><AntInput type="email" value={email} onChange={(event) => setEmail(event.target.value)} aria-invalid={Boolean(errors.email)} /></Field>
             </div>
             <div className="ops-form-actions">
-              <button className="ops-button ops-button-secondary" type="button" onClick={() => setDialogOpen(false)} disabled={submitting}>{t('close')}</button>
-              <button className="ops-button" type="submit" disabled={submitting || (touched && invalid)}>{submitting ? t('provisioning') : t('provision')}</button>
+              <AntActionButton tone="ghost" className="ops-button ops-button-secondary" type="button" onClick={() => setDialogOpen(false)} disabled={submitting}>{t('close')}</AntActionButton>
+              <AntActionButton tone="primary" className="ops-button" type="submit" disabled={submitting || (touched && invalid)}>{submitting ? t('provisioning') : t('provision')}</AntActionButton>
             </div>
           </form>
         </Dialog>

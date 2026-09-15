@@ -18,6 +18,16 @@ class DefinitionContentValidatorTest {
     private final DefinitionContentValidator validator = new DefinitionContentValidator();
 
     @Test
+    void rejectsDateRefreshIntoBooleanOrNumericVariables() {
+        for (String type : List.of("BOOLEAN", "INTEGER", "DECIMAL", "STRING", "JSON")) {
+            var variable = objectMapper.createObjectNode().put("dataType", type)
+                .put("scope", "PROJECT").put("historyMode", "LATEST")
+                .put("valueSource", "REFRESH_QUERY").put("query", "SELECT SYSDATE - 1 FROM DUAL");
+            assertThrows(ApiException.class, () -> validator.validate(DefinitionType.VARIABLE, 1, variable));
+        }
+    }
+
+    @Test
     void acceptsConnectedAcyclicPackage() {
         assertDoesNotThrow(() -> validate(DefinitionType.PACKAGE, """
                 {
@@ -136,13 +146,13 @@ class DefinitionContentValidatorTest {
                    "command":"TRUNCATE TABLE INNOVA_ODI.STG_HAKEDIS_TIPI"},
                   {"id":"READ_SOURCE","type":"SQL","connectionRole":"SOURCE",
                    "riskClass":"READ_ONLY","onError":"STOP","timeoutSeconds":60,
-                   "command":"SELECT ID, ACIKLAMA FROM TTBP.HAKEDIS_TIPI",
+                   "command":"SELECT\\n ID, ACIKLAMA FROM TTBP.HAKEDIS_TIPI",
                    "output":{"kind":"ROWSET","maxRows":10000}},
                   {"id":"WRITE_TARGET","type":"SQL","connectionRole":"TARGET",
                    "riskClass":"DML","onError":"STOP","logCounter":"INSERT",
                    "transactionMode":"TRANSACTION","transactionChannel":0,
                    "transactionIsolation":"READ_COMMITTED","commitMode":"COMMIT",
-                   "command":"INSERT INTO INNOVA_ODI.STG_HAKEDIS_TIPI (ID, ACIKLAMA) VALUES (:ID, :ACIKLAMA)",
+                   "command":"INSERT\\n INTO INNOVA_ODI.STG_HAKEDIS_TIPI (ID, ACIKLAMA) VALUES (:ID, :ACIKLAMA)",
                    "input":{"fromTask":"READ_SOURCE","mode":"BATCH","batchSize":250}},
                   {"id":"GATHER_STATS","type":"PLSQL","connectionRole":"TARGET",
                    "riskClass":"DDL","requiresApproval":true,"onError":"STOP",
@@ -317,6 +327,12 @@ class DefinitionContentValidatorTest {
 
     @Test
     void preservesVariableAndSequenceContracts() {
+        assertValidationContains(DefinitionType.VARIABLE, """
+            {"dataType":"DATE","scope":"PROJECT","historyMode":"ALL","valueSource":"REFRESH_QUERY","query":"SELECT SYSDATE - 1 FROM DUAL"}
+            """, "Mantıksal Şema");
+        assertDoesNotThrow(() -> validate(DefinitionType.VARIABLE, """
+            {"dataType":"DATE","scope":"PROJECT","historyMode":"ALL","valueSource":"REFRESH_QUERY","query":"SELECT SYSDATE - 1 FROM DUAL","logicalSchemaUuid":"10000000-0000-0000-0000-000000000001"}
+            """));
         assertDoesNotThrow(() -> validate(DefinitionType.VARIABLE, """
                 {"dataType":"TIMESTAMP","scope":"PACKAGE_RUN","historyMode":"LATEST",
                  "valueSource":"STEP_OUTPUT"}

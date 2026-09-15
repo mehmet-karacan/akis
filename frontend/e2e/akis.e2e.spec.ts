@@ -68,17 +68,11 @@ test.describe('AKIŞ critical browser journeys', () => {
 
   test('keeps package authoring focused on the canvas and opens linked objects on double click', async ({ page }) => {
     await login(page)
-    await page.locator('.workspace-navigation a[href="/project/objects"]').click()
+    await page.getByRole('menuitem', { name: 'Project Objects', exact: true }).click()
     await expect(page).toHaveURL(/\/project\/objects$/)
-    await expect(page.locator('.sidebar-type-cluster').filter({ hasText: 'Procedures' }).first()).toBeVisible()
-    const packageCluster = page.locator('.sidebar-type-cluster').filter({ hasText: 'Packages' }).first()
-    await expect(packageCluster).toBeVisible()
-    const packageToggle = packageCluster.getByRole('button', { name: /^Packages\s+\d+$/ })
-    if (await packageToggle.getAttribute('aria-expanded') !== 'true') await packageToggle.click()
-    await expect(packageToggle).toHaveAttribute('aria-expanded', 'true')
-    const packageRow = packageCluster.locator('.sidebar-object-row').first()
-    await expect(packageRow).toBeVisible()
-    await packageRow.locator('.sidebar-object').click()
+    const packageToggle = page.getByRole('button', { name: /^Packages\s*\d+$/ }).first()
+    await packageToggle.click()
+    await page.locator('.sidebar-project-tree span[title$="· Package"] button').first().click()
     await expect(page.locator('.package-canvas')).toBeVisible()
     await expect(page.locator('.package-palette')).toHaveCount(0)
     await expect(page.locator('.package-accessible-list')).toHaveCount(0)
@@ -130,7 +124,7 @@ test.describe('AKIŞ critical browser journeys', () => {
     await expect(page.getByRole('tab', { name: /Data Bindings|Veri Bağları/ })).toHaveCount(0)
     await expect(page.getByText(/Resolved execution context|Çözümlenen Çalışma Bağlamı/)).toHaveCount(0)
     await page.getByRole('tab', { name: /Target Command|Hedef Komutu/ }).click()
-    await expect(page.locator('.procedure-side select').first().locator('option').first()).toHaveText(/Not selected|Seçilmedi/)
+    await expect(page.locator('.procedure-side .ant-select').first()).toContainText(/Not selected|Seçilmedi/)
     await page.screenshot({ path: 'test-results/procedure-master-detail.png', fullPage: true })
     const dimensions = await page.evaluate(() => {
       const panel = document.querySelector('.definition-editor-panel')?.getBoundingClientRect()
@@ -150,14 +144,17 @@ test.describe('AKIŞ critical browser journeys', () => {
 
   test('opens a new procedure directly in the full editor instead of a dialog', async ({ page }) => {
     await login(page)
-    await page.locator('.workspace-navigation a[href="/project/objects"]').click()
-    const procedureCluster = page.locator('.sidebar-type-cluster').filter({ hasText: 'Procedures' }).first()
-    await procedureCluster.locator('.sidebar-object-menu-button').click()
+    await page.getByRole('menuitem', { name: 'Project Objects', exact: true }).click()
+    await page.getByRole('button', { name: 'Actions for Procedures', exact: true }).first().click()
+    await page.getByRole('menuitem', { name: 'Add Procedures', exact: true }).click()
 
     await expect(page).toHaveURL(/\/project\/objects$/)
     await expect(page.locator('[role="dialog"]')).toHaveCount(0)
     await expect(page.locator('.definition-new-editor')).toBeVisible()
-    await expect(page.getByRole('tab', { name: /Tasks/ })).toHaveAttribute('aria-selected', 'true')
+    // The direct editor no longer hides steps behind a redundant Tasks tab.
+    await expect(page.getByRole('table', { name: 'Procedure steps' })).toBeVisible()
+    await expect(page.getByRole('region', { name: /^Step editor:/ })).toBeVisible()
+    await expect(page.getByRole('tab', { name: 'General', exact: true })).toHaveAttribute('aria-selected', 'true')
     await expect(page.locator('.procedure-workbench')).toBeVisible()
   })
 
@@ -168,9 +165,10 @@ test.describe('AKIŞ critical browser journeys', () => {
     await expectHealthyScreen(page)
     const createForm = page.locator('.topology-connection-form')
     await expect(createForm.locator('input[autocomplete="username"]')).toHaveCount(0)
-    await createForm.locator('select').first().selectOption('ORACLE')
+    await createForm.getByRole('combobox').first().click()
+    await page.getByRole('option', { name: 'Oracle', exact: true }).click()
     await expect(createForm.locator('input[autocomplete="username"]')).toBeVisible()
-    await expect(createForm.locator('input[autocomplete="new-password"]')).toBeVisible()
+    await expect(createForm.locator('input[type="password"][autocomplete="new-password"]')).toBeVisible()
 
     await navigateInApp(page, '/project/connections')
     const connectionUuid = await page.locator('.connection-record-card').first().getAttribute('data-connection-uuid')
@@ -179,6 +177,7 @@ test.describe('AKIŞ critical browser journeys', () => {
     await navigateInApp(page, connectionHref!, `/project/connections/${connectionUuid}`)
     await expectHealthyScreen(page)
 
+    await page.getByRole('tab', { name: 'Physical schemas', exact: true }).click()
     await expect(page.locator('.physical-schema-manager')).toBeVisible()
     await expect(page.locator('.physical-schema-inline-form')).toBeVisible()
 
@@ -200,7 +199,8 @@ test.describe('AKIŞ critical browser journeys', () => {
     await expect(dialog.getByLabel(/environment|ortam/i)).toBeVisible()
     const physicalSchema = dialog.getByLabel(/physical schema|fiziksel şema/i)
     await expect(physicalSchema).toBeVisible()
-    await expect(physicalSchema.locator('option')).not.toHaveCount(1)
+    await physicalSchema.click()
+    await expect(page.getByRole('option').first()).toBeVisible()
     await expect(dialog.getByText(/revision|revizyon/i)).toHaveCount(0)
   })
 
@@ -215,7 +215,7 @@ test.describe('AKIŞ critical browser journeys', () => {
       })
     })
 
-    await page.locator('.workspace-navigation a[href="/project/connections"]').click()
+    await page.getByRole('tab', { name: 'Connections', exact: true }).click()
     await expect(page).toHaveURL(/\/project\/connections$/)
     const failure = page.locator('.ui-async-state.error')
     await expect(failure).toBeVisible()
@@ -234,10 +234,10 @@ test.describe('AKIŞ critical browser journeys', () => {
       })
     })
     await login(page)
-    const workspaceLinks = page.locator('.workspace-navigation a')
+    const workspaceLinks = page.locator('.workspace-navigation [role="tab"]')
     await expect(workspaceLinks).toHaveCount(4)
-    await expect(workspaceLinks.first()).toHaveAttribute('href', '/project')
-    await expect(workspaceLinks.nth(2)).toHaveAttribute('href', '/project/operations')
+    await expect(workspaceLinks.first()).toHaveText('Project')
+    await expect(workspaceLinks.nth(2)).toHaveText('Run History')
     await navigateInApp(page, '/project/connections')
     await expect(page.locator('a[href="/project/connections/new"]')).toHaveCount(0)
   })

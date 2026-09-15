@@ -1,6 +1,7 @@
 import { Grid2X2, List, Table2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Segmented, Tooltip } from 'antd'
 
 export type CollectionView = 'card' | 'list' | 'table'
 export function useCollectionView(key: string) {
@@ -12,5 +13,5 @@ export function useCollectionView(key: string) {
 export function ViewToggle({ value, onChange }: { value: CollectionView; onChange(value: CollectionView): void }) {
   const { i18n } = useTranslation()
   const tr = i18n.language === 'tr'
-  return <div className="ui-view-toggle" role="group" aria-label={tr ? 'Görünüm' : 'View'}>{([{ value: 'card', icon: Grid2X2, label: tr ? 'Kart' : 'Cards' }, { value: 'list', icon: List, label: tr ? 'Liste' : 'List' }, { value: 'table', icon: Table2, label: tr ? 'Tablo' : 'Table' }] as const).map(({ value: mode, icon: Icon, label }) => <button type="button" key={mode} aria-label={label} title={label} aria-pressed={value === mode} onClick={() => onChange(mode)}><Icon size={16} aria-hidden="true" /></button>)}</div>
+  return <Segmented className="ui-view-toggle" aria-label={tr ? 'Görünüm' : 'View'} value={value} onChange={onChange} options={([{ value: 'card', icon: Grid2X2, label: tr ? 'Kart' : 'Cards' }, { value: 'list', icon: List, label: tr ? 'Liste' : 'List' }, { value: 'table', icon: Table2, label: tr ? 'Tablo' : 'Table' }] as const).map(({ value: mode, icon: Icon, label }) => ({ value: mode, label: <Tooltip title={label}><span className="view-mode-icon"><Icon size={16} aria-hidden="true" /><span className="sr-only">{label}</span></span></Tooltip> }))} />
 }

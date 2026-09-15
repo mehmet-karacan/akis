@@ -105,7 +105,16 @@ final class ExecutionModels {
             OffsetDateTime finishedAt,
             Long rowCount,
             Long byteCount,
-            String errorCode) {
+            String errorCode,
+            String logCounter,
+            String transactionState) {
+        RunStepRow(UUID uuid, UUID parentUuid, String code, String type, int ordinal,
+                String name, String status, String connectionRole, String risk,
+                OffsetDateTime startedAt, OffsetDateTime finishedAt, Long rowCount,
+                Long byteCount, String errorCode) {
+            this(uuid, parentUuid, code, type, ordinal, name, status, connectionRole, risk,
+                    startedAt, finishedAt, rowCount, byteCount, errorCode, null, "UNCONFIRMED");
+        }
     }
 
     record StartResult(RunRow run, boolean created) {

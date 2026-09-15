@@ -1,9 +1,11 @@
+import { Button as AntActionButton } from '../../core/ui/Button'
 import { Check, Clipboard } from 'lucide-react'
 import { useState, type PropsWithChildren, type ReactNode } from 'react'
 import { AsyncState, Field as CoreField, PageHeader as CorePageHeader, StatusBadge as CoreStatusBadge } from '../../core/ui'
 import { Dialog as CoreDialog } from '../../core/ui/Dialog'
 import { useOperationsI18n } from './i18n'
 import './operations.css'
+import { Card } from 'antd'
 
 export function PageHeader({ title, description, actions }: {
   title: string
@@ -18,10 +20,9 @@ export function Panel({ title, children, className = '' }: PropsWithChildren<{
   className?: string
 }>) {
   return (
-    <section className={`ops-panel ${className}`}>
-      {title ? <h2>{title}</h2> : null}
+    <Card className={`ops-panel ${className}`} title={title}>
       {children}
-    </section>
+    </Card>
   )
 }
 
@@ -66,9 +67,9 @@ export function CopyValue({ value }: { value: string }) {
   return (
     <span className="ops-copy-value">
       <code title={value}>{value}</code>
-      <button type="button" onClick={() => void copy()} aria-label={copied ? t('copied') : t('copy')}>
+      <AntActionButton tone="ghost" type="button" onClick={() => void copy()} aria-label={copied ? t('copied') : t('copy')}>
         {copied ? <Check aria-hidden="true" /> : <Clipboard aria-hidden="true" />}
-      </button>
+      </AntActionButton>
     </span>
   )
 }

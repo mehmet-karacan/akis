@@ -26,7 +26,11 @@ describe('ProjectOverviewPage', () => {
     </MemoryRouter>)
 
     expect(await screen.findByRole('heading', { name: 'Akış' })).toBeInTheDocument()
-    expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
+    expect(screen.getByRole('navigation')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Project Objects/ })).toHaveAttribute('href', '/project/objects')
+    expect(screen.getByRole('link', { name: /Connections/ })).toHaveAttribute('href', '/project/connections')
+    expect(screen.getByRole('link', { name: /Run History/ })).toHaveAttribute('href', '/project/operations')
+    expect(screen.getByRole('link', { name: /Models/ })).toHaveAttribute('href', '/project/models')
     expect(screen.queryByText('Recent activity')).not.toBeInTheDocument()
     expect(screen.queryByText('Export project')).not.toBeInTheDocument()
   })

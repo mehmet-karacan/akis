@@ -1,7 +1,10 @@
+import { DataGrid } from '../../core/ui/DataGrid'
+import { Select as FormSelect } from '../../core/ui/Select'
+import { Input as AntInput } from 'antd'
 import { Cable, Database, GitBranch, Plus, Workflow } from 'lucide-react'
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router-dom'
+import { ContextRecordDialog } from './ContextRecordDialog'
 import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
 import { AsyncState, Button, Dialog, PageHeader, SummaryStrip } from '../../core/ui'
 import { FeedbackToast } from '../../core/ui/FeedbackToast'
@@ -32,6 +35,7 @@ export function LogicalSchemasPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [open, setOpen] = useState(false)
+  const [selected, setSelected] = useState<LogicalSchema | null>(null)
   const [busy, setBusy] = useState(false)
   const [query, setQuery] = useState('')
 
@@ -110,12 +114,13 @@ export function LogicalSchemasPage() {
       { label: t('connections.title'), value: connections.length, icon: <Cable />, tone: 'neutral' },
     ]} />
     {error ? <div className="error-banner" role="alert">{error}</div> : null}
-    {loading ? <AsyncState state="loading" title={t('common.loading')} /> : filteredItems.length === 0 ? <AsyncState state="empty" title={t('schemas.noLogical')} /> : <div className="schema-list-table"><table><thead><tr><th>{t('schemas.name')}</th><th>{t('schemas.code')}</th><th>{t('schemas.description')}</th></tr></thead><tbody>{filteredItems.map((item) => <tr key={item.uuid}><td><Link className="schema-name-link" to={`/project/logical-schemas/${item.uuid}`}>{item.name}</Link></td><td><code>{item.code}</code></td><td>{item.description ?? t('common.noDescription')}</td></tr>)}</tbody></table></div>}
+    {loading ? <AsyncState state="loading" title={t('common.loading')} /> : filteredItems.length === 0 ? <AsyncState state="empty" title={t('schemas.noLogical')} /> : <div className="schema-list-table"><DataGrid auditKind="logical-schemas"><thead><tr><th>{t('schemas.name')}</th><th>{t('schemas.code')}</th><th>{t('schemas.description')}</th></tr></thead><tbody>{filteredItems.map((item) => <tr key={item.uuid} onClick={() => setSelected(item)}><td><Button tone="ghost" onClick={() => setSelected(item)}>{item.name}</Button></td><td><code>{item.code}</code></td><td>{item.description ?? t('common.noDescription')}</td></tr>)}</tbody></DataGrid></div>}
+    {selected && <ContextRecordDialog key={selected.uuid} item={selected} kind="logical" onClose={() => setSelected(null)} onSaved={(deleted) => { setNotice(t(deleted ? 'common.deletedSuccessfully' : 'common.savedSuccessfully')); void load() }} />}
     <Dialog open={canManage && open} title={t('schemas.addLogical')} closeLabel={t('common.close')} busy={busy} onClose={() => setOpen(false)}>
       <form onSubmit={(event) => void create(event)}>
-        <label>{t('schemas.name')}<input name="name" required /></label>
-        <label>{t('schemas.code')}<input name="code" pattern="[A-Za-z][A-Za-z0-9_]{0,99}" required /></label>
-        <label>{t('schemas.description')}<textarea name="description" rows={3} /></label>
+        <label>{t('schemas.name')}<AntInput name="name" required /></label>
+        <label>{t('schemas.code')}<AntInput name="code" pattern="[A-Za-z][A-Za-z0-9_]{0,99}" required /></label>
+        <label>{t('schemas.description')}<AntInput.TextArea name="description" rows={3} /></label>
         <fieldset className="logical-schema-binding-fields">
           <legend>{t('schemas.initialMapping')}</legend>
           <p>{t('schemas.initialMappingHint')}</p>
@@ -123,8 +128,8 @@ export function LogicalSchemasPage() {
             <strong>{t('schemas.mappingPrerequisiteMissing')}</strong>
             <span>{t('schemas.mappingPrerequisiteMissingHint')}</span>
           </div> : <>
-            <label>{t('schemas.environment')}<select required value={environmentUuid} onChange={(event) => setEnvironmentUuid(event.target.value)}>{environments.map((environment) => <option key={environment.uuid} value={environment.uuid}>{environment.name} · {environment.code}</option>)}</select></label>
-            <label>{t('schemas.physicalSchema')}<select required value={physicalSchemaUuid} onChange={(event) => setPhysicalSchemaUuid(event.target.value)}><option value="">{t('schemas.choosePhysicalSchema')}</option>{physicalSchemas.map((physical) => <option key={physical.uuid} value={physical.uuid}>{physicalLabel(physical)}</option>)}</select></label>
+            <label>{t('schemas.environment')}<FormSelect required value={environmentUuid} onChange={(event) => setEnvironmentUuid(event.target.value)}>{environments.map((environment) => <option key={environment.uuid} value={environment.uuid}>{environment.name} · {environment.code}</option>)}</FormSelect></label>
+            <label>{t('schemas.physicalSchema')}<FormSelect required value={physicalSchemaUuid} onChange={(event) => setPhysicalSchemaUuid(event.target.value)}><option value="">{t('schemas.choosePhysicalSchema')}</option>{physicalSchemas.map((physical) => <option key={physical.uuid} value={physical.uuid}>{physicalLabel(physical)}</option>)}</FormSelect></label>
           </>}
         </fieldset>
         <footer><Button type="button" onClick={() => setOpen(false)}>{t('common.cancel')}</Button><Button type="submit" tone="primary" busy={busy} disabled={!prerequisitesReady || !environmentUuid || !physicalSchemaUuid}>{t('schemas.createAndMap')}</Button></footer>

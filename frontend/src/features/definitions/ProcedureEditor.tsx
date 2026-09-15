@@ -1,14 +1,19 @@
+import { TabBar } from '../../core/ui/TabBar'
+import { DataGrid } from '../../core/ui/DataGrid'
+import { Checkbox as AntCheckbox } from 'antd'
+import { Select as FormSelect } from '../../core/ui/Select'
+import { Button as AntActionButton } from '../../core/ui/Button'
+import { Input as AntInput } from 'antd'
 import {
   ArrowDown,
   ArrowUp,
-  Check,
   Copy,
   Plus,
   Trash2,
   Undo2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { SqlEditor } from "../../core/ui";
+import { ProcedureSqlPanel } from "./ProcedureSqlPanel";
 import {
   topologyApi,
   type Environment,
@@ -20,7 +25,6 @@ import {
   normalizeProcedureLogCounter,
   PROCEDURE_LOG_COUNTERS,
 } from "./procedureCatalog";
-import { validateProcedureSql } from "./procedureSqlValidation";
 import type {
   ProcedureConnectionRole,
   ProcedureContent,
@@ -133,17 +137,20 @@ export function groupProcedureTasks(tasks: ProcedureTask[]): ProcedureStepUnit[]
 }
 
 export function inferProcedureTaskMetadata(task: ProcedureTask, command: string): Partial<ProcedureTask> {
-  const sql = command.trimStart().toLocaleUpperCase("en-US");
-  if (task.connectionRole === "SOURCE") {
+  const sql = command.replace(/\/\*[\s\S]*?\*\/|--[^\r\n]*/g, ' ').trimStart().toLocaleUpperCase("en-US");
+  if (task.connectionRole === "SOURCE" || /^SELECT\b/.test(sql)) {
     return { type: "SQL", riskClass: "READ_ONLY", requiresApproval: undefined };
   }
-  if (/^TRUNCATE\s+TABLE\b/.test(sql)) {
+  if (/^(TRUNCATE|DROP|DELETE)\b/.test(sql)) {
     return { type: "SQL", riskClass: "DESTRUCTIVE", requiresApproval: true };
   }
-  if (/^(BEGIN|DECLARE)\b/.test(sql) && sql.includes("DBMS_STATS.GATHER_TABLE_STATS")) {
+  if (/^(BEGIN|DECLARE)\b/.test(sql)) {
     return { type: "PLSQL", riskClass: "DESTRUCTIVE", requiresApproval: true };
   }
-  if (/^(CREATE|ALTER|DROP|GRANT|REVOKE)\b/.test(sql)) {
+  if (/^CALL\b/.test(sql)) {
+    return { type: "STORED_PROCEDURE", riskClass: "DESTRUCTIVE", requiresApproval: true };
+  }
+  if (/^(CREATE|ALTER|COMMENT|GRANT|REVOKE)\b/.test(sql)) {
     return { type: "SQL", riskClass: "DDL", requiresApproval: true };
   }
   return { type: "SQL", riskClass: "DML", requiresApproval: undefined };
@@ -202,7 +209,6 @@ export function ProcedureEditor({
   const [selectedRole, setSelectedRole] = useState<ProcedureConnectionRole>("TARGET");
   const [selectedDetail, setSelectedDetail] = useState<"GENERAL" | ProcedureConnectionRole>("GENERAL");
   const [page, setPage] = useState(0);
-  const [copiedRole, setCopiedRole] = useState<ProcedureConnectionRole | null>(null);
   const [undoTasks, setUndoTasks] = useState<ProcedureTask[] | null>(null);
   const [pendingDelete, setPendingDelete] = useState<number | null>(null);
   const [message, setMessage] = useState("");
@@ -350,108 +356,65 @@ export function ProcedureEditor({
     setSelectedTaskId(created.id);
   };
   const renderTaskSide = (role: ProcedureConnectionRole, task?: ProcedureTask) => {
-    const sqlIssues = validateProcedureSql(task?.command ?? "", role).map((issue) => ({
-      line: issue.line,
-      column: issue.column,
-      message: t(issue.code),
-    }));
     return (
       <section className={`procedure-side procedure-side--${role.toLowerCase()}`}>
         <div className="procedure-side-context">
             <label>
               <span>{t("logicalSchema")}</span>
-              <select value={task?.logicalSchemaUuid ?? ""} onChange={(event) => updateSide(role, task, { logicalSchemaUuid: event.target.value })}>
+              <FormSelect value={task?.logicalSchemaUuid ?? ""} onChange={(event) => updateSide(role, task, { logicalSchemaUuid: event.target.value })}>
                 <option value="">{t("notSelected")}</option>
                 {logicalSchemas.map((item) => <option key={item.uuid} value={item.uuid}>{item.name}</option>)}
-              </select>
+              </FormSelect>
             </label>
             <label>
               <span>{t("environment")}</span>
-              <select value={task?.environmentUuid ?? ""} onChange={(event) => updateSide(role, task, { environmentUuid: event.target.value })}>
+              <FormSelect value={task?.environmentUuid ?? ""} onChange={(event) => updateSide(role, task, { environmentUuid: event.target.value })}>
                 <option value="">{t("notSelected")}</option>
                 {environments.map((item) => <option key={item.uuid} value={item.uuid}>{item.name}</option>)}
-              </select>
+              </FormSelect>
             </label>
             {role === "TARGET" ? <>
               <label>
                 <span>{t("transactionMode")}</span>
-                <select value={task?.transactionMode ?? "AUTOCOMMIT"} onChange={(event) => updateSide(role, task, {
+                <FormSelect value={task?.transactionMode ?? "AUTOCOMMIT"} onChange={(event) => updateSide(role, task, {
                   transactionMode: event.target.value as ProcedureTask["transactionMode"],
                   transactionChannel: event.target.value === "TRANSACTION" ? task?.transactionChannel ?? 0 : undefined,
                   commitMode: event.target.value === "TRANSACTION" ? task?.commitMode ?? "NO_COMMIT" : "COMMIT",
                 })}>
                   <option value="AUTOCOMMIT">{t("autocommit")}</option>
                   {task?.riskClass === "DML" ? <option value="TRANSACTION">{t("managedTransaction")}</option> : null}
-                </select>
+                </FormSelect>
               </label>
               {(task?.transactionMode ?? "AUTOCOMMIT") === "TRANSACTION" ? <label>
                 <span>{t("transactionChannel")}</span>
-                <select value={task?.transactionChannel ?? 0} onChange={(event) => updateSide(role, task, { transactionChannel: Number(event.target.value) })}>
+                <FormSelect value={task?.transactionChannel ?? 0} onChange={(event) => updateSide(role, task, { transactionChannel: Number(event.target.value) })}>
                   {Array.from({ length: 10 }, (_, channel) => <option key={channel} value={channel}>{t("transactionChannelValue", { channel })}</option>)}
-                </select>
+                </FormSelect>
               </label> : null}
             </> : null}
             <label>
               <span>{t("transactionIsolation")}</span>
-              <select value={task?.transactionIsolation ?? "DRIVER_DEFAULT"} onChange={(event) => updateSide(role, task, { transactionIsolation: event.target.value as ProcedureTask["transactionIsolation"] })}>
+              <FormSelect value={task?.transactionIsolation ?? "DRIVER_DEFAULT"} onChange={(event) => updateSide(role, task, { transactionIsolation: event.target.value as ProcedureTask["transactionIsolation"] })}>
                 <option value="DRIVER_DEFAULT">{t("driverDefault")}</option>
                 <option value="READ_COMMITTED">Read Committed</option>
                 <option value="SERIALIZABLE">Serializable</option>
-              </select>
+              </FormSelect>
             </label>
             {role === "TARGET" && (task?.transactionMode ?? "AUTOCOMMIT") === "TRANSACTION" ? <label>
               <span>{t("commitMode")}</span>
-              <select value={task?.commitMode ?? "NO_COMMIT"} onChange={(event) => updateSide(role, task, { commitMode: event.target.value as ProcedureTask["commitMode"] })}>
+              <FormSelect value={task?.commitMode ?? "NO_COMMIT"} onChange={(event) => updateSide(role, task, { commitMode: event.target.value as ProcedureTask["commitMode"] })}>
                 <option value="NO_COMMIT">{t("noCommit")}</option>
                 <option value="COMMIT">{t("commit")}</option>
-              </select>
+              </FormSelect>
             </label> : null}
           </div>
-          <div className="procedure-command">
-            <div className="procedure-command-heading">
-              <span>{t(role === "SOURCE" ? "sourceSql" : "targetSql")}</span>
-              <div className="procedure-variable-picker">
-                {Object.entries(task?.parameters ?? {}).map(([name, parameter]) => <span className="procedure-variable-chip" key={name} title={parameter.query}>
-                  <code>:{name}</code>
-                  <button type="button" aria-label={`${t("remove")}: ${name}`} onClick={() => { const parameters = { ...task!.parameters }; delete parameters[name]; updateTask(task!, { parameters }); }}>×</button>
-                </span>)}
-                <select aria-label={t("definedVariables")} value="" onChange={async (event) => {
-                const definition = variables.find((candidate) => candidate.uuid === event.target.value);
-                if (!definition) return;
-                const draft = await definitionsApi.getDraft(projectUuid, definition.uuid);
-                const content = (draft?.content && typeof draft.content === "object" ? draft.content : {}) as Record<string, unknown>;
-                if (content.valueSource !== "REFRESH_QUERY" || typeof content.query !== "string") {
-                  setMessage(t("contextLoadFailed"));
-                  return;
-                }
-                const name = definition.code.toUpperCase().replace(/[^A-Z0-9_]/g, "_");
-                const parameters = { ...(task?.parameters ?? {}), [name]: {
-                  type: String(content.dataType ?? "DATE") as "DATE",
-                  valueSource: "REFRESH_QUERY" as const,
-                  query: content.query,
-                  definitionUuid: definition.uuid,
-                } };
-                updateSide(role, task, { parameters });
-              }}>
-                <option value="">{t("definedVariables")}</option>
-                {variables.map((variable) => <option key={variable.uuid} value={variable.uuid}>{variable.name}</option>)}
-              </select>
-              </div>
-            </div>
-            <SqlEditor label={t(role === "SOURCE" ? "sourceSql" : "targetSql")} value={task?.command ?? ""} onChange={(command) => {
-              const base = task ?? nextTask(role, value.tasks);
-              const metadata = inferProcedureTaskMetadata(base, command);
-              updateSide(role, task, {
-                command,
-                ...metadata,
-                ...(role === "TARGET" && metadata.riskClass !== "DML" ? {
-                  transactionMode: "AUTOCOMMIT" as const,
-                  transactionChannel: undefined,
-                  commitMode: "COMMIT" as const,
-                } : {}),
-              });
-            }} errors={sqlIssues} validLabel={t("sqlValid")} invalidLabel={t("sqlInvalid")} emptyLabel={t("sqlValidationPending")} formatLabel={t("formatSql")} />
-          </div>
+          <ProcedureSqlPanel key={`${role}:${task?.id ?? 'new'}`} projectUuid={projectUuid} role={role} task={task} variables={variables} onApply={(command, parameters) => {
+            const base = task ?? nextTask(role, value.tasks);
+            const metadata = inferProcedureTaskMetadata(base, command);
+            updateSide(role, task, { command, parameters, ...metadata,
+              ...(role === "TARGET" && metadata.riskClass !== "DML" ? { transactionMode: "AUTOCOMMIT" as const, transactionChannel: undefined, commitMode: "COMMIT" as const } : {}),
+            });
+          }} />
       </section>
     );
   };
@@ -463,8 +426,8 @@ export function ProcedureEditor({
           <p>{t("procedureHint")}</p>
         </div>
         <div className="mapping-inline-actions">
-          <button
-            className="definition-button definition-button--quiet"
+          <AntActionButton
+            tone="secondary"
             type="button"
             disabled={!undoTasks}
             onClick={() => {
@@ -476,15 +439,15 @@ export function ProcedureEditor({
           >
             <Undo2 size={15} />
             {t("undo")}
-          </button>
-          <button
-            className="definition-button definition-button--quiet"
+          </AntActionButton>
+          <AntActionButton
+            tone="secondary"
             type="button"
             onClick={add}
           >
             <Plus size={15} />
             {t("addStep")}
-          </button>
+          </AntActionButton>
         </div>
       </header>
       {message ? (
@@ -492,10 +455,10 @@ export function ProcedureEditor({
           {message}
           {pendingDelete != null ? (
             <span>
-              <button type="button" onClick={() => remove(pendingDelete)}>
+              <AntActionButton tone="ghost" type="button" onClick={() => remove(pendingDelete)}>
                 {t("confirmRemove")}
-              </button>
-              <button
+              </AntActionButton>
+              <AntActionButton tone="ghost"
                 type="button"
                 onClick={() => {
                   setPendingDelete(null);
@@ -503,7 +466,7 @@ export function ProcedureEditor({
                 }}
               >
                 {t("cancel")}
-              </button>
+              </AntActionButton>
             </span>
           ) : null}
         </div>
@@ -511,7 +474,7 @@ export function ProcedureEditor({
       <div className="procedure-workbench">
         <aside className="procedure-list-column">
           <div className="procedure-task-list">
-          <table className="procedure-task-table" aria-label={t("procedureSteps")}>
+          <DataGrid viewControls={false} className="procedure-task-table" aria-label={t("procedureSteps")}>
             <colgroup><col className="procedure-col-number" /><col /><col className="procedure-col-command" /><col className="procedure-col-counter" /><col className="procedure-col-actions" /></colgroup>
             <thead><tr><th>#</th><th>{t("stepName")}</th><th>{t("commands")}</th><th>{t("logCounter")}</th><th>{t("actions")}</th></tr></thead>
             <tbody>
@@ -525,11 +488,11 @@ export function ProcedureEditor({
                 key={task.id}
               >
                 <td className="procedure-step-number">{index + 1}</td>
-                <td><button className="procedure-task-select" type="button" onClick={() => { setSelectedTaskId(task.id); setSelectedRole(unit.target ? "TARGET" : "SOURCE"); }} aria-pressed={isSelected}><strong>{task.name || task.id}</strong></button></td>
+                <td><AntActionButton tone="ghost" className="procedure-task-select" type="button" onClick={() => { setSelectedTaskId(task.id); setSelectedRole(unit.target ? "TARGET" : "SOURCE"); }} aria-pressed={isSelected}><strong>{task.name || task.id}</strong></AntActionButton></td>
                 <td><small className="procedure-step-route"><span className={isProcedureSideConfigured(unit.source) ? "is-ready" : ""}>{t("source")}</span><span aria-hidden="true">→</span><span className={isProcedureSideConfigured(unit.target) ? "is-ready" : ""}>{t("target")}</span></small></td>
                 <td><small className="procedure-step-counter">{t(LOG_COUNTER_LABEL_KEYS[normalizeProcedureLogCounter((unit.target ?? unit.source)?.logCounter)])}</small></td>
                 <td><div className="procedure-task-actions">
-                  <button
+                  <AntActionButton tone="ghost"
                     className="definition-icon-button"
                     type="button"
                     aria-label={`${t("moveUp")}: ${task.name || task.id}`}
@@ -537,8 +500,8 @@ export function ProcedureEditor({
                     onClick={() => move(unit.firstIndex, -1)}
                   >
                     <ArrowUp size={15} />
-                  </button>
-                  <button
+                  </AntActionButton>
+                  <AntActionButton tone="ghost"
                     className="definition-icon-button"
                     type="button"
                     aria-label={`${t("moveDown")}: ${task.name || task.id}`}
@@ -546,47 +509,47 @@ export function ProcedureEditor({
                     onClick={() => move(unit.firstIndex, 1)}
                   >
                     <ArrowDown size={15} />
-                  </button>
-                  <button
+                  </AntActionButton>
+                  <AntActionButton tone="ghost"
                     className="definition-icon-button"
                     type="button"
                     aria-label={`${t("duplicate")}: ${task.name || task.id}`}
                     onClick={() => duplicate(unit.firstIndex)}
                   >
                     <Copy size={15} />
-                  </button>
-                  <button
+                  </AntActionButton>
+                  <AntActionButton tone="ghost"
                     className="definition-icon-button"
                     type="button"
                     aria-label={`${t("remove")}: ${task.name || task.id}`}
                     onClick={() => remove(unit.firstIndex)}
                   >
                     <Trash2 size={15} />
-                  </button>
+                  </AntActionButton>
                 </div></td>
               </tr>
               );
             })}
             </tbody>
-          </table>
+          </DataGrid>
           </div>
           {pages > 1 ? (
             <nav className="procedure-pagination" aria-label={t("stepPages")}>
-              <button
+              <AntActionButton tone="ghost"
                 type="button"
                 disabled={safePage === 0}
                 onClick={() => setPage((current) => current - 1)}
               >
                 {t("previous")}
-              </button>
+              </AntActionButton>
               <span>{t("page", { page: safePage + 1, pages })}</span>
-              <button
+              <AntActionButton tone="ghost"
                 type="button"
                 disabled={safePage >= pages - 1}
                 onClick={() => setPage((current) => current + 1)}
               >
                 {t("next")}
-              </button>
+              </AntActionButton>
             </nav>
           ) : null}
         </aside>
@@ -601,31 +564,21 @@ export function ProcedureEditor({
                 {units.indexOf(selectedUnit) + 1} / {units.length}
               </span>
             </header>
-            <div className="procedure-command-tabs" role="tablist" aria-label={t("commands")}>
-              <button type="button" role="tab" aria-selected={selectedDetail === "GENERAL"} onClick={() => setSelectedDetail("GENERAL")}>{t("general")}</button>
-              <button type="button" role="tab" aria-selected={selectedDetail === "TARGET"} onClick={() => { setSelectedRole("TARGET"); setSelectedDetail("TARGET"); }}>{t("targetCommand")}</button>
-              <button type="button" role="tab" aria-selected={selectedDetail === "SOURCE"} onClick={() => { setSelectedRole("SOURCE"); setSelectedDetail("SOURCE"); }}>{t("sourceCommand")}</button>
-              {selectedDetail !== "GENERAL" ? (() => {
-                const commandTask = selectedDetail === "SOURCE" ? selectedUnit.source : selectedUnit.target;
-                const role = selectedDetail as ProcedureConnectionRole;
-                return <button className="procedure-command-copy" type="button" disabled={!commandTask?.command} onClick={async () => {
-                  if (!commandTask?.command) return;
-                  await navigator.clipboard.writeText(commandTask.command);
-                  setCopiedRole(role);
-                  window.setTimeout(() => setCopiedRole((current) => current === role ? null : current), 1600);
-                }}>{copiedRole === role ? <Check size={14} /> : <Copy size={14} />}{t(copiedRole === role ? "copied" : "copySql")}</button>;
-              })() : null}
-            </div>
+            <TabBar className="procedure-command-tabs" role="tablist" aria-label={t("commands")}>
+              <AntActionButton tone="ghost" type="button" role="tab" aria-selected={selectedDetail === "GENERAL"} onClick={() => setSelectedDetail("GENERAL")}>{t("general")}</AntActionButton>
+              <AntActionButton tone="ghost" type="button" role="tab" aria-selected={selectedDetail === "TARGET"} onClick={() => { setSelectedRole("TARGET"); setSelectedDetail("TARGET"); }}>{t("targetCommand")}</AntActionButton>
+              <AntActionButton tone="ghost" type="button" role="tab" aria-selected={selectedDetail === "SOURCE"} onClick={() => { setSelectedRole("SOURCE"); setSelectedDetail("SOURCE"); }}>{t("sourceCommand")}</AntActionButton>
+            </TabBar>
             <div className="procedure-command-detail">
               {selectedDetail === "GENERAL" ? (() => {
                 const primary = selectedUnit.target ?? selectedUnit.source!;
                 return <section className="procedure-general-properties">
-                  <label className="procedure-general-name"><span>{t("stepName")}</span><input aria-label={t("stepName")} value={primary.name ?? ""} onChange={(event) => {
+                  <label className="procedure-general-name"><span>{t("stepName")}</span><AntInput aria-label={t("stepName")} value={primary.name ?? ""} onChange={(event) => {
                     const ids = new Set(selectedUnit.tasks.map((task) => task.id));
                     replaceTasks(value.tasks.map((task) => ids.has(task.id) ? { ...task, name: event.target.value } : task));
                   }} /></label>
-                  <label><span>{t("logCounter")}</span><select aria-label={t("logCounter")} value={normalizeProcedureLogCounter(primary.logCounter)} onChange={(event) => updateTask(primary, { logCounter: event.target.value as ProcedureTask["logCounter"] })}>{PROCEDURE_LOG_COUNTERS.map((counter) => <option key={counter} value={counter}>{t(LOG_COUNTER_LABEL_KEYS[counter])}</option>)}</select></label>
-                  <label className="procedure-checkbox"><input type="checkbox" checked={primary.onError === "CONTINUE"} disabled={Boolean(primary.input || primary.output)} onChange={(event) => updateTask(primary, { onError: event.target.checked ? "CONTINUE" : "STOP" })} /><span>{t("ignoreErrors")}</span></label>
+                  <label><span>{t("logCounter")}</span><FormSelect aria-label={t("logCounter")} value={normalizeProcedureLogCounter(primary.logCounter)} onChange={(event) => updateTask(primary, { logCounter: event.target.value as ProcedureTask["logCounter"] })}>{PROCEDURE_LOG_COUNTERS.map((counter) => <option key={counter} value={counter}>{t(LOG_COUNTER_LABEL_KEYS[counter])}</option>)}</FormSelect></label>
+                  <label className="procedure-checkbox"><AntCheckbox  checked={primary.onError === "CONTINUE"} disabled={Boolean(primary.input || primary.output)} onChange={(event) => updateTask(primary, { onError: event.target.checked ? "CONTINUE" : "STOP" })} /><span>{t("ignoreErrors")}</span></label>
                   {primary.input || primary.output ? <p>{t("rowTransferStopsOnError")}</p> : null}
                 </section>;
               })() : renderTaskSide(selectedRole, selectedRole === "SOURCE" ? selectedUnit.source : selectedUnit.target)}

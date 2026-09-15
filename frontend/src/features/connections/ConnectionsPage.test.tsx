@@ -22,23 +22,27 @@ describe('ConnectionsPage', () => {
     vi.spyOn(topologyApi, 'listConnectionCatalog').mockResolvedValue(catalog)
   })
 
-  it('keeps filters in the URL and progressively reveals records', async () => {
+  // This integration case renders 30 rich cards and queries their accessibility tree.
+  // Keep the assertions intact; jsdom on the Windows CI host can exceed the 5s unit default.
+  it('keeps filters in the URL and progressively reveals records', { timeout: 15000 }, async () => {
     const { container } = render(<MemoryRouter initialEntries={['/projects/project/connections?q=sky&provider=ORACLE&status=ACTIVE&sort=code&page=2']}><Routes><Route path="/projects/:projectUuid/connections" element={<><ConnectionsPage /><LocationProbe /></>} /></Routes></MemoryRouter>)
-    expect(await screen.findByRole('heading', { name: 'Records' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Connection List' })).toBeInTheDocument()
     expect(container.querySelectorAll('.connection-record-card')).toHaveLength(25)
-    fireEvent.click(screen.getByRole('button', { name: 'Load More' }))
+    fireEvent.click(screen.getByText('Load More').closest('button')!)
     expect(container.querySelectorAll('.connection-record-card')).toHaveLength(30)
     expect(screen.getByTestId('location')).toHaveTextContent('page=2')
-    fireEvent.click(screen.getByRole('button', { name: 'Show Filters' }))
+    fireEvent.click(screen.getByText('Show Filters').closest('button')!)
     fireEvent.change(screen.getByPlaceholderText('Search by name, code or provider'), { target: { value: 'SKY_01' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
+    fireEvent.click(screen.getByText('Search', { exact: true }).closest('button')!)
     await waitFor(() => expect(screen.getByTestId('location')).not.toHaveTextContent('page=2'))
-    expect(screen.getByRole('heading', { name: 'Records' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Connection List' })).toBeInTheDocument()
   })
 
   it('does not offer a write action to a read-only operator', async () => {
+    // Permission behavior needs one real record; pagination is covered above with 30.
+    vi.mocked(topologyApi.listConnectionCatalog).mockResolvedValue(catalog.slice(0, 1))
     render(<ProjectAccessProvider value={{ roles: ['OPERASYON'], permissions: ['BAGLANTI_GORUNTULE'] }}><MemoryRouter initialEntries={['/projects/project/connections']}><Routes><Route path="/projects/:projectUuid/connections" element={<ConnectionsPage />} /></Routes></MemoryRouter></ProjectAccessProvider>)
-    expect(await screen.findByRole('heading', { name: 'Records' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Connection List' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Add Connection' })).not.toBeInTheDocument()
   })
 })

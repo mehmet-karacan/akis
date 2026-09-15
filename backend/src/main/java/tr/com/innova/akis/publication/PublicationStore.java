@@ -19,6 +19,7 @@ interface PublicationStore {
             UUID projectUuid, UUID scenarioUuid, UUID environmentUuid);
 
     List<ResolvedBinding> resolveBindings(PublicationContext context);
+    default tools.jackson.databind.JsonNode resolveVariableBindings(PublicationContext context) { return null; }
 
     Optional<PublicationRow> findByReleaseHash(
             long scenarioId, long environmentId, String releaseHash);

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import i18n from '../../core/i18n'
@@ -7,6 +7,7 @@ import { ExecutionDisabledNotice } from './ExecutionDisabledNotice'
 import { RunDetailPage } from './RunDetailPage'
 import { RunStatusBadge } from './RunStatusBadge'
 import type { RunRecord } from './types'
+vi.mock('../operations/api', () => ({ operationsApi: { getPublication: vi.fn(async () => null) } }))
 
 vi.mock('./api', () => ({
   executionApi: {
@@ -89,41 +90,36 @@ describe('execution UI states', () => {
     }
   })
 
-  it('shows release and plan hashes as distinct copyable values', async () => {
+  it('shows the result without technical identifiers or attempts', async () => {
     renderRunDetail()
-
-    const releaseHash = await screen.findByText('release-hash-value')
-    const planHash = screen.getByText('plan-hash-value')
-
-    expect(screen.getByText('Release hash')).toBeInTheDocument()
-    expect(screen.getByText('Plan hash')).toBeInTheDocument()
-    expect(releaseHash.closest('.ops-copy-value')?.querySelector('button')).toHaveAccessibleName('Copy')
-    expect(planHash.closest('.ops-copy-value')?.querySelector('button')).toHaveAccessibleName('Copy')
+    expect(await screen.findByText('Succeeded')).toBeInTheDocument()
+    expect(screen.queryByText('release-hash-value')).not.toBeInTheDocument()
+    expect(screen.queryByText('plan-hash-value')).not.toBeInTheDocument()
+    expect(screen.queryByText('Attempt')).not.toBeInTheDocument()
   })
 
-  it('localizes both hash labels in Turkish', async () => {
+  it('localizes the result in Turkish', async () => {
     await i18n.changeLanguage('tr')
     renderRunDetail()
-
-    expect(await screen.findByText('Sürüm özeti')).toBeInTheDocument()
-    expect(screen.getByText('Plan özeti')).toBeInTheDocument()
+    expect(await screen.findByText('Başarılı')).toBeInTheDocument()
+    expect(screen.queryByText('Teknik tanımlayıcılar')).not.toBeInTheDocument()
   })
 
   it('opens run evidence in a panel with a run tree and transfer row metrics', async () => {
     vi.mocked(executionApi.listSteps).mockResolvedValue([
       { uuid: 'read', parentUuid: null, code: 'READ_SOURCE', type: 'PROCEDURE', ordinal: 1, name: 'Read rows', status: 'BASARILI', connectionRole: 'SOURCE', risk: 'READ_ONLY', startedAt: null, finishedAt: null, rowCount: 33, byteCount: 1200, errorCode: null },
-      { uuid: 'insert', parentUuid: null, code: 'INSERT_TARGET', type: 'PROCEDURE', ordinal: 2, name: 'Insert rows', status: 'BASARILI', connectionRole: 'TARGET', risk: 'DML', startedAt: null, finishedAt: null, rowCount: 33, byteCount: 0, errorCode: null },
+      { uuid: 'insert', parentUuid: null, code: 'STEP_A', type: 'PROCEDURE', ordinal: 2, name: 'Write rows', status: 'BASARILI', connectionRole: 'TARGET', risk: 'DML', startedAt: null, finishedAt: null, rowCount: 33, byteCount: 0, errorCode: null, logCounter: 'INSERT', transactionState: 'COMMITTED' },
     ])
     const close = vi.fn()
-    const { container } = render(<MemoryRouter initialEntries={['/projects/project-id/runs/run-id']}><Routes><Route path="/projects/:projectUuid/runs/:runUuid" element={<RunDetailPage runUuidOverride="run-id" panel onClose={close} objectName="Customer Load" />} /></Routes></MemoryRouter>)
+    render(<MemoryRouter initialEntries={['/projects/project-id/runs/run-id']}><Routes><Route path="/projects/:projectUuid/runs/:runUuid" element={<RunDetailPage runUuidOverride="run-id" panel onClose={close} objectName="Customer Load" />} /></Routes></MemoryRouter>)
 
-    expect(await screen.findByRole('dialog', { name: 'Run detail' })).toBeInTheDocument()
-    expect(screen.getByRole('treeitem', { name: /Customer Load/ })).toHaveAttribute('aria-expanded', 'true')
-    const metrics = container.querySelector('.execution-row-metrics')
-    expect(metrics).not.toBeNull()
-    expect(within(metrics as HTMLElement).getByText('Rows Selected')).toBeInTheDocument()
-    expect(within(metrics as HTMLElement).getByText('Rows Inserted')).toBeInTheDocument()
-    expect(within(metrics as HTMLElement).getAllByText('33')).toHaveLength(2)
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveAccessibleName('Run detail')
+    expect(await screen.findByRole('heading', { name: 'Customer Load' })).toBeInTheDocument()
+    expect(await screen.findByText('1. Read rows')).toBeInTheDocument()
+    expect(screen.getAllByText('Rows Selected').length).toBeGreaterThan(0)
+    expect(screen.getByText('Rows Inserted')).toBeInTheDocument()
+    expect(screen.getAllByText('33').length).toBeGreaterThanOrEqual(2)
 
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     expect(close).toHaveBeenCalledOnce()

@@ -1,7 +1,10 @@
+import { Select as FormSelect } from '../core/ui/Select'
+import { Button as AntActionButton } from '../core/ui/Button'
 import {
-  CircleUserRound, DatabaseZap, Languages, LogOut, Moon, Sun,
+  CircleUserRound, DatabaseZap, Languages, LogOut, Moon, Sun, PanelLeft,
 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
+import { Grid } from 'antd'
 import { useTranslation } from 'react-i18next'
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { apiRequest } from '../core/api/client'
@@ -24,6 +27,9 @@ export function AppShell() {
   const { mode, setMode } = useTheme()
   const navigate = useNavigate()
   const location = useLocation()
+  const screens = Grid.useBreakpoint()
+  const compact = screens.lg === false
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false)
   const [projectUuid, setProjectUuid] = useState(() => getRememberedProject() ?? '')
   const [project, setProject] = useState<Project | null>(null)
   const [projectAccess, setProjectAccess] = useState<ProjectAccess | null>(null)
@@ -55,6 +61,7 @@ export function AppShell() {
 
   const setPendingChanges = useCallback((value: PendingChanges | null) => setPendingChangesState(value), [])
   const requestNavigation = useCallback((path: string) => {
+    setMobileNavigationOpen(false)
     if (pendingChanges) setPendingPath(path)
     else completeNavigation(path)
   }, [completeNavigation, pendingChanges])
@@ -88,36 +95,41 @@ export function AppShell() {
       <a className="skip-link" href="#main-content">{t('common.skipToContent')}</a>
       <div className="shell-content">
         <header className="topbar">
-          <div className="topbar-identity"><span className="compact-brand" aria-label="AKIŞ"><DatabaseZap /><strong>AKIŞ</strong></span><ProjectSwitcher currentProject={project} projectUuid={projectUuid} onNavigate={requestNavigation} /></div>
+          <div className="topbar-identity">{compact && <AntActionButton aria-label={t('nav.workspaces')} aria-expanded={mobileNavigationOpen} onClick={() => setMobileNavigationOpen(value => !value)} icon={<PanelLeft size={18} />} />}<span className="compact-brand" aria-label="AKIŞ"><DatabaseZap /><strong>AKIŞ</strong></span><ProjectSwitcher currentProject={project} projectUuid={projectUuid} onNavigate={requestNavigation} /></div>
           <div className="topbar-actions">
             <label className="compact-select">
               <Languages size={16} />
               <span className="sr-only">{t('header.language')}</span>
-              <select value={i18n.language === 'tr' ? 'tr' : 'en'} onChange={(event) => changeLanguage(event.target.value)}>
+              <FormSelect value={i18n.language === 'tr' ? 'tr' : 'en'} onChange={(event) => changeLanguage(event.target.value)}>
                 <option value="en">English</option><option value="tr">Türkçe</option>
-              </select>
+              </FormSelect>
             </label>
             <label className="compact-select">
               {themeIcon}<span className="sr-only">{t('header.theme')}</span>
-              <select value={mode} onChange={(event) => setMode(event.target.value as ThemeMode)}>
+              <FormSelect value={mode} onChange={(event) => setMode(event.target.value as ThemeMode)}>
                 <option value="light">{t('theme.light')}</option>
                 <option value="dark">{t('theme.dark')}</option>
                 <option value="system">{t('theme.system')}</option>
-              </select>
+              </FormSelect>
             </label>
             <div className="user-menu">
               <CircleUserRound size={18} /><span>{username}</span>
-              <button aria-label={t('nav.signOut')} title={t('nav.signOut')} onClick={() => requestNavigation('/login')}><LogOut size={16} /></button>
+              <AntActionButton type="button" tone="ghost" aria-label={t('nav.signOut')} title={t('nav.signOut')} onClick={() => requestNavigation('/login')}><LogOut size={16} /></AntActionButton>
             </div>
           </div>
         </header>
-        {projectUuid ? <WorkspaceNavigation hasPendingChanges={Boolean(pendingChanges)} onNavigate={requestNavigation} /> : null}
-        {projectUuid && activeWorkspace === 'connections' ? <ConnectionsSubnavigation hasPendingChanges={Boolean(pendingChanges)} onNavigate={requestNavigation} /> : null}
-        <main id="main-content" className="main-content" tabIndex={-1}>{activeWorkspace === 'development' ? <DesignWorkspace key={projectUuid} projectUuid={projectUuid} onNavigate={requestNavigation}><Outlet /></DesignWorkspace> : <Outlet />}</main>
+        <div className={`shell-body ${compact ? 'is-compact' : ''}`}>
+          {(!compact || mobileNavigationOpen) && <aside className="shell-navigation" aria-label={t('nav.workspaces')}>
+            <WorkspaceNavigation hasPendingChanges={Boolean(pendingChanges)} onNavigate={requestNavigation} />
+            {activeWorkspace === 'connections' && <ConnectionsSubnavigation hasPendingChanges={Boolean(pendingChanges)} onNavigate={requestNavigation} />}
+            {activeWorkspace === 'development' && <DesignWorkspace key={projectUuid} projectUuid={projectUuid} onNavigate={requestNavigation} explorerOnly />}
+          </aside>}
+          <main id="main-content" className="main-content" tabIndex={-1}>{activeWorkspace === 'development' ? <div className="design-workspace definitions-workspace"><div className="design-content"><Outlet /></div></div> : <Outlet />}</main>
+        </div>
       </div>
       <Dialog open={pendingPath !== null} title={t('pendingChanges.title')} eyebrow={t('pendingChanges.eyebrow')} closeLabel={t('common.close')} busy={savingBeforeLeave} onClose={() => setPendingPath(null)}>
         <p className="dialog-description">{t('pendingChanges.description')}</p>
-        <footer className="dialog-actions"><button className="button secondary" type="button" onClick={() => setPendingPath(null)}>{t('pendingChanges.stay')}</button><button className="button secondary" type="button" onClick={() => { const path = pendingPath; setPendingChangesState(null); setPendingPath(null); if (path) completeNavigation(path) }}>{t('pendingChanges.discard')}</button><button className="button primary" type="button" disabled={savingBeforeLeave} onClick={async () => { if (!pendingChanges || !pendingPath) return; setSavingBeforeLeave(true); const saved = await pendingChanges.save(); setSavingBeforeLeave(false); if (saved) { const path = pendingPath; setPendingChangesState(null); setPendingPath(null); completeNavigation(path) } }}>{savingBeforeLeave ? t('pendingChanges.saving') : t('pendingChanges.save')}</button></footer>
+        <footer className="dialog-actions"><AntActionButton tone="secondary" type="button" onClick={() => setPendingPath(null)}>{t('pendingChanges.stay')}</AntActionButton><AntActionButton tone="secondary" type="button" onClick={() => { const path = pendingPath; setPendingChangesState(null); setPendingPath(null); if (path) completeNavigation(path) }}>{t('pendingChanges.discard')}</AntActionButton><AntActionButton tone="primary" type="button" disabled={savingBeforeLeave} onClick={async () => { if (!pendingChanges || !pendingPath) return; setSavingBeforeLeave(true); const saved = await pendingChanges.save(); setSavingBeforeLeave(false); if (saved) { const path = pendingPath; setPendingChangesState(null); setPendingPath(null); completeNavigation(path) } }}>{savingBeforeLeave ? t('pendingChanges.saving') : t('pendingChanges.save')}</AntActionButton></footer>
       </Dialog>
     </div></PendingChangesContext.Provider></ProjectAccessProvider></CurrentProjectProvider>
   )

@@ -1,3 +1,4 @@
+import { DataGrid } from '../../core/ui/DataGrid'
 import { ConnectionTestButton } from './ConnectionTestButton'
 import { ChevronRight, MoreHorizontal } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -14,7 +15,7 @@ export function ConnectionsTable({ projectUuid, items, labels, onOpen }: {
 }) {
   const { i18n } = useTranslation()
   const tr = i18n.language === 'tr'
-  return <div className="connections-table-wrap"><table className="connections-table">
+  return <div className="connections-table-wrap"><DataGrid auditKind="connections" viewControls={false} className="connections-table">
     <thead><tr><th>{labels.provider}</th><th>{labels.connection}</th><th>{labels.host}</th><th>{labels.port}</th><th>{labels.service}</th><th>{labels.username}</th><th>{labels.status}</th><th className="numeric">{labels.physical}</th><th className="numeric">{labels.logical}</th><th><span className="sr-only">{labels.actions}</span></th></tr></thead>
     <tbody>{items.map(({ connection, displayedVersion, physicalSchemaCount, logicalSchemaCount }) => <tr key={connection.uuid}>
       <td><span className="provider-cell"><DatabaseProviderIcon databaseType={connection.databaseType} /><span>{connection.databaseType === 'ORACLE' ? 'Oracle' : connection.databaseType}</span></span></td>
@@ -24,5 +25,5 @@ export function ConnectionsTable({ projectUuid, items, labels, onOpen }: {
       <td className="numeric">{physicalSchemaCount}</td><td className="numeric">{logicalSchemaCount}</td>
       <td className="row-actions"><ConnectionTestButton connectionUuid={connection.uuid} versionUuid={displayedVersion?.uuid} /><Link to={`/projects/${projectUuid}/connections/${connection.uuid}`} onClick={onOpen ? (event) => { event.preventDefault(); onOpen(connection.uuid) } : undefined} aria-label={`${labels.open}: ${connection.name}`}><MoreHorizontal aria-hidden="true" /><ChevronRight aria-hidden="true" /></Link></td>
     </tr>)}</tbody>
-  </table></div>
+  </DataGrid></div>
 }

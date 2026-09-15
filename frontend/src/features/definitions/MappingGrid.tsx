@@ -1,3 +1,8 @@
+import { TabBar } from '../../core/ui/TabBar'
+import { DataGrid } from '../../core/ui/DataGrid'
+import { Select as FormSelect } from '../../core/ui/Select'
+import { Button as AntActionButton } from '../../core/ui/Button'
+import { Input as AntInput } from 'antd'
 import { Plus, Search, Trash2, Undo2 } from 'lucide-react'
 import { Fragment, useEffect, useMemo, useState, type KeyboardEvent } from 'react'
 import { topologyApi, type DataObject, type Model, type SchemaSnapshot } from '../topology/api'
@@ -91,33 +96,33 @@ export function MappingGrid({ projectUuid, value, onChange }: MappingGridProps) 
 
   return (
     <div className="mapping-editor">
-      <div className="procedure-command-tabs" role="tablist" aria-label={language === 'tr' ? 'Mapping Görünümleri' : 'Mapping Views'}>{(['diagram', 'columns', 'execution'] as const).map((key) => <button type="button" key={key} role="tab" aria-selected={view === key} onClick={() => setView(key)}>{key === 'diagram' ? (language === 'tr' ? 'Diyagram' : 'Diagram') : key === 'columns' ? (language === 'tr' ? 'Kolon Eşleşmeleri' : 'Column Mappings') : (language === 'tr' ? 'Yazma Stratejisi' : 'Write Strategy')}</button>)}</div>
+      <TabBar className="procedure-command-tabs" role="tablist" aria-label={language === 'tr' ? 'Mapping Görünümleri' : 'Mapping Views'}>{(['diagram', 'columns', 'execution'] as const).map((key) => <AntActionButton tone="ghost" type="button" key={key} role="tab" aria-selected={view === key} onClick={() => setView(key)}>{key === 'diagram' ? (language === 'tr' ? 'Diyagram' : 'Diagram') : key === 'columns' ? (language === 'tr' ? 'Kolon Eşleşmeleri' : 'Column Mappings') : (language === 'tr' ? 'Yazma Stratejisi' : 'Write Strategy')}</AntActionButton>)}</TabBar>
       <section hidden={view !== 'diagram'} className="mapping-section" aria-labelledby="datasets-title">
         <div className="mapping-section-heading">
           <h3 id="datasets-title">{t('datasets')}</h3>
           <div className="mapping-inline-actions">
-            <button
-              className="definition-button definition-button--quiet"
+            <AntActionButton
+              tone="secondary"
               type="button"
               onClick={() =>
                 onChange({ ...value, datasets: [...value.datasets, createDataset('SOURCE', value.datasets)] })
               }
             >
               <Plus size={16} aria-hidden="true" /> {t('source')}
-            </button>
-            <button
-              className="definition-button definition-button--quiet"
+            </AntActionButton>
+            <AntActionButton
+              tone="secondary"
               type="button"
               onClick={() =>
                 onChange({ ...value, datasets: [...value.datasets, createDataset('TARGET', value.datasets)] })
               }
             >
               <Plus size={16} aria-hidden="true" /> {t('target')}
-            </button>
+            </AntActionButton>
           </div>
         </div>
         {catalogError ? <p className="definition-notice definition-notice--error" role="alert">{t('catalogLoadFailed')}</p> : null}
-        {pendingDatasetDelete != null ? <div className="definition-notice definition-notice--info" role="alert"><span>{t('datasetDeleteImpact', { count: value.columnMappings.filter((row) => row.source?.dataset === value.datasets[pendingDatasetDelete]?.id || row.target.dataset === value.datasets[pendingDatasetDelete]?.id || expressionSummary(row.expression)?.includes(`${value.datasets[pendingDatasetDelete]?.id}.`)).length })}</span><button type="button" onClick={() => { const dataset = value.datasets[pendingDatasetDelete]; if (!dataset) return; setUndoValue(structuredClone(value)); onChange({ ...value, datasets: value.datasets.filter((_, position) => position !== pendingDatasetDelete), columnMappings: value.columnMappings.filter((row) => row.source?.dataset !== dataset.id && row.target.dataset !== dataset.id && !expressionSummary(row.expression)?.includes(`${dataset.id}.`)) }); setPendingDatasetDelete(null) }}>{t('confirmRemove')}</button><button type="button" onClick={() => setPendingDatasetDelete(null)}>{t('cancel')}</button></div> : null}
+        {pendingDatasetDelete != null ? <div className="definition-notice definition-notice--info" role="alert"><span>{t('datasetDeleteImpact', { count: value.columnMappings.filter((row) => row.source?.dataset === value.datasets[pendingDatasetDelete]?.id || row.target.dataset === value.datasets[pendingDatasetDelete]?.id || expressionSummary(row.expression)?.includes(`${value.datasets[pendingDatasetDelete]?.id}.`)).length })}</span><AntActionButton tone="ghost" type="button" onClick={() => { const dataset = value.datasets[pendingDatasetDelete]; if (!dataset) return; setUndoValue(structuredClone(value)); onChange({ ...value, datasets: value.datasets.filter((_, position) => position !== pendingDatasetDelete), columnMappings: value.columnMappings.filter((row) => row.source?.dataset !== dataset.id && row.target.dataset !== dataset.id && !expressionSummary(row.expression)?.includes(`${dataset.id}.`)) }); setPendingDatasetDelete(null) }}>{t('confirmRemove')}</AntActionButton><AntActionButton tone="ghost" type="button" onClick={() => setPendingDatasetDelete(null)}>{t('cancel')}</AntActionButton></div> : null}
         <div className="mapping-datasets">
           {value.datasets.map((dataset, index) => (
             <div className="mapping-dataset" key={index}>
@@ -126,26 +131,26 @@ export function MappingGrid({ projectUuid, value, onChange }: MappingGridProps) 
               </span>
               <label>
                 <span>{t('catalogObject')}</span>
-                <select value={dataset.dataObjectUuid ?? ''} onChange={(event) => { const entry = catalog.find((item) => item.object.uuid === event.target.value); updateDataset(index, { dataObjectUuid: entry?.object.uuid, schemaSnapshotUuid: entry?.snapshot?.uuid, name: dataset.name || entry?.object.name }) }}><option value="">{t('chooseDataObject')}</option>{catalog.map((entry) => <option key={entry.object.uuid} value={entry.object.uuid}>{entry.model.name} → {entry.object.name} · {entry.object.objectReference}</option>)}</select>
+                <FormSelect value={dataset.dataObjectUuid ?? ''} onChange={(event) => { const entry = catalog.find((item) => item.object.uuid === event.target.value); updateDataset(index, { dataObjectUuid: entry?.object.uuid, schemaSnapshotUuid: entry?.snapshot?.uuid, name: dataset.name || entry?.object.name }) }}><option value="">{t('chooseDataObject')}</option>{catalog.map((entry) => <option key={entry.object.uuid} value={entry.object.uuid}>{entry.model.name} → {entry.object.name} · {entry.object.objectReference}</option>)}</FormSelect>
               </label><label>
                 <span>{t('datasetAlias')}</span>
-                <input
+                <AntInput
                   value={dataset.name ?? ''}
                   onChange={(event) => updateDataset(index, { name: event.target.value })}
                 />
               </label><code className="dataset-stable-id">{dataset.id}</code>
-              <button
+              <AntActionButton tone="ghost"
                 type="button"
                 className="definition-icon-button"
                 aria-label={`${t('remove')} ${dataset.id}`}
                 onClick={() => setPendingDatasetDelete(index)}
               >
                 <Trash2 size={16} aria-hidden="true" />
-              </button>
+              </AntActionButton>
             </div>
           ))}
         </div>
-        {undoValue ? <button className="definition-button definition-button--quiet mapping-undo" type="button" onClick={() => { onChange(undoValue); setUndoValue(null) }}><Undo2 size={15} />{t('undo')}</button> : null}
+        {undoValue ? <AntActionButton tone="secondary" className="mapping-undo" type="button" onClick={() => { onChange(undoValue); setUndoValue(null) }}><Undo2 size={15} />{t('undo')}</AntActionButton> : null}
       </section>
 
       {view === 'diagram' && <MappingDiagram value={value} columns={Object.fromEntries(value.datasets.map((dataset) => [dataset.id, columnsFor(dataset.id).map((column) => column.reference)]))} onChange={onChange} />}
@@ -155,8 +160,8 @@ export function MappingGrid({ projectUuid, value, onChange }: MappingGridProps) 
             <h3 id="mapping-rows-title">{t('columnMappings')}</h3>
             <p className="definition-help">{t('mappingKeyboardHint')}</p>
           </div>
-          <button
-            className="definition-button definition-button--quiet"
+          <AntActionButton
+            tone="secondary"
             type="button"
             onClick={() => {
               const nextRows = [...value.columnMappings, createRow(value)]
@@ -166,15 +171,15 @@ export function MappingGrid({ projectUuid, value, onChange }: MappingGridProps) 
             }}
           >
             <Plus size={16} aria-hidden="true" /> {t('addRow')}
-          </button>
-          <button className="definition-button definition-button--quiet" type="button" onClick={suggestMatches}>{t('suggestMatches')}</button>
+          </AntActionButton>
+          <AntActionButton tone="secondary" type="button" onClick={suggestMatches}>{t('suggestMatches')}</AntActionButton>
         </div>
-        {suggestions.length > 0 ? <div className="definition-notice definition-notice--info"><span>{t('matchSuggestions', { count: suggestions.length })}</span><button type="button" onClick={() => { setUndoValue(structuredClone(value)); onChange({ ...value, columnMappings: value.columnMappings.map((row, index) => { const suggestion = suggestions.find((item) => item.index === index); return suggestion && !row.expression && !row.source?.column ? { ...row, source: { dataset: suggestion.dataset, column: suggestion.column } } : row }) }); setSuggestions([]) }}>{t('applySuggestions')}</button><button type="button" onClick={() => setSuggestions([])}>{t('cancel')}</button></div> : null}
+        {suggestions.length > 0 ? <div className="definition-notice definition-notice--info"><span>{t('matchSuggestions', { count: suggestions.length })}</span><AntActionButton tone="ghost" type="button" onClick={() => { setUndoValue(structuredClone(value)); onChange({ ...value, columnMappings: value.columnMappings.map((row, index) => { const suggestion = suggestions.find((item) => item.index === index); return suggestion && !row.expression && !row.source?.column ? { ...row, source: { dataset: suggestion.dataset, column: suggestion.column } } : row }) }); setSuggestions([]) }}>{t('applySuggestions')}</AntActionButton><AntActionButton tone="ghost" type="button" onClick={() => setSuggestions([])}>{t('cancel')}</AntActionButton></div> : null}
         <div className="mapping-grid-toolbar">
           <label className="definition-search definition-search--compact">
             <Search size={16} aria-hidden="true" />
             <span className="sr-only">{t('rowFilter')}</span>
-            <input
+            <AntInput
               placeholder={t('rowFilterPlaceholder')}
               value={query}
               onChange={(event) => {
@@ -188,7 +193,7 @@ export function MappingGrid({ projectUuid, value, onChange }: MappingGridProps) 
           </span>
         </div>
         <div className="mapping-grid-scroll" tabIndex={0} role="region" aria-label={t('columnMappings')}>
-          <table className="mapping-grid" onKeyDown={handleGridKeyDown}>
+          <DataGrid viewControls={false} className="mapping-grid" onKeyDown={handleGridKeyDown}>
             <thead>
               <tr>
                 <th scope="col">#</th>
@@ -208,7 +213,7 @@ export function MappingGrid({ projectUuid, value, onChange }: MappingGridProps) 
                   <tr data-grid-row={index}>
                     <th scope="row">{index + 1}</th>
                     <td>
-                      <select
+                      <FormSelect
                         data-grid-column="mode"
                         aria-label={`${index + 1} ${t('mode')}`}
                         value={isExpression ? 'EXPRESSION' : 'SOURCE'}
@@ -228,10 +233,10 @@ export function MappingGrid({ projectUuid, value, onChange }: MappingGridProps) 
                       >
                         <option value="SOURCE">{t('source')}</option>
                         <option value="EXPRESSION">{t('expression')}</option>
-                      </select>
+                      </FormSelect>
                     </td>
                     <td>
-                      <select
+                      <FormSelect
                         data-grid-column="source-dataset"
                         aria-label={`${index + 1} ${t('sourceDataset')}`}
                         value={row.source?.dataset ?? ''}
@@ -247,10 +252,10 @@ export function MappingGrid({ projectUuid, value, onChange }: MappingGridProps) 
                         {sources.map((dataset) => (
                           <option key={dataset.id} value={dataset.id}>{dataset.id}</option>
                         ))}
-                      </select>
+                      </FormSelect>
                     </td>
                     <td>
-                      <select
+                      <FormSelect
                         data-grid-column="source-column"
                         aria-label={`${index + 1} ${t('sourceColumn')}`}
                         value={row.source?.column ?? ''}
@@ -264,20 +269,20 @@ export function MappingGrid({ projectUuid, value, onChange }: MappingGridProps) 
                             },
                           }))
                         }
-                      ><option value="">{language === 'tr' ? 'Seçilmedi' : 'Not Selected'}</option>{columnsFor(row.source?.dataset ?? '').map((column) => <option key={column.reference} value={column.reference}>{column.reference} · {column.producerType}</option>)}</select>
+                      ><option value="">{language === 'tr' ? 'Seçilmedi' : 'Not Selected'}</option>{columnsFor(row.source?.dataset ?? '').map((column) => <option key={column.reference} value={column.reference}>{column.reference} · {column.producerType}</option>)}</FormSelect>
                     </td>
                     <td>
-                      <button
+                      <AntActionButton tone="ghost"
                         type="button"
                         className="mapping-expression-button"
                         data-grid-column="expression"
                         aria-label={`${index + 1} ${t('expression')}`}
                         disabled={!isExpression}
                         onClick={() => setEditingExpression(editingExpression === index ? null : index)}
-                      >{expressionSummary(row.expression) ?? t('unsupportedExpression')}</button>
+                      >{expressionSummary(row.expression) ?? t('unsupportedExpression')}</AntActionButton>
                     </td>
                     <td>
-                      <select
+                      <FormSelect
                         data-grid-column="target-dataset"
                         aria-label={`${index + 1} ${t('targetDataset')}`}
                         value={row.target.dataset}
@@ -292,10 +297,10 @@ export function MappingGrid({ projectUuid, value, onChange }: MappingGridProps) 
                         {targets.map((dataset) => (
                           <option key={dataset.id} value={dataset.id}>{dataset.id}</option>
                         ))}
-                      </select>
+                      </FormSelect>
                     </td>
                     <td>
-                      <select
+                      <FormSelect
                         data-grid-column="target-column"
                         aria-label={`${index + 1} ${t('targetColumn')}`}
                         value={row.target.column}
@@ -305,10 +310,10 @@ export function MappingGrid({ projectUuid, value, onChange }: MappingGridProps) 
                             target: { ...current.target, column: event.target.value },
                           }))
                         }
-                      ><option value="">{language === 'tr' ? 'Seçilmedi' : 'Not Selected'}</option>{columnsFor(row.target.dataset).map((column) => <option key={column.reference} value={column.reference}>{column.reference} · {column.producerType}</option>)}</select>
+                      ><option value="">{language === 'tr' ? 'Seçilmedi' : 'Not Selected'}</option>{columnsFor(row.target.dataset).map((column) => <option key={column.reference} value={column.reference}>{column.reference} · {column.producerType}</option>)}</FormSelect>
                     </td>
                     <td>
-                      <button
+                      <AntActionButton tone="ghost"
                         className="definition-icon-button"
                         type="button"
                         aria-label={`${t('remove')} ${index + 1}`}
@@ -320,31 +325,31 @@ export function MappingGrid({ projectUuid, value, onChange }: MappingGridProps) 
                         }
                       >
                         <Trash2 size={15} aria-hidden="true" />
-                      </button>
+                      </AntActionButton>
                     </td>
                   </tr>{editingExpression === index ? <tr className="mapping-expression-row"><td colSpan={8}><ExpressionBuilder value={row.expression} columns={expressionColumns} onCancel={() => setEditingExpression(null)} onApply={(expression) => { updateRow(index, (current) => ({ target: current.target, expression })); setEditingExpression(null) }} /><p className="definition-help">{t('expressionRuntimeUnsupported')}</p></td></tr> : null}</Fragment>
               })}
             </tbody>
-          </table>
+          </DataGrid>
         </div>
         <div className="mapping-pagination" aria-label={t('page', { page: currentPage + 1, pages })}>
-          <button
-            className="definition-button definition-button--quiet"
+          <AntActionButton
+            tone="secondary"
             type="button"
             disabled={currentPage === 0}
             onClick={() => setPage((current) => Math.max(0, current - 1))}
           >
             {t('previous')}
-          </button>
+          </AntActionButton>
           <span>{t('page', { page: currentPage + 1, pages })}</span>
-          <button
-            className="definition-button definition-button--quiet"
+          <AntActionButton
+            tone="secondary"
             type="button"
             disabled={currentPage >= pages - 1}
             onClick={() => setPage((current) => Math.min(pages - 1, current + 1))}
           >
             {t('next')}
-          </button>
+          </AntActionButton>
         </div>
       </section>
 
@@ -352,7 +357,7 @@ export function MappingGrid({ projectUuid, value, onChange }: MappingGridProps) 
         <h3 id="strategy-title">{t('writeStrategy')}</h3>
         <label>
           <span>{t('writeStrategy')}</span>
-          <select
+          <FormSelect
             value={value.writeStrategy.kind}
             onChange={(event) => {
               const kind = event.target.value as MappingContent['writeStrategy']['kind']
@@ -363,12 +368,12 @@ export function MappingGrid({ projectUuid, value, onChange }: MappingGridProps) 
             }}
           >
             {(['APPEND', 'STAGED_REPLACE', 'MERGE', 'TRUNCATE_LOAD', 'ATOMIC_DELETE_INSERT'] as const).map((kind) => <option key={kind} value={kind}>{definitionCodeLabel(kind, language)}</option>)}
-          </select>
+          </FormSelect>
         </label>
         {value.writeStrategy.kind === 'MERGE' && (
           <label>
             <span>{t('mergeKeys')}</span>
-            <input
+            <AntInput
               placeholder={t('mergeKeysHint')}
               value={(value.writeStrategy.key ?? []).join(', ')}
               onChange={(event) =>

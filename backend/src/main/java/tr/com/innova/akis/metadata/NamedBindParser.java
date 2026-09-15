@@ -6,24 +6,37 @@ import java.util.Locale;
 
 /** Oracle-aware lexical extraction of named binds without interpreting SQL. */
 public final class NamedBindParser {
+    public static final int COMPILER_VERSION = 1;
 
     private NamedBindParser() {
     }
 
     public static List<String> parse(String sql) {
+        return compile(sql).names();
+    }
+
+    /** Names and JDBC text are produced by the same lexical pass. */
+    public record CompiledSql(String sql, List<String> names, String executableSql) { }
+
+    public static CompiledSql compile(String sql) {
         if (sql == null) {
             throw new IllegalArgumentException("SQL is required.");
         }
         List<String> binds = new ArrayList<>();
+        StringBuilder positional = new StringBuilder(sql.length());
+        StringBuilder executable = new StringBuilder(sql.length());
+        int copiedUntil = 0;
         int index = 0;
         while (index < sql.length()) {
             char current = sql.charAt(index);
             if (current == '-' && character(sql, index + 1) == '-') {
+                executable.append(' ');
                 int lineEnd = sql.indexOf('\n', index + 2);
                 index = lineEnd < 0 ? sql.length() : lineEnd + 1;
                 continue;
             }
             if (current == '/' && character(sql, index + 1) == '*') {
+                executable.append(' ');
                 int commentEnd = sql.indexOf("*/", index + 2);
                 if (commentEnd < 0) throw malformed();
                 index = commentEnd + 2;
@@ -33,14 +46,17 @@ public final class NamedBindParser {
                     && (character(sql, index + 1) == 'q' || character(sql, index + 1) == 'Q')
                     && character(sql, index + 2) == '\'') {
                 index = skipAlternativeQuote(sql, index + 1);
+                executable.append('X');
                 continue;
             }
             if ((current == 'q' || current == 'Q') && character(sql, index + 1) == '\'') {
                 index = skipAlternativeQuote(sql, index);
+                executable.append('X');
                 continue;
             }
             if (current == '\'' || current == '"') {
                 index = skipQuoted(sql, index, current);
+                executable.append('X');
                 continue;
             }
             if (current == ':' && character(sql, index + 1) != '='
@@ -49,12 +65,17 @@ public final class NamedBindParser {
                 int end = index + 2;
                 while (isBindPart(character(sql, end))) end++;
                 binds.add(sql.substring(index + 1, end).toUpperCase(Locale.ROOT));
+                positional.append(sql, copiedUntil, index).append('?');
+                copiedUntil = end;
+                executable.append(sql.substring(index, end).toUpperCase(Locale.ROOT));
                 index = end;
                 continue;
             }
+            executable.append(Character.toUpperCase(current));
             index++;
         }
-        return List.copyOf(binds);
+        positional.append(sql, copiedUntil, sql.length());
+        return new CompiledSql(positional.toString(), List.copyOf(binds), executable.toString().trim());
     }
 
     private static int skipQuoted(String sql, int start, char quote) {

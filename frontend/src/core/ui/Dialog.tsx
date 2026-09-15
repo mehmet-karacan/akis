@@ -1,5 +1,6 @@
+import { Modal } from 'antd'
 import { X } from 'lucide-react'
-import { useEffect, useId, useRef, type MouseEvent, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 
 interface DialogProps {
   open: boolean
@@ -15,12 +16,11 @@ interface DialogProps {
 
 const focusableSelector = [
   'a[href]', 'button:not([disabled])', 'input:not([disabled])',
-  'select:not([disabled])', 'textarea:not([disabled])', '[tabindex]:not([tabindex="-1"])',
+  'select:not([disabled])', 'textarea:not([disabled])', '[contenteditable="true"]',
 ].join(',')
 
 export function Dialog({ open, title, eyebrow, children, onClose, closeLabel, className = '', backdropClassName = '', busy = false }: DialogProps) {
-  const titleId = useId()
-  const dialogRef = useRef<HTMLElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
   const backdropRef = useRef<HTMLDivElement>(null)
   const returnFocusRef = useRef<HTMLElement | null>(null)
   const onCloseRef = useRef(onClose)
@@ -34,6 +34,7 @@ export function Dialog({ open, title, eyebrow, children, onClose, closeLabel, cl
     ;(focusables?.[0] ?? dialog)?.focus()
 
     function onKeyDown(event: KeyboardEvent) {
+      const dialog = dialogRef.current
       if (event.key === 'Escape' && !busy) {
         event.preventDefault()
         onCloseRef.current()
@@ -79,19 +80,17 @@ export function Dialog({ open, title, eyebrow, children, onClose, closeLabel, cl
 
   if (!open) return null
 
-  function closeFromBackdrop(event: MouseEvent<HTMLDivElement>) {
-    if (!busy && event.target === event.currentTarget) onClose()
-  }
-
   return (
-    <div ref={backdropRef} className={`dialog-backdrop ${backdropClassName}`.trim()} role="presentation" onMouseDown={closeFromBackdrop}>
-      <section ref={dialogRef} className={`dialog ${className}`.trim()} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
-        <header>
-          <div>{eyebrow && <p className="eyebrow">{eyebrow}</p>}<h2 id={titleId}>{title}</h2></div>
-          <button className="icon-button" type="button" onClick={onClose} disabled={busy} aria-label={closeLabel}><X size={19} /></button>
-        </header>
+    <div ref={backdropRef}>
+      <Modal open centered footer={null} getContainer={false} width={960}
+        className={`akis-modal ${className}`.trim()} rootClassName={backdropClassName}
+        keyboard={false} mask={{ closable: !busy }}
+        closable={{ disabled: busy, 'aria-label': closeLabel }} closeIcon={<X size={18} />}
+        onCancel={() => { if (!busy) onClose() }}
+        title={<div>{eyebrow && <small className="akis-modal-eyebrow" aria-hidden="true">{eyebrow}</small>}<span>{title}</span></div>}
+        modalRender={(node) => <div ref={dialogRef}>{node}</div>}>
         {children}
-      </section>
+      </Modal>
     </div>
   )
 }

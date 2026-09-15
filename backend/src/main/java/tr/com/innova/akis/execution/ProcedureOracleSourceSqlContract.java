@@ -18,7 +18,16 @@ final class ProcedureOracleSourceSqlContract {
             ProcedureRuntimePlan plan,
             ProcedureRuntimePlan.Task task,
             ProcedureRuntimePlan.TaskBinding binding) {
-        if (plan == null || task == null || binding == null
+        if (plan == null) throw invalid();
+        List<String> columns = validateShape(task, binding);
+        return new ValidatedSource(
+                plan.runtimePlanHash(), ProcedureParameterBinder.positionalSql(task).strip(),
+                task.output().maximumRows(), columns);
+    }
+
+    static List<String> validateShape(
+            ProcedureRuntimePlan.Task task, ProcedureRuntimePlan.TaskBinding binding) {
+        if (task == null || binding == null
                 || task.type() != ProcedureRuntimePlan.TaskType.SQL
                 || task.connectionRole() != ProcedureRuntimePlan.ConnectionRole.SOURCE
                 || task.riskClass() != ProcedureRuntimePlan.RiskClass.READ_ONLY
@@ -51,9 +60,7 @@ final class ProcedureOracleSourceSqlContract {
                 || columns.stream().distinct().count() != columns.size()) {
             throw invalid();
         }
-        return new ValidatedSource(
-                plan.runtimePlanHash(), ProcedureParameterBinder.positionalSql(task).strip(),
-                task.output().maximumRows(), columns);
+        return columns;
     }
 
     private static boolean identifier(String value) {

@@ -8,6 +8,7 @@ final class ExecutionFeatureFlags {
 
     private final boolean acceptManualRequests;
     private final boolean workerEnabled;
+    private final boolean procedureRuntimeEnabled;
 
     ExecutionFeatureFlags(
             @Value("${akis.execution.accept-manual-requests:false}") boolean acceptManualRequests,
@@ -15,6 +16,7 @@ final class ExecutionFeatureFlags {
             @Value("${akis.execution.procedure-runtime-enabled:false}") boolean procedureRuntimeEnabled) {
         this.acceptManualRequests = acceptManualRequests;
         this.workerEnabled = workerEnabled;
+        this.procedureRuntimeEnabled = procedureRuntimeEnabled;
         if (workerEnabled && !procedureRuntimeEnabled) {
             throw new IllegalStateException(
                     "Execution worker requires the controlled Procedure runtime.");
@@ -28,4 +30,6 @@ final class ExecutionFeatureFlags {
     boolean workerEnabled() {
         return workerEnabled;
     }
+
+    boolean procedureRuntimeEnabled() { return procedureRuntimeEnabled; }
 }

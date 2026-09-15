@@ -29,6 +29,102 @@ class ProcedureRuntimePlanResolverTest {
             objectMapper, new SecretValueSanitizer(), new DefinitionContentValidator());
 
     @Test
+    void rejectsDateRefreshWithBooleanParameterBeforePublication() {
+        ObjectNode definition = definition();
+        ObjectNode source = (ObjectNode) definition.get("tasks").get(1);
+        source.put("command", "SELECT ID, ACIKLAMA FROM TTBP.HAKEDIS_TIPI WHERE ID = :D");
+        source.putObject("parameters").putObject("D").put("type", "BOOLEAN")
+            .put("valueSource", "REFRESH_QUERY").put("query", "SELECT SYSDATE - 1 FROM DUAL");
+        ObjectNode scenario = scenario(definition);
+        String hash = sha256(canonicalize(scenario).toString());
+        var error = assertThrows(ProcedureRuntimePlanException.class,
+            () -> resolver.compileHashForPublication(hash, scenario, manifest(definition, scenario, hash)));
+        assertTrue(error.getMessage().contains("DATE or TIMESTAMP"));
+    }
+
+    @Test
+    void pinsVariableConnectionAndRejectsMismatchedEnvironment() {
+        ObjectNode definition = definition();
+        UUID variable = UUID.randomUUID(), logical = UUID.randomUUID();
+        ObjectNode source = (ObjectNode) definition.get("tasks").get(1);
+        source.put("command", "SELECT ID, ACIKLAMA FROM TTBP.HAKEDIS_TIPI WHERE ID = :D");
+        source.putObject("parameters").putObject("D").put("type", "DATE").put("valueSource", "REFRESH_QUERY")
+            .put("query", "SELECT SYSDATE - 1 FROM DUAL").put("definitionUuid", variable.toString())
+            .put("logicalSchemaUuid", logical.toString()).put("historyMode", "ALL");
+        ObjectNode scenario = scenario(definition);
+        String hash = sha256(canonicalize(scenario).toString());
+        ObjectNode manifest = manifest(definition, scenario, hash);
+        assertThrows(ProcedureRuntimePlanException.class, () -> resolver.compileHashForPublication(hash, scenario, manifest));
+        ObjectNode binding = manifest.putObject("variableBindings").putObject(variable.toString())
+            .put("logicalSchemaUuid", logical.toString()).put("projectUuid", UUID.randomUUID().toString())
+            .put("physicalSchemaUuid", UUID.randomUUID().toString()).put("connectionVersionUuid", UUID.randomUUID().toString())
+            .put("environmentUuid", manifest.path("environment").path("environmentUuid").asText())
+            .put("query", "SELECT SYSDATE - 1 FROM DUAL").put("type", "DATE").put("historyMode", "ALL");
+        String first = resolver.compileHashForPublication(hash, scenario, manifest);
+        binding.put("connectionVersionUuid", UUID.randomUUID().toString());
+        assertFalse(first.equals(resolver.compileHashForPublication(hash, scenario, manifest)));
+        binding.put("environmentUuid", UUID.randomUUID().toString());
+        assertThrows(ProcedureRuntimePlanException.class, () -> resolver.compileHashForPublication(hash, scenario, manifest));
+    }
+
+    @Test
+    void pinsPolicyVersionsInHashAndRejectsUnknownSemantics() {
+        ObjectNode definition = definition();
+        ObjectNode scenario = scenario(definition);
+        String hash = sha256(canonicalize(scenario).toString());
+        ObjectNode manifest = manifest(definition, scenario, hash);
+        String legacy = resolver.compileHashForPublication(hash, scenario, manifest);
+        manifest.set("policyVersions", ProcedurePolicyVersions.current(objectMapper));
+        String pinned = resolver.compileHashForPublication(hash, scenario, manifest);
+        assertFalse(legacy.equals(pinned));
+        manifest.put("runtimePlanHash", pinned);
+        String release = sha256(canonicalize(manifest).toString());
+        manifest.put("releaseHash", release);
+        assertEquals(ProcedurePolicyVersions.current(objectMapper),
+            resolver.resolve(release, hash, scenario, manifest).canonicalPlan().get("policyVersions"));
+        manifest.remove("runtimePlanHash");
+        manifest.remove("releaseHash");
+        for (String field : List.of("sqlPolicy", "bindCompiler", "approvalPolicy")) {
+            manifest.set("policyVersions", ProcedurePolicyVersions.current(objectMapper));
+            ((ObjectNode) manifest.get("policyVersions")).put(field, 999);
+            assertThrows(ProcedureRuntimePlanException.class,
+                () -> resolver.compileHashForPublication(hash, scenario, manifest));
+        }
+        manifest.putNull("policyVersions");
+        assertThrows(ProcedureRuntimePlanException.class,
+            () -> resolver.compileHashForPublication(hash, scenario, manifest));
+    }
+
+    @Test
+    void publicationAcceptsTheSameTypedSourceFilterAsTheReader() {
+        ObjectNode definition = definition();
+        ObjectNode source = (ObjectNode) definition.get("tasks").get(1);
+        source.put("command", "SELECT ID, ACIKLAMA FROM TTBP.HAKEDIS_TIPI WHERE ID = :id");
+        source.putObject("parameters").putObject("ID").put("type", "INTEGER").put("value", "7");
+        ObjectNode scenario = scenario(definition);
+        String hash = sha256(canonicalize(scenario).toString());
+        assertTrue(resolver.compileHashForPublication(hash, scenario, manifest(definition, scenario, hash)).matches("[0-9a-f]{64}"));
+    }
+
+    @Test
+    void productionDmlRequiresEnvironmentApprovalEvenWhenTasksDoNot() {
+        ObjectNode definition = definition();
+        ArrayNode tasks = (ArrayNode) definition.get("tasks");
+        tasks.remove(3);
+        tasks.remove(0);
+        ObjectNode scenario = scenario(definition);
+        String hash = sha256(canonicalize(scenario).toString());
+        ObjectNode manifest = manifest(definition, scenario, hash);
+        ArrayNode bindings = (ArrayNode) manifest.get("bindings");
+        bindings.remove(3);
+        bindings.remove(0);
+        ((ObjectNode) manifest.get("environment")).put("risk", "URETIM");
+        assertTrue(resolver.compileHashForPublication(hash, scenario, manifest).matches("[0-9a-f]{64}"));
+        manifest.put("approvalRequired", false);
+        assertThrows(ProcedureRuntimePlanException.class, () -> resolver.compileHashForPublication(hash, scenario, manifest));
+    }
+
+    @Test
     void resolvesPinnedProcedureWithoutChangingTaskOrder() {
         Fixture fixture = fixture();
 
@@ -51,6 +147,17 @@ class ProcedureRuntimePlanResolverTest {
         assertEquals(fixture.runtimeHash(), plan.runtimePlanHash());
         assertFalse(plan.canonicalPlan().toString().contains("TRUNCATE TABLE"));
         assertFalse(plan.canonicalPlan().toString().contains("password"));
+    }
+
+    @Test
+    void acceptsFormattedInsertWithoutWeakeningTargetOrBindChecks() {
+        ObjectNode definition = definition();
+        ((ObjectNode) definition.path("tasks").get(2)).put("command",
+                "INSERT INTO INNOVA_ODI.STG_HAKEDIS_TIPI (\n ID,\n ACIKLAMA\n)\nVALUES (\n :ID,\n :ACIKLAMA\n)");
+        ObjectNode scenario = scenario(definition);
+        String hash = sha256(canonicalize(scenario).toString());
+        ObjectNode manifest = manifest(definition, scenario, hash);
+        assertTrue(resolver.compileHashForPublication(hash, scenario, manifest).matches("[0-9a-f]{64}"));
     }
 
     @Test

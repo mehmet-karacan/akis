@@ -280,7 +280,9 @@ const en = {
   sqlMultipleStatements: 'Enter only one SQL statement in a command.',
   sqlInvalidSourceCommand: 'A source command must start with SELECT.',
   sqlInvalidTargetCommand: 'The target command does not start with a supported SQL or PL/SQL keyword.',
-  sqlValid: 'Valid SQL syntax',
+  sqlCheck: 'Check SQL',
+  sqlPolicyChecked: 'Policy Check Passed (Not Executed)',
+  sqlValid: 'No Basic SQL Errors Detected',
   sqlInvalid: 'SQL syntax needs attention',
   sqlValidationPending: 'Enter SQL to validate',
   onError: 'On error',
@@ -566,8 +568,8 @@ const tr: Record<keyof typeof en, string> = {
   general: 'Genel',
   ignoreErrors: 'Hataları Yoksay',
   rowTransferStopsOnError: 'Satır aktaran adımlar veri bütünlüğü için hata durumunda durmalıdır.',
-  transactionMode: 'Transaction',
-  autocommit: 'Autocommit',
+  transactionMode: 'İşlem Yönetimi',
+  autocommit: 'Otomatik Onay (Autocommit)',
   managedTransaction: 'Yönetilen Transaction',
   transactionChannel: 'Transaction Kanalı',
   transactionChannelValue: 'Transaction {{channel}}',
@@ -611,7 +613,9 @@ const tr: Record<keyof typeof en, string> = {
   sqlMultipleStatements: 'Bir komut alanına yalnızca tek SQL ifadesi girin.',
   sqlInvalidSourceCommand: 'Kaynak komutu SELECT ile başlamalıdır.',
   sqlInvalidTargetCommand: 'Hedef komutu desteklenen bir SQL veya PL/SQL anahtar sözcüğüyle başlamıyor.',
-  sqlValid: 'SQL sözdizimi geçerli',
+  sqlCheck: 'SQL’i Kontrol Et',
+  sqlPolicyChecked: 'Kural Kontrolü Geçti (Çalıştırılmadı)',
+  sqlValid: 'Temel SQL Hatası Bulunmadı',
   sqlInvalid: 'SQL sözdizimini düzeltin',
   sqlValidationPending: 'Kontrol için SQL girin',
   onError: 'Hata Durumunda',
@@ -707,6 +711,8 @@ const codeLabels: Record<'en' | 'tr', Record<string, string>> = {
 }
 
 export function definitionCodeLabel(code: string, language: string) {
+  if (code === 'ALL') return language === 'tr' ? 'Tüm Geçmiş' : 'All History'
+  if (code === 'NONE') return language === 'tr' ? 'Yok' : 'None'
   const locale = language === 'tr' ? 'tr-TR' : 'en-US'
   return codeLabels[language === 'tr' ? 'tr' : 'en'][code]
     ?? code.toLocaleLowerCase(locale).replaceAll('_', ' ').replace(/(^|\s)\S/g, (value) => value.toLocaleUpperCase(locale))

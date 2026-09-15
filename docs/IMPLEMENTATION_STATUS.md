@@ -1,5 +1,12 @@
 # Akış implementation status
 
+## 2026-09-15 güvenilirlik çalışması
+
+n8n karşılaştırma raporunun uygulaması başladı, tamamlanmadı. Güncel madde bazlı
+durum, test sınırları ve ortam engelleri [uygulama takibinde](N8N_IMPLEMENTATION_PLAN.md).
+Aşağıdaki 2026-09-12 kilometre taşı, genel amaçlı paket/mapping/değişken motorunun
+veya tüm üretim kabul testlerinin tamamlandığı şeklinde yorumlanmamalıdır.
+
 Status date: 2026-09-12
 
 ## Tamamlanan güncel kilometre taşı

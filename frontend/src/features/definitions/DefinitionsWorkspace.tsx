@@ -1,3 +1,7 @@
+import { TabBar } from '../../core/ui/TabBar'
+import { Select as FormSelect } from '../../core/ui/Select'
+import { Button as AntActionButton } from '../../core/ui/Button'
+import { Input as AntInput } from 'antd'
 import {
   AlertCircle,
   Check,
@@ -30,6 +34,7 @@ import { MappingGrid } from './MappingGrid'
 import { PackageEditor } from './PackageEditor'
 import { ProcedureEditor } from './ProcedureEditor'
 import { StructuredDraftEditor } from './StructuredDraftEditor'
+import { VariableHistory } from './VariableHistory'
 import type {
   DataBinding,
   BindingCandidate,
@@ -389,13 +394,13 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
       <div className="definitions-shell definitions-shell--workbench">
         <section className="definition-workbench" aria-label={t('details')}>
           {loading && <div className="definition-state"><LoaderCircle className="spin" aria-hidden="true" /> {t('loading')}</div>}
-          {loadError && <div className="definition-state definition-state--error"><AlertCircle aria-hidden="true" /><p>{loadError}</p><button className="definition-button definition-button--quiet" type="button" onClick={() => void loadWorkspace()}>{t('retry')}</button></div>}
+          {loadError && <div className="definition-state definition-state--error"><AlertCircle aria-hidden="true" /><p>{loadError}</p><AntActionButton tone="secondary" type="button" onClick={() => void loadWorkspace()}>{t('retry')}</AntActionButton></div>}
           {status && (
             <div className={`definition-notice definition-notice--${status.tone}`} role={status.tone === 'error' ? 'alert' : 'status'}>
               {status.tone === 'success' ? <Check size={16} aria-hidden="true" /> : <AlertCircle size={16} aria-hidden="true" />}
               <span>{status.text}</span>
               {status.tone === 'error' && selectedDefinition && draft ? (
-                <button type="button" onClick={() => void loadDefinition()}>{t('reloadDraft')}</button>
+                <AntActionButton tone="ghost" type="button" onClick={() => void loadDefinition()}>{t('reloadDraft')}</AntActionButton>
               ) : null}
             </div>
           )}
@@ -449,29 +454,29 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
                 {tab === 'draft' && !draftLoading && canWrite && (
                   <div className="definition-document-save">
                     {dirty && <span className="definition-unsaved-state">{t('unsaved')}</span>}
-                    <button className="definition-button definition-button--primary" type="button" disabled={saving || !dirty} onClick={() => void saveDraft()}>
+                    <AntActionButton tone="primary" type="button" disabled={saving || !dirty} onClick={() => void saveDraft()}>
                       {saving ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Save size={16} aria-hidden="true" />}
                       {saving ? t('saving') : t('saveDraft')}
-                    </button>
+                    </AntActionButton>
                   </div>
                 )}
               </header>
 
-              {bindingTypes.has(selectedDefinition.type) && selectedDefinition.type !== 'PROCEDURE' ? <div className="definition-tabs" role="tablist" aria-label={t('details')} onKeyDown={(event) => {
+              {bindingTypes.has(selectedDefinition.type) && selectedDefinition.type !== 'PROCEDURE' ? <TabBar className="definition-tabs" role="tablist" aria-label={t('details')} onKeyDown={(event) => {
                 if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
                 const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
                 const current = buttons.indexOf(document.activeElement as HTMLButtonElement)
                 const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (current + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length
                 event.preventDefault(); buttons[next]?.focus(); buttons[next]?.click()
               }}>
-                <button id="definition-tab-draft" type="button" role="tab" tabIndex={tab === 'draft' ? 0 : -1} aria-selected={tab === 'draft'} aria-controls="definition-panel-draft" onClick={() => setTab('draft')}>
+                <AntActionButton tone="ghost" id="definition-tab-draft" type="button" role="tab" tabIndex={tab === 'draft' ? 0 : -1} aria-selected={tab === 'draft'} aria-controls="definition-panel-draft" onClick={() => setTab('draft')}>
                   <FileCode2 size={16} aria-hidden="true" /> {t('draft')}
                   {dirty && <span className="definition-dirty-dot" aria-label={t('unsaved')} />}
-                </button>
-                <button id="definition-tab-bindings" type="button" role="tab" tabIndex={tab === 'bindings' ? 0 : -1} aria-selected={tab === 'bindings'} aria-controls="definition-panel-bindings" onClick={() => setTab('bindings')}>
+                </AntActionButton>
+                <AntActionButton tone="ghost" id="definition-tab-bindings" type="button" role="tab" tabIndex={tab === 'bindings' ? 0 : -1} aria-selected={tab === 'bindings'} aria-controls="definition-panel-bindings" onClick={() => setTab('bindings')}>
                   <GitBranch size={16} aria-hidden="true" /> {t('binding')} <span className="definition-count">{bindings.length}</span>
-                </button>
-              </div> : null}
+                </AntActionButton>
+              </TabBar> : null}
 
               {draftLoading ? (
                 <div className="definition-state"><LoaderCircle className="spin" aria-hidden="true" /> {t('loading')}</div>
@@ -484,10 +489,11 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
                   ) : selectedDefinition.type === 'PACKAGE' ? (
                     <PackageEditor projectUuid={projectUuid} definitionUuid={selectedDefinition.uuid} value={content} onChange={updateContent} onOpenDefinition={(uuid) => navigateFromExplorer(`/project/objects/definitions/${encodeURIComponent(uuid)}`)} />
                   ) : !['MAPPING', 'PROCEDURE', 'REUSABLE_MAPPING'].includes(selectedDefinition.type) ? (
-                    <StructuredDraftEditor type={selectedDefinition.type} value={content} onChange={updateContent} />
+                    <StructuredDraftEditor projectUuid={projectUuid} type={selectedDefinition.type} value={content} onChange={updateContent} />
                   ) : (
-                    <div className="definition-state definition-state--error"><AlertCircle aria-hidden="true" /><p>{t('unsupportedDraftShape')}</p>{canWrite && <button className="definition-button definition-button--quiet" type="button" onClick={() => updateContent(createDefaultContent(selectedDefinition.type))}>{t('resetStructuredDraft')}</button>}</div>
+                    <div className="definition-state definition-state--error"><AlertCircle aria-hidden="true" /><p>{t('unsupportedDraftShape')}</p>{canWrite && <AntActionButton tone="secondary" type="button" onClick={() => updateContent(createDefaultContent(selectedDefinition.type))}>{t('resetStructuredDraft')}</AntActionButton>}</div>
                   )}</fieldset>
+                  {selectedDefinition.type === 'VARIABLE' && <VariableHistory key={selectedDefinition.uuid} projectUuid={projectUuid} definitionUuid={selectedDefinition.uuid} />}
                 </section>
               ) : tab === 'versions' ? (
                 <VersionsPanel
@@ -599,7 +605,7 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
       )}
       <Dialog open={pendingDefinitionUuid !== null} title={t('changeObjectTitle')} eyebrow={t('unsaved')} closeLabel={t('cancel')} busy={saving} onClose={() => setPendingDefinitionUuid(null)} className="definition-dialog definition-dialog--compact">
         <p>{t('changeObjectDescription')}</p>
-        <footer className="dialog-actions"><button className="definition-button definition-button--quiet" type="button" onClick={() => setPendingDefinitionUuid(null)}>{t('stay')}</button><button className="definition-button definition-button--quiet" type="button" onClick={() => { const uuid = pendingDefinitionUuid; setPendingDefinitionUuid(null); setDirty(false); if (uuid) applyDefinitionSelection(uuid) }}>{t('discardAndContinue')}</button><button className="definition-button definition-button--primary" type="button" onClick={async () => { const uuid = pendingDefinitionUuid; if (await saveDraft()) { setPendingDefinitionUuid(null); if (uuid) applyDefinitionSelection(uuid) } }}>{t('saveAndContinue')}</button></footer>
+        <footer className="dialog-actions"><AntActionButton tone="secondary" type="button" onClick={() => setPendingDefinitionUuid(null)}>{t('stay')}</AntActionButton><AntActionButton tone="secondary" type="button" onClick={() => { const uuid = pendingDefinitionUuid; setPendingDefinitionUuid(null); setDirty(false); if (uuid) applyDefinitionSelection(uuid) }}>{t('discardAndContinue')}</AntActionButton><AntActionButton tone="primary" type="button" onClick={async () => { const uuid = pendingDefinitionUuid; if (await saveDraft()) { setPendingDefinitionUuid(null); if (uuid) applyDefinitionSelection(uuid) } }}>{t('saveAndContinue')}</AntActionButton></footer>
       </Dialog>
     </div>
   )
@@ -624,11 +630,11 @@ function CreateFolderDialog({ parentUuid, parentName, creating, close, onCreate 
     <Dialog open title={parentName ? t('newSubfolderNamed', { name: parentName }) : t('newFolder')} closeLabel={t('close')} onClose={close} busy={creating} className="definition-dialog definition-dialog--compact" backdropClassName="definition-dialog-backdrop">
         <form onSubmit={submit}>
           <div className="definition-form-grid">
-            <label><span>{t('code')}</span><input autoFocus required pattern="[A-Z][A-Z0-9_]{0,99}" placeholder="FINANCE" value={input.code} onChange={(event) => setInput({ ...input, code: event.target.value.toLocaleUpperCase('en-US').replace(/[^A-Z0-9_]/g, '') })} /></label>
-            <label><span>{t('name')}</span><input required value={input.name} onChange={(event) => setInput({ ...input, name: event.target.value })} /></label>
-            <label className="definition-form-grid--wide"><span>{t('description')}</span><textarea rows={3} value={input.description} onChange={(event) => setInput({ ...input, description: event.target.value })} /></label>
+            <label><span>{t('code')}</span><AntInput autoFocus required pattern="[A-Z][A-Z0-9_]{0,99}" placeholder="FINANCE" value={input.code} onChange={(event) => setInput({ ...input, code: event.target.value.toLocaleUpperCase('en-US').replace(/[^A-Z0-9_]/g, '') })} /></label>
+            <label><span>{t('name')}</span><AntInput required value={input.name} onChange={(event) => setInput({ ...input, name: event.target.value })} /></label>
+            <label className="definition-form-grid--wide"><span>{t('description')}</span><AntInput.TextArea rows={3} value={input.description} onChange={(event) => setInput({ ...input, description: event.target.value })} /></label>
           </div>
-          <footer><button className="definition-button definition-button--quiet" type="button" onClick={close}>{t('cancel')}</button><button className="definition-button definition-button--primary" type="submit" disabled={creating}>{creating ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}{creating ? t('creatingFolder') : t('createFolder')}</button></footer>
+          <footer><AntActionButton tone="secondary" type="button" onClick={close}>{t('cancel')}</AntActionButton><AntActionButton tone="primary" type="submit" disabled={creating}>{creating ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}{creating ? t('creatingFolder') : t('createFolder')}</AntActionButton></footer>
         </form>
     </Dialog>
   )
@@ -655,8 +661,8 @@ function MoveDefinitionDialog({ definition, folders, folderRequired, moving, clo
     <Dialog open title={t('moveDefinition')} eyebrow={t('designControl')} closeLabel={t('close')} onClose={close} busy={moving} className="definition-dialog definition-dialog--compact" backdropClassName="definition-dialog-backdrop">
         <form onSubmit={submit}>
           <p className="definition-dialog-help">{t('moveDefinitionHelp')}</p>
-          <label><span>{t('folder')}</span><select autoFocus required={folderRequired} value={folderUuid ?? ''} onChange={(event) => setFolderUuid(event.target.value || null)}><option value="" disabled={folderRequired}>{t('unfiled')}</option>{folders.filter((folder) => folder.status === 'AKTIF').map((folder) => <option key={folder.uuid} value={folder.uuid}>{folder.name} · {folder.code}</option>)}</select>{folderRequired && !folderUuid ? <small className="definition-field-error">{t('folderRequired')}</small> : null}</label>
-          <footer><button className="definition-button definition-button--quiet" type="button" onClick={close}>{t('cancel')}</button><button className="definition-button definition-button--primary" type="submit" disabled={moving || folderUuid === definition.folderUuid || (folderRequired && !folderUuid)}>{moving ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <FolderInput size={16} aria-hidden="true" />}{moving ? t('movingDefinition') : t('move')}</button></footer>
+          <label><span>{t('folder')}</span><FormSelect autoFocus required={folderRequired} value={folderUuid ?? ''} onChange={(event) => setFolderUuid(event.target.value || null)}><option value="" disabled={folderRequired}>{t('unfiled')}</option>{folders.filter((folder) => folder.status === 'AKTIF').map((folder) => <option key={folder.uuid} value={folder.uuid}>{folder.name} · {folder.code}</option>)}</FormSelect>{folderRequired && !folderUuid ? <small className="definition-field-error">{t('folderRequired')}</small> : null}</label>
+          <footer><AntActionButton tone="secondary" type="button" onClick={close}>{t('cancel')}</AntActionButton><AntActionButton tone="primary" type="submit" disabled={moving || folderUuid === definition.folderUuid || (folderRequired && !folderUuid)}>{moving ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <FolderInput size={16} aria-hidden="true" />}{moving ? t('movingDefinition') : t('move')}</AntActionButton></footer>
         </form>
     </Dialog>
   )
@@ -695,8 +701,8 @@ function MoveFolderDialog({ folder, folders, moving, close, onMove }: MoveFolder
     <Dialog open title={t('moveFolder')} eyebrow={t('designControl')} closeLabel={t('close')} onClose={close} busy={moving} className="definition-dialog definition-dialog--compact" backdropClassName="definition-dialog-backdrop">
         <form onSubmit={submit}>
           <p className="definition-dialog-help">{t('moveFolderHelp')}</p>
-          <label><span>{t('parentFolder')}</span><select autoFocus value={parentUuid ?? ''} onChange={(event) => setParentUuid(event.target.value || null)}><option value="">{t('rootFolder')}</option>{folders.filter((candidate) => candidate.status === 'AKTIF' && !unavailable.has(candidate.uuid)).map((candidate) => <option key={candidate.uuid} value={candidate.uuid}>{candidate.name} · {candidate.code}</option>)}</select></label>
-          <footer><button className="definition-button definition-button--quiet" type="button" onClick={close}>{t('cancel')}</button><button className="definition-button definition-button--primary" type="submit" disabled={moving || parentUuid === folder.parentUuid}>{moving ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <FolderInput size={16} aria-hidden="true" />}{moving ? t('movingFolder') : t('move')}</button></footer>
+          <label><span>{t('parentFolder')}</span><FormSelect autoFocus value={parentUuid ?? ''} onChange={(event) => setParentUuid(event.target.value || null)}><option value="">{t('rootFolder')}</option>{folders.filter((candidate) => candidate.status === 'AKTIF' && !unavailable.has(candidate.uuid)).map((candidate) => <option key={candidate.uuid} value={candidate.uuid}>{candidate.name} · {candidate.code}</option>)}</FormSelect></label>
+          <footer><AntActionButton tone="secondary" type="button" onClick={close}>{t('cancel')}</AntActionButton><AntActionButton tone="primary" type="submit" disabled={moving || parentUuid === folder.parentUuid}>{moving ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <FolderInput size={16} aria-hidden="true" />}{moving ? t('movingFolder') : t('move')}</AntActionButton></footer>
         </form>
     </Dialog>
   )
@@ -749,20 +755,20 @@ function VersionsPanel(props: VersionsPanelProps) {
         {props.canWrite && <form className="definition-version-form" onSubmit={props.createVersion}>
           <label>
             <span>{t('versionDescription')}</span>
-            <input value={props.versionDescription} placeholder={t('versionDescriptionPlaceholder')} onChange={(event) => props.setVersionDescription(event.target.value)} />
+            <AntInput value={props.versionDescription} placeholder={t('versionDescriptionPlaceholder')} onChange={(event) => props.setVersionDescription(event.target.value)} />
           </label>
-          <button className="definition-button definition-button--primary" type="submit" disabled={!props.draft || props.dirty || props.creatingVersion}>
+          <AntActionButton tone="primary" type="submit" disabled={!props.draft || props.dirty || props.creatingVersion}>
             {props.creatingVersion ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}
             {props.creatingVersion ? t('creatingVersion') : t('createVersion')}
-          </button>
+          </AntActionButton>
         </form>}
         <div className="definition-version-list">
           {props.versions.length === 0 ? <p className="definition-state">{t('noVersions')}</p> : props.versions.map((version) => (
-            <button key={version.uuid} type="button" className={version.uuid === props.selectedVersionUuid ? 'is-selected' : ''} onClick={() => props.setSelectedVersionUuid(version.uuid)}>
+            <AntActionButton tone="ghost" key={version.uuid} type="button" className={version.uuid === props.selectedVersionUuid ? 'is-selected' : ''} onClick={() => props.setSelectedVersionUuid(version.uuid)}>
               <span className="definition-version-number">v{version.versionNumber}</span>
               <span><strong>{version.description || `${t('version')} ${version.versionNumber}`}</strong><small>{formatter.format(new Date(version.createdAt))}</small></span>
               <ChevronRight size={16} aria-hidden="true" />
-            </button>
+            </AntActionButton>
           ))}
         </div>
       </div>
@@ -770,10 +776,10 @@ function VersionsPanel(props: VersionsPanelProps) {
         <div className="definition-panel-heading">
           <div><h3>{t('scenarios')}</h3>{selected && <p>{t('version')} {selected.versionNumber} · <code>{selected.contentHash.slice(0, 12)}</code></p>}</div>
           {props.canValidate && props.executable && selected && (
-            <button className="definition-button definition-button--primary" type="button" disabled={props.compiling} onClick={props.compileScenario}>
+            <AntActionButton tone="primary" type="button" disabled={props.compiling} onClick={props.compileScenario}>
               {props.compiling ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <GitBranch size={16} aria-hidden="true" />}
               {props.compiling ? t('compiling') : t('compile')}
-            </button>
+            </AntActionButton>
           )}
         </div>
         {!selected ? <p className="definition-state">{t('selectVersion')}</p> : !props.executable ? <p className="definition-state">{t('notExecutable')}</p> : props.scenarios.length === 0 ? <p className="definition-state">{t('noScenarios')}</p> : (
@@ -784,8 +790,8 @@ function VersionsPanel(props: VersionsPanelProps) {
                 <code>{scenario.planHash}</code>
                 <time dateTime={scenario.createdAt}>{formatter.format(new Date(scenario.createdAt))}</time>
                 {props.canPublish && <div className="definition-runnable-actions">
-                  <label><span>{t('environment')}</span><select value={environmentUuid} onChange={(event) => setEnvironmentUuid(event.target.value)} disabled={props.environments.length === 0}>{props.environments.map((environment) => <option key={environment.uuid} value={environment.uuid}>{environment.name} · {environment.code}</option>)}</select></label>
-                  {prepared[scenario.uuid] ? <Link className="definition-button definition-button--quiet" to={`/project/publications/${prepared[scenario.uuid]!.uuid}`}>{t('reviewRunnableVersion')}</Link> : <button className="definition-button definition-button--primary" type="button" disabled={!environmentUuid || preparingScenarioUuid === scenario.uuid} onClick={() => void prepare(scenario)}>{preparingScenarioUuid === scenario.uuid ? t('preparingRunnableVersion') : t('prepareRunnableVersion')}</button>}
+                  <label><span>{t('environment')}</span><FormSelect value={environmentUuid} onChange={(event) => setEnvironmentUuid(event.target.value)} disabled={props.environments.length === 0}>{props.environments.map((environment) => <option key={environment.uuid} value={environment.uuid}>{environment.name} · {environment.code}</option>)}</FormSelect></label>
+                  {prepared[scenario.uuid] ? <Link className="definition-button definition-button--quiet" to={`/project/publications/${prepared[scenario.uuid]!.uuid}`}>{t('reviewRunnableVersion')}</Link> : <AntActionButton tone="primary" type="button" disabled={!environmentUuid || preparingScenarioUuid === scenario.uuid} onClick={() => void prepare(scenario)}>{preparingScenarioUuid === scenario.uuid ? t('preparingRunnableVersion') : t('prepareRunnableVersion')}</AntActionButton>}
                 </div>}
               </article>
             ))}
@@ -888,16 +894,16 @@ function BindingsPanel(props: BindingsPanelProps) {
     <section id="definition-panel-bindings" className="definition-bindings-panel" role="tabpanel" aria-labelledby="definition-tab-bindings">
       <div className="definition-panel-heading">
         <h3>{t('binding')}</h3>
-        <label><span>{t('version')}</span><select value={props.selectedVersion?.uuid ?? ''} onChange={(event) => props.selectVersion(event.target.value)}><option value="">—</option>{props.versions.map((version) => <option key={version.uuid} value={version.uuid}>v{version.versionNumber}</option>)}</select></label>
+        <label><span>{t('version')}</span><FormSelect value={props.selectedVersion?.uuid ?? ''} onChange={(event) => props.selectVersion(event.target.value)}><option value="">—</option>{props.versions.map((version) => <option key={version.uuid} value={version.uuid}>v{version.versionNumber}</option>)}</FormSelect></label>
       </div>
       {props.canWrite && <form className="definition-binding-form" onSubmit={submit}>
         {nodes.length > 0 ? <>
-          <label><span>{t('stepOrDataset')}</span><select required value={input.nodeCode} onChange={(event) => selectNode(event.target.value)}><option value="">—</option>{availableNodes.map((node) => <option key={node.code} value={node.code}>{node.name} · {node.code} · {node.role === 'KAYNAK' ? t('source') : t('target')}</option>)}</select></label>
-          <label><span>{t('catalogSnapshot')}</span><select required value={input.schemaSnapshotUuid} onChange={(event) => selectCandidate(event.target.value)} disabled={loadingCandidates || candidates.length === 0}><option value="">—</option>{candidates.map((candidate) => <option key={candidate.schemaSnapshotUuid} value={candidate.schemaSnapshotUuid}>{candidateLabel(candidate)}</option>)}</select></label>
-          <label><span>{t('role')}</span><input readOnly value={input.role === 'KAYNAK' ? t('source') : t('target')} /></label>
-          <label><span>{t('environments')}</span><input readOnly value={selectedCandidate?.environmentCodes.join(', ') ?? '—'} /></label>
+          <label><span>{t('stepOrDataset')}</span><FormSelect required value={input.nodeCode} onChange={(event) => selectNode(event.target.value)}><option value="">—</option>{availableNodes.map((node) => <option key={node.code} value={node.code}>{node.name} · {node.code} · {node.role === 'KAYNAK' ? t('source') : t('target')}</option>)}</FormSelect></label>
+          <label><span>{t('catalogSnapshot')}</span><FormSelect required value={input.schemaSnapshotUuid} onChange={(event) => selectCandidate(event.target.value)} disabled={loadingCandidates || candidates.length === 0}><option value="">—</option>{candidates.map((candidate) => <option key={candidate.schemaSnapshotUuid} value={candidate.schemaSnapshotUuid}>{candidateLabel(candidate)}</option>)}</FormSelect></label>
+          <label><span>{t('role')}</span><AntInput readOnly value={input.role === 'KAYNAK' ? t('source') : t('target')} /></label>
+          <label><span>{t('environments')}</span><AntInput readOnly value={selectedCandidate?.environmentCodes.join(', ') ?? '—'} /></label>
         </> : <p className="definition-state">{t('structuredBindingUnavailable')}</p>}
-        <button className="definition-button definition-button--primary" type="submit" disabled={!props.selectedVersion || saving || nodes.length === 0 || !input.nodeCode || !selectedCandidate}>{saving ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}{t('saveBinding')}</button>
+        <AntActionButton tone="primary" type="submit" disabled={!props.selectedVersion || saving || nodes.length === 0 || !input.nodeCode || !selectedCandidate}>{saving ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}{t('saveBinding')}</AntActionButton>
       </form>}
       {loadingCandidates && <p className="definition-state"><LoaderCircle className="spin" aria-hidden="true" /> {t('loadingBindingCandidates')}</p>}
       {candidateError && <p className="definition-state definition-state--error" role="alert"><AlertCircle aria-hidden="true" /> {candidateError}</p>}
@@ -938,21 +944,21 @@ function CreateDefinitionEditor({ projectUuid, folders, types, initialType, init
   return (
     <section className="definition-new-editor" aria-label={initialType ? t('newDefinitionNamed', { name: t(definitionTypeKey[initialType]) }) : t('newDefinition')}>
       <form onSubmit={submit}>
-        <header className="definition-document-header definition-new-editor-header"><div><div className="definition-document-meta"><span className="definition-type-chip">{t(definitionTypeKey[input.type])}</span><span>{t('newDefinition')}</span></div><h2>{input.name || t('newDefinitionNamed', { name: t(definitionTypeKey[input.type]) })}</h2></div><div className="definition-editor-actions"><button className="definition-button definition-button--quiet" type="button" onClick={close}>{t('cancel')}</button><button className="definition-button definition-button--primary" type="submit" disabled={creating || !input.code || !input.name || Boolean(descriptor?.folderRequired && !input.folderUuid)}>{creating ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Save size={16} aria-hidden="true" />}{creating ? t('creating') : t('saveDraft')}</button></div></header>
+        <header className="definition-document-header definition-new-editor-header"><div><div className="definition-document-meta"><span className="definition-type-chip">{t(definitionTypeKey[input.type])}</span><span>{t('newDefinition')}</span></div><h2>{input.name || t('newDefinitionNamed', { name: t(definitionTypeKey[input.type]) })}</h2></div><div className="definition-editor-actions"><AntActionButton tone="secondary" type="button" onClick={close}>{t('cancel')}</AntActionButton><AntActionButton tone="primary" type="submit" disabled={creating || !input.code || !input.name || Boolean(descriptor?.folderRequired && !input.folderUuid)}>{creating ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Save size={16} aria-hidden="true" />}{creating ? t('creating') : t('saveDraft')}</AntActionButton></div></header>
         <fieldset disabled={creating} className="definition-new-editor-fields">
           <div className="definition-form-grid">
-            {!initialType && <label><span>{t('type')}</span><select value={input.type} onChange={(event) => { const type = event.target.value as DefinitionType; setInput({ ...input, type, folderUuid: null }); setInitialContent(createDefaultContent(type)) }}>{types.map((type) => <option key={type.code} value={type.code}>{t(definitionTypeKey[type.code])}</option>)}</select></label>}
-            {!fixedComponentType && <label><span>{t('folder')}</span><select required={descriptor?.folderRequired} value={input.folderUuid ?? ''} onChange={(event) => setInput({ ...input, folderUuid: event.target.value || null })}><option value="">{t('noFolder')}</option>{folders.filter((folder) => folder.status === 'AKTIF').map((folder) => <option key={folder.uuid} value={folder.uuid}>{folder.name} · {folder.code}</option>)}</select>{descriptor?.folderRequired && !input.folderUuid && <small>{t('folderRequired')}</small>}</label>}
-            <label><span>{t('code')}</span><input autoFocus required pattern="[A-Z][A-Z0-9_]{0,99}" placeholder="CUSTOMER_LOAD" value={input.code} onChange={(event) => setInput({ ...input, code: event.target.value.toLocaleUpperCase('en-US').replace(/[^A-Z0-9_]/g, '') })} /></label>
-            <label><span>{t('name')}</span><input required value={input.name} onChange={(event) => setInput({ ...input, name: event.target.value })} /></label>
-            <label className="definition-form-grid--wide"><span>{t('description')}</span><textarea rows={3} value={input.description} onChange={(event) => setInput({ ...input, description: event.target.value })} /></label>
+            {!initialType && <label><span>{t('type')}</span><FormSelect value={input.type} onChange={(event) => { const type = event.target.value as DefinitionType; setInput({ ...input, type, folderUuid: null }); setInitialContent(createDefaultContent(type)) }}>{types.map((type) => <option key={type.code} value={type.code}>{t(definitionTypeKey[type.code])}</option>)}</FormSelect></label>}
+            {!fixedComponentType && <label><span>{t('folder')}</span><FormSelect required={descriptor?.folderRequired} value={input.folderUuid ?? ''} onChange={(event) => setInput({ ...input, folderUuid: event.target.value || null })}><option value="">{t('noFolder')}</option>{folders.filter((folder) => folder.status === 'AKTIF').map((folder) => <option key={folder.uuid} value={folder.uuid}>{folder.name} · {folder.code}</option>)}</FormSelect>{descriptor?.folderRequired && !input.folderUuid && <small>{t('folderRequired')}</small>}</label>}
+            <label><span>{t('code')}</span><AntInput autoFocus required pattern="[A-Z][A-Z0-9_]{0,99}" placeholder="CUSTOMER_LOAD" value={input.code} onChange={(event) => setInput({ ...input, code: event.target.value.toLocaleUpperCase('en-US').replace(/[^A-Z0-9_]/g, '') })} /></label>
+            <label><span>{t('name')}</span><AntInput required value={input.name} onChange={(event) => setInput({ ...input, name: event.target.value })} /></label>
+            <label className="definition-form-grid--wide"><span>{t('description')}</span><AntInput.TextArea rows={3} value={input.description} onChange={(event) => setInput({ ...input, description: event.target.value })} /></label>
           </div>
         </fieldset>
         <fieldset disabled={creating} className="definition-readonly-gate definition-new-editor-content">
           {input.type === 'MAPPING' && isMappingContent(initialContent) ? <MappingGrid projectUuid={projectUuid} value={initialContent} onChange={setInitialContent} />
             : input.type === 'PROCEDURE' && isProcedureContent(initialContent) ? <ProcedureEditor projectUuid={projectUuid} definition={{ code: input.code, name: input.name, description: input.description }} value={initialContent} onChange={setInitialContent} />
               : input.type === 'PACKAGE' ? <PackageEditor projectUuid={projectUuid} definitionUuid="__new__" value={initialContent} onChange={setInitialContent} />
-                : <StructuredDraftEditor type={input.type} value={initialContent} onChange={setInitialContent} />}
+                : <StructuredDraftEditor projectUuid={projectUuid} type={input.type} value={initialContent} onChange={setInitialContent} />}
         </fieldset>
       </form>
     </section>

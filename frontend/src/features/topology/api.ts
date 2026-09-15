@@ -377,6 +377,8 @@ export const topologyApi = {
   listPhysicalSchemas: (projectUuid: string) => get<PhysicalSchema[]>(`${base(projectUuid)}/physical-schemas`),
   createPhysicalSchema: (projectUuid: string, body: CreatePhysicalSchemaRequest) => post<PhysicalSchema>(`${base(projectUuid)}/physical-schemas`, body),
   listLogicalSchemas: (projectUuid: string) => get<LogicalSchema[]>(`${base(projectUuid)}/logical-schemas`),
+  updateContext: (projectUuid: string, kind: 'logical-schemas' | 'environments', uuid: string, body: JsonRecord) => patch<LogicalSchema | Environment>(`${base(projectUuid)}/${kind}/${encodeURIComponent(uuid)}`, body),
+  deleteContext: (projectUuid: string, kind: 'logical-schemas' | 'environments', uuid: string, expectedVersion: number) => remove(`${base(projectUuid)}/${kind}/${encodeURIComponent(uuid)}?expectedVersion=${expectedVersion}`),
   createLogicalSchema: (projectUuid: string, body: JsonRecord) => post<LogicalSchema>(`${base(projectUuid)}/logical-schemas`, body),
   listEnvironments: (projectUuid: string) => get<Environment[]>(`${base(projectUuid)}/environments`),
   createEnvironment: (projectUuid: string, body: CreateEnvironmentRequest) => post<Environment>(`${base(projectUuid)}/environments`, body),

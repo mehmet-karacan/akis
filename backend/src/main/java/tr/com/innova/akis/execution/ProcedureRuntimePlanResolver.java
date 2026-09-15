@@ -156,7 +156,28 @@ public final class ProcedureRuntimePlanResolver {
             String releaseHash) {
         validateManifestDefinition(source, manifest);
         List<Task> tasks = parseTasks(source.definition());
-        boolean approvalRequired = tasks.stream().anyMatch(Task::requiresApproval);
+        if (manifest.has("variableBindings") && !manifest.get("variableBindings").isObject()) {
+            throw shape("Variable bindings must be an object.");
+        }
+        for (Task task : tasks) for (ParameterValue parameter : task.parameters().values()) {
+            if (parameter.logicalSchemaUuid() == null) continue; // Legacy plans are rejected at execution, not rewritten.
+            JsonNode binding = manifest.path("variableBindings").path(String.valueOf(parameter.definitionUuid()));
+            if (!binding.isObject()
+                    || !parameter.logicalSchemaUuid().toString().equals(binding.path("logicalSchemaUuid").asText())
+                    || !java.util.Objects.equals(parameter.refreshQuery(), binding.path("query").asText())
+                    || !parameter.type().name().equals(binding.path("type").asText())
+                    || !parameter.historyMode().equals(binding.path("historyMode").asText())
+                    || !manifest.path("environment").path("environmentUuid").asText().equals(binding.path("environmentUuid").asText())) {
+                throw shape("Variable binding does not match its published definition and environment.");
+            }
+            for (String field : List.of("projectUuid", "connectionVersionUuid", "physicalSchemaUuid")) {
+                try { UUID.fromString(binding.path(field).asText()); }
+                catch (IllegalArgumentException invalid) { throw shape("Variable binding identity is invalid."); }
+            }
+        }
+        boolean approvalRequired = tr.com.innova.akis.publication.ApprovalPolicyEvaluator.requiresApproval(
+                manifest.path("environment").path("risk").asText(),
+                tasks.stream().anyMatch(Task::requiresApproval));
         if (!manifest.path("approvalRequired").isBoolean()
                 || manifest.path("approvalRequired").booleanValue() != approvalRequired) {
             throw failure(
@@ -172,8 +193,11 @@ public final class ProcedureRuntimePlanResolver {
         plan.set("definition", definitionNode(source));
         plan.set("limits", limitsNode());
         plan.put("planVersion", ProcedureRuntimePlan.CURRENT_VERSION);
+        // Preserve hashes of historical unversioned manifests; never rewrite stored releases.
+        if (manifest.has("policyVersions")) plan.set("policyVersions", manifest.get("policyVersions").deepCopy());
         plan.set("release", releaseNode(manifest, scenarioPlanHash));
         plan.set("tasks", taskNodes(tasks));
+        if (manifest.has("variableBindings")) plan.set("variableBindings", manifest.get("variableBindings").deepCopy());
         JsonNode canonicalPlan = canonicalize(plan);
         String runtimePlanHash = sha256(canonicalPlan.toString());
         return new ProcedureRuntimePlan(
@@ -402,6 +426,10 @@ public final class ProcedureRuntimePlanResolver {
                     && !refreshQuery.strip().matches("(?i)^SELECT\\s+SYSDATE\\s*-\\s*1\\s+FROM\\s+DUAL$")) {
                 throw shape("Variable refresh query is outside the safe runtime contract.");
             }
+            if (source == ParameterSource.REFRESH_QUERY
+                    && type != ParameterType.DATE && type != ParameterType.TIMESTAMP) {
+                throw shape("SYSDATE refresh requires a DATE or TIMESTAMP parameter.");
+            }
             try {
                 if (source == ParameterSource.VALUE) switch (type) {
                     case INTEGER -> Long.parseLong(text);
@@ -414,8 +442,14 @@ public final class ProcedureRuntimePlanResolver {
             } catch (RuntimeException invalid) {
                 throw shape("Procedure parameter value does not match its type.");
             }
-            result.put(entry.getKey(), new ParameterValue(
-                    type, text, source, refreshQuery, definitionUuid));
+            String normalizedName = entry.getKey().toUpperCase(java.util.Locale.ROOT);
+            if (result.putIfAbsent(normalizedName, new ParameterValue(
+                    type, text, source, refreshQuery, definitionUuid,
+                    value.hasNonNull("logicalSchemaUuid") && !value.path("logicalSchemaUuid").asText().isBlank()
+                        ? UUID.fromString(value.path("logicalSchemaUuid").asText()) : null,
+                    value.path("historyMode").asText("NONE"))) != null) {
+                throw shape("Procedure parameter names must be unique ignoring case.");
+            }
         });
         return Map.copyOf(result);
     }
@@ -426,56 +460,14 @@ public final class ProcedureRuntimePlanResolver {
             RiskClass risk,
             boolean requiresApproval,
             String command) {
-        validateCommonSqlSyntax(command);
-        if (type != TaskType.SQL) {
-            if (role != ConnectionRole.TARGET
-                    || risk != RiskClass.DESTRUCTIVE
-                    || !requiresApproval) {
-                throw shape(
-                        "Opaque PL/SQL and stored procedures require TARGET, DESTRUCTIVE risk and approval.");
+        try {
+            var policy = SqlStatementPolicy.inspect(command, role.name());
+            if (!policy.type().equals(type.name()) || !policy.riskClass().equals(risk.name())
+                    || policy.requiresApproval() && !requiresApproval) {
+                throw shape("Procedure SQL metadata does not match the server policy.");
             }
-            return;
-        }
-
-        String executable = executableSql(command);
-        if (executable.indexOf(';') >= 0) {
-            throw shape("Procedure V1 SQL tasks must contain exactly one statement without a terminator.");
-        }
-        String firstKeyword = firstKeyword(executable);
-        if (role == ConnectionRole.SOURCE) {
-            if (risk != RiskClass.READ_ONLY || !"SELECT".equals(firstKeyword)) {
-                throw shape("Procedure V1 SOURCE tasks permit only a single READ_ONLY SELECT.");
-            }
-            return;
-        }
-
-        Set<String> allowed = switch (risk) {
-            case READ_ONLY -> Set.of("SELECT");
-            case DML -> Set.of("INSERT", "UPDATE", "MERGE");
-            case DDL -> Set.of("CREATE", "ALTER", "COMMENT", "GRANT", "REVOKE");
-            case DESTRUCTIVE -> Set.of("TRUNCATE", "DROP", "DELETE");
-        };
-        if (!allowed.contains(firstKeyword)) {
-            throw shape("Procedure SQL command does not match its declared risk class.");
-        }
-        if (risk == RiskClass.DESTRUCTIVE && !requiresApproval) {
-            throw shape("Destructive Procedure commands require explicit approval.");
-        }
-    }
-
-    private void validateCommonSqlSyntax(String command) {
-        String executable = executableSql(command);
-        int parentheses = 0;
-        for (int index = 0; index < executable.length(); index++) {
-            char current = executable.charAt(index);
-            if (current == '(') parentheses++;
-            else if (current == ')' && --parentheses < 0) {
-                throw shape("Procedure command contains unbalanced parentheses.");
-            }
-        }
-        if (parentheses != 0) throw shape("Procedure command contains unbalanced parentheses.");
-        if (executable.matches("(?s).*(,\\s*[,)]|\\(\\s*,).*$")) {
-            throw shape("Procedure command contains invalid comma placement.");
+        } catch (IllegalArgumentException invalid) {
+            throw shape("Procedure SQL does not satisfy the server policy.");
         }
     }
 
@@ -526,46 +518,11 @@ public final class ProcedureRuntimePlanResolver {
 
     /** Removes comments and literals while retaining executable punctuation and keywords. */
     private String executableSql(String sql) {
-        StringBuilder result = new StringBuilder(sql.length());
-        int index = 0;
-        while (index < sql.length()) {
-            char current = sql.charAt(index);
-            if (current == '-' && character(sql, index + 1) == '-') {
-                int end = sql.indexOf('\n', index + 2);
-                result.append(' ');
-                index = end < 0 ? sql.length() : end + 1;
-                continue;
-            }
-            if (current == '/' && character(sql, index + 1) == '*') {
-                int end = sql.indexOf("*/", index + 2);
-                if (end < 0) throw shape("Procedure command contains malformed comments.");
-                result.append(' ');
-                index = end + 2;
-                continue;
-            }
-            int qIndex = -1;
-            if ((current == 'n' || current == 'N')
-                    && (character(sql, index + 1) == 'q' || character(sql, index + 1) == 'Q')
-                    && character(sql, index + 2) == '\'') {
-                qIndex = index + 1;
-            }
-            else if ((current == 'q' || current == 'Q') && character(sql, index + 1) == '\'') {
-                qIndex = index;
-            }
-            if (qIndex >= 0) {
-                index = skipAlternativeQuote(sql, qIndex);
-                result.append('X');
-                continue;
-            }
-            if (current == '\'' || current == '"') {
-                index = skipQuoted(sql, index, current);
-                result.append('X');
-                continue;
-            }
-            result.append(Character.toUpperCase(current));
-            index++;
+        try {
+            return NamedBindParser.compile(sql).executableSql();
+        } catch (IllegalArgumentException invalid) {
+            throw shape("Procedure command contains malformed quoting or comments.");
         }
-        return result.toString().trim();
     }
 
     private String firstKeyword(String executable) {
@@ -575,43 +532,6 @@ public final class ProcedureRuntimePlanResolver {
         while (index < executable.length() && Character.isLetter(executable.charAt(index))) index++;
         if (start == index) throw shape("Procedure SQL command must begin with a supported keyword.");
         return executable.substring(start, index);
-    }
-
-    private int skipQuoted(String sql, int start, char quote) {
-        int index = start + 1;
-        while (index < sql.length()) {
-            if (sql.charAt(index) == quote) {
-                if (character(sql, index + 1) == quote) {
-                    index += 2;
-                    continue;
-                }
-                return index + 1;
-            }
-            index++;
-        }
-        throw shape("Procedure command contains malformed quoting.");
-    }
-
-    private int skipAlternativeQuote(String sql, int qIndex) {
-        if (qIndex + 2 >= sql.length()) throw shape("Procedure command contains malformed quoting.");
-        char opener = sql.charAt(qIndex + 2);
-        char closer = switch (opener) {
-            case '[' -> ']';
-            case '(' -> ')';
-            case '{' -> '}';
-            case '<' -> '>';
-            default -> opener;
-        };
-        int index = qIndex + 3;
-        while (index + 1 < sql.length()) {
-            if (sql.charAt(index) == closer && sql.charAt(index + 1) == '\'') return index + 2;
-            index++;
-        }
-        throw shape("Procedure command contains malformed quoting.");
-    }
-
-    private char character(String value, int index) {
-        return index >= 0 && index < value.length() ? value.charAt(index) : '\0';
     }
 
     private RowsetOutput parseOutput(JsonNode value) {
@@ -775,17 +695,10 @@ public final class ProcedureRuntimePlanResolver {
     }
 
     private void validateBoundSourceSelect(Task task, TaskBinding binding) {
-        if (task.type() != TaskType.SQL || task.riskClass() != RiskClass.READ_ONLY
-                || task.input() != null || task.output() == null || !task.namedBinds().isEmpty()) {
-            throw shape("Procedure V1 source tasks require an output-only bound SELECT.");
-        }
-        String identifier = Pattern.quote(binding.physicalIdentity());
-        Pattern select = Pattern.compile(
-                "^SELECT\\s+[A-Z][A-Z0-9_$#]*(?:\\s*,\\s*[A-Z][A-Z0-9_$#]*)*"
-                        + "\\s+FROM\\s+" + identifier + "$",
-                Pattern.CASE_INSENSITIVE);
-        if (!select.matcher(executableSql(task.command())).matches()) {
-            throw shape("Procedure V1 SELECT must read explicit columns from its bound source object.");
+        try {
+            ProcedureOracleSourceSqlContract.validateShape(task, binding);
+        } catch (IllegalArgumentException invalid) {
+            throw shape("Procedure V1 SELECT must match its pinned source and typed bind contract.");
         }
     }
 
@@ -800,8 +713,8 @@ public final class ProcedureRuntimePlanResolver {
             }
             Pattern insert = Pattern.compile(
                     "^INSERT\\s+INTO\\s+" + identifier
-                            + "\\s*\\((?<columns>[A-Z][A-Z0-9_$#]*(?:\\s*,\\s*[A-Z][A-Z0-9_$#]*)*)\\)"
-                            + "\\s*VALUES\\s*\\((?<values>:[A-Z][A-Z0-9_$#]*(?:\\s*,\\s*:[A-Z][A-Z0-9_$#]*)*)\\)$",
+                            + "\\s*\\(\\s*(?<columns>[A-Z][A-Z0-9_$#]*(?:\\s*,\\s*[A-Z][A-Z0-9_$#]*)*)\\s*\\)"
+                            + "\\s*VALUES\\s*\\(\\s*(?<values>:[A-Z][A-Z0-9_$#]*(?:\\s*,\\s*:[A-Z][A-Z0-9_$#]*)*)\\s*\\)$",
                     Pattern.CASE_INSENSITIVE);
             var match = insert.matcher(executableSql(task.command()));
             if (!match.matches()) {
@@ -875,7 +788,7 @@ public final class ProcedureRuntimePlanResolver {
         }
         Set<String> fields = new HashSet<>(Set.of(
                 "approvalRequired", "bindings", "definition", "environment", "manifestVersion",
-                "runtimeCapability", "scenario"));
+                "runtimeCapability", "scenario", "policyVersions", "variableBindings"));
         if (signed) {
             fields.add("releaseHash");
             fields.add("runtimePlanHash");
@@ -883,6 +796,14 @@ public final class ProcedureRuntimePlanResolver {
         requireOnlyFields(
                 manifest, fields, "Physical manifest",
                 ProcedurePlanFailure.INVALID_PUBLICATION_MANIFEST);
+        if (manifest.has("policyVersions")) {
+            try {
+                ProcedurePolicyVersions.requireSupported(manifest.get("policyVersions"));
+            }
+            catch (IllegalArgumentException exception) {
+                throw failure(ProcedurePlanFailure.INVALID_PUBLICATION_MANIFEST, exception.getMessage());
+            }
+        }
         if (!CAPABILITY.equals(requireText(manifest, "runtimeCapability"))) {
             throw failure(
                     ProcedurePlanFailure.INVALID_PUBLICATION_MANIFEST,
@@ -969,6 +890,10 @@ public final class ProcedureRuntimePlanResolver {
                 if (parameter.value() != null) value.put("value", parameter.value());
                 if (parameter.refreshQuery() != null) value.put("query", parameter.refreshQuery());
                 if (parameter.definitionUuid() != null) value.put("definitionUuid", parameter.definitionUuid().toString());
+                if (parameter.logicalSchemaUuid() != null) {
+                    value.put("logicalSchemaUuid", parameter.logicalSchemaUuid().toString());
+                    value.put("historyMode", parameter.historyMode());
+                }
             });
             node.set("parameters", parameters);
             node.put("onError", task.onError().name());

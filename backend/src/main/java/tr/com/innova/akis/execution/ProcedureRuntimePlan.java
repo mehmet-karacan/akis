@@ -102,7 +102,10 @@ public record ProcedureRuntimePlan(
 
     public record ParameterValue(
             ParameterType type, String value, ParameterSource source,
-            String refreshQuery, UUID definitionUuid) {
+            String refreshQuery, UUID definitionUuid, UUID logicalSchemaUuid, String historyMode) {
+        public ParameterValue(ParameterType type, String value, ParameterSource source, String query, UUID definitionUuid) {
+            this(type, value, source, query, definitionUuid, null, "NONE");
+        }
         public ParameterValue(ParameterType type, String value) {
             this(type, value, ParameterSource.VALUE, null, null);
         }

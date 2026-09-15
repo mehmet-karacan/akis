@@ -43,7 +43,12 @@ try {
         @{ Local = $v002; Container = "/tmp/akis-clean-v002.sql" },
         @{ Local = $v013; Container = "/tmp/akis-clean-v013.sql" },
         @{ Local = $v014; Container = "/tmp/akis-clean-v014.sql" },
-        @{ Local = $verification; Container = "/tmp/akis-clean-connections-verify.sql" }
+        @{ Local = $verification; Container = "/tmp/akis-clean-connections-verify.sql" },
+        @{ Local = (Join-Path $baselineDirectory 'V003__folders_definitions_and_versions.sql'); Container = '/tmp/akis-clean-v003.sql' },
+        @{ Local = (Join-Path $baselineDirectory 'V004__catalog_and_schema_snapshots.sql'); Container = '/tmp/akis-clean-v004.sql' },
+        @{ Local = (Join-Path $baselineDirectory 'V005__validation_and_scenarios.sql'); Container = '/tmp/akis-clean-v005.sql' },
+        @{ Local = (Join-Path $baselineDirectory 'V006__runnable_releases_and_approvals.sql'); Container = '/tmp/akis-clean-v006.sql' },
+        @{ Local = (Join-Path $baselineDirectory 'V008__audit_log.sql'); Container = '/tmp/akis-clean-v008.sql' }
     )
     foreach ($file in $files) {
         & $docker cp $file.Local "${containerName}:$($file.Container)"

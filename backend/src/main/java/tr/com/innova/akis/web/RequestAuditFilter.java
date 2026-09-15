@@ -27,7 +27,7 @@ public final class RequestAuditFilter extends OncePerRequestFilter {
     private static final Logger LOGGER = LoggerFactory.getLogger(RequestAuditFilter.class);
     private static final Set<String> MUTATING_METHODS = Set.of("POST", "PUT", "PATCH", "DELETE");
     private static final Pattern PROJECT_PATH = Pattern.compile(
-            "^/api/v1/projects/([0-9a-fA-F-]{36})(?:/.*)?$");
+            "^/api/v[12]/projects/([0-9a-fA-F-]{36})(?:/.*)?$");
     private static final Pattern UUID_PATH_SEGMENT = Pattern.compile(
             "(?:^|/)([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(?:/|$)");
 
@@ -41,7 +41,7 @@ public final class RequestAuditFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !request.getRequestURI().startsWith("/api/v1/")
+        return !(request.getRequestURI().startsWith("/api/v1/") || request.getRequestURI().startsWith("/api/v2/"))
                 || !MUTATING_METHODS.contains(request.getMethod());
     }
 
@@ -69,13 +69,15 @@ public final class RequestAuditFilter extends OncePerRequestFilter {
             detail.put("method", request.getMethod());
             detail.put("path", path);
             detail.put("status", response.getStatus());
+            String createdLocation = response.getStatus() == 201 ? response.getHeader("Location") : null;
+            if (createdLocation != null) detail.put("createdLocation", createdLocation);
             Actor actor = actor(request);
             if (actor.name() != null) {
                 detail.put("principal", actor.name());
             }
             repository.append(
                     projectId,
-                    lastUuid(path),
+                    createdLocation == null ? lastUuid(path) : lastUuid(createdLocation),
                     correlationId(response),
                     actor.type(),
                     "HTTP_" + request.getMethod(),

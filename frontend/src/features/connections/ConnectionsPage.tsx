@@ -1,3 +1,6 @@
+import { useRecordAudit } from '../../core/ui/useRecordAudit'
+import { Select as FormSelect } from '../../core/ui/Select'
+import { Input as AntInput } from 'antd'
 import { Cable, Database, GitBranch, Plus, Search, ShieldCheck } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -29,6 +32,7 @@ export function ConnectionsPage() {
   const [creating, setCreating] = useState(false)
   const [draftFilters, setDraftFilters] = useState({ q: params.get('q') ?? '', provider: params.get('provider') ?? 'ALL', sort: params.get('sort') ?? 'name' })
   const [catalog, setCatalog] = useState<ConnectionCatalogItem[]>([])
+  const audit = useRecordAudit('connections', catalog.map(item => `${item.connection.uuid}:${item.connection.version}:${item.latestVersionNumber}`).join(','))
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const { can } = useProjectAccess()
@@ -63,9 +67,9 @@ export function ConnectionsPage() {
   return <section className="page-stack connections-page">
     <section className="connection-management-panel"><PageHeader title={t('connections.title')} description={t('connections.description')} />
     <FilterSection><FilterBar>
-      <label className="connections-search"><span>{t('connections.search')}</span><input value={draftFilters.q} onChange={(event) => setDraftFilters(current => ({ ...current, q: event.target.value }))} placeholder={t('connections.searchPlaceholder')} /></label>
-      <label><span>{t('connections.provider')}</span><select value={draftFilters.provider} onChange={(event) => setDraftFilters(current => ({ ...current, provider: event.target.value }))}><option value="ALL">{t('connections.allProviders')}</option><option value="ORACLE">Oracle</option></select></label>
-      <label><span>{t('connections.sort')}</span><select value={draftFilters.sort} onChange={(event) => setDraftFilters(current => ({ ...current, sort: event.target.value }))}><option value="name">{t('connections.sortName')}</option><option value="code">{t('connections.sortCode')}</option></select></label>
+      <label className="connections-search"><span>{t('connections.search')}</span><AntInput value={draftFilters.q} onChange={(event) => setDraftFilters(current => ({ ...current, q: event.target.value }))} placeholder={t('connections.searchPlaceholder')} /></label>
+      <label><span>{t('connections.provider')}</span><FormSelect value={draftFilters.provider} onChange={(event) => setDraftFilters(current => ({ ...current, provider: event.target.value }))}><option value="ALL">{t('connections.allProviders')}</option><option value="ORACLE">Oracle</option></FormSelect></label>
+      <label><span>{t('connections.sort')}</span><FormSelect value={draftFilters.sort} onChange={(event) => setDraftFilters(current => ({ ...current, sort: event.target.value }))}><option value="name">{t('connections.sortName')}</option><option value="code">{t('connections.sortCode')}</option></FormSelect></label>
     </FilterBar><div className="connection-filter-actions"><Button onClick={() => { setDraftFilters({ q: '', provider: 'ALL', sort: 'name' }); setParams({}) }}>{i18n.language === 'tr' ? 'Temizle' : 'Clear'}</Button><Button tone="primary" icon={<Search size={16} />} onClick={applyFilters}>{i18n.language === 'tr' ? 'Sorgula' : 'Search'}</Button></div></FilterSection></section>
     <SummaryStrip ariaLabel={i18n.language === 'tr' ? 'Bağlantı özeti' : 'Connection summary'} items={[
       { label: i18n.language === 'tr' ? 'Toplam Bağlantı' : 'Total Connections', value: catalog.length, icon: <Cable />, tone: 'info' },
@@ -73,10 +77,8 @@ export function ConnectionsPage() {
       { label: i18n.language === 'tr' ? 'Mantıksal Şema' : 'Logical Schemas', value: catalog.reduce((sum, item) => sum + item.logicalSchemaCount, 0), icon: <GitBranch />, tone: 'neutral' },
       { label: i18n.language === 'tr' ? 'Test Edilmiş' : 'Tested', value: catalog.filter((item) => item.displayedVersion?.testedAt).length, icon: <ShieldCheck />, tone: 'success' },
     ]} />
-    <div className="connection-view-toolbar">{can('BAGLANTI_YONET') && <Button tone="primary" icon={<Plus size={16} />} onClick={() => setCreating(true)}>{t('connections.add')}</Button>}<span>{i18n.language === 'tr' ? 'Görünüm' : 'View'}</span><ViewToggle value={view} onChange={setView} /></div>
-    <section className="connections-records"><header className="connections-records-header"><h2>{i18n.language === 'tr' ? 'Kayıtlar' : 'Records'}</h2>
-    </header>
-    {loading ? <AsyncState state="loading" title={t('common.loading')} /> : error ? <AsyncState state="error" title={error} retryLabel={t('common.retry')} onRetry={() => void load()} /> : filtered.length === 0 ? <AsyncState state="empty" title={t('connections.empty')} description={t('connections.emptyHint')} /> : <ProgressiveRecords key={`${query}:${provider}:${sort}`} items={filtered}>{(visible) => view === 'table' ?  <ConnectionsTable projectUuid={projectUuid} items={visible} labels={labels} onOpen={setSelectedUuid} /> : <ConnectionCards items={visible} view={view} onOpen={setSelectedUuid} />}</ProgressiveRecords>}
+    <section className="connections-records"><header className="connections-records-header"><h2>{i18n.language === 'tr' ? 'Bağlantı Listesi' : 'Connection List'}</h2><div className="connection-view-toolbar">{can('BAGLANTI_YONET') && <Button tone="primary" icon={<Plus size={16} />} onClick={() => setCreating(true)}>{t('connections.add')}</Button>}<div className="ui-grid-view-control"><span>{i18n.language === 'tr' ? 'Görünüm' : 'View'}</span><ViewToggle value={view} onChange={setView} /></div></div></header>
+    {loading ? <AsyncState state="loading" title={t('common.loading')} /> : error ? <AsyncState state="error" title={error} retryLabel={t('common.retry')} onRetry={() => void load()} /> : filtered.length === 0 ? <AsyncState state="empty" title={t('connections.empty')} description={t('connections.emptyHint')} /> : <ProgressiveRecords key={`${query}:${provider}:${sort}`} items={filtered}>{(visible) => view === 'table' ?  <ConnectionsTable projectUuid={projectUuid} items={visible} labels={labels} onOpen={setSelectedUuid} /> : <ConnectionCards audit={audit} items={visible} view={view} onOpen={setSelectedUuid} />}</ProgressiveRecords>}
     </section>
     <Dialog open={selectedUuid !== null} title={t('connections.details')} closeLabel={t('common.close')} onClose={() => setSelectedUuid(null)} className="connection-catalog-dialog">
       {selectedUuid && <ConnectionDetailPage key={selectedUuid} selectedUuid={selectedUuid} onChanged={() => void load()} onDeleted={() => { setSelectedUuid(null); void load() }} />}

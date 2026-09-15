@@ -30,6 +30,8 @@ class ProjectCapabilityControllerTest {
         assertTrue(capabilities.runtime().acceptsManualRequests());
         assertFalse(capabilities.runtime().workerAvailable());
         assertFalse(capabilities.runtime().runnable());
+        assertEquals("EXECUTION_WORKER_DISABLED", capabilities.runtime().unavailableReason());
+        assertTrue(capabilities.supportedRuntimeCapabilities().isEmpty());
     }
 
     @Test

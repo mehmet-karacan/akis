@@ -88,6 +88,62 @@ public class JdbcPublicationStore implements PublicationStore {
     }
 
     @Override
+    public JsonNode resolveVariableBindings(PublicationContext context) {
+        var bindings = objectMapper.createObjectNode();
+        for (JsonNode task : context.scenarioPlan().path("executable").path("definition").path("tasks")) {
+            for (var entry : task.path("parameters").properties()) {
+                JsonNode parameter = entry.getValue();
+                if (!"REFRESH_QUERY".equals(parameter.path("valueSource").asText())) continue;
+                UUID definition;
+                UUID logical;
+                try {
+                    definition = UUID.fromString(parameter.path("definitionUuid").asText());
+                    logical = UUID.fromString(parameter.path("logicalSchemaUuid").asText());
+                } catch (IllegalArgumentException invalid) {
+                    throw new tr.com.innova.akis.metadata.ApiException(org.springframework.http.HttpStatus.UNPROCESSABLE_CONTENT,
+                        "VARIABLE_SCHEMA_REQUIRED", "Değişkene mantıksal şema seçin ve prosedüre yeniden ekleyin.");
+                }
+                String mode = parameter.path("historyMode").asText("LATEST");
+                if (!java.util.Set.of("NONE", "LATEST", "ALL").contains(mode)) throw new IllegalArgumentException("Invalid variable history mode");
+                var binding = jdbc.sql("""
+                    select p.uuid as project_uuid, bs.uuid as connection_uuid, fs.uuid as physical_uuid,
+                           fs.sema_adi, ms.uuid as logical_uuid
+                      from akis.proje p
+                      join akis.tanim t on t.proje_id=p.id and t.uuid=:definition
+                      join akis.mantiksal_sema ms on ms.proje_id=p.id and ms.uuid=:logical
+                      join akis.sema_eslemesi se on se.proje_id=p.id and se.mantiksal_sema_id=ms.id and se.ortam_id=:environment
+                      join akis.fiziksel_sema fs on fs.proje_id=p.id and fs.id=se.fiziksel_sema_id
+                      join akis.baglanti_surumu bs on bs.proje_id=p.id and bs.id=se.baglanti_surumu_id and bs.baglanti_id=fs.baglanti_id
+                      join akis.baglanti b on b.id=bs.baglanti_id and b.proje_id=p.id
+                     where p.id=:project and t.tur='DEGISKEN' and t.arsivlenme_zamani is null and ms.arsivlenme_zamani is null
+                       and fs.arsivlenme_zamani is null and b.arsivlenme_zamani is null
+                       and bs.durum='ETKIN' and b.saglayici_turu='ORACLE'
+                    """).param("project", context.projectId()).param("environment", context.environmentId())
+                    .param("definition", definition).param("logical", logical).query((rs, n) -> {
+                        var node = objectMapper.createObjectNode();
+                        node.put("projectUuid", rs.getString("project_uuid"));
+                        node.put("connectionVersionUuid", rs.getString("connection_uuid"));
+                        node.put("physicalSchemaUuid", rs.getString("physical_uuid"));
+                        node.put("owner", rs.getString("sema_adi"));
+                        node.put("logicalSchemaUuid", logical.toString());
+                        node.put("environmentUuid", context.environmentUuid().toString());
+                        node.put("historyMode", mode);
+                        node.put("query", parameter.path("query").asText());
+                        node.put("type", parameter.path("type").asText());
+                        return node;
+                    }).optional().orElseThrow(() -> new tr.com.innova.akis.metadata.ApiException(
+                        org.springframework.http.HttpStatus.UNPROCESSABLE_CONTENT, "VARIABLE_MAPPING_REQUIRED",
+                        "Değişkenin mantıksal şeması için çalıştırma ortamında etkin Oracle bağlantısı bulunamadı."));
+                JsonNode previous = bindings.get(definition.toString());
+                if (previous != null && !previous.equals(binding)) throw new tr.com.innova.akis.metadata.ApiException(
+                    org.springframework.http.HttpStatus.UNPROCESSABLE_CONTENT, "VARIABLE_CONFLICT", "Aynı değişken çelişkili tanımlarla kullanılamaz.");
+                bindings.set(definition.toString(), binding);
+            }
+        }
+        return bindings;
+    }
+
+    @Override
     public List<ResolvedBinding> resolveBindings(PublicationContext context) {
         return jdbc.sql("""
                         select tvn.id as definition_data_object_id,

@@ -414,6 +414,27 @@ public class TopologyRepository {
                 .single();
     }
 
+    boolean contextInUse(long projectId, UUID uuid, boolean logical) {
+        String table = logical ? "mantiksal_sema" : "ortam";
+        String column = logical ? "mantiksal_sema_id" : "ortam_id";
+        String additional = logical ? "exists(select 1 from akis.model m where m.proje_id = :p and m.mantiksal_sema_id = c.id)"
+                : "exists(select 1 from akis.yayin y where y.proje_id = :p and y.ortam_id = c.id)";
+        return jdbc.sql("select exists(select 1 from akis." + table + " c where c.proje_id = :p and c.uuid = :u and ("
+                + "exists(select 1 from akis.sema_eslemesi b where b.proje_id = :p and b." + column + " = c.id) or " + additional
+                + " or exists(select 1 from akis.tanim_taslagi d where d.proje_id = :p and (strpos(d.icerik::text, c.uuid::text) > 0 or strpos(d.icerik::text, '\"' || c.kod || '\"') > 0))"
+                + " or exists(select 1 from akis.tanim_surumu d where d.proje_id = :p and (strpos(d.icerik::text, c.uuid::text) > 0 or strpos(d.icerik::text, '\"' || c.kod || '\"') > 0))))")
+                .param("p", projectId).param("u", uuid).query(Boolean.class).single();
+    }
+
+    boolean changeContext(long projectId, UUID uuid, boolean logical, String name, String description, long expectedVersion, boolean archive) {
+        String table = logical ? "mantiksal_sema" : "ortam";
+        String assignment = archive ? "arsivlenme_zamani = current_timestamp" : "ad = :name" + (logical ? ", aciklama = :description" : "");
+        var query = jdbc.sql("update akis." + table + " set " + assignment + ", versiyon_no = versiyon_no + 1 where proje_id = :p and uuid = :u and versiyon_no = :v and arsivlenme_zamani is null")
+                .param("p", projectId).param("u", uuid).param("v", expectedVersion);
+        if (!archive) { query.param("name", name); if (logical) query.param("description", description, Types.VARCHAR); }
+        return query.update() == 1;
+    }
+
     List<LogicalSchemaRow> listLogicalSchemas(long projectId) {
         return jdbc.sql(logicalSchemaSelect() + " where proje_id = :projectId and arsivlenme_zamani is null order by kod")
                 .param("projectId", projectId)

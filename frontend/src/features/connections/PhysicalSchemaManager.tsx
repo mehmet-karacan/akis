@@ -1,3 +1,4 @@
+import { SuggestionInput } from '../../core/ui/SuggestionInput'
 import { Database, Plus } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -40,8 +41,8 @@ export function PhysicalSchemaManager({ projectUuid, connectionUuid, version, it
 
   return <div className="physical-schema-manager">
     {canManage && <form className="physical-schema-inline-form" onSubmit={(event) => void create(event)}>
-      <label><span>{t('schemas.oracleUser')}</span><input list={`oracle-schema-options-${connectionUuid}`} value={schema} onChange={(event) => setSchema(event.target.value)} required placeholder="INNOVA_ODI" /></label>
-      <datalist id={`oracle-schema-options-${connectionUuid}`}>{available.map((item) => <option key={item} value={item} />)}</datalist>
+      <label><span>{t('schemas.oracleUser')}</span><SuggestionInput suggestions={available}  value={schema} onChange={(event) => setSchema(event.target.value)} required placeholder="INNOVA_ODI" /></label>
+
       <Button type="button" icon={<Database size={14} />} onClick={() => void discover()} busy={discovering} disabled={!usable}>{t('schemas.loadUsers')}</Button>
       <Button type="submit" tone="primary" icon={<Plus size={14} />} busy={busy} disabled={!schema.trim()}>{t('schemas.addPhysical')}</Button>
     </form>}

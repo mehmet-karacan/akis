@@ -17,6 +17,45 @@ import tr.com.innova.akis.projectbundle.SecretValueSanitizer;
 
 class CleanTopologyRepositoryIT {
 
+    @Test
+    void recordAttributionUsesSuccessfulEventsOnly() {
+        var record = repository.createLogicalSchema(projectId, UUID.randomUUID(), "AUDIT_TEST", "Audit", null);
+        var authorization = new tr.com.innova.akis.security.AuthorizationService(null, "fail-closed") {
+            @Override public void requireProjectPermission(UUID project, String permission) { assertEquals(projectUuid, project); }
+        };
+        var controller = new tr.com.innova.akis.web.RecordAuditController(jdbc, authorization);
+        var path = "/api/v1/projects/" + projectUuid + "/logical-schemas";
+        for (int index = 0; index < 3; index++) {
+            var detail = new ObjectMapper().createObjectNode().put("path", index == 0 ? path : path + "/" + record.uuid()).put("principal", index == 0 ? "creator" : index == 1 ? "editor" : "failed-editor");
+            jdbc.sql("insert into akis.denetim_olayi(proje_id, dis_nesne_uuid, korelasyon_kodu, aktor_turu, eylem_kodu, sonuc, olay_zamani, ayrinti) values (:project, :record, 'test', 'KULLANICI', :action, :result, current_timestamp, cast(:detail as jsonb))")
+                .param("project", projectId).param("record", record.uuid()).param("action", index == 0 ? "HTTP_POST" : "HTTP_PATCH").param("result", index == 2 ? "BASARISIZ" : "BASARILI").param("detail", detail.toString()).update();
+        }
+        var audit = controller.list(projectUuid, "logical-schemas").stream().filter(item -> item.uuid().equals(record.uuid())).findFirst().orElseThrow();
+        assertEquals("creator", audit.createdBy());
+        assertEquals("editor", audit.updatedBy());
+        assertTrue(audit.createdAt() != null && audit.updatedAt() != null);
+        for (String kind : java.util.List.of("connections", "environments", "physical-schemas", "models", "definitions", "folders")) controller.list(projectUuid, kind);
+        assertThrows(RuntimeException.class, () -> controller.list(projectUuid, "unsafe-table"));
+    }
+
+    @Test
+    void contextEditsCheckVersionsAndArchiveWithoutDeletingHistory() {
+        var logical = repository.createLogicalSchema(projectId, UUID.randomUUID(), "EDIT_CONTEXT", "Before", null);
+        assertTrue(repository.changeContext(projectId, logical.uuid(), true, "After", "Description", logical.version(), false));
+        assertTrue(!repository.changeContext(projectId, logical.uuid(), true, "Stale", null, logical.version(), false));
+        var updated = repository.findLogicalSchema(projectId, logical.uuid()).orElseThrow();
+        assertEquals("After", updated.name());
+        assertTrue(!repository.contextInUse(projectId, logical.uuid(), true));
+        service.changeContext(projectUuid, logical.uuid(), true, null, null, updated.version(), true);
+        assertTrue(repository.findLogicalSchema(projectId, logical.uuid()).isEmpty());
+        var environment = repository.createEnvironment(projectId, UUID.randomUUID(), "EDIT_ENV", "DUSUK", 1, new ObjectMapper().createObjectNode(), "Before");
+        service.changeContext(projectUuid, environment.uuid(), false, "After", null, environment.version(), false);
+        assertTrue(!repository.contextInUse(projectId, environment.uuid(), false));
+        assertThrows(RuntimeException.class, () -> service.changeContext(projectUuid, environment.uuid(), false, null, null, environment.version(), true));
+        service.changeContext(projectUuid, environment.uuid(), false, null, null, environment.version() + 1, true);
+        assertTrue(repository.findEnvironment(projectId, environment.uuid()).isEmpty());
+    }
+
     private static TopologyRepository repository;
     private static TopologyService service;
     private static JdbcClient jdbc;
@@ -66,6 +105,10 @@ class CleanTopologyRepositoryIT {
                 projectId, UUID.randomUUID(), logical.id(), environment.id(),
                 physical.id(), version.id());
 
+        assertTrue(repository.contextInUse(projectId, logical.uuid(), true));
+        assertTrue(repository.contextInUse(projectId, environment.uuid(), false));
+        assertThrows(RuntimeException.class, () -> service.changeContext(projectUuid, logical.uuid(), true, null, null, logical.version(), true));
+        assertThrows(RuntimeException.class, () -> service.changeContext(projectUuid, environment.uuid(), false, null, null, environment.version(), true));
         var stored = repository.listConnectionVersions(projectId, connection.id()).getFirst();
         assertEquals(12000, stored.policy().get("connectTimeoutMs").intValue());
         assertEquals("ETL", stored.policy().get("purpose").stringValue());

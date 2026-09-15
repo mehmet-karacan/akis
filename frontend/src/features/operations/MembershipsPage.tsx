@@ -1,3 +1,7 @@
+import { Button as AntActionButton } from '../../core/ui/Button'
+import { DataGrid } from '../../core/ui/DataGrid'
+import { Select as FormSelect } from '../../core/ui/Select'
+import { Input as AntInput } from 'antd'
 import { Plus } from 'lucide-react'
 import { useMemo, useState, type FormEvent } from 'react'
 import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
@@ -60,7 +64,7 @@ export function MembershipsPage() {
       <PageHeader
         title={t('memberships')}
         description={t('membershipsHelp')}
-        actions={<button className="ops-button" type="button" onClick={() => setDialogOpen(true)}><Plus aria-hidden="true" /> {t('newMembership')}</button>}
+        actions={<AntActionButton tone="ghost" className="ops-button" type="button" onClick={() => setDialogOpen(true)}><Plus aria-hidden="true" /> {t('newMembership')}</AntActionButton>}
       />
       <Panel>
         {memberships.loading ? <LoadingState /> : null}
@@ -68,7 +72,7 @@ export function MembershipsPage() {
         {!memberships.loading && !memberships.error && memberships.data?.length === 0 ? <EmptyState>{t('emptyMemberships')}</EmptyState> : null}
         {!memberships.loading && memberships.data && memberships.data.length > 0 ? (
           <div className="ops-table-wrap">
-            <table className="ops-table">
+            <DataGrid className="ops-table">
               <thead><tr><th scope="col">{t('user')}</th><th scope="col">{t('roles')}</th><th scope="col">{t('status')}</th><th scope="col">{t('activePeriod')}</th></tr></thead>
               <tbody>
                 {memberships.data.map((membership) => (
@@ -80,7 +84,7 @@ export function MembershipsPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </DataGrid>
           </div>
         ) : null}
       </Panel>
@@ -90,23 +94,23 @@ export function MembershipsPage() {
           <form className="ops-form" onSubmit={(event) => void submit(event)} noValidate>
             {submitError ? <div className="ops-alert ops-alert-error" role="alert">{submitError}</div> : null}
             <Field label={t('user')} error={userError}>
-              <select value={userUuid} onChange={(event) => setUserUuid(event.target.value)} required aria-invalid={Boolean(userError)} disabled={users.loading || !users.data?.length}>
+              <FormSelect value={userUuid} onChange={(event) => setUserUuid(event.target.value)} required aria-invalid={Boolean(userError)} disabled={users.loading || !users.data?.length}>
                 <option value="">—</option>
                 {users.data?.map((user) => <option key={user.uuid} value={user.uuid}>{user.name}{user.email ? ` · ${user.email}` : ''}</option>)}
-              </select>
+              </FormSelect>
             </Field>
             <Field label={t('role')}>
-              <select value={role} onChange={(event) => setRole(event.target.value as ProjectRole)}>
+              <FormSelect value={role} onChange={(event) => setRole(event.target.value as ProjectRole)}>
                 {roles.map((item) => <option key={item} value={item}>{t(`role_${item}` as Parameters<typeof t>[0])}</option>)}
-              </select>
+              </FormSelect>
             </Field>
             <div className="ops-form-grid">
-              <Field label={t('startsAt')}><input type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} /></Field>
-              <Field label={t('endsAt')} error={periodInvalid ? t('invalidPeriod') : undefined}><input type="datetime-local" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} aria-invalid={periodInvalid} /></Field>
+              <Field label={t('startsAt')}><AntInput type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} /></Field>
+              <Field label={t('endsAt')} error={periodInvalid ? t('invalidPeriod') : undefined}><AntInput type="datetime-local" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} aria-invalid={periodInvalid} /></Field>
             </div>
             <div className="ops-form-actions">
-              <button className="ops-button ops-button-secondary" type="button" onClick={() => setDialogOpen(false)} disabled={submitting}>{t('close')}</button>
-              <button className="ops-button" type="submit" disabled={submitting || periodInvalid}>{submitting ? t('adding') : t('addMembership')}</button>
+              <AntActionButton tone="ghost" className="ops-button ops-button-secondary" type="button" onClick={() => setDialogOpen(false)} disabled={submitting}>{t('close')}</AntActionButton>
+              <AntActionButton tone="primary" className="ops-button" type="submit" disabled={submitting || periodInvalid}>{submitting ? t('adding') : t('addMembership')}</AntActionButton>
             </div>
           </form>
         </Dialog>

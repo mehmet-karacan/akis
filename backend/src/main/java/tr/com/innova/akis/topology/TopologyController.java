@@ -176,6 +176,38 @@ final class TopologyController {
                 .toList();
     }
 
+    @PatchMapping("/logical-schemas/{uuid}")
+    LogicalSchemaView updateLogicalSchema(@PathVariable UUID projectUuid, @PathVariable UUID uuid,
+            @Valid @RequestBody UpdateContextRequest request) {
+        authorization.requireProjectPermission(projectUuid, TOPOLOGY_WRITE);
+        service.changeContext(projectUuid, uuid, true, request.name(), request.description(), request.expectedVersion(), false);
+        return service.listLogicalSchemas(projectUuid).stream().filter(row -> row.uuid().equals(uuid)).map(LogicalSchemaView::from).findFirst().orElseThrow();
+    }
+
+    @PatchMapping("/environments/{uuid}")
+    EnvironmentView updateEnvironment(@PathVariable UUID projectUuid, @PathVariable UUID uuid,
+            @Valid @RequestBody UpdateContextRequest request) {
+        authorization.requireProjectPermission(projectUuid, TOPOLOGY_WRITE);
+        service.changeContext(projectUuid, uuid, false, request.name(), null, request.expectedVersion(), false);
+        return service.listEnvironments(projectUuid).stream().filter(row -> row.uuid().equals(uuid)).map(EnvironmentView::from).findFirst().orElseThrow();
+    }
+
+    @DeleteMapping("/logical-schemas/{uuid}")
+    ResponseEntity<Void> deleteLogicalSchema(@PathVariable UUID projectUuid, @PathVariable UUID uuid, @RequestParam long expectedVersion) {
+        authorization.requireProjectPermission(projectUuid, TOPOLOGY_WRITE);
+        service.changeContext(projectUuid, uuid, true, null, null, expectedVersion, true);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/environments/{uuid}")
+    ResponseEntity<Void> deleteEnvironment(@PathVariable UUID projectUuid, @PathVariable UUID uuid, @RequestParam long expectedVersion) {
+        authorization.requireProjectPermission(projectUuid, TOPOLOGY_WRITE);
+        service.changeContext(projectUuid, uuid, false, null, null, expectedVersion, true);
+        return ResponseEntity.noContent().build();
+    }
+
+    record UpdateContextRequest(@NotBlank String name, String description, @Min(1) long expectedVersion) {}
+
     @PostMapping("/environments")
     ResponseEntity<EnvironmentView> createEnvironment(
             @PathVariable UUID projectUuid,

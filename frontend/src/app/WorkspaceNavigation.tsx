@@ -1,6 +1,7 @@
 import { FolderKanban, History, Info, Network } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { NavLink, useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
+import { Menu } from 'antd'
 import { projectRoute } from '../features/projects/CurrentProjectContext'
 
 export type WorkspaceId = 'project' | 'development' | 'operations' | 'connections'
@@ -25,21 +26,9 @@ export function WorkspaceNavigation({ hasPendingChanges, onNavigate }: {
 }) {
   const { t } = useTranslation()
   const location = useLocation()
-  return (
-    <div className="workspace-navigation" role="tablist" aria-label={t('nav.workspaces')}>
-      {workspaces.map(({ id, path, key, icon: Icon }) => {
-        const target = projectRoute(path)
-        return <NavLink
-          key={key}
-          aria-label={t(key)}
-          role="tab"
-          aria-selected={resolveWorkspace(location.pathname) === id}
-          to={target}
-          onClick={(event) => { if (hasPendingChanges) { event.preventDefault(); onNavigate(target) } }}
-          end={id === 'project'}
-          className={`workspace-tab ${resolveWorkspace(location.pathname) === id ? 'active' : ''}`}
-        ><Icon size={18} /><span>{t(key)}</span></NavLink>
-      })}
-    </div>
-  )
+  void hasPendingChanges // The shell guards every onNavigate request.
+  return <Menu mode="inline" className="workspace-navigation" aria-label={t('nav.workspaces')}
+    selectedKeys={[resolveWorkspace(location.pathname)]}
+    onClick={({ key }) => onNavigate(projectRoute(workspaces.find(item => item.id === key)!.path))}
+    items={workspaces.map(({ id, key, icon: Icon }) => ({ key: id, label: t(key), icon: <Icon size={16} /> }))} />
 }

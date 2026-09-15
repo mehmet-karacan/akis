@@ -6,7 +6,7 @@ import { ProjectSidebarTree } from './ProjectSidebarTree'
 import '../features/definitions/definitions.css'
 import '../features/definitions/workbench-standard.css'
 
-export function DesignWorkspace({ projectUuid, onNavigate, children }: { projectUuid: string; onNavigate(path: string): void; children: ReactNode }) {
+export function DesignWorkspace({ projectUuid, onNavigate, children, explorerOnly = false }: { projectUuid: string; onNavigate(path: string): void; children?: ReactNode; explorerOnly?: boolean }) {
   const location = useLocation()
   const [folders, setFolders] = useState<Folder[]>([])
   const [definitions, setDefinitions] = useState<Definition[]>([])
@@ -28,5 +28,6 @@ export function DesignWorkspace({ projectUuid, onNavigate, children }: { project
     return () => { active = false }
   }, [projectUuid, revision])
   const selectedUuid = location.pathname.match(/\/definitions\/([^/]+)/)?.[1] ?? null
+  if (explorerOnly) return <section className="shell-project-explorer"><ProjectSidebarTree projectUuid={projectUuid} folders={folders} definitions={definitions} selectedUuid={selectedUuid} loading={loading} failed={failed} onNavigate={onNavigate} onRetry={retry} /></section>
   return <div className="design-workspace definitions-workspace"><aside className="design-explorer definition-object-explorer"><ProjectSidebarTree projectUuid={projectUuid} folders={folders} definitions={definitions} selectedUuid={selectedUuid} loading={loading} failed={failed} onNavigate={onNavigate} onRetry={retry} /></aside><div className="design-content">{children}</div></div>
 }

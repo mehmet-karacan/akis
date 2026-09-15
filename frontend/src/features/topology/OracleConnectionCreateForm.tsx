@@ -1,3 +1,7 @@
+import { Disclosure } from '../../core/ui/Disclosure'
+import { Button as AntActionButton } from '../../core/ui/Button'
+import { Select as FormSelect } from '../../core/ui/Select'
+import { Input as AntInput } from 'antd'
 import { useMemo, useState, type FormEvent } from 'react'
 import { CheckCircle2, CircleAlert, LoaderCircle, Save, ShieldCheck } from 'lucide-react'
 import { topologyApi, type DraftConnectionTestResult } from './api'
@@ -69,37 +73,37 @@ export function OracleConnectionCreateForm({ projectUuid, copy: c, onConnectionC
   return <form className="topology-connection-form topology-connection-form--simple" onSubmit={(event) => void save(event)}>
     <div className="topology-form topology-form--grid">
       <label className="topology-field topology-field--wide"><span>{c.provider} *</span>
-        <select required value={provider} onChange={(event) => { setProvider(event.target.value); invalidate() }}>
+        <FormSelect required value={provider} onChange={(event) => { setProvider(event.target.value); invalidate() }}>
           <option value="">{c.chooseProvider}</option><option value="ORACLE">Oracle</option>
-        </select>
+        </FormSelect>
       </label>
       {provider === 'ORACLE' && <>
-        <label className="topology-field"><span>{c.name} *</span><input required value={name} onChange={(e) => setName(e.target.value)} /></label>
-        <label className="topology-field"><span>{c.code} *</span><input required pattern="[A-Za-z][A-Za-z0-9_]{0,99}" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} /></label>
-        <label className="topology-field"><span>{c.connectionMode} *</span><select value={draft.mode} onChange={(e) => update('mode', e.target.value as ConnectionVersionDraft['mode'])}><option value="JDBC">JDBC</option><option value="JNDI">JNDI</option></select></label>
+        <label className="topology-field"><span>{c.name} *</span><AntInput required value={name} onChange={(e) => setName(e.target.value)} /></label>
+        <label className="topology-field"><span>{c.code} *</span><AntInput required pattern="[A-Za-z][A-Za-z0-9_]{0,99}" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} /></label>
+        <label className="topology-field"><span>{c.connectionMode} *</span><FormSelect value={draft.mode} onChange={(e) => update('mode', e.target.value as ConnectionVersionDraft['mode'])}><option value="JDBC">JDBC</option><option value="JNDI">JNDI</option></FormSelect></label>
         {draft.mode === 'JDBC' ? <>
-          <label className="topology-field"><span>{c.host} *</span><input required value={draft.host} onChange={(e) => update('host', e.target.value)} placeholder="10.0.0.10" autoComplete="off" /></label>
-          <label className="topology-field"><span>{c.port} *</span><input required type="number" min="1" max="65535" value={draft.port} onChange={(e) => update('port', e.target.value)} /></label>
-          <label className="topology-field"><span>{c.connectionMethod} *</span><select value={draft.identifierType} onChange={(e) => update('identifierType', e.target.value as ConnectionVersionDraft['identifierType'])}><option value="SERVICE_NAME">{c.serviceName}</option><option value="SID">{c.sid}</option></select></label>
-          <label className="topology-field"><span>{draft.identifierType === 'SERVICE_NAME' ? c.serviceName : c.sid} *</span><input required value={draft.identifier} onChange={(e) => update('identifier', e.target.value)} /></label>
-          <label className="topology-field"><span>{c.username} *</span><input required value={draft.username} onChange={(e) => update('username', e.target.value)} autoComplete="username" /></label>
-          <label className="topology-field"><span>{c.password} *</span><input required type="password" value={draft.password} onChange={(e) => update('password', e.target.value)} autoComplete="new-password" /></label>
-        </> : <label className="topology-field topology-field--wide"><span>{c.jndiName} *</span><input required value={draft.jndiName} onChange={(e) => update('jndiName', e.target.value)} placeholder="java:comp/env/jdbc/OracleMain" /></label>}
-        <label className="topology-field topology-field--wide"><span>{c.description} ({c.optional.toLowerCase()})</span><textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} /></label>
-        <details className="topology-advanced topology-field--wide"><summary>{c.advancedSettings}</summary><div className="topology-timeout-grid">
-          <label className="topology-field"><span>{c.connectTimeout}</span><input required type="number" min="1000" max="120000" value={draft.connectTimeoutMs} onChange={(e) => update('connectTimeoutMs', e.target.value)} /></label>
-          <label className="topology-field"><span>{c.readTimeout}</span><input required type="number" min="1000" max="300000" value={draft.readTimeoutMs} onChange={(e) => update('readTimeoutMs', e.target.value)} /></label>
-          <label className="topology-field"><span>{c.networkTimeout}</span><input required type="number" min="1000" max="300000" value={draft.networkTimeoutMs} onChange={(e) => update('networkTimeoutMs', e.target.value)} /></label>
-          <label className="topology-field"><span>{c.queryTimeout}</span><input required type="number" min="1" max="3600" value={draft.queryTimeoutSeconds} onChange={(e) => update('queryTimeoutSeconds', e.target.value)} /></label>
-        </div></details>
+          <label className="topology-field"><span>{c.host} *</span><AntInput required value={draft.host} onChange={(e) => update('host', e.target.value)} placeholder="10.0.0.10" autoComplete="off" /></label>
+          <label className="topology-field"><span>{c.port} *</span><AntInput required type="number" min="1" max="65535" value={draft.port} onChange={(e) => update('port', e.target.value)} /></label>
+          <label className="topology-field"><span>{c.connectionMethod} *</span><FormSelect value={draft.identifierType} onChange={(e) => update('identifierType', e.target.value as ConnectionVersionDraft['identifierType'])}><option value="SERVICE_NAME">{c.serviceName}</option><option value="SID">{c.sid}</option></FormSelect></label>
+          <label className="topology-field"><span>{draft.identifierType === 'SERVICE_NAME' ? c.serviceName : c.sid} *</span><AntInput required value={draft.identifier} onChange={(e) => update('identifier', e.target.value)} /></label>
+          <label className="topology-field"><span>{c.username} *</span><AntInput required value={draft.username} onChange={(e) => update('username', e.target.value)} autoComplete="username" /></label>
+          <label className="topology-field"><span>{c.password} *</span><AntInput required type="password" value={draft.password} onChange={(e) => update('password', e.target.value)} autoComplete="new-password" /></label>
+        </> : <label className="topology-field topology-field--wide"><span>{c.jndiName} *</span><AntInput required value={draft.jndiName} onChange={(e) => update('jndiName', e.target.value)} placeholder="java:comp/env/jdbc/OracleMain" /></label>}
+        <label className="topology-field topology-field--wide"><span>{c.description} ({c.optional.toLowerCase()})</span><AntInput.TextArea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} /></label>
+        <Disclosure className="topology-advanced topology-field--wide"><summary>{c.advancedSettings}</summary><div className="topology-timeout-grid">
+          <label className="topology-field"><span>{c.connectTimeout}</span><AntInput required type="number" min="1000" max="120000" value={draft.connectTimeoutMs} onChange={(e) => update('connectTimeoutMs', e.target.value)} /></label>
+          <label className="topology-field"><span>{c.readTimeout}</span><AntInput required type="number" min="1000" max="300000" value={draft.readTimeoutMs} onChange={(e) => update('readTimeoutMs', e.target.value)} /></label>
+          <label className="topology-field"><span>{c.networkTimeout}</span><AntInput required type="number" min="1000" max="300000" value={draft.networkTimeoutMs} onChange={(e) => update('networkTimeoutMs', e.target.value)} /></label>
+          <label className="topology-field"><span>{c.queryTimeout}</span><AntInput required type="number" min="1" max="3600" value={draft.queryTimeoutSeconds} onChange={(e) => update('queryTimeoutSeconds', e.target.value)} /></label>
+        </div></Disclosure>
       </>}
     </div>
     {error && <div className="topology-inline-error" role="alert"><CircleAlert />{error}</div>}
     {testResult && tested && <div className="topology-test-success" role="status"><CheckCircle2 /><div><strong>{c.draftTestPassed}</strong><small>{testResult.databaseProduct} {testResult.databaseVersion}</small></div></div>}
     <footer className="topology-form-actions">
-      <button className="topology-button topology-button--quiet" type="button" onClick={onClose}>{c.cancel}</button>
-      {provider === 'ORACLE' && <><button className="topology-button topology-button--test" type="button" onClick={() => void test()} disabled={Boolean(busy)}>{busy === 'test' ? <LoaderCircle className="is-spinning" /> : <ShieldCheck />}{busy === 'test' ? c.testing : c.testDraftConnection}</button>
-      <button className="topology-button" type="submit" disabled={Boolean(busy)}>{busy === 'save' ? <LoaderCircle className="is-spinning" /> : <Save />}{busy === 'save' ? c.creating : c.saveConnection}</button></>}
+      <AntActionButton tone="ghost" className="topology-button topology-button--quiet" type="button" onClick={onClose}>{c.cancel}</AntActionButton>
+      {provider === 'ORACLE' && <><AntActionButton tone="ghost" className="topology-button topology-button--test" type="button" onClick={() => void test()} disabled={Boolean(busy)}>{busy === 'test' ? <LoaderCircle className="is-spinning" /> : <ShieldCheck />}{busy === 'test' ? c.testing : c.testDraftConnection}</AntActionButton>
+      <AntActionButton tone="primary" className="topology-button" type="submit" disabled={Boolean(busy)}>{busy === 'save' ? <LoaderCircle className="is-spinning" /> : <Save />}{busy === 'save' ? c.creating : c.saveConnection}</AntActionButton></>}
     </footer>
   </form>
 }

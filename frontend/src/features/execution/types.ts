@@ -75,6 +75,8 @@ export interface RunEvent {
 export interface RunEventPage { items: RunEvent[]; nextCursor: number | null; hasMore: boolean }
 
 export interface RunStep {
+  logCounter?: string | null
+  transactionState?: 'COMMITTED' | 'UNCONFIRMED' | 'NOT_APPLICABLE'
   uuid: string
   parentUuid: string | null
   code: string

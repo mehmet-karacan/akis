@@ -49,7 +49,7 @@ describe('application foundation', () => {
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'local-password' } })
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    expect(await screen.findByRole('heading', { name: 'Select a project' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Select A Project' })).toBeInTheDocument()
     expect(await screen.findByText('No visible projects yet.')).toBeInTheDocument()
   })
 })

@@ -39,6 +39,20 @@ class RuntimeOracleConnectionProviderTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
+    void lostCommitAcknowledgementCannotBecomeConfirmedRollbackOrSecondCommit() {
+        FakeConnection fake = new FakeConnection(false);
+        fake.failCommit = true;
+        RuntimeOracleConnectionProvider provider = provider(
+                normalProfile(), name -> credential(), (url, properties) -> fake.proxy());
+        RuntimeOracleSession session = provider.openTargetReconciliation(binding(DatasetRole.TARGET));
+        assertThrows(RuntimeOracleConnectionException.class, session::commitConfirmed);
+        assertThrows(RuntimeOracleConnectionException.class, session::rollbackConfirmed);
+        assertThrows(RuntimeOracleConnectionException.class, session::commitConfirmed);
+        session.close();
+        assertEquals(List.of("commit", "rollback", "close"), fake.terminalEvents());
+    }
+
+    @Test
     void sourceAndTargetControlPurposesUseFreshConfiguredSessions() {
         List<FakeConnection> opened = new ArrayList<>();
         List<String> urls = new ArrayList<>();
@@ -325,6 +339,7 @@ class RuntimeOracleConnectionProviderTest {
     private static final class FakeConnection implements InvocationHandler {
 
         private final boolean failRollback;
+        private boolean failCommit;
         private final List<String> events = new ArrayList<>();
         private boolean readOnly;
         private boolean autoCommit = true;
@@ -379,6 +394,7 @@ class RuntimeOracleConnectionProviderTest {
                 }
                 case "commit" -> {
                     events.add("commit");
+                    if (failCommit) throw new SQLException("commit completed but acknowledgement lost");
                     yield null;
                 }
                 case "close" -> {

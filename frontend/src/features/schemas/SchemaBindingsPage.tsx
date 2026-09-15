@@ -1,3 +1,6 @@
+import { Button as AntActionButton } from '../../core/ui/Button'
+import { DataGrid } from '../../core/ui/DataGrid'
+import { Select as FormSelect } from '../../core/ui/Select'
 import { Link2 } from 'lucide-react'
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -107,16 +110,16 @@ export function SchemaBindingsPage() {
     {error ? <div className="error-banner" role="alert">{error}</div> : null}
     {logical.length === 0 || environments.length === 0
       ? <AsyncState state="empty" title={t('schemas.bindingPrerequisite')} description={t('schemas.bindingPrerequisiteHint')} />
-      : <div className="binding-matrix-wrap"><table className="binding-matrix">
+      : <div className="binding-matrix-wrap"><DataGrid className="binding-matrix">
         <thead><tr><th>{t('schemas.logicalSchema')}</th>{environments.map((environment) => <th key={environment.uuid}>{environment.name}<small>{environment.code}</small></th>)}</tr></thead>
         <tbody>{logical.map((schema) => <tr key={schema.uuid}><th><strong>{schema.name}</strong><small>{schema.code}</small></th>{environments.map((environment) => {
           const binding = bindingFor(schema.uuid, environment.uuid)
-          return <td key={environment.uuid}><button type="button" className={binding ? 'is-mapped' : ''} disabled={!canManage} onClick={() => openEditor(schema.uuid, environment.uuid)}><Link2 /><span>{labelForBinding(binding)}</span></button></td>
+          return <td key={environment.uuid}><AntActionButton tone="ghost" type="button" className={binding ? 'is-mapped' : ''} disabled={!canManage} onClick={() => openEditor(schema.uuid, environment.uuid)}><Link2 /><span>{labelForBinding(binding)}</span></AntActionButton></td>
         })}</tr>)}</tbody>
-      </table></div>}
+      </DataGrid></div>}
     <Dialog open={canManage && selection !== null} title={t('schemas.editBinding')} closeLabel={t('common.close')} busy={busy} onClose={() => setSelection(null)}>
       <form onSubmit={(event) => void save(event)}>
-        <label>{t('schemas.physicalSchema')}<select required value={physicalUuid} onChange={(event) => setPhysicalUuid(event.target.value)}><option value="">—</option>{physical.map((item) => <option key={item.uuid} value={item.uuid}>{physicalLabel(item)}</option>)}</select></label>
+        <label>{t('schemas.physicalSchema')}<FormSelect required value={physicalUuid} onChange={(event) => setPhysicalUuid(event.target.value)}><option value="">—</option>{physical.map((item) => <option key={item.uuid} value={item.uuid}>{physicalLabel(item)}</option>)}</FormSelect></label>
         <footer><Button type="button" onClick={() => setSelection(null)}>{t('common.cancel')}</Button><Button type="submit" tone="primary" busy={busy} disabled={!physicalUuid}>{t('schemas.saveBinding')}</Button></footer>
       </form>
     </Dialog>

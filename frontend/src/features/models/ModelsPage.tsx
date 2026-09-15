@@ -1,3 +1,6 @@
+import { DataGrid } from '../../core/ui/DataGrid'
+import { Select as FormSelect } from '../../core/ui/Select'
+import { Input as AntInput } from 'antd'
 import { Boxes, Database, Layers3, Plus } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -60,15 +63,15 @@ export function ModelsPage() {
       { label: t('models.logicalSchema'), value: logicalSchemas.length, icon: <Layers3 />, tone: 'neutral' },
     ]} />
     {loading ? <AsyncState state="loading" title={t('common.loading')} /> : models.length === 0 ? <AsyncState state="empty" title={t('models.empty')} description={t('models.emptyHint')} action={canManage && logicalSchemas.length ? <Button tone="primary" onClick={() => setOpen(true)}>{t('models.create')}</Button> : undefined} /> : <>
-      <div className="model-table-wrap"><table><thead><tr><th>{t('models.name')}</th><th>{t('models.logicalSchema')}</th><th>{t('models.objectCount')}</th><th>{t('models.lastMetadataUpdate')}</th><th>{t('models.status')}</th></tr></thead><tbody>{filtered.map((model) => <tr key={model.uuid}>
+      <div className="model-table-wrap"><DataGrid auditKind="models"><thead><tr><th>{t('models.name')}</th><th>{t('models.logicalSchema')}</th><th>{t('models.objectCount')}</th><th>{t('models.lastMetadataUpdate')}</th><th>{t('models.status')}</th></tr></thead><tbody>{filtered.map((model) => <tr key={model.uuid}>
         <td><Link className="model-name-link" to={`/projects/${projectUuid}/models/${model.uuid}`}><strong>{model.name}</strong><small>{model.code}</small></Link></td>
         <td>{logicalSchemas.find((schema) => schema.uuid === model.logicalSchemaUuid)?.name ?? '—'}</td><td>{model.dataObjectCount ?? 0}</td><td>{formatDate(model.lastMetadataUpdate)}</td><td><StatusBadge tone={model.status === 'AKTIF' ? 'success' : 'neutral'}>{statusLabel(model.status)}</StatusBadge></td>
-      </tr>)}</tbody></table></div>
+      </tr>)}</tbody></DataGrid></div>
     </>}
     <Dialog open={canManage && open} title={t('models.create')} closeLabel={t('common.close')} busy={busy} onClose={() => setOpen(false)}><form onSubmit={(event) => void create(event)}>
-      <label>{t('models.name')}<input name="name" required /></label><label>{t('models.code')}<input name="code" pattern="[A-Za-z][A-Za-z0-9_]{0,99}" required /></label>
-      <label>{t('models.logicalSchema')}<select name="logicalSchemaUuid" required>{logicalSchemas.map((schema) => <option key={schema.uuid} value={schema.uuid}>{schema.name}</option>)}</select></label>
-      <label>{t('models.descriptionField')}<textarea name="description" rows={3} /></label><footer><Button type="button" onClick={() => setOpen(false)}>{t('common.cancel')}</Button><Button type="submit" tone="primary" busy={busy}>{t('models.create')}</Button></footer>
+      <label>{t('models.name')}<AntInput name="name" required /></label><label>{t('models.code')}<AntInput name="code" pattern="[A-Za-z][A-Za-z0-9_]{0,99}" required /></label>
+      <label>{t('models.logicalSchema')}<FormSelect name="logicalSchemaUuid" required>{logicalSchemas.map((schema) => <option key={schema.uuid} value={schema.uuid}>{schema.name}</option>)}</FormSelect></label>
+      <label>{t('models.descriptionField')}<AntInput.TextArea name="description" rows={3} /></label><footer><Button type="button" onClick={() => setOpen(false)}>{t('common.cancel')}</Button><Button type="submit" tone="primary" busy={busy}>{t('models.create')}</Button></footer>
     </form></Dialog>
   </section>
 }

@@ -1,12 +1,13 @@
-import { fireEvent, render as testingRender, screen } from '@testing-library/react'
+import { fireEvent, render as testingRender, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import i18n from '../core/i18n'
 import { ProjectSidebarTree } from './ProjectSidebarTree'
 import type { Definition, Folder } from '../features/definitions/types'
 import { ProjectAccessProvider } from '../core/auth/ProjectAccessContext'
+import { ConfigProvider } from 'antd'
 
 const access = { roles: ['GELISTIRICI'], permissions: ['TANIM_DUZENLE', 'TANIM_DOGRULA'] }
-const render = (element: React.ReactElement) => testingRender(<ProjectAccessProvider value={access}>{element}</ProjectAccessProvider>)
+const render = (element: React.ReactElement) => testingRender(<ConfigProvider theme={{ token: { motion: false } }}><ProjectAccessProvider value={access}>{element}</ProjectAccessProvider></ConfigProvider>)
 
 const folder: Folder = {
   uuid: 'folder-1', parentUuid: null, code: 'LOADS',
@@ -29,45 +30,47 @@ describe('persistent project sidebar tree', () => {
     render(<ProjectSidebarTree projectUuid="project-1" folders={[folder]} definitions={[definition]} selectedUuid="procedure-1" loading={false} failed={false} onNavigate={navigate} onRetry={vi.fn()} />)
 
     expect(screen.getByRole('region', { name: 'PROJECT OBJECTS' })).toBeInTheDocument()
-    const object = screen.getByTitle('Load Daily · Procedure')
-    expect(object.parentElement).toHaveClass('is-selected')
+    const object = screen.getByRole('button', { name: 'Load Daily' })
+    expect(object.closest('.ant-tree-node-content-wrapper')).toHaveClass('ant-tree-node-selected')
     fireEvent.click(object)
     expect(navigate).toHaveBeenCalledWith('/project/objects/definitions/procedure-1')
   })
 
-  it('opens the same object action menu from right click and the three-dot button', () => {
+  it('opens the same object action menu from right click and the three-dot button', async () => {
     const navigate = vi.fn()
     render(<ProjectSidebarTree projectUuid="project-1" folders={[folder]} definitions={[definition]} selectedUuid={null} loading={false} failed={false} onNavigate={navigate} onRetry={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('button', { name: /Procedures1/ }))
-    const object = screen.getByTitle('Load Daily · Procedure')
-    fireEvent.contextMenu(object.parentElement!)
-    expect(screen.getByRole('menuitem', { name: 'Create Scenario' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Procedures\s*1/ }))
+    const object = await screen.findByRole('button', { name: 'Load Daily' })
+    fireEvent.contextMenu(object.closest('.akis-tree-title')!)
+    expect(await screen.findByRole('menuitem', { name: 'Create Scenario' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('menuitem', { name: 'Run' }))
     expect(navigate).toHaveBeenCalledWith('/project/operations?definition=procedure-1&start=1')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Actions for Load Daily' }))
-    expect(screen.getByRole('menuitem', { name: 'Open' })).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('button', { name: /Actions for Load Daily/i }))
+    expect(await screen.findByRole('menuitem', { name: 'Open' })).toBeInTheDocument()
   })
 
   it('moves through context menu actions with arrow keys', async () => {
+    const rectangles = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 100, 32))
     render(<ProjectSidebarTree projectUuid="project-1" folders={[folder]} definitions={[definition]} selectedUuid={null} loading={false} failed={false} onNavigate={vi.fn()} onRetry={vi.fn()} />)
-    fireEvent.click(screen.getByRole('button', { name: /Procedures1/ }))
-    fireEvent.click(screen.getByRole('button', { name: 'Actions for Load Daily' }))
+    fireEvent.click(screen.getByRole('button', { name: /Procedures\s*1/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Actions for Load Daily/i }))
     const open = await screen.findByRole('menuitem', { name: 'Open' })
-    await vi.waitFor(() => expect(open).toHaveFocus())
-    fireEvent.keyDown(open.closest('[role="menu"]')!, { key: 'ArrowDown' })
-    expect(screen.getByRole('menuitem', { name: 'Create Scenario' })).toHaveFocus()
-    fireEvent.keyDown(open.closest('[role="menu"]')!, { key: 'End' })
-    expect(screen.getByRole('menuitem', { name: 'Run' })).toHaveFocus()
+    open.focus()
+    fireEvent.keyDown(open, { key: 'ArrowDown', keyCode: 40, which: 40 })
+    await vi.waitFor(() => expect(screen.getByRole('menuitem', { name: 'Create Scenario' })).toHaveFocus())
+    fireEvent.keyDown(document.activeElement!, { key: 'End', keyCode: 35, which: 35 })
+    await vi.waitFor(() => expect(screen.getByRole('menuitem', { name: 'Run' })).toHaveFocus())
+    rectangles.mockRestore()
   })
 
-  it('creates a subfolder from the selected folder context', () => {
+  it('creates a subfolder from the selected folder context', async () => {
     const navigate = vi.fn()
     render(<ProjectSidebarTree projectUuid="project-1" folders={[folder]} definitions={[definition]} selectedUuid={null} loading={false} failed={false} onNavigate={navigate} onRetry={vi.fn()} />)
 
-    fireEvent.contextMenu(screen.getByRole('button', { name: 'Actions for Loads' }).parentElement!)
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Create Subfolder' }))
+    fireEvent.contextMenu(screen.getByRole('button', { name: /Actions for Loads/i }).parentElement!)
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Create Subfolder' }))
 
     expect(navigate).toHaveBeenCalledWith('/project/objects?createFolder=folder-1')
   })
@@ -76,26 +79,27 @@ describe('persistent project sidebar tree', () => {
     const navigate = vi.fn()
     render(<ProjectSidebarTree projectUuid="project-1" folders={[folder]} definitions={[definition, variable]} selectedUuid={null} loading={false} failed={false} onNavigate={navigate} onRetry={vi.fn()} />)
 
-    expect(screen.getByRole('button', { name: /Flows/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Models' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Shared Components/ })).toBeInTheDocument()
+    expect(screen.getByText('Flows').closest('button')).toBeInTheDocument()
+    expect(screen.getByText('Models').closest('button')).toBeInTheDocument()
+    expect(screen.getByText('Shared Components').closest('button')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Variable').closest('button')!)
     expect(screen.getByText('Run Date')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open: Models' }))
+    fireEvent.click(screen.getByLabelText('Open: Models'))
     expect(navigate).toHaveBeenCalledWith('/project/models')
   })
 
-  it('offers component creation from the visible add button and right click', () => {
+  it('offers component creation from the visible add button and right click', async () => {
     const navigate = vi.fn()
     render(<ProjectSidebarTree projectUuid="project-1" folders={[]} definitions={[]} selectedUuid={null} loading={false} failed={false} onNavigate={navigate} onRetry={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add component' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Add Variable' }))
+    fireEvent.click(screen.getByRole('button', { name: /Add component/i }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Add Variable' }))
     expect(navigate).toHaveBeenCalledWith('/project/objects?createType=VARIABLE')
+    await waitFor(() => expect(screen.queryByRole('menuitem', { name: 'Add Variable' })).not.toBeInTheDocument())
 
     fireEvent.contextMenu(screen.getByText('Sequence generator').closest('.sidebar-folder-action-row')!)
-    expect(screen.getByRole('menuitem', { name: 'Add Sequence generator' })).toBeInTheDocument()
+    expect(await screen.findByRole('menuitem', { name: 'Add Sequence generator' })).toBeInTheDocument()
   })
 
   it('keeps reusable mappings out of the project navigation', () => {

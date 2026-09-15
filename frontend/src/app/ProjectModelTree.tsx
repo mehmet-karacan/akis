@@ -1,40 +1,57 @@
-import { useEffect, useState } from 'react'
-import { ChevronDown, ChevronRight, Database, ExternalLink } from 'lucide-react'
+import { useEffect, useState, type Key } from 'react'
+import { Button, Tree, Alert, type TreeDataNode } from 'antd'
+import { Database, ExternalLink, Folder, Table2, Eye } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { topologyApi, type Model, type DataObject, type Submodel } from '../features/topology/api'
-import { ModelObjectTree } from '../features/models/ModelObjectTree'
 import { projectRoute } from '../features/projects/CurrentProjectContext'
-
-function ModelBranch({ model, projectUuid, onNavigate }: { model: Model; projectUuid: string; onNavigate(path: string): void }) {
-  const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
-  const [folders, setFolders] = useState<Submodel[]>([])
-  const [objects, setObjects] = useState<DataObject[] | null>(null)
-  const [error, setError] = useState(false)
-  const [retry, setRetry] = useState(0)
-  useEffect(() => { const refresh = () => setRetry((value) => value + 1); window.addEventListener('akis:models-changed', refresh); return () => window.removeEventListener('akis:models-changed', refresh) }, [])
-  useEffect(() => {
-    if (!open) return
-    let active = true
-    setError(false)
-    void Promise.all([topologyApi.listDataObjects(projectUuid, model.uuid), topologyApi.listSubmodels(projectUuid, model.uuid)]).then(([rows, groups]) => { if (active) { setObjects(rows); setFolders(groups) } }).catch(() => { if (active) setError(true) })
-    return () => { active = false }
-  }, [open, projectUuid, model.uuid, retry])
-  return <li className="sidebar-folder"><div className="sidebar-folder-action-row"><button type="button" className="sidebar-folder-row" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? <ChevronDown /> : <ChevronRight />}<Database /><span>{model.name}</span><small>{model.dataObjectCount ?? objects?.length ?? ''}</small></button><button type="button" className="sidebar-object-menu-button sidebar-object-menu-button--always" aria-label={`${t('nav.openObject')}: ${model.name}`} onClick={() => onNavigate(projectRoute(`/models/${model.uuid}`))}><ExternalLink /></button></div>{open && <ul>{error ? <li><button type="button" onClick={() => setRetry(retry + 1)}>{t('common.retry')}</button></li> : objects === null ? <li>{t('common.loading')}</li> : objects.length === 0 && folders.length === 0 ? <li className="sidebar-group-empty">{t('models.noDataObjects')}</li> : <li><ModelObjectTree folders={folders} objects={objects} onSelect={(uuid) => onNavigate(projectRoute(`/models/${model.uuid}?object=${encodeURIComponent(uuid)}`))} /></li>}</ul>}</li>
-}
 
 export function ProjectModelTree({ projectUuid, onNavigate }: { projectUuid: string; onNavigate(path: string): void }) {
   const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
   const [models, setModels] = useState<Model[] | null>(null)
-  const [error, setError] = useState(false)
-  const [retry, setRetry] = useState(0)
+  const [catalogs, setCatalogs] = useState<Record<string, { folders: Submodel[]; objects: DataObject[] }>>({})
+  const [expanded, setExpanded] = useState<Key[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const load = async (key: string) => {
+    setError(null)
+    try {
+      if (key === 'models') setModels(await topologyApi.listModels(projectUuid))
+      else if (key.startsWith('model:')) {
+        const uuid = key.slice(6)
+        const [objects, folders] = await Promise.all([topologyApi.listDataObjects(projectUuid, uuid), topologyApi.listSubmodels(projectUuid, uuid)])
+        setCatalogs(current => ({ ...current, [uuid]: { objects, folders } }))
+      }
+    } catch { setError(key) }
+  }
   useEffect(() => {
-    if (!open) return
-    let active = true
-    setModels(null); setError(false)
-    void topologyApi.listModels(projectUuid).then((rows) => { if (active) setModels(rows) }).catch(() => { if (active) setError(true) })
-    return () => { active = false }
-  }, [open, projectUuid, retry])
-  return <li className="sidebar-folder sidebar-model-link"><div className="sidebar-folder-action-row"><button type="button" className="sidebar-folder-row" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? <ChevronDown /> : <ChevronRight />}<Database /><span>{t('nav.models')}</span></button><button type="button" className="sidebar-object-menu-button sidebar-object-menu-button--always" aria-label={`${t('nav.openObject')}: ${t('models.title')}`} onClick={() => onNavigate(projectRoute('/models'))}><ExternalLink /></button></div>{open && <ul>{error ? <li><button type="button" onClick={() => setRetry(retry + 1)}>{t('common.retry')}</button></li> : models === null ? <li>{t('common.loading')}</li> : models.length === 0 ? <li className="sidebar-group-empty">{t('models.empty')}</li> : models.map((model) => <ModelBranch key={model.uuid} model={model} projectUuid={projectUuid} onNavigate={onNavigate} />)}</ul>}</li>
+    const refresh = () => { setModels(null); setCatalogs({}); setExpanded([]) }
+    window.addEventListener('akis:models-changed', refresh)
+    return () => window.removeEventListener('akis:models-changed', refresh)
+  }, [])
+  const toggle = (key: string) => {
+    if (expanded.includes(key)) setExpanded(current => current.filter(value => value !== key))
+    else setExpanded(current => [...current, key])
+  }
+  const label = (key: string, name: string, route: string) => <div className="akis-tree-title">
+    <Button type="text" icon={<Database size={16} />} onClick={event => { event.stopPropagation(); toggle(key) }}>{name}</Button>
+    <Button type="text" size="small" icon={<ExternalLink size={14} />} aria-label={`${t('nav.openObject')}: ${name}`} onClick={event => { event.stopPropagation(); onNavigate(projectRoute(route)) }} />
+  </div>
+  const metadata = (model: Model): TreeDataNode[] | undefined => {
+    const catalog = catalogs[model.uuid]
+    if (!catalog) return undefined
+    const object = (item: DataObject): TreeDataNode => ({ key: `object:${model.uuid}:${item.uuid}`, title: item.name, icon: item.type === 'VIEW' ? <Eye size={16} /> : <Table2 size={16} />, isLeaf: true })
+    const folder = (item: Submodel, seen: Set<string>): TreeDataNode => ({ key: `folder:${item.uuid}`, title: item.name, selectable: false, icon: <Folder size={16} />, children: [
+      ...catalog.folders.filter(child => child.parentUuid === item.uuid && !seen.has(child.uuid)).map(child => folder(child, new Set([...seen, child.uuid]))),
+      ...catalog.objects.filter(child => child.submodelUuid === item.uuid).map(object),
+    ] })
+    return [...catalog.folders.filter(item => !item.parentUuid || !catalog.folders.some(parent => parent.uuid === item.parentUuid)).map(item => folder(item, new Set([item.uuid]))),
+      ...catalog.objects.filter(item => !item.submodelUuid || !catalog.folders.some(parent => parent.uuid === item.submodelUuid)).map(object)]
+  }
+  return <div className="sidebar-model-link">
+    <Tree blockNode showIcon virtual={false} motion={null} expandedKeys={expanded} onExpand={setExpanded}
+      loadData={node => load(String(node.key))}
+      onSelect={keys => { const key = String(keys[0] ?? ''); if (key.startsWith('object:')) { const [, model, object] = key.split(':'); onNavigate(projectRoute(`/models/${model}?object=${encodeURIComponent(object!)}`)) } }}
+      treeData={[{ key: 'models', title: label('models', t('nav.models'), '/models'), selectable: false, isLeaf: false,
+        children: models?.map(model => ({ key: `model:${model.uuid}`, title: label(`model:${model.uuid}`, model.name, `/models/${model.uuid}`), selectable: false, isLeaf: false, children: metadata(model) })) }]} />
+    {error && <Alert type="error" title={t('common.loadError')} action={<Button onClick={() => void load(error)}>{t('common.retry')}</Button>} />}
+  </div>
 }

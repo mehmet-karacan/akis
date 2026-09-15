@@ -237,13 +237,16 @@ final class ExecutionController {
             OffsetDateTime finishedAt,
             Long rowCount,
             Long byteCount,
-            String errorCode) {
+            String errorCode,
+            String logCounter,
+            String transactionState) {
 
         static RunStepView from(RunStepRow row) {
             return new RunStepView(
                     row.uuid(), row.parentUuid(), row.code(), row.type(), row.ordinal(), row.name(),
                     row.status(), row.connectionRole(), row.risk(), row.startedAt(),
-                    row.finishedAt(), row.rowCount(), row.byteCount(), row.errorCode());
+                    row.finishedAt(), row.rowCount(), row.byteCount(), row.errorCode(),
+                    row.logCounter(), row.transactionState());
         }
     }
 }

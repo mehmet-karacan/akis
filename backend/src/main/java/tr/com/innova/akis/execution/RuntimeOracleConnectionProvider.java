@@ -114,7 +114,15 @@ final class RuntimeOracleConnectionProvider {
         catch (RuntimeException exception) {
             throw failure(Failure.METADATA_NOT_FOUND);
         }
-        validateProfile(binding, profile);
+        return openProfile(profile, binding.connectionVersionUuid(), purpose);
+    }
+
+    RuntimeOracleSession openVariable(ConnectionProfile profile, java.util.UUID expectedVersion) {
+        return openProfile(profile, expectedVersion, SessionPurpose.SOURCE_READ);
+    }
+
+    private RuntimeOracleSession openProfile(ConnectionProfile profile, java.util.UUID expectedVersion, SessionPurpose purpose) {
+        validateProfile(expectedVersion, profile);
         TimeoutPolicy timeouts = timeoutPolicy(profile.policy());
         Credentials credentials = credentials(profile);
         Properties properties = new Properties();
@@ -152,7 +160,7 @@ final class RuntimeOracleConnectionProvider {
         }
     }
 
-    private void validateProfile(DatasetBinding binding, ConnectionProfile profile) {
+    private void validateProfile(java.util.UUID expectedVersion, ConnectionProfile profile) {
         if ("JNDI".equals(profile.mode())) {
             // A local name can be rebound by the application server. Execution remains
             // fail-closed until the resolved Oracle target has an immutable fingerprint.
@@ -161,7 +169,7 @@ final class RuntimeOracleConnectionProvider {
         boolean hasService = validDatabaseName(profile.serviceName());
         boolean hasSid = validDatabaseName(profile.sid());
         if (!"JDBC".equals(profile.mode())
-                || !binding.connectionVersionUuid().equals(profile.connectionVersionUuid())
+                || !expectedVersion.equals(profile.connectionVersionUuid())
                 || !ORACLE_DRIVER.equals(profile.driverReference())
                 || !validHost(profile.host())
                 || profile.port() < 1 || profile.port() > 65_535
@@ -353,6 +361,7 @@ final class RuntimeOracleConnectionProvider {
         private final SessionPurpose purpose;
         private final int queryTimeoutSeconds;
         private boolean transactionResolved;
+        private boolean commitOutcomeUnknown;
         private boolean closed;
 
         private RuntimeOracleSession(
@@ -410,9 +419,11 @@ final class RuntimeOracleConnectionProvider {
 
         void commitConfirmed() {
             requireTarget();
+            commitOutcomeUnknown = true;
             try {
                 connection.commit();
                 transactionResolved = true;
+                commitOutcomeUnknown = false;
             }
             catch (SQLException | RuntimeException exception) {
                 throw new RuntimeOracleConnectionException(Failure.SESSION_OPERATION_FAILED);
@@ -465,7 +476,7 @@ final class RuntimeOracleConnectionProvider {
 
         private void requireTarget() {
             ensureOpen();
-            if (purpose.readOnly() || transactionResolved) {
+            if (purpose.readOnly() || transactionResolved || commitOutcomeUnknown) {
                 throw new RuntimeOracleConnectionException(Failure.INVALID_CONTRACT);
             }
         }

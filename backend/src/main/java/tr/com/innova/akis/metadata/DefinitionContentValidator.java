@@ -312,7 +312,7 @@ public final class DefinitionContentValidator {
                     .toUpperCase(Locale.ROOT);
             if (!"SQL".equals(type) || !"SOURCE".equals(connectionRole)
                     || !"READ_ONLY".equals(risk)
-                    || (!sql.startsWith("SELECT ") && !sql.startsWith("WITH "))
+                    || !sql.matches("(?s)^(SELECT|WITH)\\s+.*")
                     || sql.contains(";")) {
                 fail(path + ".output yalnız tek bir SOURCE READ_ONLY SELECT/WITH SQL görevinde kullanılabilir.");
             }
@@ -329,7 +329,7 @@ public final class DefinitionContentValidator {
                 fail(path + ".input.fromTask daha önce tanımlanmış bir ROWSET görevine referans vermelidir.");
             }
             if (!"SQL".equals(type) || !"TARGET".equals(connectionRole)
-                    || !"DML".equals(risk) || !sql.startsWith("INSERT ")
+                    || !"DML".equals(risk) || !sql.matches("(?s)^INSERT\\s+.*")
                     || sql.contains(";") || !hasNamedBind(command)) {
                 fail(path + ".input yalnız named bind kullanan tek bir TARGET DML INSERT SQL görevinde kullanılabilir.");
             }
@@ -529,7 +529,7 @@ public final class DefinitionContentValidator {
                 }
             }
             else {
-                requireObject(expression, path + ".expression");
+                MappingExpressionValidator.validate(expression, rolesByDataset, path + ".expression");
             }
         }
 
@@ -615,6 +615,11 @@ public final class DefinitionContentValidator {
         String valueSource = requireAllowed(content, "valueSource", Set.of(
                 "INPUT", "DEFAULT", "REFRESH_QUERY", "EXPRESSION", "STEP_OUTPUT"));
         if ("REFRESH_QUERY".equals(valueSource)) {
+            try { java.util.UUID.fromString(content.path("logicalSchemaUuid").asText()); }
+            catch (IllegalArgumentException invalid) { fail("Sorguyla yenilenen değişken için Mantıksal Şema seçilmelidir."); }
+            if (!Set.of("DATE", "TIMESTAMP").contains(content.path("dataType").asText())) {
+                fail("SYSDATE yenileme sorgusu yalnız DATE veya TIMESTAMP değişkeninde kullanılabilir.");
+            }
             String query = requireText(content, "query").strip();
             if (!query.matches("(?i)^SELECT\\s+SYSDATE\\s*-\\s*1\\s+FROM\\s+DUAL$")) {
                 fail("Değişken yenileme sorgusu desteklenen güvenli SELECT sözleşmesine uymalıdır.");

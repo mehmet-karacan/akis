@@ -1,4 +1,5 @@
 import { cloneElement, isValidElement, useId, type PropsWithChildren, type ReactElement, type ReactNode } from 'react'
+import { Form } from 'antd'
 
 interface FieldProps extends PropsWithChildren {
   label: string
@@ -22,13 +23,10 @@ export function Field({ label, hint, error, required, htmlFor, actions, children
       })
     : children
   return (
-    <div className={`ui-field ${error ? 'has-error' : ''} ${className}`.trim()}>
-      <div className="ui-field-label-row">
-        <label htmlFor={fieldId}>{label}{required ? <span aria-hidden="true"> *</span> : null}</label>
-        {actions}
-      </div>
+    <Form.Item className={`ui-field ${error ? 'has-error' : ''} ${className}`.trim()} layout="vertical" htmlFor={fieldId}
+      label={<span className="ui-inline-title">{label}{actions}</span>} required={required} validateStatus={error ? 'error' : undefined}
+      help={error ? <small id={messageId} role="alert">{error}</small> : hint ? <small id={messageId}>{hint}</small> : undefined}>
       {control}
-      {error ? <small id={messageId} className="ui-field-error" role="alert">{error}</small> : hint ? <small id={messageId}>{hint}</small> : null}
-    </div>
+    </Form.Item>
   )
 }

@@ -13,7 +13,7 @@ it('loads models only when expanded and navigates to the selected data object', 
   expect(models).not.toHaveBeenCalled()
   fireEvent.click(screen.getAllByRole('button', { name: 'Models' })[0]!)
   fireEvent.click(await screen.findByRole('button', { name: 'Source Model' }))
-  fireEvent.click(await screen.findByRole('button', { name: 'Hakedis' }))
+  fireEvent.click(await screen.findByText('Hakedis'))
   expect(navigate).toHaveBeenCalledWith('/project/models/m1?object=o1')
 })
 it('offers a retry after a failed catalog load', async () => {

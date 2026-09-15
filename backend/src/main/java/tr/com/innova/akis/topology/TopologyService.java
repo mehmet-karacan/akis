@@ -338,6 +338,18 @@ public class TopologyService {
         return logical;
     }
 
+    @Transactional
+    void changeContext(UUID projectUuid, UUID uuid, boolean logical, String name, String description, long expectedVersion, boolean archive) {
+        ProjectRef project = project(projectUuid);
+        if (expectedVersion < 1) throw validation("Kayıt sürümü gereklidir.");
+        if (archive && repository.contextInUse(project.id(), uuid, logical)) {
+            throw new ApiException(HttpStatus.CONFLICT, "CONTEXT_IN_USE", "Kayıt eşleme, model veya tanımlarda kullanılıyor. Kullanımları kaldırmadan silinemez.");
+        }
+        if (!repository.changeContext(project.id(), uuid, logical, archive ? null : normalizeName(name), trimToNull(description), expectedVersion, archive)) {
+            throw new ApiException(HttpStatus.CONFLICT, "CONTEXT_VERSION_CONFLICT", "Kayıt değiştirildi veya artık mevcut değil. Listeyi yenileyin.");
+        }
+    }
+
     List<LogicalSchemaRow> listLogicalSchemas(UUID projectUuid) {
         ProjectRef project = project(projectUuid);
         return repository.listLogicalSchemas(project.id());

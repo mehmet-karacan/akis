@@ -328,12 +328,18 @@ public class JdbcExecutionStore implements ExecutionStore {
                                   join akis.prosedur_adim_kaniti ak on ak.calistirma_adimi_id = ca.id
                                   join akis.prosedur_adim_durumu ad on ad.calistirma_adimi_id = ca.id
                                  where ca.calistirma_id = r.id
-                                   and ak.baglanti_rolu = 'SOURCE') as selected_rows,
+                                   and ak.baglanti_rolu = 'SOURCE' and ad.durum = 'BASARILI') as selected_rows,
                                (select sum(ad.satir_sayisi)::bigint
                                   from akis.calistirma_adimi ca
                                   join akis.prosedur_adim_durumu ad on ad.calistirma_adimi_id = ca.id
                                  where ca.calistirma_id = r.id
-                                   and upper(ca.adim_kodu) like '%INSERT%') as inserted_rows
+                                   and ad.durum = 'BASARILI' and d.durum = 'BASARILI'
+                                   and exists (select 1 from jsonb_array_elements(
+                                       coalesce(s.plan#>'{executable,definition,tasks}', '[]'::jsonb)) task
+                                       where task->>'id' = ca.adim_kodu and task->>'logCounter' = 'INSERT'
+                                         and (coalesce(task->>'transactionMode', 'AUTOCOMMIT') <> 'TRANSACTION'
+                                              or not exists (select 1 from akis.prosedur_adim_durumu failure
+                                                  where failure.calistirma_id = r.id and failure.durum <> 'BASARILI')))) as inserted_rows
                         """ + joinsAndFilter + """
                          order by r.olusturulma_zamani desc, r.id desc
                          limit :size offset :offset
@@ -423,10 +429,24 @@ public class JdbcExecutionStore implements ExecutionStore {
                                coalesce(d.durum, 'KAYDEDILMEDI') as durum_kodu,
                                k.baglanti_rolu, k.risk as risk_kodu,
                                d.baslama_zamani, d.bitis_zamani,
-                               d.satir_sayisi, d.bayt_sayisi, d.hata_kodu
+                               d.satir_sayisi, d.bayt_sayisi, d.hata_kodu,
+                               task.content->>'logCounter' as log_counter,
+                               case when k.baglanti_rolu = 'SOURCE' then 'NOT_APPLICABLE'
+                                    when d.durum = 'BASARILI' and rd.durum = 'BASARILI' and task.content is not null
+                                      and (coalesce(task.content->>'transactionMode', 'AUTOCOMMIT') <> 'TRANSACTION'
+                                           or not exists (select 1 from akis.prosedur_adim_durumu failure
+                                               where failure.calistirma_id = r.id and failure.durum <> 'BASARILI')) then 'COMMITTED'
+                                    else 'UNCONFIRMED' end as transaction_state
                           from akis.calistirma_adimi a
                           join akis.calistirma r on r.id = a.calistirma_id
                           join akis.proje p on p.id = r.proje_id
+                          join akis.calistirma_durumu rd on rd.calistirma_id = r.id
+                          join akis.is_talebi request on request.id = r.is_talebi_id
+                          join akis.yayin publication on publication.id = request.yayin_id
+                          join akis.senaryo scenario on scenario.id = publication.senaryo_id
+                          left join lateral (select item as content from jsonb_array_elements(
+                              coalesce(scenario.plan#>'{executable,definition,tasks}', '[]'::jsonb)) item
+                              where item->>'id' = a.adim_kodu limit 1) task on true
                           left join akis.calistirma_adimi u on u.id = a.ust_adim_id
                           left join akis.prosedur_adim_kaniti k
                             on k.proje_id = a.proje_id and k.calistirma_adimi_id = a.id
@@ -446,7 +466,8 @@ public class JdbcExecutionStore implements ExecutionStore {
                         rs.getObject("baslama_zamani", OffsetDateTime.class),
                         rs.getObject("bitis_zamani", OffsetDateTime.class),
                         rs.getObject("satir_sayisi", Long.class),
-                        rs.getObject("bayt_sayisi", Long.class), rs.getString("hata_kodu")))
+                        rs.getObject("bayt_sayisi", Long.class), rs.getString("hata_kodu"),
+                        rs.getString("log_counter"), rs.getString("transaction_state")))
                 .list();
     }
 

@@ -39,3 +39,16 @@ export function useTheme() {
   if (!context) throw new Error('useTheme must be used within ThemeProvider')
   return context
 }
+
+/** Read the already resolved theme, including system mode, for third-party editors. */
+export function useResolvedTheme(): 'light' | 'dark' {
+  const resolve = (): 'light' | 'dark' => document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
+  const [resolved, setResolved] = useState(resolve)
+  useEffect(() => {
+    const observer = new MutationObserver(() => setResolved(resolve()))
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    setResolved(resolve())
+    return () => observer.disconnect()
+  }, [])
+  return resolved
+}

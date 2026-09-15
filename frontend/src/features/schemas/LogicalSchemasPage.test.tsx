@@ -27,12 +27,12 @@ describe('LogicalSchemasPage', () => {
     render(<ProjectAccessProvider value={{ roles: ['GELISTIRICI'], permissions: ['BAGLANTI_YONET'] }}><MemoryRouter initialEntries={['/projects/project/logical-schemas']}><Routes><Route path="/projects/:projectUuid/logical-schemas" element={<LogicalSchemasPage />} /></Routes></MemoryRouter></ProjectAccessProvider>)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Add logical schema' }))
-    expect(screen.getByRole('option', { name: 'SKY / TTBP' })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: 'GPU / INNOVA_ODI' })).toBeInTheDocument()
     expect(screen.queryByLabelText(/revision/i)).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Sky logical' } })
     fireEvent.change(screen.getByLabelText('Code'), { target: { value: 'LS_SKY' } })
-    fireEvent.change(screen.getByLabelText('Physical schema'), { target: { value: 'physical-sky' } })
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Physical schema' }))
+    expect(await screen.findByRole('option', { name: 'GPU / INNOVA_ODI' })).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('option', { name: 'SKY / TTBP' }))
     fireEvent.click(screen.getByRole('button', { name: 'Create and Map' }))
 
     await waitFor(() => expect(create).toHaveBeenCalledWith('project', {

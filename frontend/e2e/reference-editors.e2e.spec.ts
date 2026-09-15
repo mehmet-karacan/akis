@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { login, navigateInApp, expectNoHorizontalOverflow } from './fixtures'
+import { login, expectNoHorizontalOverflow } from './fixtures'
 
 test('connection catalog shares data across card, list and table views and remembers the selection', async ({ page }) => {
   await login(page)
@@ -20,17 +20,19 @@ test('connection catalog shares data across card, list and table views and remem
   await page.keyboard.press('Escape')
   await expect(detail).toHaveCount(0)
   await expect(connection).toBeFocused()
+  // Focus restoration may scroll to the record; capture sticky headers at the page origin.
+  await page.evaluate(() => window.scrollTo(0, 0))
   await page.screenshot({ path: 'test-results/connection-cards.png', fullPage: true })
-  await page.getByRole('button', { name: 'List', exact: true }).click()
+  await page.getByRole('radio', { name: 'List', exact: true }).locator('..').click()
   await expect(page.locator('.ui-collection--list')).toBeVisible()
   await expect(page.locator('.connection-inline-test').first()).toBeVisible()
   await expect(page.locator('.connection-record-card')).toHaveCount(count)
-  await page.getByRole('button', { name: 'Table', exact: true }).click()
+  await page.getByRole('radio', { name: 'Table', exact: true }).locator('..').click()
   await expect(page.locator('.connections-table')).toBeVisible()
   await expect(page.locator('.connection-name-link')).toHaveCount(count)
   await page.reload()
-  await expect(page.getByRole('button', { name: 'Table', exact: true })).toHaveAttribute('aria-pressed', 'true')
-  await page.getByRole('button', { name: 'Cards', exact: true }).click()
+  await expect(page.getByRole('radio', { name: 'Table', exact: true })).toBeChecked()
+  await page.getByRole('radio', { name: 'Cards', exact: true }).locator('..').click()
   await page.setViewportSize({ width: 390, height: 844 })
   await expectNoHorizontalOverflow(page)
   await page.locator('.connection-record-card').first().click()
@@ -43,12 +45,12 @@ test('connection catalog shares data across card, list and table views and remem
 
 test('keeps the explorer mounted while opening a datastore and displays its logical schema', async ({ page }) => {
   await login(page)
-  await navigateInApp(page, '/project/objects')
-  await page.locator('.sidebar-model-link > .sidebar-folder-action-row > .sidebar-folder-row').click()
-  const model = page.locator('.sidebar-model-link .sidebar-folder .sidebar-folder-row').first()
+  await page.getByRole('menuitem', { name: 'Project Objects', exact: true }).click()
+  await page.locator('.sidebar-model-link').getByRole('button', { name: 'Models', exact: true }).click()
+  const model = page.locator('.sidebar-model-link .akis-tree-title').nth(1).getByRole('button').first()
   await expect(model).toBeVisible()
   await model.click()
-  const object = page.locator('.model-catalog-tree button').first()
+  const object = page.locator('.sidebar-model-link .ant-tree-treenode').filter({ has: page.locator('svg.lucide-table-2') }).first().locator('.ant-tree-node-content-wrapper')
   await expect(object).toBeVisible()
   const explorer = page.locator('.design-explorer')
   await explorer.evaluate((element) => element.setAttribute('data-test-persistent', 'yes'))
@@ -64,14 +66,19 @@ test('keeps the explorer mounted while opening a datastore and displays its logi
 
 test('shared UI catalog uses centered responsive dialogs', async ({ page }) => {
   await login(page)
-  await navigateInApp(page, '/project/ui-kit')
+  await page.goto('/project/ui-kit')
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 })
     await page.getByRole('button', { name: 'Open Dialog' }).click()
     const dialog = page.getByRole('dialog')
+    // Ant Modal animates from the trigger; validate its settled geometry.
+    await expect.poll(async () => {
+      const box = await dialog.boundingBox()
+      return box ? Math.abs(box.x + box.width / 2 - width / 2) : Infinity
+    }).toBeLessThan(3)
     const box = await dialog.boundingBox()
-    expect(box).not.toBeNull()
-    expect(Math.abs(box!.x + box!.width / 2 - width / 2)).toBeLessThan(3)
+    expect(box!.width).toBeLessThanOrEqual(width)
+    await page.screenshot({ path: `test-results/ant-dialog-${width}.png` })
     await page.keyboard.press('Escape')
     await expect(dialog).toHaveCount(0)
     await expectNoHorizontalOverflow(page)
@@ -85,7 +92,7 @@ test('module tasks use master/detail and model objects can be expanded without l
   await expect(page.locator('.km-editor')).toBeVisible()
   await page.getByRole('button', { name: 'Add Task', exact: true }).click()
   await page.getByRole('button', { name: 'Add Task', exact: true }).click()
-  const rows = page.locator('.km-task-list tbody tr')
+  const rows = page.locator('.km-task-list tbody tr.ant-table-row')
   await expect(rows).toHaveCount(2)
   const first = await rows.nth(0).boundingBox()
   const second = await rows.nth(1).boundingBox()

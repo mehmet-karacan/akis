@@ -20,9 +20,11 @@ it('edits tasks in a vertical master/detail view and preserves commands when reo
   fireEvent.click(screen.getByLabelText('Delete Task'))
   expect(screen.queryByRole('button', { name: 'Task 1' })).not.toBeInTheDocument()
 })
-it('offers supported metadata categories and editable options without claiming runtime support', () => {
+it('offers supported metadata categories and editable options without claiming runtime support', async () => {
   render(<Harness />)
-  expect(screen.getByRole('option', { name: /JKM/ })).toBeInTheDocument()
+  fireEvent.mouseDown(screen.getAllByRole('combobox')[0]!)
+  expect(await screen.findByRole('option', { name: /JKM/ })).toBeInTheDocument()
+  fireEvent.keyDown(screen.getAllByRole('combobox')[0]!, { key: 'Escape' })
   expect(screen.getByRole('note')).toHaveTextContent('not yet supported')
   fireEvent.click(screen.getByRole('tab', { name: 'Options' }))
   fireEvent.click(screen.getByText('Add Option'))

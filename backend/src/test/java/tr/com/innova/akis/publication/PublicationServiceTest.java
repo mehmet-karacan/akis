@@ -248,6 +248,8 @@ class PublicationServiceTest {
 
         assertEquals(ProcedureRuntimePlanResolver.CAPABILITY,
                 publication.physicalManifest().path("runtimeCapability").stringValue());
+        assertEquals(tr.com.innova.akis.execution.ProcedurePolicyVersions.current(objectMapper),
+                publication.physicalManifest().get("policyVersions"));
         assertEquals(64, publication.physicalManifest()
                 .path("runtimePlanHash").stringValue().length());
         assertTrue(publication.physicalManifest().path("approvalRequired").booleanValue());

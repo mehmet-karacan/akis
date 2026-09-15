@@ -18,7 +18,7 @@ describe('Oracle connection creation', () => {
 
     expect(screen.getByLabelText('Sağlayıcı *')).toBeInTheDocument()
     expect(screen.queryByLabelText('Sunucu *')).not.toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Sağlayıcı *'), { target: { value: 'ORACLE' } })
+    await selectAntOption(screen.getByRole('combobox', { name: 'Sağlayıcı *' }), 'Oracle')
     expect(screen.getByLabelText('Sunucu *')).toBeInTheDocument()
     expect(screen.getByLabelText('Port *')).toBeInTheDocument()
     expect(screen.getByLabelText('Servis adı *')).toBeInTheDocument()
@@ -48,3 +48,4 @@ describe('Oracle connection creation', () => {
     await waitFor(() => expect(create).toHaveBeenCalledTimes(1))
   })
 })
+import { selectAntOption } from '../../test/selectAntOption'

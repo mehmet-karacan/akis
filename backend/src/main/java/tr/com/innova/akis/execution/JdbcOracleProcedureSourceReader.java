@@ -29,12 +29,18 @@ final class JdbcOracleProcedureSourceReader {
             ProcedureRuntimePlan plan,
             ProcedureRuntimePlan.Task task,
             ProcedureRuntimePlan.TaskBinding binding) {
+        return read(session, plan, task, binding, new ProcedureVariableContext());
+    }
+
+    OraclePilotBatch read(RuntimeOracleSession session, ProcedureRuntimePlan plan,
+            ProcedureRuntimePlan.Task task, ProcedureRuntimePlan.TaskBinding binding,
+            ProcedureVariableContext variables) {
         ProcedureOracleSourceSqlContract.ValidatedSource source =
                 ProcedureOracleSourceSqlContract.validate(plan, task, binding);
         int queryLimit = source.maximumRows() + 1;
         try (PreparedStatement statement = session.applyQueryTimeout(
                 session.connection().prepareStatement(source.sql()))) {
-            ProcedureParameterBinder.bind(statement, task);
+            ProcedureParameterBinder.bind(statement, task, variables, binding.connectionVersionUuid());
             statement.setMaxRows(queryLimit);
             statement.setFetchSize(Math.min(queryLimit, 250));
             try (ResultSet rows = statement.executeQuery()) {

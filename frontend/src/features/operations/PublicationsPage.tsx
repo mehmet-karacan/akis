@@ -1,3 +1,4 @@
+import { DataGrid } from '../../core/ui/DataGrid'
 import { Link } from 'react-router-dom'
 import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
 import { operationsApi } from './api'
@@ -34,7 +35,7 @@ export function PublicationsPage() {
         ) : null}
         {!publications.loading && publications.data && publications.data.length > 0 ? (
           <div className="ops-table-wrap">
-            <table className="ops-table">
+            <DataGrid className="ops-table">
               <thead>
                 <tr>
                   <th scope="col">{t('number')}</th>
@@ -67,7 +68,7 @@ export function PublicationsPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </DataGrid>
           </div>
         ) : null}
       </Panel>

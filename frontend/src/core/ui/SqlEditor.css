@@ -1,0 +1,11 @@
+/* Domain layout only. Visual tokens and controls are owned by Ant Design. */
+@layer akis-layout {
+.ui-sql-editor { min-width: 0; overflow: hidden; }
+.ui-sql-validation-bar { min-height: 36px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; padding: 4px 6px; }
+.ui-sql-format, .ui-sql-validation { min-height: 28px; display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; cursor: pointer; max-width: 100%; text-align: start; }
+.ui-sql-validation:disabled { cursor: default; }
+.ui-sql-validation svg, .ui-sql-format svg { flex: none; }
+.ui-sql-errors { margin: 0; padding: 8px 12px; list-style: none; overflow-wrap: anywhere; }
+.ui-sql-errors li { display: flex; gap: 8px; }
+
+}

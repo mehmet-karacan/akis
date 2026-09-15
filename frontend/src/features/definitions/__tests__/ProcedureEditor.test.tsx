@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import i18n from '../../../core/i18n'
@@ -7,6 +7,11 @@ import { applyAutomaticRowHandoffs, groupProcedureTasks, inferProcedureTaskMetad
 import { inferProcedureLogCounter } from '../procedureCatalog'
 import type { ProcedureContent } from '../types'
 import { definitionsApi } from '../api'
+import { topologyApi } from '../../topology/api'
+
+async function renderHarness() {
+  return await act(async () => render(<Harness />))
+}
 
 function Harness() {
   const [content, setContent] = useState<ProcedureContent>(DEFAULT_PROCEDURE)
@@ -19,42 +24,46 @@ function openTasks() {
 
 describe('ProcedureEditor', () => {
   beforeEach(async () => {
+    vi.restoreAllMocks()
+    vi.spyOn(topologyApi, 'listLogicalSchemas').mockResolvedValue([])
+    vi.spyOn(topologyApi, 'listEnvironments').mockResolvedValue([])
+    vi.spyOn(definitionsApi, 'listDefinitions').mockResolvedValue([])
     await i18n.changeLanguage('en')
   })
 
-  it('adds, removes, and reorders an unrestricted ordered step list', () => {
-    const { container } = render(<Harness />)
+  it('adds, removes, and reorders an unrestricted ordered step list', async () => {
+    const { container } = await renderHarness()
     openTasks()
 
     expect(container.querySelectorAll('.procedure-task')).toHaveLength(1)
-    fireEvent.click(screen.getByRole('button', { name: 'Add Step' }))
+    fireEvent.click(screen.getByText('Add Step', { exact: true }).closest('button')!)
     expect(container.querySelectorAll('.procedure-task')).toHaveLength(2)
     expect(screen.getByDisplayValue('Target command')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Move Up: Target command' }))
+    fireEvent.click(screen.getByLabelText('Move Up: Target command'))
     expect(container.querySelectorAll('.procedure-task')[0]).toHaveTextContent('Target command')
-    fireEvent.click(screen.getByRole('button', { name: 'Remove: Target command' }))
+    fireEvent.click(screen.getByLabelText('Remove: Target command'))
     expect(container.querySelectorAll('.procedure-task')).toHaveLength(1)
   })
 
   it('keeps internal step IDs out of the form and edits the conceptual step name', async () => {
-    render(<Harness />)
+    await renderHarness()
     openTasks()
     expect(screen.queryByLabelText('Step ID')).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Step name'), { target: { value: 'Load Hakedis' } })
     await waitFor(() => expect(screen.getByDisplayValue('Load Hakedis')).toBeInTheDocument())
   })
 
-  it('moves an automatically paired row producer and consumer together', () => {
-    const { container } = render(<Harness />)
+  it('moves an automatically paired row producer and consumer together', async () => {
+    const { container } = await renderHarness()
     openTasks()
-    fireEvent.click(screen.getByRole('button', { name: 'Add Step' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Move Down: Insert target rows' }))
+    fireEvent.click(screen.getByText('Add Step', { exact: true }).closest('button')!)
+    fireEvent.click(screen.getByLabelText('Move Down: Insert target rows'))
     expect(container.querySelectorAll('.procedure-task')[0]).toHaveTextContent('Target command')
     expect(container.querySelectorAll('.procedure-task')[1]).toHaveTextContent('Insert target rows')
   })
 
-  it('keeps row transfer and timeout engine details out of the step form', () => {
-    render(<Harness />)
+  it('keeps row transfer and timeout engine details out of the step form', async () => {
+    await renderHarness()
     openTasks()
     expect(screen.queryByLabelText('Expose SELECT rows to a later step')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Maximum rows')).not.toBeInTheDocument()
@@ -95,36 +104,30 @@ describe('ProcedureEditor', () => {
     expect(inferProcedureLogCounter('select * from T')).toBe('NONE')
   })
 
-  it('renders added steps as full-width master rows above the selected detail', () => {
-    const { container } = render(<Harness />)
+  it('renders added steps as full-width master rows above the selected detail', async () => {
+    const { container } = await renderHarness()
     openTasks()
-    fireEvent.click(screen.getByRole('button', { name: 'Add Step' }))
+    fireEvent.click(screen.getByText('Add Step', { exact: true }).closest('button')!)
     const rows = container.querySelectorAll('.procedure-task-table tbody > .procedure-task')
     expect(rows).toHaveLength(2)
     expect(rows[0]?.parentElement).toBe(rows[1]?.parentElement)
     expect(screen.getByLabelText('Log Counter')).toBeInTheDocument()
   })
 
-  it('keeps the selected command tab while moving between steps', () => {
-    const { container } = render(<Harness />)
+  it('keeps the selected command tab while moving between steps', async () => {
+    const { container } = await renderHarness()
     openTasks()
-    fireEvent.click(screen.getByRole('button', { name: 'Add Step' }))
+    fireEvent.click(screen.getByText('Add Step', { exact: true }).closest('button')!)
     fireEvent.click(screen.getByRole('tab', { name: 'Target Command' }))
     fireEvent.click(container.querySelectorAll<HTMLButtonElement>('.procedure-task-select')[0]!)
     expect(screen.getByRole('tab', { name: 'Target Command' })).toHaveAttribute('aria-selected', 'true')
   })
 
-  it('binds a refresh-query variable to a named SQL bind', async () => {
-    vi.spyOn(definitionsApi, 'listDefinitions').mockResolvedValue([{ uuid: 'variable-id', folderUuid: null, type: 'VARIABLE', code: 'DUN_TARIHI', status: 'ACTIVE', name: 'Dün Tarihi', description: null, version: 1 }])
-    vi.spyOn(definitionsApi, 'getDraft').mockResolvedValue({ uuid: 'draft-id', schemaVersion: 1, version: 1, content: { dataType: 'DATE', scope: 'PROJECT', historyMode: 'LATEST', valueSource: 'REFRESH_QUERY', query: 'SELECT SYSDATE - 1 FROM DUAL' } })
-    render(<Harness />)
-    openTasks()
+  it('opens SQL through a dedicated editor instead of a variable dropdown', async () => {
+    await renderHarness()
     fireEvent.click(screen.getByRole('tab', { name: 'Target Command' }))
-    await waitFor(() => expect(screen.getByRole('option', { name: 'Dün Tarihi' })).toBeInTheDocument())
-    fireEvent.change(screen.getByLabelText('Defined Variables'), { target: { value: 'variable-id' } })
-
-    await waitFor(() => expect(screen.getByText(':DUN_TARIHI')).toBeInTheDocument())
-    expect(screen.getByText(':DUN_TARIHI').closest('.procedure-variable-chip')).toHaveAttribute('title', 'SELECT SYSDATE - 1 FROM DUAL')
+    expect(screen.getByRole('button', { name: 'Edit SQL' })).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Defined Variables' })).not.toBeInTheDocument()
   })
 
   it('marks a command configured only when its execution context is complete', () => {
@@ -132,6 +135,7 @@ describe('ProcedureEditor', () => {
     expect(isProcedureSideConfigured(task)).toBe(false)
     expect(isProcedureSideConfigured({ ...task, logicalSchemaUuid: 'logical', environmentUuid: 'environment' })).toBe(true)
   })
+
 
   it('rejects malformed task arrays before the visual editor renders them', () => {
     expect(isProcedureContent({ tasks: [null] })).toBe(false)

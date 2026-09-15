@@ -1,3 +1,4 @@
+import { Button as AntActionButton } from '../../core/ui/Button'
 import { Download, LoaderCircle } from 'lucide-react'
 import { useState } from 'react'
 import { ApiProblem } from '../../core/api/client'
@@ -34,7 +35,7 @@ export function ExportProjectButton({ projectUuid, projectCode, className = '' }
 
   return (
     <span className="bundle-export-control">
-      <button
+      <AntActionButton tone="ghost"
         className={`bundle-button bundle-button-secondary ${className}`.trim()}
         type="button"
         onClick={() => void exportProject()}
@@ -45,7 +46,7 @@ export function ExportProjectButton({ projectUuid, projectCode, className = '' }
           ? <LoaderCircle className="bundle-spin" aria-hidden="true" />
           : <Download aria-hidden="true" />}
         {exporting ? t('exporting') : t('exportBundle')}
-      </button>
+      </AntActionButton>
       {error ? <span id="bundle-export-error" className="bundle-inline-error" role="alert">{error}</span> : null}
     </span>
   )

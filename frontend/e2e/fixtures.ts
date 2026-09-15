@@ -34,18 +34,7 @@ export async function expectHealthyScreen(page: Page) {
 }
 
 export async function expectNoHorizontalOverflow(page: Page) {
-  await expect.poll(() => page.evaluate(() => ({
-    viewport: document.documentElement.clientWidth,
-    content: document.documentElement.scrollWidth,
-  }))).toEqual(expect.objectContaining({
-    viewport: expect.any(Number),
-    content: expect.any(Number),
-  }))
-  const dimensions = await page.evaluate(() => ({
-    viewport: document.documentElement.clientWidth,
-    content: document.documentElement.scrollWidth,
-  }))
-  expect(dimensions.content, `Horizontal overflow: ${JSON.stringify(dimensions)}`).toBeLessThanOrEqual(dimensions.viewport)
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), { message: 'The settled viewport must not overflow horizontally' }).toBeLessThanOrEqual(0)
 }
 
 function escapeRegExp(value: string) {

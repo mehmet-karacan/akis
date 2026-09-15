@@ -7,13 +7,13 @@ function Harness() { const [view, setView] = useCollectionView('test:views'); re
 beforeEach(async () => { localStorage.clear(); await i18n.changeLanguage('en') })
 it('defaults to cards and remembers a valid selection', () => {
   const { unmount } = render(<Harness />)
-  expect(screen.getByRole('button', { name: 'Cards' })).toHaveAttribute('aria-pressed', 'true')
-  fireEvent.click(screen.getByRole('button', { name: 'Table' }))
+  expect(screen.getByRole('radio', { name: 'Cards' })).toBeChecked()
+  fireEvent.click(screen.getByRole('radio', { name: 'Table' }))
   unmount(); render(<Harness />)
-  expect(screen.getByRole('button', { name: 'Table' })).toHaveAttribute('aria-pressed', 'true')
+  expect(screen.getByRole('radio', { name: 'Table' })).toBeChecked()
 })
 it('ignores invalid saved values', () => {
   localStorage.setItem('test:views', 'invalid')
   render(<Harness />)
-  expect(screen.getByRole('button', { name: 'Cards' })).toHaveAttribute('aria-pressed', 'true')
+  expect(screen.getByRole('radio', { name: 'Cards' })).toBeChecked()
 })

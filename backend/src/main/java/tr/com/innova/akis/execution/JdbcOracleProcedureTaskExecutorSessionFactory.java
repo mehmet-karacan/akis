@@ -11,7 +11,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.regex.Pattern;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -49,6 +48,10 @@ final class JdbcOracleProcedureTaskExecutorSessionFactory
     private final RuntimeOracleConnectionProvider connections;
     private final JdbcOracleProcedureSourceReader sourceReader;
     private final ObjectMapper objectMapper;
+    private JdbcProcedureVariableRuntime variableRuntime;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void setVariableRuntime(JdbcProcedureVariableRuntime variableRuntime) { this.variableRuntime = variableRuntime; }
 
     JdbcOracleProcedureTaskExecutorSessionFactory(
             JdbcPinnedSchemaSnapshotStore snapshots,
@@ -83,12 +86,17 @@ final class JdbcOracleProcedureTaskExecutorSessionFactory
         private final ProcedureRuntimePlan plan;
         private final ProcedureRunScopedRowsetStore rowsets;
         private final Map<UUID, Handle> handles = new LinkedHashMap<>();
+        private final ProcedureVariableContext variables;
         private final Map<TransactionKey, ManagedTransaction> transactions = new LinkedHashMap<>();
         private boolean closed;
 
         private Session(ActiveExecutionToken token, ProcedureRuntimePlan plan) {
             this.token = token;
             this.plan = plan;
+            this.variables = new ProcedureVariableContext(parameter -> {
+                if (variableRuntime == null) throw new SQLException("Variable runtime is unavailable.");
+                return variableRuntime.resolve(token.run().runUuid(), plan, parameter);
+            });
             this.rowsets = new ProcedureRunScopedRowsetStore(new Scope(
                     token.run().runUuid(), token.run().generation(), plan.runtimePlanHash()));
         }
@@ -116,7 +124,7 @@ final class JdbcOracleProcedureTaskExecutorSessionFactory
                         new ExpectedSnapshot(pinned.snapshot().schemaSnapshotUuid(),
                                 pinned.snapshot().body()));
                 OraclePilotBatch batch = sourceReader.read(
-                        session, plan, command.task(), command.binding());
+                        session, plan, command.task(), command.binding(), variables);
                 String consumer = adjacentConsumer(command);
                 Handle stored = rowsets.store(command.taskIndex(), command.task().id(), consumer,
                         batch.columns().stream().map(column -> new Column(
@@ -140,6 +148,7 @@ final class JdbcOracleProcedureTaskExecutorSessionFactory
         private TaskResult mutate(TaskCommand command) {
             RuntimeOracleSession session = null;
             boolean statementEntered = false;
+            boolean commitEntered = false;
             boolean managed = command.task().transactionMode()
                     == ProcedureRuntimePlan.TransactionMode.TRANSACTION;
             TransactionKey transactionKey = managed ? transactionKey(command) : null;
@@ -161,6 +170,7 @@ final class JdbcOracleProcedureTaskExecutorSessionFactory
                         : executeBatch(command, session);
                 if (!managed || command.task().commitMode()
                         == ProcedureRuntimePlan.CommitMode.COMMIT) {
+                    commitEntered = true;
                     session.commitConfirmed();
                     if (managed) transactions.remove(transactionKey);
                     closeQuietly(session);
@@ -175,7 +185,8 @@ final class JdbcOracleProcedureTaskExecutorSessionFactory
                     closeQuietly(session);
                     return new NotAttempted("PROCEDURE_TARGET_PREFLIGHT_FAILED");
                 }
-                if (command.task().riskClass() == ProcedureRuntimePlan.RiskClass.DML
+                // Rollback cannot disprove a commit whose acknowledgement was lost.
+                if (!commitEntered && command.task().riskClass() == ProcedureRuntimePlan.RiskClass.DML
                         && rollbackConfirmed(session)) {
                     closeQuietly(session);
                     return new SafeFailure("PROCEDURE_TARGET_DML_FAILED", true);
@@ -254,7 +265,8 @@ final class JdbcOracleProcedureTaskExecutorSessionFactory
         private long executeStandalone(TaskCommand command, RuntimeOracleSession session) {
             try (PreparedStatement statement = session.applyQueryTimeout(
                     session.connection().prepareStatement(ProcedureParameterBinder.positionalSql(command.task())))) {
-                ProcedureParameterBinder.bind(statement, command.task());
+                ProcedureParameterBinder.bind(statement, command.task(), variables,
+                        command.binding().connectionVersionUuid());
                 boolean resultSet = statement.execute();
                 if (resultSet) {
                     throw new SQLException("Mutation unexpectedly returned a result set.");
@@ -288,10 +300,7 @@ final class JdbcOracleProcedureTaskExecutorSessionFactory
                     throw new IllegalArgumentException("Batch bind order does not match rowset.");
                 }
             }
-            String sql = command.task().command();
-            for (String bind : binds) {
-                sql = sql.replaceFirst(":" + Pattern.quote(bind) + "\\b", "?");
-            }
+            String sql = ProcedureParameterBinder.positionalSql(command.task());
             try (PreparedStatement statement = session.applyQueryTimeout(
                     session.connection().prepareStatement(sql))) {
                 long affected = 0;
@@ -459,10 +468,13 @@ final class JdbcOracleProcedureTaskExecutorSessionFactory
         @Override
         public void close() {
             if (!closed) {
-                abort();
-                closed = true;
-                handles.clear();
-                rowsets.close();
+                try { abort(); }
+                finally {
+                    closed = true;
+                    handles.clear();
+                    variables.clear();
+                    rowsets.close();
+                }
             }
         }
 

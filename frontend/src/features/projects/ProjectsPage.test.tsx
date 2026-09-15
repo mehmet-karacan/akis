@@ -47,14 +47,14 @@ describe('ProjectsPage', () => {
     projectApi.listProjects.mockResolvedValue([firstProject])
     renderPage()
 
-    expect(await screen.findByRole('heading', { name: 'Selected project' })).toBeInTheDocument()
+    expect(await screen.findByText('Selected project', { selector: 'h1' })).toBeInTheDocument()
   })
 
   it('requires an explicit choice when more than one project is available', async () => {
     projectApi.listProjects.mockResolvedValue([firstProject, { ...firstProject, uuid: '22222222-2222-4222-8222-222222222222', code: 'FINANCE', name: 'Finance' }])
     renderPage()
 
-    expect(await screen.findByRole('heading', { name: 'Select a project' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Select A Project' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /SKY GPU Transfer/ }))
     expect(await screen.findByRole('heading', { name: 'Selected project' })).toBeInTheDocument()
   })
@@ -71,7 +71,7 @@ describe('ProjectsPage', () => {
     localStorage.setItem('akis.lastProjectUuid', 'removed-project')
     projectApi.listProjects.mockResolvedValue([firstProject, { ...firstProject, uuid: '22222222-2222-4222-8222-222222222222', code: 'FINANCE', name: 'Finance' }])
     renderPage()
-    expect(await screen.findByRole('heading', { name: 'Select a project' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Select A Project' })).toBeInTheDocument()
   })
 
   it('opens the created project immediately after successful creation', async () => {

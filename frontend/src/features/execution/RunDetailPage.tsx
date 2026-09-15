@@ -1,184 +1,94 @@
-import { ArrowLeft, Ban, CalendarClock, ChevronDown, ChevronRight, ListRestart, RefreshCw, Workflow } from 'lucide-react'
+import { Alert, Descriptions, Tree } from 'antd'
+import type { DataNode } from 'antd/es/tree'
+import { ArrowLeft, Ban, RefreshCw } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { Button } from '../../core/ui/Button'
+import { Dialog } from '../../core/ui/Dialog'
 import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
-import { operationsApi } from '../operations/api'
-import { Dialog as CoreDialog } from '../../core/ui/Dialog'
-import { CopyValue, Dialog, EmptyState, ErrorState, LoadingState, PageHeader, Panel } from '../operations/OperationsUi'
+import { EmptyState, ErrorState, LoadingState, Panel } from '../operations/OperationsUi'
 import { apiErrorMessage, formatDate, redactSensitiveValues } from '../operations/utils'
 import { useRemoteData } from '../operations/useRemoteData'
 import { executionApi, isExecutionDisabled } from './api'
 import { ExecutionDisabledNotice } from './ExecutionDisabledNotice'
-import { executionCodeLabel, useExecutionI18n } from './i18n'
+import { useExecutionI18n } from './i18n'
 import { RunStatusBadge } from './RunStatusBadge'
 import { buildRunStepTree, firstFailedPath, type RunStepNode } from './runTree'
 import './execution.css'
 
-function StepTreeItems({ nodes, selectedUuid, expanded, onSelect, onToggle, locale, expandLabel, collapseLabel }: { nodes: RunStepNode[]; selectedUuid?: string; expanded: Set<string>; onSelect: (uuid: string) => void; onToggle: (uuid: string) => void; locale: string; expandLabel: string; collapseLabel: string }) {
-  return nodes.map((step) => { const hasChildren = step.children.length > 0; const open = expanded.has(step.uuid); return <li key={step.uuid} role="treeitem" aria-selected={selectedUuid === step.uuid} aria-expanded={hasChildren ? open : undefined}><div className="execution-tree-step-row">{hasChildren ? <button className="execution-tree-toggle" type="button" onClick={() => onToggle(step.uuid)} aria-label={open ? collapseLabel : expandLabel}>{open ? <ChevronDown /> : <ChevronRight />}</button> : <span className="execution-tree-spacer" />}<button type="button" onClick={() => onSelect(step.uuid)}><span><small>{step.ordinal}</small><strong>{step.name}</strong><em>{executionCodeLabel(step.type, locale)} · {step.code}</em></span><RunStatusBadge status={step.status} /></button></div>{hasChildren && open ? <ul role="group"><StepTreeItems nodes={step.children} selectedUuid={selectedUuid} expanded={expanded} onSelect={onSelect} onToggle={onToggle} locale={locale} expandLabel={expandLabel} collapseLabel={collapseLabel} /></ul> : null}</li> })
+interface RunDetailPageProps { runUuidOverride?: string; panel?: boolean; onClose?: () => void; objectName?: string }
+function totalRows(nodes: RunStepNode[], insert: boolean): number | null {
+  const values: number[] = []
+  const visit = (items: RunStepNode[]) => items.forEach(step => {
+    if (step.children.length) visit(step.children)
+    else if (step.status === 'BASARILI' && step.rowCount != null && (insert ? step.logCounter === 'INSERT' && step.transactionState === 'COMMITTED' : step.connectionRole === 'SOURCE')) values.push(step.rowCount)
+  })
+  visit(nodes)
+  return values.length ? values.reduce((sum, value) => sum + value, 0) : null
 }
-
-interface RunDetailPageProps {
-  runUuidOverride?: string
-  panel?: boolean
-  onClose?: () => void
-  objectName?: string
+function eventError(data: unknown): string | undefined {
+  const safe = redactSensitiveValues(data)
+  if (!safe || typeof safe !== 'object') return undefined
+  const record = safe as Record<string, unknown>
+  for (const key of ['errorMessage', 'message', 'reason']) if (typeof record[key] === 'string') return record[key] as string
+  return undefined
 }
-
-function sumRows(steps: RunStepNode[], predicate: (step: RunStepNode) => boolean): number | null {
-  const flattened: RunStepNode[] = []
-  const visit = (items: RunStepNode[]) => items.forEach((step) => { flattened.push(step); visit(step.children) })
-  visit(steps)
-  const values = flattened.filter(predicate).map((step) => step.rowCount).filter((value): value is number => value !== null)
-  return values.length ? values.reduce((total, value) => total + value, 0) : null
-}
-
-function isInsertStep(step: RunStepNode) {
-  return `${step.code} ${step.type}`.toLocaleUpperCase('en-US').includes('INSERT')
-}
-
 export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectName }: RunDetailPageProps = {}) {
-  const { runUuid: routeRunUuid = '' } = useParams(); const runUuid = runUuidOverride ?? routeRunUuid; const projectUuid = useCurrentProjectUuid()
+  const { runUuid: routeUuid = '' } = useParams()
+  const uuid = runUuidOverride ?? routeUuid
+  const project = useCurrentProjectUuid()
   const { t, locale } = useExecutionI18n()
-  const run = useRemoteData(() => executionApi.getRun(projectUuid, runUuid), [projectUuid, runUuid])
-  const publication = useRemoteData(() => run.data?.publicationUuid ? operationsApi.getPublication(projectUuid, run.data.publicationUuid) : Promise.resolve(null), [projectUuid, run.data?.publicationUuid])
-  const events = useRemoteData(() => executionApi.listEventPage(projectUuid, runUuid), [projectUuid, runUuid])
-  const steps = useRemoteData(() => executionApi.listSteps(projectUuid, runUuid), [projectUuid, runUuid])
-  const [selectedStepUuid, setSelectedStepUuid] = useState('')
-  const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set())
-  const [evidenceTab, setEvidenceTab] = useState<'SUMMARY' | 'LOGS' | 'EVENTS'>('SUMMARY')
-  const [confirmOpen, setConfirmOpen] = useState(false)
-  const [cancelling, setCancelling] = useState(false)
-  const [actionError, setActionError] = useState('')
-  const [executionDisabled, setExecutionDisabled] = useState(false)
-  const cancelAvailability = run.data?.allowedActions?.find((action) => action.action === 'CANCEL')
-  const canCancel = cancelAvailability?.allowed ?? false
-  const stepTree = useMemo(() => buildRunStepTree(steps.data ?? []), [steps.data])
-  const selectedRows = useMemo(() => sumRows(stepTree, (step) => step.connectionRole === 'SOURCE'), [stepTree])
-  const insertedRows = useMemo(() => sumRows(stepTree, isInsertStep), [stepTree])
-  useEffect(() => { if (!steps.data?.length || selectedStepUuid) return; const failurePath = firstFailedPath(stepTree); setSelectedStepUuid(failurePath.at(-1) ?? steps.data[0]!.uuid); setExpandedSteps(new Set(failurePath.slice(0, -1))) }, [selectedStepUuid, stepTree, steps.data])
-  const selectedStep = steps.data?.find((step) => step.uuid === selectedStepUuid) ?? steps.data?.[0]
-  const selectedStepRowLabel = selectedStep?.connectionRole === 'SOURCE' ? t('selectedRows') : selectedStep && isInsertStep(selectedStep as RunStepNode) ? t('insertedRows') : t('rowCount')
-
-
-  const refresh = async () => {
-    await Promise.all([run.reload(), steps.reload(), events.reload()])
+  const run = useRemoteData(() => executionApi.getRun(project, uuid), [project, uuid])
+  const steps = useRemoteData(() => executionApi.listSteps(project, uuid), [project, uuid])
+  const events = useRemoteData(() => executionApi.listEventPage(project, uuid), [project, uuid])
+  const [selected, setSelected] = useState('')
+  const [confirm, setConfirm] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [disabled, setDisabled] = useState(false)
+  const hierarchy = useMemo(() => buildRunStepTree(steps.data ?? []), [steps.data])
+  useEffect(() => { if (!selected && steps.data?.length) setSelected(firstFailedPath(hierarchy).at(-1) ?? steps.data[0]!.uuid) }, [hierarchy, selected, steps.data])
+  const step = steps.data?.find(item => item.uuid === selected)
+  const selectedRows = totalRows(hierarchy, false)
+  const insertedRows = totalRows(hierarchy, true)
+  const treeData = (nodes: RunStepNode[]): DataNode[] => nodes.map(item => ({ key: item.uuid, title: <span className="run-step-title"><span>{item.ordinal}. {item.name}</span><RunStatusBadge status={item.status} /></span>, children: treeData(item.children) }))
+  const failure = events.data?.items.filter(item => /FAIL|ERROR|HATA|BASARISIZ/i.test(item.type)).map(item => eventError(item.data)).find(Boolean)
+  const refresh = () => Promise.all([run.reload(), steps.reload(), events.reload()])
+  async function cancel() {
+    setBusy(true); setError('')
+    try { run.setData(await executionApi.cancelRun(project, uuid)); setConfirm(false); await events.reload() }
+    catch (reason) { if (isExecutionDisabled(reason)) { setDisabled(true); setConfirm(false) } else setError(apiErrorMessage(reason, t('requestFailed'))) }
+    finally { setBusy(false) }
   }
-  const loadMoreEvents = async () => { if (!events.data?.hasMore || events.data.nextCursor == null) return; try { const next = await executionApi.listEventPage(projectUuid, runUuid, events.data.nextCursor); events.setData({ items: [...events.data.items, ...next.items], nextCursor: next.nextCursor, hasMore: next.hasMore }) } catch { /* The current page remains intact; the retry control stays available. */ } }
-
-  const cancel = async () => {
-    setCancelling(true)
-    setActionError('')
-    try {
-      run.setData(await executionApi.cancelRun(projectUuid, runUuid))
-      setConfirmOpen(false)
-        await events.reload()
-    } catch (error) {
-      if (isExecutionDisabled(error)) {
-        setExecutionDisabled(true)
-        setConfirmOpen(false)
-      } else {
-        setActionError(apiErrorMessage(error, t('requestFailed')))
-      }
-    } finally {
-      setCancelling(false)
-    }
-  }
-
-  const content = (
-    <section className={`ops-page execution-page ${panel ? 'execution-page--panel' : ''}`}>
-      {!panel ? <Link className="ops-link execution-back" to="/project/operations"><ArrowLeft aria-hidden="true" /> {t('backToRuns')}</Link> : null}
-      <PageHeader
-        title={t('runDetail')}
-        description={run.data ? `${t('runAttempt', { number: run.data.attemptNumber })} · ${executionCodeLabel(run.data.startType, locale)}` : t('runDetail')}
-        actions={<>
-          <button className="ops-button ops-button-secondary" type="button" onClick={() => void refresh()} disabled={run.loading || events.loading}><RefreshCw aria-hidden="true" /> {t('refresh')}</button>
-          {canCancel ? <button className="ops-button ops-button-danger" type="button" onClick={() => setConfirmOpen(true)} disabled={executionDisabled}><Ban aria-hidden="true" /> {t('cancelRun')}</button> : null}
-        </>}
-      />
-      {executionDisabled ? <ExecutionDisabledNotice /> : null}
-      {actionError ? <div className="ops-alert ops-alert-error" role="alert">{actionError}</div> : null}
-
-      {run.loading ? <Panel><LoadingState /></Panel> : null}
-      {!run.loading && run.error ? <Panel><ErrorState message={apiErrorMessage(run.error, t('requestFailed'))} onRetry={() => void run.reload()} /></Panel> : null}
-      {!run.loading && run.data ? (
-        <div className="execution-detail-grid">
-          <Panel title={t('runContext')}>
-            <dl className="ops-kv">
-              <dt>{t('status')}</dt><dd><RunStatusBadge status={run.data.status} /></dd>
-              <dt>{t('attempt')}</dt><dd>#{run.data.attemptNumber}</dd>
-              <dt>{t('startType')}</dt><dd>{executionCodeLabel(run.data.startType, locale)}</dd>
-              <dt>{t('createdAt')}</dt><dd>{formatDate(run.data.createdAt, locale)}</dd>
-              <dt>{t('startedAt')}</dt><dd>{formatDate(run.data.startedAt, locale)}</dd>
-              <dt>{t('finishedAt')}</dt><dd>{formatDate(run.data.finishedAt, locale)}</dd>
-              <dt>{t('cancellationRequestedAt')}</dt><dd>{formatDate(run.data.cancellationRequestedAt, locale)}</dd>
-              <dt>{t('environment')}</dt><dd>{publication.data ? `${publication.data.environmentCode} · ${executionCodeLabel(publication.data.environmentRisk, locale)}` : '—'}</dd>
-              <dt>{t('runnableVersion')}</dt><dd>{publication.data ? `#${publication.data.publicationNumber}` : '—'}</dd>
-              <dt>{t('targetSummary')}</dt><dd>{publication.data?.dependencySummary ?? '—'}</dd>
-            </dl>
-            {publication.error ? <div className="ops-alert ops-alert-error" role="alert">{t('pinnedContextUnavailable')} <button type="button" onClick={() => void publication.reload()}>{t('retry')}</button></div> : null}
-            <details className="execution-technical-details"><summary>{t('technicalDetails')}</summary><dl className="ops-kv">
-              <dt>{t('runUuid')}</dt><dd><CopyValue value={run.data.runUuid} /></dd>
-              <dt>{t('jobRequestUuid')}</dt><dd><CopyValue value={run.data.jobRequestUuid} /></dd>
-              <dt>{t('publicationUuid')}</dt><dd><CopyValue value={run.data.publicationUuid} /></dd>
-              <dt>{t('releaseHash')}</dt><dd><CopyValue value={run.data.releaseHash} /></dd>
-              <dt>{t('planHash')}</dt><dd><CopyValue value={run.data.planHash} /></dd>
-            </dl></details>
-            <div className="execution-action-note"><strong>{t('availableInterventions')}</strong><div className="execution-intervention-actions">{run.data.allowedActions?.filter((action) => ['START_NEW_ATTEMPT', 'RESUME'].includes(action.action)).map((action) => <button className="ops-button ops-button-secondary" type="button" key={action.action} disabled={!action.allowed} title={!action.allowed ? t('actionReason', { reason: action.reasonCode ?? 'UNAVAILABLE' }) : undefined}>{action.action === 'RESUME' ? t('resumeRun') : t('rerun')}</button>)}</div>{run.data.allowedActions?.some((action) => ['START_NEW_ATTEMPT', 'RESUME'].includes(action.action) && !action.allowed) ? <p>{t('retryUnsupported')}</p> : null}</div>
-          </Panel>
-          <Panel title={t('steps')} className="execution-steps-panel">
-            {steps.loading ? <LoadingState /> : null}
-            {!steps.loading && steps.error ? <ErrorState message={apiErrorMessage(steps.error, t('requestFailed'))} onRetry={() => void steps.reload()} /> : null}
-            {!steps.loading && !steps.error && steps.data?.length === 0 ? <EmptyState>{t('emptySteps')}</EmptyState> : null}
-            {!steps.loading && steps.data && steps.data.length > 0 ? <div className="execution-step-layout">
-              <div className="execution-step-master"><div className="execution-row-metrics">{selectedRows !== null ? <div><span>{t('selectedRows')}</span><strong>{new Intl.NumberFormat(locale).format(selectedRows)}</strong></div> : null}{insertedRows !== null ? <div><span>{t('insertedRows')}</span><strong>{new Intl.NumberFormat(locale).format(insertedRows)}</strong></div> : null}</div><ul className="execution-step-tree" role="tree" aria-label={t('steps')}><li className="execution-run-tree-root" role="treeitem" aria-expanded="true"><div className="execution-run-tree-root-row"><Workflow aria-hidden="true" /><span><strong>{objectName ?? t('executionRoot')}</strong><em>{run.data ? t('runAttempt', { number: run.data.attemptNumber }) : t('executionRoot')}</em></span>{run.data ? <RunStatusBadge status={run.data.status} /> : null}</div><ul role="group"><StepTreeItems nodes={stepTree} selectedUuid={selectedStep?.uuid} expanded={expandedSteps} onSelect={setSelectedStepUuid} onToggle={(uuid) => setExpandedSteps((current) => { const next = new Set(current); if (next.has(uuid)) next.delete(uuid); else next.add(uuid); return next })} locale={locale} expandLabel={t('expandStep')} collapseLabel={t('collapseStep')} /></ul></li></ul></div>
-              {selectedStep ? <section className="execution-step-detail" aria-label={t('stepDetail')}><h3>{selectedStep.name}</h3><dl className="ops-kv">
-                <dt>{t('status')}</dt><dd><RunStatusBadge status={selectedStep.status} /></dd>
-                <dt>{t('type')}</dt><dd>{executionCodeLabel(selectedStep.type, locale)}</dd>
-                <dt>{t('connectionRole')}</dt><dd>{executionCodeLabel(selectedStep.connectionRole, locale)}</dd>
-                <dt>{t('risk')}</dt><dd>{executionCodeLabel(selectedStep.risk, locale)}</dd>
-                <dt>{t('startedAt')}</dt><dd>{formatDate(selectedStep.startedAt, locale)}</dd>
-                <dt>{t('finishedAt')}</dt><dd>{formatDate(selectedStep.finishedAt, locale)}</dd>
-                <dt>{selectedStepRowLabel}</dt><dd>{selectedStep.rowCount ?? '—'}</dd>
-                <dt>{t('byteCount')}</dt><dd>{selectedStep.byteCount ?? '—'}</dd>
-                <dt>{t('errorCode')}</dt><dd>{selectedStep.errorCode ?? '—'}</dd>
-              </dl></section> : null}
-            </div> : null}
-          </Panel>
-          <Panel title={t('evidence')} className="execution-events-panel">
-            <div className="execution-evidence-tabs" role="tablist" aria-label={t('evidence')}>{(['SUMMARY', 'LOGS', 'EVENTS'] as const).map((tab) => <button type="button" role="tab" aria-selected={evidenceTab === tab} key={tab} onClick={() => setEvidenceTab(tab)}>{t(`tab_${tab}`)}</button>)}</div>
-            {evidenceTab === 'SUMMARY' && selectedStep ? <section className="execution-evidence-summary"><h3>{selectedStep.name}</h3>{selectedStep.errorCode ? <div className="ops-alert ops-alert-error" role="alert"><strong>{selectedStep.errorCode}</strong><p>{t('errorMessageUnavailable')}</p></div> : null}<p>{t('metricScope')}</p><dl className="ops-kv"><dt>{selectedStepRowLabel}</dt><dd>{selectedStep.rowCount ?? '—'}</dd><dt>{t('byteCount')}</dt><dd>{selectedStep.byteCount ?? '—'}</dd><dt>{t('startedAt')}</dt><dd>{formatDate(selectedStep.startedAt, locale)}</dd><dt>{t('finishedAt')}</dt><dd>{formatDate(selectedStep.finishedAt, locale)}</dd></dl></section> : null}
-            {evidenceTab === 'LOGS' && <section className="execution-log-viewer"><header><strong>{t('operationalEventLog')}</strong><span>{t('eventLogScope')}</span></header>{events.loading ? <LoadingState /> : null}{!events.loading && events.error ? <ErrorState message={apiErrorMessage(events.error, t('requestFailed'))} onRetry={() => void events.reload()} /> : null}{!events.loading && !events.error && !events.data?.items.length ? <EmptyState>{t('noStepLog')}</EmptyState> : null}{events.data?.items.map((event) => <div className="execution-log-line" key={event.uuid}><time dateTime={event.eventTime}>{formatDate(event.eventTime, locale)}</time><span>INFO</span><strong>{executionCodeLabel(event.type, locale)}</strong><em>#{event.eventNumber}</em></div>)}{events.data?.hasMore ? <button className="ops-button ops-button-secondary" type="button" onClick={() => void loadMoreEvents()}>{t('loadMore')}</button> : null}</section>}
-            {evidenceTab === 'EVENTS' && events.loading ? <LoadingState /> : null}
-            {evidenceTab === 'EVENTS' && !events.loading && events.error ? <ErrorState message={apiErrorMessage(events.error, t('requestFailed'))} onRetry={() => void events.reload()} /> : null}
-            {evidenceTab === 'EVENTS' && !events.loading && !events.error && events.data?.items.length === 0 ? <EmptyState>{t('emptyEvents')}</EmptyState> : null}
-            {evidenceTab === 'EVENTS' && !events.loading && events.data && events.data.items.length > 0 ? (
-              <><ol className="execution-timeline" aria-label={t('events')}>{events.data.items.map((event) => (
-                <li key={event.uuid}>
-                  <span className="execution-event-marker"><ListRestart aria-hidden="true" /></span>
-                  <article>
-                    <header><div><strong>{executionCodeLabel(event.type, locale)}</strong><span>#{event.eventNumber}</span></div><time dateTime={event.eventTime}><CalendarClock aria-hidden="true" />{formatDate(event.eventTime, locale)}</time></header>
-                    {event.data == null || (typeof event.data === 'object' && Object.keys(event.data as object).length === 0)
-                      ? <p className="ops-muted">{t('noEventData')}</p>
-                      : <details><summary>{t('eventData')}</summary><pre>{JSON.stringify(redactSensitiveValues(event.data), null, 2)}</pre></details>}
-                  </article>
-                </li>
-              ))}</ol>{events.data.hasMore ? <button className="ops-button ops-button-secondary" type="button" onClick={() => void loadMoreEvents()}>{t('loadMore')}</button> : null}</>
-            ) : null}
-          </Panel>
-        </div>
-      ) : null}
-
-      {confirmOpen ? (
-        <Dialog title={t('confirmCancel')} onClose={() => !cancelling && setConfirmOpen(false)}>
-          <p className="ops-muted">{t('confirmCancelHelp')}</p>
-          <div className="ops-form-actions execution-confirm-actions">
-            <button className="ops-button ops-button-secondary" type="button" onClick={() => setConfirmOpen(false)} disabled={cancelling}>{t('keepRun')}</button>
-            <button className="ops-button ops-button-danger" type="button" onClick={() => void cancel()} disabled={cancelling}>{cancelling ? t('cancelling') : t('confirm')}</button>
-          </div>
-        </Dialog>
-      ) : null}
-    </section>
-  )
-  return panel ? <CoreDialog open title={t('runDetail')} closeLabel={t('close')} onClose={() => onClose?.()} className="execution-detail-dialog">{content}</CoreDialog> : content
+  const content = <section className="run-result-page">
+    {!panel && <Link to="/project/operations"><ArrowLeft size={16} /> {t('backToRuns')}</Link>}
+    <header className="run-result-header"><h2>{objectName ?? t('runDetail')}</h2><div><Button icon={<RefreshCw size={16} />} disabled={run.loading} onClick={() => void refresh()}>{t('refresh')}</Button>{run.data?.allowedActions?.some(action => action.action === 'CANCEL' && action.allowed) && <Button tone="danger" icon={<Ban size={16} />} disabled={disabled} onClick={() => setConfirm(true)}>{t('cancelRun')}</Button>}</div></header>
+    {disabled && <ExecutionDisabledNotice />}{error && <Alert type="error" showIcon title={error} />}
+    {run.loading && <LoadingState />}{!!run.error && <ErrorState message={apiErrorMessage(run.error, t('requestFailed'))} onRetry={() => void run.reload()} />}
+    {run.data && <>
+      <Descriptions bordered size="small" column={{ xs: 1, sm: 2, md: 3 }} items={[
+        { key: 'status', label: t('status'), children: <RunStatusBadge status={run.data.status} /> },
+        { key: 'start', label: t('startedAt'), children: formatDate(run.data.startedAt, locale) },
+        { key: 'end', label: t('finishedAt'), children: formatDate(run.data.finishedAt, locale) },
+        ...(selectedRows === null ? [] : [{ key: 'read', label: t('selectedRows'), children: selectedRows.toLocaleString(locale) }]),
+        ...(insertedRows === null ? [] : [{ key: 'write', label: t('insertedRows'), children: insertedRows.toLocaleString(locale) }]),
+      ]} />
+      {run.data.status === 'BASARISIZ' && <Alert type="error" showIcon title={failure ?? t('errorMessageUnavailable')} />}
+      <Panel title={t('steps')}>
+        {steps.loading && <LoadingState />}{!!steps.error && <ErrorState message={apiErrorMessage(steps.error, t('requestFailed'))} onRetry={() => void steps.reload()} />}
+        {!steps.loading && !steps.error && !steps.data?.length && <EmptyState>{t('emptySteps')}</EmptyState>}
+        {!!steps.data?.length && <div className="run-result-steps"><Tree blockNode defaultExpandAll key={uuid + steps.data.length} treeData={treeData(hierarchy)} selectedKeys={[selected]} onSelect={keys => { if (keys[0]) setSelected(String(keys[0])) }} aria-label={t('steps')} />
+          {step && <section aria-label={t('stepDetail')}><h3>{step.name}</h3><Descriptions column={1} size="small" items={[
+            { key: 'status', label: t('status'), children: <RunStatusBadge status={step.status} /> },
+            { key: 'start', label: t('startedAt'), children: formatDate(step.startedAt, locale) },
+            { key: 'end', label: t('finishedAt'), children: formatDate(step.finishedAt, locale) },
+            { key: 'rows', label: step.connectionRole === 'SOURCE' ? t('selectedRows') : step.logCounter === 'INSERT' && step.transactionState === 'COMMITTED' ? t('insertedRows') : t('rowCount'), children: step.rowCount ?? '—' },
+          ]} />{step.errorCode && <Alert type="error" showIcon title={step.errorCode} description={t('errorMessageUnavailable')} />}</section>}
+        </div>}
+      </Panel>
+      {events.error && <ErrorState message={apiErrorMessage(events.error, t('requestFailed'))} onRetry={() => void events.reload()} />}
+    </>}
+    <Dialog open={confirm} title={t('confirmCancel')} closeLabel={t('close')} onClose={() => { if (!busy) setConfirm(false) }}><p>{t('confirmCancelHelp')}</p><div className="run-result-actions"><Button disabled={busy} onClick={() => setConfirm(false)}>{t('keepRun')}</Button><Button tone="danger" busy={busy} onClick={() => void cancel()}>{t('confirm')}</Button></div></Dialog>
+  </section>
+  return panel ? <Dialog open title={t('runDetail')} closeLabel={t('close')} onClose={() => onClose?.()} className="execution-detail-dialog">{content}</Dialog> : content
 }

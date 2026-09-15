@@ -55,7 +55,7 @@ const defaults: Record<DefinitionType, unknown> = {
   VARIABLE: {
     dataType: 'DATE',
     scope: 'PROJECT',
-    historyMode: 'LATEST',
+    historyMode: 'ALL',
     valueSource: 'REFRESH_QUERY',
     query: 'SELECT SYSDATE - 1 FROM DUAL',
   },

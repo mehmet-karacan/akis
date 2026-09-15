@@ -38,7 +38,6 @@ import tr.com.innova.akis.publication.PublicationModels.ResolvedBinding;
 public class PublicationService {
 
     private static final int MANIFEST_VERSION = 2;
-    private static final String HIGH_RISK = "URETIM";
     private static final Set<String> DECISIONS = Set.of("ONAY", "RED", "GERI_CEK");
 
     private final PublicationStore store;
@@ -96,8 +95,8 @@ public class PublicationService {
                 : procedureExecutable
                 ? ProcedureRuntimePlanResolver.CAPABILITY
                 : PilotRuntimePlanResolver.DEFINITION_ONLY_CAPABILITY;
-        boolean approvalRequired = HIGH_RISK.equals(context.environmentRisk())
-                || taskApprovalRequired;
+        boolean approvalRequired = ApprovalPolicyEvaluator.requiresApproval(
+                context.environmentRisk(), taskApprovalRequired);
         ObjectNode unsignedManifest = unsignedManifest(
                 context, bindings, runtimeCapability, approvalRequired);
         if (pilotExecutable) {
@@ -294,18 +293,23 @@ public class PublicationService {
         ObjectNode manifest = objectMapper.createObjectNode();
         manifest.put("approvalRequired", approvalRequired);
         manifest.set("bindings", bindingNodes);
+        JsonNode variableBindings = store.resolveVariableBindings(context);
+        if (variableBindings != null && variableBindings.size() > 0) manifest.set("variableBindings", variableBindings);
         manifest.set("definition", definition);
         manifest.set("environment", environment);
         manifest.put("manifestVersion", MANIFEST_VERSION);
         manifest.put("runtimeCapability", runtimeCapability);
+        if (ProcedureRuntimePlanResolver.CAPABILITY.equals(runtimeCapability)) {
+            manifest.set("policyVersions", tr.com.innova.akis.execution.ProcedurePolicyVersions.current(objectMapper));
+        }
         manifest.set("scenario", scenario);
         return manifest;
     }
 
     private boolean approvalRequired(PublicationRow publication) {
         JsonNode marker = publication.physicalManifest().get("approvalRequired");
-        return HIGH_RISK.equals(publication.environmentRisk())
-                || marker != null && marker.isBoolean() && marker.booleanValue();
+        return ApprovalPolicyEvaluator.requiresApproval(publication.environmentRisk(),
+                marker != null && marker.isBoolean() && marker.booleanValue());
     }
 
     private ApiException procedurePlanRejected() {

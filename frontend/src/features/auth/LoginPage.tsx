@@ -2,6 +2,8 @@ import { ArrowRight, DatabaseZap, Languages, LockKeyhole, Moon, Sun } from 'luci
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
+import { Alert, Input } from 'antd'
+import { Button } from '../../core/ui/Button'
 import { ApiProblem } from '../../core/api/client'
 import { useAuth } from '../../core/auth/AuthContext'
 import { useTheme, type ThemeMode } from '../../core/theme/ThemeContext'
@@ -52,12 +54,12 @@ export function LoginPage() {
 
       <section className="login-panel">
         <div className="login-tools">
-          <button className="icon-button text-button" onClick={switchLanguage} type="button">
+          <Button tone="ghost" onClick={switchLanguage} type="button">
             <Languages size={17} />{i18n.language === 'tr' ? 'EN' : 'TR'}
-          </button>
-          <button className="icon-button" onClick={() => setMode(nextTheme)} type="button" aria-label={t('header.theme')}>
+          </Button>
+          <Button tone="ghost" onClick={() => setMode(nextTheme)} type="button" aria-label={t('header.theme')}>
             {mode === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
+          </Button>
         </div>
         <form className="login-form" onSubmit={submit}>
           <div className="form-heading">
@@ -65,15 +67,15 @@ export function LoginPage() {
             <div><p className="eyebrow">{t('auth.secureAccess')}</p><h2>{t('auth.signIn')}</h2></div>
           </div>
           <label>{t('auth.username')}
-            <input autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} required />
+            <Input autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} required />
           </label>
           <label>{t('auth.password')}
-            <input autoComplete="current-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required autoFocus />
+            <Input.Password autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required autoFocus />
           </label>
-          {error && <div className="error-banner" role="alert">{error}</div>}
-          <button className="button primary login-submit" disabled={busy} type="submit">
+          {error && <Alert type="error" showIcon title={error} role="alert" />}
+          <Button tone="primary" className="login-submit" busy={busy} type="submit">
             {busy ? t('auth.signingIn') : t('auth.signIn')}<ArrowRight size={17} />
-          </button>
+          </Button>
           <p className="local-notice"><LockKeyhole size={14} />{t('auth.localNotice')}</p>
         </form>
       </section>

@@ -1,3 +1,6 @@
+import { DataGrid } from '../../core/ui/DataGrid'
+import { Radio as AntRadio } from 'antd'
+import { Button as AntActionButton } from '../../core/ui/Button'
 import {
   AlertTriangle,
   CheckCircle2,
@@ -170,9 +173,9 @@ export function BundleImportPage() {
           <p>{t('importDescription')}</p>
         </div>
         {selected || importResult ? (
-          <button className="bundle-button bundle-button-secondary" type="button" onClick={reset} disabled={working !== null}>
+          <AntActionButton tone="secondary" type="button" onClick={reset} disabled={working !== null}>
             <RotateCcw aria-hidden="true" /> {t('reset')}
-          </button>
+          </AntActionButton>
         ) : null}
       </header>
 
@@ -192,14 +195,15 @@ export function BundleImportPage() {
           className="bundle-visually-hidden"
           id="bundle-file-input"
           type="file"
+          aria-label={t('chooseFile')}
           accept=".json,application/json"
           onChange={(event) => void selectFile(event)}
           disabled={working !== null}
         />
-        <label className="bundle-file-picker" htmlFor="bundle-file-input">
+        <AntActionButton tone="secondary" type="button" onClick={() => fileInput.current?.click()} disabled={working !== null}>
           <FileJson aria-hidden="true" />
           <span>{selected ? t('replaceFile') : t('chooseFile')}</span>
-        </label>
+        </AntActionButton>
 
         {selected ? (
           <dl className="bundle-file-summary">
@@ -224,24 +228,24 @@ export function BundleImportPage() {
           <fieldset className="bundle-policy-options" disabled={working !== null || importAttempted || Boolean(importResult)}>
             <legend className="bundle-visually-hidden">{t('conflictPolicy')}</legend>
             <label>
-              <input type="radio" name="bundle-conflict" value="FAIL" checked={conflict === 'FAIL'} onChange={() => changeConflict('FAIL')} />
+              <AntRadio  name="bundle-conflict" value="FAIL" checked={conflict === 'FAIL'} onChange={() => changeConflict('FAIL')} />
               <span><strong>{t('conflictFail')}</strong><small>{t('conflictFailHelp')}</small></span>
             </label>
             <label>
-              <input type="radio" name="bundle-conflict" value="RENAME" checked={conflict === 'RENAME'} onChange={() => changeConflict('RENAME')} />
+              <AntRadio  name="bundle-conflict" value="RENAME" checked={conflict === 'RENAME'} onChange={() => changeConflict('RENAME')} />
               <span><strong>{t('conflictRename')}</strong><small>{t('conflictRenameHelp')}</small></span>
             </label>
           </fieldset>
 
           <div className="bundle-action-row">
-            <button className="bundle-button bundle-button-secondary" type="button" onClick={() => void runDryRun()} disabled={working !== null || importAttempted || Boolean(importResult)}>
+            <AntActionButton tone="secondary" type="button" onClick={() => void runDryRun()} disabled={working !== null || importAttempted || Boolean(importResult)}>
               {working === 'dryRun' ? <LoaderCircle className="bundle-spin" aria-hidden="true" /> : <FolderInput aria-hidden="true" />}
               {working === 'dryRun' ? t('dryRunning') : t('dryRun')}
-            </button>
-            <button className="bundle-button bundle-button-primary" type="button" onClick={() => setConfirmOpen(true)} disabled={!dryRunPassed || working !== null || Boolean(importResult)}>
+            </AntActionButton>
+            <AntActionButton tone="primary" type="button" onClick={() => setConfirmOpen(true)} disabled={!dryRunPassed || working !== null || Boolean(importResult)}>
               {working === 'import' ? <LoaderCircle className="bundle-spin" aria-hidden="true" /> : <FolderInput aria-hidden="true" />}
               {working === 'import' ? t('importing') : t('importProject')}
-            </button>
+            </AntActionButton>
           </div>
           {dryRunPassed ? <div className="bundle-alert bundle-alert-success" role="status"><CheckCircle2 aria-hidden="true" /> {t('dryRunPassed')}</div> : null}
         </section>
@@ -271,7 +275,7 @@ export function BundleImportPage() {
           <div><dt>{t('bundleProject')}</dt><dd>{selected?.document.project.code}</dd></div>
           <div><dt>{t('conflictPolicy')}</dt><dd>{conflict === 'FAIL' ? t('conflictFail') : t('conflictRename')}</dd></div>
         </dl>
-        <footer className="bundle-confirm-actions"><button className="bundle-button bundle-button-secondary" type="button" onClick={() => setConfirmOpen(false)}>{t('cancel')}</button><button className="bundle-button bundle-button-primary" type="button" onClick={() => void importProject()}>{t('confirmImport')}</button></footer>
+        <footer className="bundle-confirm-actions"><AntActionButton tone="secondary" type="button" onClick={() => setConfirmOpen(false)}>{t('cancel')}</AntActionButton><AntActionButton tone="primary" type="button" onClick={() => void importProject()}>{t('confirmImport')}</AntActionButton></footer>
       </Dialog>
     </section>
   )
@@ -287,10 +291,10 @@ function ValidationSummary({ report }: { report: ValidationReport }) {
       <div className="bundle-alert bundle-alert-error"><AlertTriangle aria-hidden="true" /> {t('validationFailed')}</div>
       <h3>{t('issues')}</h3>
       <div className="bundle-table-wrap">
-        <table className="bundle-issues-table">
+        <DataGrid className="bundle-issues-table">
           <thead><tr><th scope="col">{t('issueCode')}</th><th scope="col">{t('issuePath')}</th><th scope="col">{t('issueMessage')}</th></tr></thead>
           <tbody>{report.issues.map((issue, index) => <tr key={`${issue.code}:${issue.path}:${index}`}><td><code>{issue.code}</code></td><td><code>{issue.path}</code></td><td>{messageForCode(issue.code, issue.message, t('validationFailed'))}</td></tr>)}</tbody>
-        </table>
+        </DataGrid>
       </div>
     </div>
   )
