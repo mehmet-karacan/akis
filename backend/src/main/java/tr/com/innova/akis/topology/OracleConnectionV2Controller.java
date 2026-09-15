@@ -246,11 +246,11 @@ final class OracleConnectionV2Controller {
             String status,
             String name,
             String description,
-            long version) {
+            long version, String createdBy, java.time.OffsetDateTime createdAt) {
         static ConnectionView from(ConnectionRow row) {
             return new ConnectionView(
                     row.uuid(), row.code(), row.databaseType(), row.status(), row.name(),
-                    row.description(), row.version());
+                    row.description(), row.version(), row.createdBy(), row.createdAt());
         }
     }
 

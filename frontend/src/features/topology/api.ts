@@ -1,6 +1,8 @@
 import { apiRequest, jsonBody } from '../../core/api/client'
 
 export interface Connection {
+  createdBy?: string | null
+  createdAt?: string | null
   uuid: string
   code: string
   databaseType: string

@@ -10,13 +10,13 @@ import {
   Plus,
   Save,
 } from 'lucide-react'
+import { notifyFeedback } from '../../core/api/networkFeedback'
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ApiProblem } from '../../core/api/client'
 import { usePendingChanges } from '../../core/navigation/PendingChangesContext'
 import { useProjectAccess } from '../../core/auth/ProjectAccessContext'
 import { Dialog } from '../../core/ui/Dialog'
-import { ProjectSidebarTree } from '../../app/ProjectSidebarTree'
 import { executionApi } from '../execution/api'
 import type { ProjectCapabilities } from '../execution/types'
 import { operationsApi } from '../operations/api'
@@ -281,7 +281,7 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
       setDraft(saved)
       setContent(saved.content)
       setDirty(false)
-      setStatus({ tone: 'success', text: t('saved') })
+      notifyFeedback(t('saved'))
       return true
     } catch (error) {
       const isConflict = error instanceof ApiProblem && error.status === 409
@@ -372,15 +372,13 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
   }
 
   function navigateFromExplorer(path: string) {
-    const definitionUuid = path.match(/\/definitions\/([^/?]+)/)?.[1]
-    if (definitionUuid) {
-      const decodedUuid = decodeURIComponent(definitionUuid)
-      if (dirty) setPendingDefinitionUuid(decodedUuid)
-      else applyDefinitionSelection(decodedUuid)
-      return
-    }
-    void navigate(path)
+    const uuid = path.match(/\/definitions\/([^/?]+)/)?.[1]
+    if (uuid) {
+      if (dirty) setPendingDefinitionUuid(decodeURIComponent(uuid))
+      else applyDefinitionSelection(decodeURIComponent(uuid))
+    } else void navigate(path)
   }
+
 
   return (
     <div className="definitions-workspace" onKeyDown={handleWorkspaceKeyDown}>
@@ -389,18 +387,6 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
       {environmentLoadError && <div className="definition-notice definition-notice--error" role="alert"><AlertCircle size={16} aria-hidden="true" /><span>{t('environmentLoadError')}</span></div>}
 
       <div className="definitions-shell definitions-shell--workbench">
-        <aside className="definition-object-explorer">
-          <ProjectSidebarTree
-            projectUuid={projectUuid}
-            folders={folders}
-            definitions={definitions}
-            selectedUuid={selectedUuid}
-            loading={loading}
-            failed={Boolean(loadError)}
-            onNavigate={navigateFromExplorer}
-            onRetry={() => void loadWorkspace()}
-          />
-        </aside>
         <section className="definition-workbench" aria-label={t('details')}>
           {loading && <div className="definition-state"><LoaderCircle className="spin" aria-hidden="true" /> {t('loading')}</div>}
           {loadError && <div className="definition-state definition-state--error"><AlertCircle aria-hidden="true" /><p>{loadError}</p><button className="definition-button definition-button--quiet" type="button" onClick={() => void loadWorkspace()}>{t('retry')}</button></div>}
@@ -429,6 +415,7 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
                   const created = await definitionsApi.createDefinition(projectUuid, input)
                   await definitionsApi.saveDraft(projectUuid, created.uuid, 0, input.type === 'PROCEDURE' ? 2 : 1, initialContent)
                   setDefinitions((current) => [created, ...current])
+                  window.dispatchEvent(new Event('akis:definitions-changed'))
                   setSelectedUuid(created.uuid)
                   setShowCreate(false)
                   setCreateDefinitionType(null)
@@ -451,7 +438,7 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
           ) : (
             <>
               <header className="definition-document-header">
-                <div>
+                <div className="definition-document-identity">
                   <div className="definition-document-meta">
                     <span className="definition-type-chip">{typeLabel(selectedDefinition.type)}</span>
                     <span><code>{selectedDefinition.code}</code></span>
@@ -459,6 +446,15 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
                   <h2>{selectedDefinition.name}</h2>
                   {selectedDefinition.description && <p>{selectedDefinition.description}</p>}
                 </div>
+                {tab === 'draft' && !draftLoading && canWrite && (
+                  <div className="definition-document-save">
+                    {dirty && <span className="definition-unsaved-state">{t('unsaved')}</span>}
+                    <button className="definition-button definition-button--primary" type="button" disabled={saving || !dirty} onClick={() => void saveDraft()}>
+                      {saving ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Save size={16} aria-hidden="true" />}
+                      {saving ? t('saving') : t('saveDraft')}
+                    </button>
+                  </div>
+                )}
               </header>
 
               {bindingTypes.has(selectedDefinition.type) && selectedDefinition.type !== 'PROCEDURE' ? <div className="definition-tabs" role="tablist" aria-label={t('details')} onKeyDown={(event) => {
@@ -481,15 +477,6 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
                 <div className="definition-state"><LoaderCircle className="spin" aria-hidden="true" /> {t('loading')}</div>
               ) : tab === 'draft' ? (
                 <section id="definition-panel-draft" className="definition-editor-panel" role="tabpanel" aria-labelledby="definition-tab-draft">
-                  <div className="definition-editor-toolbar definition-editor-toolbar--compact">
-                    {dirty ? <span className="definition-unsaved-state">{t('unsaved')}</span> : <span />}
-                    {canWrite && <div className="definition-editor-actions">
-                      <button className="definition-button definition-button--primary" type="button" disabled={saving || !dirty} onClick={() => void saveDraft()}>
-                        {saving ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Save size={16} aria-hidden="true" />}
-                        {saving ? t('saving') : t('saveDraft')}
-                      </button>
-                    </div>}
-                  </div>
                   <fieldset className="definition-readonly-gate" disabled={!canWrite}>{selectedDefinition.type === 'MAPPING' && isMappingContent(content) ? (
                     <MappingGrid projectUuid={projectUuid} value={content} onChange={updateContent} />
                   ) : selectedDefinition.type === 'PROCEDURE' && isProcedureContent(content) ? (
@@ -553,6 +540,7 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
             try {
               const created = await definitionsApi.createFolder(projectUuid, input)
               setFolders((current) => [...current, created])
+              window.dispatchEvent(new Event('akis:definitions-changed'))
               notifyProjectTreeChanged()
               setFolderCreateContext(null)
               setStatus({ tone: 'success', text: t('folderCreated') })

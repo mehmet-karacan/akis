@@ -1,8 +1,9 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useMemo, useState, type ReactNode, type FormEvent } from 'react'
 import { CheckCircle2, CircleAlert, LoaderCircle, Save, ShieldCheck } from 'lucide-react'
 import { topologyApi, type Connection, type ConnectionVersion, type DraftConnectionTestResult } from './api'
 import { toOracleConnectionInput, validateOracleConnectionInput, type ConnectionVersionDraft } from './connectionVersionModel'
 import type { getTopologyCopy } from './copy'
+import { ConnectionTestButton } from '../connections/ConnectionTestButton'
 import './topology.css'
 
 interface Props {
@@ -11,6 +12,8 @@ interface Props {
   connection: Connection
   version: ConnectionVersion
   copy: ReturnType<typeof getTopologyCopy>
+  readOnly?: boolean
+  footerActions?: ReactNode
   onSaved(): Promise<void>
 }
 
@@ -29,7 +32,7 @@ function draftFrom(version: ConnectionVersion): ConnectionVersionDraft {
 
 const fingerprint = (draft: ConnectionVersionDraft) => JSON.stringify(draft)
 
-export function OracleConnectionEndpointEditForm({ projectUuid, connectionUuid, connection, version, copy: c, onSaved }: Props) {
+export function OracleConnectionEndpointEditForm({ projectUuid, connectionUuid, connection, version, copy: c, onSaved, readOnly = false, footerActions }: Props) {
   const [name, setName] = useState(connection.name)
   const [code, setCode] = useState(connection.code)
   const [description, setDescription] = useState(connection.description ?? '')
@@ -39,6 +42,7 @@ export function OracleConnectionEndpointEditForm({ projectUuid, connectionUuid, 
   const [testedFingerprint, setTestedFingerprint] = useState('')
   const [testResult, setTestResult] = useState<DraftConnectionTestResult | null>(null)
   const currentFingerprint = useMemo(() => fingerprint(draft), [draft])
+  const endpointChanged = currentFingerprint !== fingerprint(draftFrom(version))
   const tested = Boolean(testResult?.connected && testedFingerprint === currentFingerprint)
   const update = <K extends keyof ConnectionVersionDraft>(key: K, value: ConnectionVersionDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value })); setTestResult(null); setTestedFingerprint(''); setError('')
@@ -59,11 +63,15 @@ export function OracleConnectionEndpointEditForm({ projectUuid, connectionUuid, 
   }
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!valid() || !tested) { setError(c.testBeforeSave); return }
+    if (readOnly) return
+    if (!name.trim() || !/^[A-Za-z][A-Za-z0-9_]{0,99}$/.test(code)) { setError(c.invalidConnectionFields); return }
+    if (endpointChanged && !valid()) return
     setBusy('save'); setError('')
     try {
-      const next = await topologyApi.createVersion(projectUuid, connectionUuid, toOracleConnectionInput(draft))
-      if (next.mode === 'JDBC') await topologyApi.makeConnectionCurrent(projectUuid, connectionUuid, next.uuid)
+      if (endpointChanged) {
+        const next = await topologyApi.createVersion(projectUuid, connectionUuid, toOracleConnectionInput(draft))
+        if (tested && next.mode === 'JDBC') await topologyApi.makeConnectionCurrent(projectUuid, connectionUuid, next.uuid)
+      }
       await topologyApi.updateConnection(projectUuid, connectionUuid, {
         code: code.trim().toUpperCase(),
         name: name.trim(),
@@ -75,7 +83,7 @@ export function OracleConnectionEndpointEditForm({ projectUuid, connectionUuid, 
     finally { setBusy('') }
   }
   return <form className="topology-form topology-endpoint-edit" onSubmit={(event) => void save(event)}>
-    <h3>{c.connectionDefinition}</h3>
+    <fieldset disabled={readOnly || Boolean(busy)} className="connection-editor-fields"><h3>{c.connectionDefinition}</h3>
     <div className="topology-form-row"><label className="topology-field"><span>{c.name} *</span><input required value={name} onChange={(event) => setName(event.target.value)} /></label><label className="topology-field"><span>{c.code} *</span><input required pattern="[A-Za-z][A-Za-z0-9_]{0,99}" value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} /></label></div>
     <label className="topology-field"><span>{c.description}</span><textarea rows={2} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
     <h3>{c.oracleConnectionDetails}</h3>
@@ -83,10 +91,11 @@ export function OracleConnectionEndpointEditForm({ projectUuid, connectionUuid, 
     {draft.mode === 'JDBC' ? <>
       <div className="topology-form-row"><label className="topology-field"><span>{c.host} *</span><input required value={draft.host} onChange={(e) => update('host', e.target.value)} /></label><label className="topology-field"><span>{c.port} *</span><input required type="number" min="1" max="65535" value={draft.port} onChange={(e) => update('port', e.target.value)} /></label></div>
       <div className="topology-form-row"><label className="topology-field"><span>{c.connectionMethod} *</span><select value={draft.identifierType} onChange={(e) => update('identifierType', e.target.value as ConnectionVersionDraft['identifierType'])}><option value="SERVICE_NAME">{c.serviceName}</option><option value="SID">{c.sid}</option></select></label><label className="topology-field"><span>{draft.identifierType === 'SID' ? c.sid : c.serviceName} *</span><input required value={draft.identifier} onChange={(e) => update('identifier', e.target.value)} /></label></div>
-      <div className="topology-form-row"><label className="topology-field"><span>{c.username} *</span><input required value={draft.username} onChange={(e) => update('username', e.target.value)} autoComplete="username" /></label><label className="topology-field"><span>{c.password} *</span><input required type="password" value={draft.password} onChange={(e) => update('password', e.target.value)} autoComplete="new-password" /></label></div>
+      <div className="topology-form-row"><label className="topology-field"><span>{c.username} *</span><input required value={draft.username} onChange={(e) => update('username', e.target.value)} autoComplete="username" /></label><label className="topology-field"><span>{c.password} *</span><input required={endpointChanged} type="password" value={draft.password} onChange={(e) => update('password', e.target.value)} autoComplete="new-password" /></label></div>
     </> : <label className="topology-field"><span>{c.jndiName} *</span><input required value={draft.jndiName} onChange={(e) => update('jndiName', e.target.value)} /></label>}
+    </fieldset>
     {error && <div className="topology-inline-error" role="alert"><CircleAlert />{error}</div>}
     {tested && <div className="topology-test-success"><CheckCircle2 /><div><strong>{c.draftTestPassed}</strong><small>{testResult?.databaseProduct} {testResult?.databaseVersion}</small></div></div>}
-    <div className="topology-form-actions topology-form-actions--right"><button className="topology-button topology-button--test" type="button" onClick={() => void test()} disabled={Boolean(busy)}>{busy === 'test' ? <LoaderCircle className="is-spinning" /> : <ShieldCheck />}{busy === 'test' ? c.testing : c.testDraftConnection}</button><button className="topology-button" type="submit" disabled={Boolean(busy) || !tested}>{busy === 'save' ? <LoaderCircle className="is-spinning" /> : <Save />}{busy === 'save' ? c.saving : c.saveConnection}</button></div>
+    {!readOnly && <div className="topology-form-actions topology-form-actions--right">{footerActions}{!endpointChanged ? <ConnectionTestButton connectionUuid={connectionUuid} versionUuid={version.uuid} /> : <button className="topology-button topology-button--test" type="button" onClick={() => void test()} disabled={Boolean(busy)}>{busy === 'test' ? <LoaderCircle className="is-spinning" /> : <ShieldCheck />}{busy === 'test' ? c.testing : c.testDraftConnection}</button>}<button className="topology-button" type="submit" disabled={Boolean(busy)}>{busy === 'save' ? <LoaderCircle className="is-spinning" /> : <Save />}{busy === 'save' ? c.saving : c.saveConnection}</button></div>}
   </form>
 }

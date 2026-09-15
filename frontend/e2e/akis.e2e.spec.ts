@@ -42,7 +42,7 @@ test.describe('AKIŞ critical browser journeys', () => {
     await login(page)
     const screens = [
       '/project', '/project/objects', '/project/operations', '/project/connections', '/project/logical-schemas',
-      '/project/environments', '/project/schema-bindings', '/project/models', '/project/team', '/project/publications',
+      '/project/environments', '/project/models', '/project/team', '/project/publications',
     ]
 
     for (const path of screens) {
@@ -104,8 +104,8 @@ test.describe('AKIŞ critical browser journeys', () => {
     await firstNode.dblclick({ force: true })
     await expect(page).not.toHaveURL(packageUrl)
     await expect(page).toHaveURL(/\/project\/objects\/definitions\//)
-    await page.getByRole('tab', { name: /Tasks|Adımlar/ }).click()
-    await page.setViewportSize({ width: 2560, height: 1080 })
+    await expect(page.getByRole('heading', { name: /Procedure steps|Prosedür Adımları/ })).toBeVisible()
+    await page.setViewportSize({ width: 1366, height: 768 })
     await expect(page.locator('.procedure-task').first()).toBeVisible()
     await page.locator('.procedure-task-select').first().click()
     await expect(page.getByRole('tab', { name: /Source Command|Kaynak Komutu/ })).toBeVisible()
@@ -116,7 +116,7 @@ test.describe('AKIŞ critical browser journeys', () => {
     await expect(page.locator('.procedure-side--target')).toBeVisible()
     await page.getByRole('tab', { name: /General|Genel/ }).click()
     await expect(page.getByLabel(/Log Counter|Log Sayacı/)).toBeVisible()
-    const masterRows = page.locator('.procedure-task-list > .procedure-task')
+    const masterRows = page.locator('.procedure-task-table tbody > .procedure-task')
     const initialMasterRowCount = await masterRows.count()
     await page.getByRole('button', { name: /Add Step|Adım Ekle/ }).click()
     await expect(masterRows).toHaveCount(initialMasterRowCount + 1)
@@ -131,6 +131,7 @@ test.describe('AKIŞ critical browser journeys', () => {
     await expect(page.getByText(/Resolved execution context|Çözümlenen Çalışma Bağlamı/)).toHaveCount(0)
     await page.getByRole('tab', { name: /Target Command|Hedef Komutu/ }).click()
     await expect(page.locator('.procedure-side select').first().locator('option').first()).toHaveText(/Not selected|Seçilmedi/)
+    await page.screenshot({ path: 'test-results/procedure-master-detail.png', fullPage: true })
     const dimensions = await page.evaluate(() => {
       const panel = document.querySelector('.definition-editor-panel')?.getBoundingClientRect()
       const workbench = document.querySelector('.definition-workbench')?.getBoundingClientRect()
@@ -172,16 +173,14 @@ test.describe('AKIŞ critical browser journeys', () => {
     await expect(createForm.locator('input[autocomplete="new-password"]')).toBeVisible()
 
     await navigateInApp(page, '/project/connections')
-    const connectionHref = await page.locator('.connection-name-link').first().getAttribute('href')
-    expect(connectionHref, 'The baseline project must contain a connection').toBeTruthy()
-    const connectionUuid = connectionHref!.split('/').at(-1)!
+    const connectionUuid = await page.locator('.connection-record-card').first().getAttribute('data-connection-uuid')
+    expect(connectionUuid, 'The baseline project must contain a connection').toBeTruthy()
+    const connectionHref = `/project/connections/${connectionUuid}`
     await navigateInApp(page, connectionHref!, `/project/connections/${connectionUuid}`)
     await expectHealthyScreen(page)
 
-    const physicalHref = await page.locator(`a[href="${connectionHref}/physical-schemas"]`).getAttribute('href')
-    expect(physicalHref, 'The connection must expose physical-schema management').toBeTruthy()
-    await navigateInApp(page, physicalHref!, `/project/connections/${connectionUuid}/physical-schemas`)
-    await expectHealthyScreen(page)
+    await expect(page.locator('.physical-schema-manager')).toBeVisible()
+    await expect(page.locator('.physical-schema-inline-form')).toBeVisible()
 
     await navigateInApp(page, '/project/environments')
     const environmentHref = await page.locator('.schema-name-link').first().getAttribute('href')
@@ -223,7 +222,7 @@ test.describe('AKIŞ critical browser journeys', () => {
     await page.unroute(catalogPattern)
     await failure.getByRole('button').click()
     await expect(failure).toHaveCount(0)
-    await expect(page.locator('.connections-table, .ui-async-state.empty')).toBeVisible()
+    await expect(page.locator('.connections-table, .ui-collection, .ui-async-state.empty')).toBeVisible()
   })
 
   test('keeps project first and hides write actions for an operation-only profile', async ({ page }) => {

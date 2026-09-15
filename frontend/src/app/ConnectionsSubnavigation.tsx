@@ -1,4 +1,4 @@
-import { Cable, Database, GitMerge, Globe2 } from 'lucide-react'
+import { Cable, Database, Globe2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { NavLink } from 'react-router-dom'
 import { projectRoute } from '../features/projects/CurrentProjectContext'
@@ -7,7 +7,6 @@ const links = [
   { path: '/connections', key: 'nav.connectionCatalog', icon: Cable },
   { path: '/logical-schemas', key: 'nav.logicalSchemas', icon: Database },
   { path: '/environments', key: 'nav.environments', icon: Globe2 },
-  { path: '/schema-bindings', key: 'nav.schemaBindings', icon: GitMerge },
 ] as const
 
 export function ConnectionsSubnavigation({ hasPendingChanges, onNavigate }: { hasPendingChanges: boolean; onNavigate: (path: string) => void }) {

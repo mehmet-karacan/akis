@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
 const en = {
-  runs: 'Runs', runsHelp: 'Execution requests created from active, immutable publications.', startRun: 'Start Run', starting: 'Starting…',
+  runs: 'Run History', runsHelp: 'Execution requests created from active, immutable publications.', startRun: 'Start Run', starting: 'Starting…',
   publication: 'Publication', choosePublication: 'Choose an executable active publication', noActivePublication: 'No executable active publication is available. Publish a supported mapping or procedure before starting a run.',
   attempt: 'Attempt', startType: 'Start type', startInitial: 'Initial', status: 'Status', createdAt: 'Created', startedAt: 'Started', finishedAt: 'Finished', actions: 'Actions',
   viewDetails: 'View Details', emptyRuns: 'No runs have been requested for this project.', loading: 'Loading…', retry: 'Try Again', requestFailed: 'The request could not be completed.',
@@ -25,7 +25,7 @@ const en = {
   view_RECENT: 'Recent runs', view_ACTIVE: 'Active runs', view_FAILED: 'Failed runs', view_HISTORY: 'Run history',
   scope_RECENT: 'Runs created in the last 24 hours', scope_ACTIVE: 'All active runs without a date limit', scope_FAILED: 'Failed runs in the last 24 hours', scope_HISTORY: 'Run history; last 7 days by default',
   allStatuses: 'All statuses', environment: 'Environment', allEnvironments: 'All environments', objectType: 'Object type', allObjectTypes: 'All object types', procedure: 'Procedure', mapping: 'Data flow', package: 'Package',
-  applyFilters: 'Apply filters', clearFilters: 'Clear filters', from: 'From', to: 'To', apply: 'Apply', pauseLive: 'Pause live refresh', resumeLive: 'Resume live refresh', refreshFailed: 'The latest refresh failed; the previous results remain visible.',
+  applyFilters: 'Search', clearFilters: 'Clear', from: 'From', to: 'To', apply: 'Apply', pauseLive: 'Pause live refresh', resumeLive: 'Resume live refresh', refreshFailed: 'The latest refresh failed; the previous results remain visible.',
   object: 'Object', duration: 'Duration', rows: 'Rows', initiator: 'Initiator', resultCount: '{{count}} results', pageSize: 'Page size', previousPage: 'Previous page', nextPage: 'Next page',
   runnableVersion: 'Runnable version', targetSummary: 'Pinned target summary', confirmProductionRun: 'I confirm this run will use the production environment and the pinned targets shown above.',
   pinnedContextUnavailable: 'Pinned environment and target context could not be loaded; run evidence remains available.', availableInterventions: 'Interventions', rerun: 'Run again', resumeRun: 'Resume from failed step', actionReason: 'Unavailable: {{reason}}',
@@ -34,7 +34,7 @@ const en = {
 } as const
 
 const tr: Record<keyof typeof en, string> = {
-  runs: 'Çalıştırmalar', runsHelp: 'Aktif ve değişmez yayınlardan oluşturulan çalıştırma talepleri.', startRun: 'Çalıştırma Başlat', starting: 'Başlatılıyor…',
+  runs: 'Çalıştırma Geçmişi', runsHelp: 'Aktif ve değişmez yayınlardan oluşturulan çalıştırma talepleri.', startRun: 'Çalıştırma Başlat', starting: 'Başlatılıyor…',
   publication: 'Yayın', choosePublication: 'Çalıştırılabilir etkin bir yayın seçin', noActivePublication: 'Çalıştırılabilir etkin yayın bulunmuyor. Çalıştırmadan önce desteklenen bir eşleme veya prosedür yayınlayın.',
   attempt: 'Deneme', startType: 'Başlatma türü', startInitial: 'İlk çalıştırma', status: 'Durum', createdAt: 'Oluşturulma', startedAt: 'Başlangıç', finishedAt: 'Bitiş', actions: 'İşlemler',
   viewDetails: 'Detayları Aç', emptyRuns: 'Bu proje için henüz çalıştırma talebi yok.', loading: 'Yükleniyor…', retry: 'Tekrar Dene', requestFailed: 'İstek tamamlanamadı.',
@@ -58,7 +58,7 @@ const tr: Record<keyof typeof en, string> = {
   view_RECENT: 'Son çalıştırmalar', view_ACTIVE: 'Aktif çalıştırmalar', view_FAILED: 'Başarısız çalıştırmalar', view_HISTORY: 'Çalıştırma geçmişi',
   scope_RECENT: 'Son 24 saatte oluşturulan çalıştırmalar', scope_ACTIVE: 'Tarih sınırı olmadan tüm aktif çalıştırmalar', scope_FAILED: 'Son 24 saatte başarısız olan çalıştırmalar', scope_HISTORY: 'Varsayılan olarak son 7 günlük çalıştırma geçmişi',
   allStatuses: 'Tüm durumlar', environment: 'Ortam', allEnvironments: 'Tüm ortamlar', objectType: 'Nesne türü', allObjectTypes: 'Tüm nesne türleri', procedure: 'Prosedür', mapping: 'Veri akışı', package: 'Paket',
-  applyFilters: 'Filtreleri uygula', clearFilters: 'Filtreleri temizle', from: 'Başlangıç', to: 'Bitiş', apply: 'Uygula', pauseLive: 'Canlı yenilemeyi duraklat', resumeLive: 'Canlı yenilemeyi sürdür', refreshFailed: 'Son yenileme başarısız oldu; önceki sonuçlar görünmeye devam ediyor.',
+  applyFilters: 'Sorgula', clearFilters: 'Temizle', from: 'Başlangıç', to: 'Bitiş', apply: 'Uygula', pauseLive: 'Canlı yenilemeyi duraklat', resumeLive: 'Canlı yenilemeyi sürdür', refreshFailed: 'Son yenileme başarısız oldu; önceki sonuçlar görünmeye devam ediyor.',
   object: 'Nesne', duration: 'Süre', rows: 'Satır', initiator: 'Başlatan', resultCount: '{{count}} sonuç', pageSize: 'Sayfa boyutu', previousPage: 'Önceki sayfa', nextPage: 'Sonraki sayfa',
   runnableVersion: 'Çalıştırılabilir sürüm', targetSummary: 'Sabitlenmiş hedef özeti', confirmProductionRun: 'Bu çalıştırmanın üretim ortamını ve yukarıda gösterilen sabitlenmiş hedefleri kullanacağını onaylıyorum.',
   pinnedContextUnavailable: 'Sabitlenmiş ortam ve hedef bağlamı yüklenemedi; çalıştırma kanıtları görüntülenmeye devam ediyor.', availableInterventions: 'Müdahaleler', rerun: 'Yeniden çalıştır', resumeRun: 'Başarısız adımdan devam et', actionReason: 'Kullanılamıyor: {{reason}}',

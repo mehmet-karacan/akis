@@ -1,9 +1,11 @@
-import { Plus } from 'lucide-react'
+import { Cable, Database, GitBranch, Plus, Workflow } from 'lucide-react'
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
-import { AsyncState, Button, Dialog, PageHeader } from '../../core/ui'
+import { AsyncState, Button, Dialog, PageHeader, SummaryStrip } from '../../core/ui'
+import { FeedbackToast } from '../../core/ui/FeedbackToast'
+import { QueryFilter } from '../../core/ui/QueryFilter'
 import { useProjectAccess } from '../../core/auth/ProjectAccessContext'
 import {
   topologyApi,
@@ -15,6 +17,8 @@ import {
 import './schemas.css'
 
 export function LogicalSchemasPage() {
+  const [notice, setNotice] = useState('')
+  const closeNotice = useCallback(() => setNotice(''), [])
   const projectUuid = useCurrentProjectUuid()
   const { t } = useTranslation()
   const { can } = useProjectAccess()
@@ -29,6 +33,7 @@ export function LogicalSchemasPage() {
   const [error, setError] = useState('')
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [query, setQuery] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -54,6 +59,7 @@ export function LogicalSchemasPage() {
   useEffect(() => { void load() }, [load])
 
   const prerequisitesReady = environments.length > 0 && physicalSchemas.length > 0
+  const filteredItems = items.filter((item) => `${item.name} ${item.code} ${item.description ?? ''}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
 
   function openCreate() {
     setEnvironmentUuid(environments[0]?.uuid ?? '')
@@ -75,6 +81,7 @@ export function LogicalSchemasPage() {
         physicalSchemaUuid,
       })
       setOpen(false)
+      setNotice(t('common.savedSuccessfully'))
       await load()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : t('common.saveError'))
@@ -88,15 +95,22 @@ export function LogicalSchemasPage() {
     return `${connection?.code ?? '—'} / ${physical.schemaReference}`
   }
 
-  return <section className="page-stack schema-page">
+  return <section className="page-stack schema-page"><FeedbackToast message={notice} onClose={closeNotice} />
     <PageHeader
       eyebrow={t('schemas.eyebrow')}
       title={t('schemas.logicalTitle')}
       description={t('schemas.logicalDescription')}
       actions={canManage ? <Button tone="primary" icon={<Plus size={16} />} onClick={openCreate}>{t('schemas.addLogical')}</Button> : undefined}
     />
+    <QueryFilter onApply={setQuery} placeholder={`${t('schemas.name')} · ${t('schemas.code')}`} />
+    <SummaryStrip ariaLabel={t('schemas.logicalTitle')} items={[
+      { label: t('schemas.logicalTitle'), value: items.length, icon: <GitBranch />, tone: 'info' },
+      { label: t('schemas.environmentsTitle'), value: environments.length, icon: <Workflow />, tone: 'neutral' },
+      { label: t('schemas.physicalSchema'), value: physicalSchemas.length, icon: <Database />, tone: 'success' },
+      { label: t('connections.title'), value: connections.length, icon: <Cable />, tone: 'neutral' },
+    ]} />
     {error ? <div className="error-banner" role="alert">{error}</div> : null}
-    {loading ? <AsyncState state="loading" title={t('common.loading')} /> : items.length === 0 ? <AsyncState state="empty" title={t('schemas.noLogical')} /> : <div className="schema-list-table"><table><thead><tr><th>{t('schemas.name')}</th><th>{t('schemas.code')}</th><th>{t('schemas.description')}</th></tr></thead><tbody>{items.map((item) => <tr key={item.uuid}><td><Link className="schema-name-link" to={`/projects/${projectUuid}/logical-schemas/${item.uuid}`}>{item.name}</Link></td><td><code>{item.code}</code></td><td>{item.description ?? '—'}</td></tr>)}</tbody></table></div>}
+    {loading ? <AsyncState state="loading" title={t('common.loading')} /> : filteredItems.length === 0 ? <AsyncState state="empty" title={t('schemas.noLogical')} /> : <div className="schema-list-table"><table><thead><tr><th>{t('schemas.name')}</th><th>{t('schemas.code')}</th><th>{t('schemas.description')}</th></tr></thead><tbody>{filteredItems.map((item) => <tr key={item.uuid}><td><Link className="schema-name-link" to={`/project/logical-schemas/${item.uuid}`}>{item.name}</Link></td><td><code>{item.code}</code></td><td>{item.description ?? t('common.noDescription')}</td></tr>)}</tbody></table></div>}
     <Dialog open={canManage && open} title={t('schemas.addLogical')} closeLabel={t('common.close')} busy={busy} onClose={() => setOpen(false)}>
       <form onSubmit={(event) => void create(event)}>
         <label>{t('schemas.name')}<input name="name" required /></label>

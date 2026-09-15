@@ -5,6 +5,7 @@ import { ExpressionBuilder, expressionSummary } from './ExpressionBuilder'
 import { definitionCodeLabel, useDefinitionsI18n } from './i18n'
 import { filterMappingRows, MAPPING_PAGE_SIZE, pageCount, safePage } from './mappingUtils'
 import type { ColumnMapping, MappingContent, MappingDataset } from './types'
+import { MappingDiagram } from './MappingDiagram'
 
 interface MappingGridProps {
   projectUuid: string
@@ -31,6 +32,7 @@ interface CatalogEntry { model: Model; object: DataObject; snapshot?: SchemaSnap
 
 export function MappingGrid({ projectUuid, value, onChange }: MappingGridProps) {
   const { language, t } = useDefinitionsI18n()
+  const [view, setView] = useState('diagram')
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(0)
   const [catalog, setCatalog] = useState<CatalogEntry[]>([])
@@ -89,7 +91,8 @@ export function MappingGrid({ projectUuid, value, onChange }: MappingGridProps) 
 
   return (
     <div className="mapping-editor">
-      <section className="mapping-section" aria-labelledby="datasets-title">
+      <div className="procedure-command-tabs" role="tablist" aria-label={language === 'tr' ? 'Mapping Görünümleri' : 'Mapping Views'}>{(['diagram', 'columns', 'execution'] as const).map((key) => <button type="button" key={key} role="tab" aria-selected={view === key} onClick={() => setView(key)}>{key === 'diagram' ? (language === 'tr' ? 'Diyagram' : 'Diagram') : key === 'columns' ? (language === 'tr' ? 'Kolon Eşleşmeleri' : 'Column Mappings') : (language === 'tr' ? 'Yazma Stratejisi' : 'Write Strategy')}</button>)}</div>
+      <section hidden={view !== 'diagram'} className="mapping-section" aria-labelledby="datasets-title">
         <div className="mapping-section-heading">
           <h3 id="datasets-title">{t('datasets')}</h3>
           <div className="mapping-inline-actions">
@@ -145,7 +148,8 @@ export function MappingGrid({ projectUuid, value, onChange }: MappingGridProps) 
         {undoValue ? <button className="definition-button definition-button--quiet mapping-undo" type="button" onClick={() => { onChange(undoValue); setUndoValue(null) }}><Undo2 size={15} />{t('undo')}</button> : null}
       </section>
 
-      <section className="mapping-section" aria-labelledby="mapping-rows-title">
+      {view === 'diagram' && <MappingDiagram value={value} columns={Object.fromEntries(value.datasets.map((dataset) => [dataset.id, columnsFor(dataset.id).map((column) => column.reference)]))} onChange={onChange} />}
+      <section hidden={view !== 'columns'} className="mapping-section" aria-labelledby="mapping-rows-title">
         <div className="mapping-section-heading mapping-section-heading--wrap">
           <div>
             <h3 id="mapping-rows-title">{t('columnMappings')}</h3>
@@ -239,7 +243,7 @@ export function MappingGrid({ projectUuid, value, onChange }: MappingGridProps) 
                           }))
                         }
                       >
-                        <option value="">—</option>
+                        <option value="">{language === 'tr' ? 'Seçilmedi' : 'Not Selected'}</option>
                         {sources.map((dataset) => (
                           <option key={dataset.id} value={dataset.id}>{dataset.id}</option>
                         ))}
@@ -260,7 +264,7 @@ export function MappingGrid({ projectUuid, value, onChange }: MappingGridProps) 
                             },
                           }))
                         }
-                      ><option value="">—</option>{columnsFor(row.source?.dataset ?? '').map((column) => <option key={column.reference} value={column.reference}>{column.reference} · {column.producerType}</option>)}</select>
+                      ><option value="">{language === 'tr' ? 'Seçilmedi' : 'Not Selected'}</option>{columnsFor(row.source?.dataset ?? '').map((column) => <option key={column.reference} value={column.reference}>{column.reference} · {column.producerType}</option>)}</select>
                     </td>
                     <td>
                       <button
@@ -284,7 +288,7 @@ export function MappingGrid({ projectUuid, value, onChange }: MappingGridProps) 
                           }))
                         }
                       >
-                        <option value="">—</option>
+                        <option value="">{language === 'tr' ? 'Seçilmedi' : 'Not Selected'}</option>
                         {targets.map((dataset) => (
                           <option key={dataset.id} value={dataset.id}>{dataset.id}</option>
                         ))}
@@ -301,7 +305,7 @@ export function MappingGrid({ projectUuid, value, onChange }: MappingGridProps) 
                             target: { ...current.target, column: event.target.value },
                           }))
                         }
-                      ><option value="">—</option>{columnsFor(row.target.dataset).map((column) => <option key={column.reference} value={column.reference}>{column.reference} · {column.producerType}</option>)}</select>
+                      ><option value="">{language === 'tr' ? 'Seçilmedi' : 'Not Selected'}</option>{columnsFor(row.target.dataset).map((column) => <option key={column.reference} value={column.reference}>{column.reference} · {column.producerType}</option>)}</select>
                     </td>
                     <td>
                       <button
@@ -344,7 +348,7 @@ export function MappingGrid({ projectUuid, value, onChange }: MappingGridProps) 
         </div>
       </section>
 
-      <section className="mapping-section mapping-strategy" aria-labelledby="strategy-title">
+      <section hidden={view !== 'execution'} className="mapping-section mapping-strategy" aria-labelledby="strategy-title">
         <h3 id="strategy-title">{t('writeStrategy')}</h3>
         <label>
           <span>{t('writeStrategy')}</span>

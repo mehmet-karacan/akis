@@ -16,6 +16,7 @@ import { getRememberedProject } from '../features/projects/projectPreference'
 import { ProjectSwitcher } from './ProjectSwitcher'
 import { ConnectionsSubnavigation } from './ConnectionsSubnavigation'
 import { resolveWorkspace, WorkspaceNavigation } from './WorkspaceNavigation'
+import { DesignWorkspace } from './DesignWorkspace'
 
 export function AppShell() {
   const { t, i18n } = useTranslation()
@@ -112,7 +113,7 @@ export function AppShell() {
         </header>
         {projectUuid ? <WorkspaceNavigation hasPendingChanges={Boolean(pendingChanges)} onNavigate={requestNavigation} /> : null}
         {projectUuid && activeWorkspace === 'connections' ? <ConnectionsSubnavigation hasPendingChanges={Boolean(pendingChanges)} onNavigate={requestNavigation} /> : null}
-        <main id="main-content" className="main-content" tabIndex={-1}><Outlet /></main>
+        <main id="main-content" className="main-content" tabIndex={-1}>{activeWorkspace === 'development' ? <DesignWorkspace key={projectUuid} projectUuid={projectUuid} onNavigate={requestNavigation}><Outlet /></DesignWorkspace> : <Outlet />}</main>
       </div>
       <Dialog open={pendingPath !== null} title={t('pendingChanges.title')} eyebrow={t('pendingChanges.eyebrow')} closeLabel={t('common.close')} busy={savingBeforeLeave} onClose={() => setPendingPath(null)}>
         <p className="dialog-description">{t('pendingChanges.description')}</p>

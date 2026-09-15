@@ -34,6 +34,7 @@ final class JdbcOracleProcedureSourceReader {
         int queryLimit = source.maximumRows() + 1;
         try (PreparedStatement statement = session.applyQueryTimeout(
                 session.connection().prepareStatement(source.sql()))) {
+            ProcedureParameterBinder.bind(statement, task);
             statement.setMaxRows(queryLimit);
             statement.setFetchSize(Math.min(queryLimit, 250));
             try (ResultSet rows = statement.executeQuery()) {

@@ -1,21 +1,33 @@
-import { Plus, Search } from 'lucide-react'
+import { Cable, Database, GitBranch, Plus, Search, ShieldCheck } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
-import { AsyncState, FilterBar, PageHeader } from '../../core/ui'
+import { AsyncState, Button, Dialog, FilterBar, PageHeader, SummaryStrip } from '../../core/ui'
 import { useProjectAccess } from '../../core/auth/ProjectAccessContext'
 import { topologyApi } from '../topology/api'
 import type { ConnectionCatalogItem } from './catalog'
 import { ConnectionsTable } from './ConnectionsTable'
+import { ConnectionCards } from './ConnectionCards'
+import { useCollectionView, ViewToggle } from '../../core/ui/ViewToggle'
+import { ConnectionDetailPage } from './ConnectionDetailPage'
+import { OracleConnectionCreateForm } from '../topology/OracleConnectionCreateForm'
+import { getTopologyCopy } from '../topology/copy'
+import { ProgressiveRecords } from '../../core/ui/ProgressiveRecords'
 import './connections.css'
+import './catalog-layout.css'
+import { FilterSection } from '../../core/ui/FilterSection'
 
-const pageSize = 25
+
 
 export function ConnectionsPage() {
   const projectUuid = useCurrentProjectUuid()
+  const [view, setView] = useCollectionView('akis:connections:view')
   const { t, i18n } = useTranslation()
   const [params, setParams] = useSearchParams()
+  const [selectedUuid, setSelectedUuid] = useState<string | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [draftFilters, setDraftFilters] = useState({ q: params.get('q') ?? '', provider: params.get('provider') ?? 'ALL', sort: params.get('sort') ?? 'name' })
   const [catalog, setCatalog] = useState<ConnectionCatalogItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -40,24 +52,37 @@ export function ConnectionsPage() {
   const query = params.get('q') ?? ''
   const provider = params.get('provider') ?? 'ALL'
   const sort = params.get('sort') ?? 'name'
-  const page = Math.max(1, Number(params.get('page') ?? 1) || 1)
-  const updateParam = (key: string, value: string) => setParams((current) => { const next = new URLSearchParams(current); if (!value || value === 'ALL' || (key === 'page' && value === '1')) next.delete(key); else next.set(key, value); if (key !== 'page') next.delete('page'); return next })
+  const applyFilters = () => setParams({ q: draftFilters.q, provider: draftFilters.provider, sort: draftFilters.sort })
 
   const filtered = useMemo(() => catalog
     .filter((item) => provider === 'ALL' || item.connection.databaseType === provider)
     .filter((item) => `${item.connection.name} ${item.connection.code} ${item.connection.databaseType}`.toLocaleLowerCase(i18n.language).includes(query.trim().toLocaleLowerCase(i18n.language)))
     .sort((a, b) => sort === 'code' ? a.connection.code.localeCompare(b.connection.code, i18n.language) : a.connection.name.localeCompare(b.connection.name, i18n.language)), [catalog, i18n.language, provider, query, sort])
-  const pages = Math.max(1, Math.ceil(filtered.length / pageSize))
-  const visible = filtered.slice((Math.min(page, pages) - 1) * pageSize, Math.min(page, pages) * pageSize)
-  const labels = { provider: t('connections.provider'), connection: t('connections.connection'), endpoint: t('connections.endpoint'), physical: t('connections.physicalShort'), logical: t('connections.logicalShort'), status: t('connections.status'), actions: t('connections.actions'), open: t('connections.open'), ready: t('connections.ready'), testRequired: t('connections.testRequired') }
+  const labels = { host: i18n.language === 'tr' ? 'Sunucu' : 'Host', port: 'Port', service: i18n.language === 'tr' ? 'Servis Adı veya SID' : 'Service Name or SID', username: i18n.language === 'tr' ? 'Kullanıcı Adı' : 'Username', provider: t('connections.provider'), connection: t('connections.connection'), endpoint: t('connections.endpoint'), physical: t('connections.physicalShort'), logical: t('connections.logicalShort'), status: t('connections.status'), actions: t('connections.actions'), open: t('connections.open'), ready: t('connections.ready'), testRequired: t('connections.testRequired') }
 
   return <section className="page-stack connections-page">
-    <PageHeader eyebrow={t('connections.eyebrow')} title={t('connections.title')} description={t('connections.description')} actions={can('BAGLANTI_YONET') ? <Link className="button primary" to={`/projects/${projectUuid}/connections/new`}><Plus size={16} />{t('connections.add')}</Link> : undefined} />
-    <FilterBar>
-      <label className="connections-search"><Search size={16} /><span className="sr-only">{t('connections.search')}</span><input value={query} onChange={(event) => updateParam('q', event.target.value)} placeholder={t('connections.searchPlaceholder')} /></label>
-      <label><span className="sr-only">{t('connections.provider')}</span><select value={provider} onChange={(event) => updateParam('provider', event.target.value)}><option value="ALL">{t('connections.allProviders')}</option><option value="ORACLE">Oracle</option></select></label>
-      <label><span className="sr-only">{t('connections.sort')}</span><select value={sort} onChange={(event) => updateParam('sort', event.target.value)}><option value="name">{t('connections.sortName')}</option><option value="code">{t('connections.sortCode')}</option></select></label>
-    </FilterBar>
-    {loading ? <AsyncState state="loading" title={t('common.loading')} /> : error ? <AsyncState state="error" title={error} retryLabel={t('common.retry')} onRetry={() => void load()} /> : filtered.length === 0 ? <AsyncState state="empty" title={t('connections.empty')} description={t('connections.emptyHint')} /> : <><ConnectionsTable projectUuid={projectUuid} items={visible} labels={labels} /><footer className="connections-pagination"><span>{t('connections.resultCount', { count: filtered.length })}</span><div><button className="button secondary" disabled={page <= 1} onClick={() => updateParam('page', String(page - 1))}>{t('connections.previous')}</button><span>{Math.min(page, pages)} / {pages}</span><button className="button secondary" disabled={page >= pages} onClick={() => updateParam('page', String(page + 1))}>{t('connections.next')}</button></div></footer></>}
+    <section className="connection-management-panel"><PageHeader title={t('connections.title')} description={t('connections.description')} />
+    <FilterSection><FilterBar>
+      <label className="connections-search"><span>{t('connections.search')}</span><input value={draftFilters.q} onChange={(event) => setDraftFilters(current => ({ ...current, q: event.target.value }))} placeholder={t('connections.searchPlaceholder')} /></label>
+      <label><span>{t('connections.provider')}</span><select value={draftFilters.provider} onChange={(event) => setDraftFilters(current => ({ ...current, provider: event.target.value }))}><option value="ALL">{t('connections.allProviders')}</option><option value="ORACLE">Oracle</option></select></label>
+      <label><span>{t('connections.sort')}</span><select value={draftFilters.sort} onChange={(event) => setDraftFilters(current => ({ ...current, sort: event.target.value }))}><option value="name">{t('connections.sortName')}</option><option value="code">{t('connections.sortCode')}</option></select></label>
+    </FilterBar><div className="connection-filter-actions"><Button onClick={() => { setDraftFilters({ q: '', provider: 'ALL', sort: 'name' }); setParams({}) }}>{i18n.language === 'tr' ? 'Temizle' : 'Clear'}</Button><Button tone="primary" icon={<Search size={16} />} onClick={applyFilters}>{i18n.language === 'tr' ? 'Sorgula' : 'Search'}</Button></div></FilterSection></section>
+    <SummaryStrip ariaLabel={i18n.language === 'tr' ? 'Bağlantı özeti' : 'Connection summary'} items={[
+      { label: i18n.language === 'tr' ? 'Toplam Bağlantı' : 'Total Connections', value: catalog.length, icon: <Cable />, tone: 'info' },
+      { label: i18n.language === 'tr' ? 'Fiziksel Şema' : 'Physical Schemas', value: catalog.reduce((sum, item) => sum + item.physicalSchemaCount, 0), icon: <Database />, tone: 'success' },
+      { label: i18n.language === 'tr' ? 'Mantıksal Şema' : 'Logical Schemas', value: catalog.reduce((sum, item) => sum + item.logicalSchemaCount, 0), icon: <GitBranch />, tone: 'neutral' },
+      { label: i18n.language === 'tr' ? 'Test Edilmiş' : 'Tested', value: catalog.filter((item) => item.displayedVersion?.testedAt).length, icon: <ShieldCheck />, tone: 'success' },
+    ]} />
+    <div className="connection-view-toolbar">{can('BAGLANTI_YONET') && <Button tone="primary" icon={<Plus size={16} />} onClick={() => setCreating(true)}>{t('connections.add')}</Button>}<span>{i18n.language === 'tr' ? 'Görünüm' : 'View'}</span><ViewToggle value={view} onChange={setView} /></div>
+    <section className="connections-records"><header className="connections-records-header"><h2>{i18n.language === 'tr' ? 'Kayıtlar' : 'Records'}</h2>
+    </header>
+    {loading ? <AsyncState state="loading" title={t('common.loading')} /> : error ? <AsyncState state="error" title={error} retryLabel={t('common.retry')} onRetry={() => void load()} /> : filtered.length === 0 ? <AsyncState state="empty" title={t('connections.empty')} description={t('connections.emptyHint')} /> : <ProgressiveRecords key={`${query}:${provider}:${sort}`} items={filtered}>{(visible) => view === 'table' ?  <ConnectionsTable projectUuid={projectUuid} items={visible} labels={labels} onOpen={setSelectedUuid} /> : <ConnectionCards items={visible} view={view} onOpen={setSelectedUuid} />}</ProgressiveRecords>}
+    </section>
+    <Dialog open={selectedUuid !== null} title={t('connections.details')} closeLabel={t('common.close')} onClose={() => setSelectedUuid(null)} className="connection-catalog-dialog">
+      {selectedUuid && <ConnectionDetailPage key={selectedUuid} selectedUuid={selectedUuid} onChanged={() => void load()} onDeleted={() => { setSelectedUuid(null); void load() }} />}
+    </Dialog>
+    <Dialog open={creating} title={t('connections.createTitle')} closeLabel={t('common.close')} onClose={() => setCreating(false)} className="connection-catalog-dialog">
+      <OracleConnectionCreateForm projectUuid={projectUuid} copy={getTopologyCopy(i18n.language)} onClose={() => setCreating(false)} onConnectionCreated={async (uuid) => { setCreating(false); await load(); setSelectedUuid(uuid) }} />
+    </Dialog>
   </section>
 }

@@ -162,6 +162,7 @@ export interface ProcedureTask {
   timeoutSeconds?: number
   output?: { kind: 'ROWSET'; maxRows: number }
   input?: { fromTask: string; mode: 'BATCH'; batchSize: number }
+  parameters?: Record<string, { type: 'STRING' | 'INTEGER' | 'DECIMAL' | 'BOOLEAN' | 'DATE' | 'TIMESTAMP'; value?: string; valueSource?: 'VALUE' | 'REFRESH_QUERY'; query?: string; definitionUuid?: string }>
 }
 
 export interface ProcedureContent {

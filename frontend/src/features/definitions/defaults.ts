@@ -53,10 +53,11 @@ const defaults: Record<DefinitionType, unknown> = {
   },
   PROCEDURE: DEFAULT_PROCEDURE,
   VARIABLE: {
-    dataType: 'STRING',
+    dataType: 'DATE',
     scope: 'PROJECT',
     historyMode: 'LATEST',
-    valueSource: 'INPUT',
+    valueSource: 'REFRESH_QUERY',
+    query: 'SELECT SYSDATE - 1 FROM DUAL',
   },
   SEQUENCE: { implementation: 'REPOSITORY', start: 1, increment: 1, cycle: false },
   USER_FUNCTION: { returnType: 'STRING', parameters: [], implementations: [] },

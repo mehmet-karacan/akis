@@ -34,7 +34,14 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
   if (authorizationHeader) headers.set('Authorization', authorizationHeader)
   if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
 
-  const response = await fetch(path, { ...init, headers })
+  let response: Response
+  try {
+    response = await fetch(path, { ...init, headers })
+  } catch (error) {
+    if (init.signal?.aborted || (typeof error === 'object' && error !== null && 'name' in error && error.name === 'AbortError')) throw error
+    throw networkError()
+  }
+  if ([502, 503, 504].includes(response.status)) throw networkError()
   if (!response.ok) {
     let problem: ProblemDetails = { status: response.status, title: response.statusText }
     try {
@@ -50,4 +57,13 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
 
 export function jsonBody(value: unknown): Pick<RequestInit, 'body'> {
   return { body: JSON.stringify(value) }
+}
+import { notifyNetworkFailure } from './networkFeedback'
+import i18n from '../i18n'
+
+function networkError() {
+  notifyNetworkFailure()
+  return new Error(i18n.language.startsWith('tr')
+    ? 'Uygulama sunucusuna ulaşılamıyor. Bağlantınızı kontrol edip yeniden deneyin.'
+    : 'Cannot reach the application server. Check your connection and try again.')
 }

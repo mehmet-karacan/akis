@@ -49,6 +49,7 @@ public record ProcedureRuntimePlan(
             RowsetOutput output,
             BatchInput input,
             List<String> namedBinds,
+            Map<String, ParameterValue> parameters,
             LogCounter logCounter,
             TransactionMode transactionMode,
             Integer transactionChannel,
@@ -57,6 +58,7 @@ public record ProcedureRuntimePlan(
 
         public Task {
             namedBinds = List.copyOf(namedBinds);
+            parameters = Map.copyOf(parameters);
             logCounter = logCounter == null ? LogCounter.NONE : logCounter;
             transactionMode = transactionMode == null ? TransactionMode.AUTOCOMMIT : transactionMode;
             transactionIsolation = transactionIsolation == null
@@ -80,10 +82,34 @@ public record ProcedureRuntimePlan(
                 List<String> namedBinds) {
             this(id, name, type, connectionRole, riskClass, command, commandHash,
                     requiresApproval, onError, timeoutSeconds, output, input,
-                    namedBinds, LogCounter.NONE, TransactionMode.AUTOCOMMIT, null,
+                    namedBinds, Map.of(), LogCounter.NONE, TransactionMode.AUTOCOMMIT, null,
                     TransactionIsolation.DRIVER_DEFAULT, CommitMode.COMMIT);
         }
+
+        public Task(String id, String name, TaskType type, ConnectionRole connectionRole,
+                RiskClass riskClass, String command, String commandHash,
+                boolean requiresApproval, ErrorPolicy onError, int timeoutSeconds,
+                RowsetOutput output, BatchInput input, List<String> namedBinds,
+                LogCounter logCounter, TransactionMode transactionMode,
+                Integer transactionChannel, TransactionIsolation transactionIsolation,
+                CommitMode commitMode) {
+            this(id, name, type, connectionRole, riskClass, command, commandHash,
+                    requiresApproval, onError, timeoutSeconds, output, input, namedBinds,
+                    Map.of(), logCounter, transactionMode, transactionChannel,
+                    transactionIsolation, commitMode);
+        }
     }
+
+    public record ParameterValue(
+            ParameterType type, String value, ParameterSource source,
+            String refreshQuery, UUID definitionUuid) {
+        public ParameterValue(ParameterType type, String value) {
+            this(type, value, ParameterSource.VALUE, null, null);
+        }
+    }
+
+    public enum ParameterType { STRING, INTEGER, DECIMAL, BOOLEAN, DATE, TIMESTAMP }
+    public enum ParameterSource { VALUE, REFRESH_QUERY }
 
     public record RowsetOutput(int maximumRows) {
     }

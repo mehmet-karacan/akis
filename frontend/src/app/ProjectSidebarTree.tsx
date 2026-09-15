@@ -1,4 +1,4 @@
-import { Blocks, Braces, ChevronDown, ChevronRight, Database, ExternalLink, FileCode2, Folder, FolderOpen, FolderPlus, Hash, Minus, MoreHorizontal, PanelRightOpen, Play, Plus, RefreshCw, Variable, WandSparkles, Workflow, X } from 'lucide-react'
+import { Blocks, Braces, ChevronDown, ChevronRight, ExternalLink, FileCode2, Folder, FolderOpen, FolderPlus, Hash, MoreHorizontal, PanelRightOpen, Play, Plus, RefreshCw, Variable, WandSparkles, Workflow, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { DefinitionTypeIcon } from '../features/definitions/DefinitionTypeIcon'
@@ -8,6 +8,7 @@ import type { Definition, Folder as ProjectFolder } from '../features/definition
 import { definitionsApi } from '../features/definitions/api'
 import { useProjectAccess } from '../core/auth/ProjectAccessContext'
 import { projectRoute } from '../features/projects/CurrentProjectContext'
+import { ProjectModelTree } from './ProjectModelTree'
 
 const FLOW_TYPES = new Set(['MAPPING', 'PACKAGE', 'PROCEDURE', 'LOAD_PLAN'])
 const FLOW_GROUPS = [
@@ -150,8 +151,8 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
     const label = shellT(labelKey)
     return <li key={groupUuid} className="sidebar-folder sidebar-type-cluster">
       <div className="sidebar-folder-action-row" onContextMenu={(event) => { event.preventDefault(); createFlow(type, folderUuid) }}>
-        <button type="button" className="sidebar-folder-row" onClick={() => toggle(groupUuid)} aria-expanded={open}>{open ? <Minus /> : <Plus />}<DefinitionTypeIcon type={type} /><span>{label}</span><small>{items.length}</small></button>
-        {canWrite && <button type="button" className="sidebar-object-menu-button" aria-label={shellT('nav.addNamed', { name: label })} onClick={() => createFlow(type, folderUuid)}><MoreHorizontal /></button>}
+        <button type="button" className="sidebar-folder-row" onClick={() => toggle(groupUuid)} aria-expanded={open}>{open ? <ChevronDown /> : <ChevronRight />}<DefinitionTypeIcon type={type} /><span>{label}</span><small>{items.length}</small></button>
+        {canWrite && <button type="button" className="sidebar-object-menu-button sidebar-type-add-button" title={shellT('nav.addNamed', { name: label })} aria-label={shellT('nav.addNamed', { name: label })} onClick={() => createFlow(type, folderUuid)}><Plus /></button>}
       </div>
       {open && (items.length > 0 ? <ul>{items.map(definitionItem)}</ul> : <p className="sidebar-group-empty">{shellT('nav.emptyGroup')}</p>)}
     </li>
@@ -159,7 +160,7 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
   const folderItem = (folder: FolderTreeNode) => {
     const open = expanded.has(folder.uuid)
     const directDefinitions = definitionsByFolder.get(folder.uuid) ?? []
-    return <li key={folder.uuid} className="sidebar-folder">
+    return <li key={folder.uuid} className="sidebar-folder sidebar-project-folder">
       <div className="sidebar-folder-action-row" onContextMenu={(event) => openFolderMenu(folder, event)}>
         <button type="button" className="sidebar-folder-row" onClick={() => toggle(folder.uuid)} aria-expanded={open}>
           {open ? <ChevronDown /> : <ChevronRight />}{open ? <FolderOpen /> : <Folder />}<span>{folder.name}</span><small>{folder.children.length + directDefinitions.length}</small>
@@ -195,7 +196,7 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
       {loading ? <p className="sidebar-tree-state">{shellT('common.loading')}</p> : failed ? <button className="sidebar-tree-retry" type="button" onClick={onRetry}><RefreshCw />{shellT('common.retry')}</button> : <ul className="sidebar-tree sidebar-tree--virtual">
         <li className="sidebar-folder sidebar-virtual-root">
           <div className="sidebar-folder-action-row" onContextMenu={(event) => { event.preventDefault(); if (canWrite) onNavigate(`${projectRoute('/objects')}?createFolder=`) }}><button type="button" className="sidebar-folder-row" onClick={() => toggle(VIRTUAL.flows)} aria-expanded={flowsOpen}>{flowsOpen ? <ChevronDown /> : <ChevronRight />}<Workflow /><span>{shellT('nav.flows')}</span><small>{flowDefinitions.length}</small></button>{canWrite && <button type="button" className="sidebar-object-menu-button sidebar-object-menu-button--always" aria-label={shellT('nav.createRootFolder')} onClick={() => onNavigate(`${projectRoute('/objects')}?createFolder=`)}><Plus /></button>}</div>
-          {flowsOpen && <ul>{tree.map(folderItem)}{unfiled.length > 0 && <li className="sidebar-folder"><div className="sidebar-folder-row sidebar-folder-row--static"><span className="sidebar-folder-spacer" /><Folder /><span>{shellT('nav.unfiled')}</span><small>{unfiled.length}</small></div><ul>{FLOW_GROUPS.filter((group) => unfiled.some((item) => item.type === group.type)).map((group) => flowGroupItem('unfiled', null, group.type, group.label, unfiled.filter((item) => item.type === group.type)))}</ul></li>}{tree.length === 0 && unfiled.length === 0 && <li><p className="sidebar-group-empty"><FileCode2 />{shellT('nav.noFlows')}</p></li>}</ul>}
+          {flowsOpen && <ul>{tree.map(folderItem)}{unfiled.length > 0 && <li className="sidebar-folder sidebar-project-folder"><div className="sidebar-folder-row sidebar-folder-row--static"><span className="sidebar-folder-spacer" /><Folder /><span>{shellT('nav.unfiled')}</span><small>{unfiled.length}</small></div><ul>{FLOW_GROUPS.filter((group) => unfiled.some((item) => item.type === group.type)).map((group) => flowGroupItem('unfiled', null, group.type, group.label, unfiled.filter((item) => item.type === group.type)))}</ul></li>}{tree.length === 0 && unfiled.length === 0 && <li><p className="sidebar-group-empty"><FileCode2 />{shellT('nav.noFlows')}</p></li>}</ul>}
         </li>
         <li className="sidebar-folder sidebar-virtual-root">
           <div className="sidebar-folder-action-row" onContextMenu={(event) => openCreationMenu(null, event)}>
@@ -204,9 +205,7 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
           </div>
           {componentsOpen && <ul>{COMPONENT_TYPES.map(componentGroup)}</ul>}
         </li>
-        <li className="sidebar-folder sidebar-model-link">
-          <button type="button" className="sidebar-folder-row sidebar-folder-row--link" onClick={() => onNavigate(projectRoute('/models'))}><span className="sidebar-folder-spacer" /><Database /><span>{shellT('nav.models')}</span><ChevronRight /></button>
-        </li>
+        <ProjectModelTree key={projectUuid} projectUuid={projectUuid} onNavigate={onNavigate} />
       </ul>}
     </div>
     {menu && <div className="sidebar-object-context-menu" role="menu" style={{ left: Math.min(menu.x, window.innerWidth - 220), top: Math.min(menu.y, window.innerHeight - 190) }} onKeyDown={handleMenuKeys} onClick={(event) => event.stopPropagation()}>

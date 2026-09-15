@@ -8,7 +8,7 @@ describe('DatabaseProviderIcon', () => {
 
     const icon = screen.getByRole('img', { name: 'Oracle database' })
     expect(icon).toHaveAttribute('data-provider', 'oracle')
-    expect(icon).toHaveTextContent('O')
+    expect(icon.querySelector('.oracle-mark')).toBeInTheDocument()
   })
 
   it('normalizes known provider aliases and keeps an unknown provider legible', () => {

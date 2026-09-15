@@ -82,7 +82,7 @@ describe('persistent project sidebar tree', () => {
     fireEvent.click(screen.getByText('Variable').closest('button')!)
     expect(screen.getByText('Run Date')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Models' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open: Models' }))
     expect(navigate).toHaveBeenCalledWith('/project/models')
   })
 

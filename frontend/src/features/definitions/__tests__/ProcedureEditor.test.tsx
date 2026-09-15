@@ -1,11 +1,12 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import i18n from '../../../core/i18n'
 import { DEFAULT_PROCEDURE, isProcedureContent } from '../defaults'
 import { applyAutomaticRowHandoffs, groupProcedureTasks, inferProcedureTaskMetadata, isProcedureSideConfigured, pageProcedureTasks, ProcedureEditor } from '../ProcedureEditor'
 import { inferProcedureLogCounter } from '../procedureCatalog'
 import type { ProcedureContent } from '../types'
+import { definitionsApi } from '../api'
 
 function Harness() {
   const [content, setContent] = useState<ProcedureContent>(DEFAULT_PROCEDURE)
@@ -13,7 +14,7 @@ function Harness() {
 }
 
 function openTasks() {
-  fireEvent.click(screen.getByRole('tab', { name: /Tasks/ }))
+  expect(screen.getByRole('heading', { name: 'Procedure steps' })).toBeInTheDocument()
 }
 
 describe('ProcedureEditor', () => {
@@ -98,10 +99,32 @@ describe('ProcedureEditor', () => {
     const { container } = render(<Harness />)
     openTasks()
     fireEvent.click(screen.getByRole('button', { name: 'Add Step' }))
-    const rows = container.querySelectorAll('.procedure-task-list > .procedure-task')
+    const rows = container.querySelectorAll('.procedure-task-table tbody > .procedure-task')
     expect(rows).toHaveLength(2)
     expect(rows[0]?.parentElement).toBe(rows[1]?.parentElement)
     expect(screen.getByLabelText('Log Counter')).toBeInTheDocument()
+  })
+
+  it('keeps the selected command tab while moving between steps', () => {
+    const { container } = render(<Harness />)
+    openTasks()
+    fireEvent.click(screen.getByRole('button', { name: 'Add Step' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Target Command' }))
+    fireEvent.click(container.querySelectorAll<HTMLButtonElement>('.procedure-task-select')[0]!)
+    expect(screen.getByRole('tab', { name: 'Target Command' })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('binds a refresh-query variable to a named SQL bind', async () => {
+    vi.spyOn(definitionsApi, 'listDefinitions').mockResolvedValue([{ uuid: 'variable-id', folderUuid: null, type: 'VARIABLE', code: 'DUN_TARIHI', status: 'ACTIVE', name: 'Dün Tarihi', description: null, version: 1 }])
+    vi.spyOn(definitionsApi, 'getDraft').mockResolvedValue({ uuid: 'draft-id', schemaVersion: 1, version: 1, content: { dataType: 'DATE', scope: 'PROJECT', historyMode: 'LATEST', valueSource: 'REFRESH_QUERY', query: 'SELECT SYSDATE - 1 FROM DUAL' } })
+    render(<Harness />)
+    openTasks()
+    fireEvent.click(screen.getByRole('tab', { name: 'Target Command' }))
+    await waitFor(() => expect(screen.getByRole('option', { name: 'Dün Tarihi' })).toBeInTheDocument())
+    fireEvent.change(screen.getByLabelText('Defined Variables'), { target: { value: 'variable-id' } })
+
+    await waitFor(() => expect(screen.getByText(':DUN_TARIHI')).toBeInTheDocument())
+    expect(screen.getByText(':DUN_TARIHI').closest('.procedure-variable-chip')).toHaveAttribute('title', 'SELECT SYSDATE - 1 FROM DUAL')
   })
 
   it('marks a command configured only when its execution context is complete', () => {

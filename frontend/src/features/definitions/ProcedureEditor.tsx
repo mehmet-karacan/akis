@@ -15,6 +15,7 @@ import {
   type LogicalSchema,
 } from "../topology/api";
 import { useDefinitionsI18n } from "./i18n";
+import { definitionsApi } from "./api";
 import {
   normalizeProcedureLogCounter,
   PROCEDURE_LOG_COUNTERS,
@@ -24,6 +25,7 @@ import type {
   ProcedureConnectionRole,
   ProcedureContent,
   ProcedureTask,
+  Definition,
 } from "./types";
 
 interface Props {
@@ -185,7 +187,6 @@ export function applyAutomaticRowHandoffs(
 
 export function ProcedureEditor({
   projectUuid,
-  definition,
   value,
   onChange,
   limits = {
@@ -195,7 +196,6 @@ export function ProcedureEditor({
   },
 }: Props) {
   const { t } = useDefinitionsI18n();
-  const [section, setSection] = useState<"DEFINITION" | "TASKS">("TASKS");
   const [selectedTaskId, setSelectedTaskId] = useState(
     value.tasks[0]?.id ?? "",
   );
@@ -208,6 +208,7 @@ export function ProcedureEditor({
   const [message, setMessage] = useState("");
   const [logicalSchemas, setLogicalSchemas] = useState<LogicalSchema[]>([]);
   const [environments, setEnvironments] = useState<Environment[]>([]);
+  const [variables, setVariables] = useState<Definition[]>([]);
   useEffect(() => {
     let active = true;
     void Promise.all([
@@ -223,6 +224,9 @@ export function ProcedureEditor({
       .catch(() => {
         if (active) setMessage(t("contextLoadFailed"));
       });
+    void definitionsApi.listDefinitions(projectUuid, "VARIABLE")
+      .then((items) => { if (active) setVariables(items); })
+      .catch(() => { if (active) setMessage(t("contextLoadFailed")); });
     return () => {
       active = false;
     };
@@ -404,7 +408,36 @@ export function ProcedureEditor({
             </label> : null}
           </div>
           <div className="procedure-command">
-            <span>{t(role === "SOURCE" ? "sourceSql" : "targetSql")}</span>
+            <div className="procedure-command-heading">
+              <span>{t(role === "SOURCE" ? "sourceSql" : "targetSql")}</span>
+              <div className="procedure-variable-picker">
+                {Object.entries(task?.parameters ?? {}).map(([name, parameter]) => <span className="procedure-variable-chip" key={name} title={parameter.query}>
+                  <code>:{name}</code>
+                  <button type="button" aria-label={`${t("remove")}: ${name}`} onClick={() => { const parameters = { ...task!.parameters }; delete parameters[name]; updateTask(task!, { parameters }); }}>×</button>
+                </span>)}
+                <select aria-label={t("definedVariables")} value="" onChange={async (event) => {
+                const definition = variables.find((candidate) => candidate.uuid === event.target.value);
+                if (!definition) return;
+                const draft = await definitionsApi.getDraft(projectUuid, definition.uuid);
+                const content = (draft?.content && typeof draft.content === "object" ? draft.content : {}) as Record<string, unknown>;
+                if (content.valueSource !== "REFRESH_QUERY" || typeof content.query !== "string") {
+                  setMessage(t("contextLoadFailed"));
+                  return;
+                }
+                const name = definition.code.toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+                const parameters = { ...(task?.parameters ?? {}), [name]: {
+                  type: String(content.dataType ?? "DATE") as "DATE",
+                  valueSource: "REFRESH_QUERY" as const,
+                  query: content.query,
+                  definitionUuid: definition.uuid,
+                } };
+                updateSide(role, task, { parameters });
+              }}>
+                <option value="">{t("definedVariables")}</option>
+                {variables.map((variable) => <option key={variable.uuid} value={variable.uuid}>{variable.name}</option>)}
+              </select>
+              </div>
+            </div>
             <SqlEditor label={t(role === "SOURCE" ? "sourceSql" : "targetSql")} value={task?.command ?? ""} onChange={(command) => {
               const base = task ?? nextTask(role, value.tasks);
               const metadata = inferProcedureTaskMetadata(base, command);
@@ -417,30 +450,13 @@ export function ProcedureEditor({
                   commitMode: "COMMIT" as const,
                 } : {}),
               });
-            }} errors={sqlIssues} />
+            }} errors={sqlIssues} validLabel={t("sqlValid")} invalidLabel={t("sqlInvalid")} emptyLabel={t("sqlValidationPending")} formatLabel={t("formatSql")} />
           </div>
       </section>
     );
   };
   return (
     <div className="procedure-editor">
-      <nav className="procedure-section-tabs" role="tablist" aria-label={t("procedureSections")}>
-        <button type="button" role="tab" aria-selected={section === "DEFINITION"} onClick={() => setSection("DEFINITION")}>{t("definitionSection")}</button>
-        <button type="button" role="tab" aria-selected={section === "TASKS"} onClick={() => setSection("TASKS")}>{t("tasksSection")} <span>{units.length}</span></button>
-      </nav>
-      {section === "DEFINITION" ? (
-        <section className="procedure-definition-overview" role="tabpanel">
-          <header><div><p className="eyebrow">{t("procedureDefinition")}</p><h3>{definition?.name ?? t("procedure")}</h3></div><code>{definition?.code ?? "PROCEDURE"}</code></header>
-          <div className="procedure-definition-grid">
-            <label><span>{t("name")}</span><input value={definition?.name ?? ""} readOnly /></label>
-            <label><span>{t("connectionModel")}</span><input value={units.some((unit) => unit.source && unit.target) ? t("multiConnection") : t("singleConnection")} readOnly /></label>
-            <label><span>{t("sourceTechnology")}</span><input value="Oracle" readOnly /></label>
-            <label><span>{t("targetTechnology")}</span><input value="Oracle" readOnly /></label>
-            <label className="procedure-definition-description"><span>{t("description")}</span><textarea value={definition?.description ?? ""} rows={6} readOnly placeholder={t("noDescription")} /></label>
-          </div>
-          <p className="procedure-definition-note">{t("procedureDefinitionNote")}</p>
-        </section>
-      ) : <>
       <header className="procedure-editor-heading">
         <div>
           <h3>{t("procedureSteps")}</h3>
@@ -494,39 +510,25 @@ export function ProcedureEditor({
       ) : null}
       <div className="procedure-workbench">
         <aside className="procedure-list-column">
-          <div className="procedure-pane-label">{t("procedureSteps")}</div>
-          <div
-            className="procedure-task-list"
-            role="list"
-            aria-label={t("procedureSteps")}
-          >
+          <div className="procedure-task-list">
+          <table className="procedure-task-table" aria-label={t("procedureSteps")}>
+            <colgroup><col className="procedure-col-number" /><col /><col className="procedure-col-command" /><col className="procedure-col-counter" /><col className="procedure-col-actions" /></colgroup>
+            <thead><tr><th>#</th><th>{t("stepName")}</th><th>{t("commands")}</th><th>{t("logCounter")}</th><th>{t("actions")}</th></tr></thead>
+            <tbody>
             {visible.map((unit, pageIndex) => {
               const index = safePage * PAGE_SIZE + pageIndex;
               const task = unit.target ?? unit.source!;
               const isSelected = unit.tasks.some((candidate) => candidate.id === selectedTaskId);
               return (
-              <article
+              <tr
                 className={`procedure-task ${isSelected ? "is-selected" : ""}`}
                 key={task.id}
               >
-                <button
-                  className="procedure-task-select"
-                  type="button"
-                  onClick={() => {
-                    setSelectedTaskId(task.id);
-                    setSelectedRole(unit.target ? "TARGET" : "SOURCE");
-                    setSelectedDetail("GENERAL");
-                  }}
-                  aria-pressed={isSelected}
-                >
-                  <span className="procedure-step-number">{index + 1}</span>
-                  <div>
-                    <strong>{task.name || task.id}</strong>
-                    <small className="procedure-step-route"><span className={isProcedureSideConfigured(unit.source) ? "is-ready" : ""}>{t("source")}</span><span aria-hidden="true">→</span><span className={isProcedureSideConfigured(unit.target) ? "is-ready" : ""}>{t("target")}</span></small>
-                  </div>
-                  <small className="procedure-step-counter">{t("logCounter")}: {t(LOG_COUNTER_LABEL_KEYS[normalizeProcedureLogCounter((unit.target ?? unit.source)?.logCounter)])}</small>
-                </button>
-                <div className="procedure-task-actions">
+                <td className="procedure-step-number">{index + 1}</td>
+                <td><button className="procedure-task-select" type="button" onClick={() => { setSelectedTaskId(task.id); setSelectedRole(unit.target ? "TARGET" : "SOURCE"); }} aria-pressed={isSelected}><strong>{task.name || task.id}</strong></button></td>
+                <td><small className="procedure-step-route"><span className={isProcedureSideConfigured(unit.source) ? "is-ready" : ""}>{t("source")}</span><span aria-hidden="true">→</span><span className={isProcedureSideConfigured(unit.target) ? "is-ready" : ""}>{t("target")}</span></small></td>
+                <td><small className="procedure-step-counter">{t(LOG_COUNTER_LABEL_KEYS[normalizeProcedureLogCounter((unit.target ?? unit.source)?.logCounter)])}</small></td>
+                <td><div className="procedure-task-actions">
                   <button
                     className="definition-icon-button"
                     type="button"
@@ -561,10 +563,12 @@ export function ProcedureEditor({
                   >
                     <Trash2 size={15} />
                   </button>
-                </div>
-              </article>
+                </div></td>
+              </tr>
               );
             })}
+            </tbody>
+          </table>
           </div>
           {pages > 1 ? (
             <nav className="procedure-pagination" aria-label={t("stepPages")}>
@@ -591,9 +595,8 @@ export function ProcedureEditor({
             className="procedure-task-editor"
             aria-label={`${t("stepEditor")}: ${(selectedUnit.target ?? selectedUnit.source)?.name ?? ""}`}
           >
-            <div className="procedure-pane-label procedure-pane-label--detail">{t("stepDetails")}</div>
             <header>
-              <div><p className="eyebrow">{t("selectedStep")}</p><strong>{(selectedUnit.target ?? selectedUnit.source)?.name ?? ""}</strong></div>
+              <div><strong>{t("stepDetails")}</strong><span aria-hidden="true">·</span><b>{(selectedUnit.target ?? selectedUnit.source)?.name ?? ""}</b></div>
               <span>
                 {units.indexOf(selectedUnit) + 1} / {units.length}
               </span>
@@ -632,7 +635,6 @@ export function ProcedureEditor({
           <p className="definition-state">{t("noProcedureSteps")}</p>
         )}
       </div>
-      </>}
     </div>
   );
 }

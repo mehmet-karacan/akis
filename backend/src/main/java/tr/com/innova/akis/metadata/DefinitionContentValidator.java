@@ -612,8 +612,14 @@ public final class DefinitionContentValidator {
                 "STRING", "INTEGER", "DECIMAL", "BOOLEAN", "DATE", "TIMESTAMP", "JSON"));
         requireAllowed(content, "scope", Set.of("GLOBAL", "PROJECT", "PACKAGE_RUN", "STEP"));
         requireAllowed(content, "historyMode", Set.of("NONE", "LATEST", "ALL"));
-        requireAllowed(content, "valueSource", Set.of(
+        String valueSource = requireAllowed(content, "valueSource", Set.of(
                 "INPUT", "DEFAULT", "REFRESH_QUERY", "EXPRESSION", "STEP_OUTPUT"));
+        if ("REFRESH_QUERY".equals(valueSource)) {
+            String query = requireText(content, "query").strip();
+            if (!query.matches("(?i)^SELECT\\s+SYSDATE\\s*-\\s*1\\s+FROM\\s+DUAL$")) {
+                fail("Değişken yenileme sorgusu desteklenen güvenli SELECT sözleşmesine uymalıdır.");
+            }
+        }
     }
 
     private void validateSequence(JsonNode content) {

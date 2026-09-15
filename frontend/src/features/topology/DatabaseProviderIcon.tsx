@@ -37,8 +37,7 @@ export function DatabaseProviderIcon({ databaseType }: { databaseType: string })
       title={provider.label}
       data-provider={provider.tone}
     >
-      <span aria-hidden="true">{provider.monogram}</span>
-      <Database aria-hidden="true" />
+      {provider.tone === 'oracle' ? <svg className="oracle-mark" viewBox="0 0 32 20" aria-hidden="true"><rect x="2" y="3" width="28" height="14" rx="7" fill="none" stroke="currentColor" strokeWidth="3.5" /></svg> : <Database aria-hidden="true" />}
     </span>
   )
 }

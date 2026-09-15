@@ -22,7 +22,12 @@ final class TopologyModels {
             String status,
             String name,
             String description,
-            long version) {
+            long version,
+            String createdBy,
+            OffsetDateTime createdAt) {
+        ConnectionRow(long id, long projectId, UUID uuid, String code, String databaseType, String status, String name, String description, long version) {
+            this(id, projectId, uuid, code, databaseType, status, name, description, version, null, null);
+        }
     }
 
     record ConnectionCatalogRow(

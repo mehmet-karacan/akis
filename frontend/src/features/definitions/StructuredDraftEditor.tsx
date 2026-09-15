@@ -1,6 +1,7 @@
 import { Plus, Trash2 } from 'lucide-react'
 import { definitionCodeLabel, useDefinitionsI18n } from './i18n'
 import type { DefinitionType } from './types'
+import { KnowledgeModuleEditor } from './KnowledgeModuleEditor'
 
 interface Props { type: DefinitionType; value: unknown; onChange: (value: unknown) => void }
 type Content = Record<string, unknown>
@@ -13,12 +14,12 @@ export function StructuredDraftEditor({ type, value, onChange }: Props) {
   const set = (key: string, next: unknown) => onChange({ ...content, [key]: next })
 
   if (type === 'VARIABLE') return <div className="structured-draft-form">
-    <label><span>{t('dataType')}</span><select value={String(content.dataType ?? 'STRING')} onChange={(event) => set('dataType', event.target.value)}>{options(['STRING', 'NUMBER', 'DATE', 'BOOLEAN'])}</select></label>
-    <label><span>{t('scope')}</span><select value={String(content.scope ?? 'PROJECT')} onChange={(event) => set('scope', event.target.value)}>{options(['PROJECT', 'PACKAGE'])}</select></label>
-    <label><span>{t('historyMode')}</span><select value={String(content.historyMode ?? 'LATEST')} onChange={(event) => set('historyMode', event.target.value)}>{options(['LATEST', 'HISTORY'])}</select></label>
-    <label><span>{t('valueSource')}</span><select value={String(content.valueSource ?? 'INPUT')} onChange={(event) => set('valueSource', event.target.value)}>{options(['INPUT', 'SQL', 'DEFAULT'])}</select></label>
+    <label><span>{t('dataType')}</span><select value={String(content.dataType ?? 'DATE')} onChange={(event) => set('dataType', event.target.value)}>{options(['STRING', 'INTEGER', 'DECIMAL', 'BOOLEAN', 'DATE', 'TIMESTAMP'])}</select></label>
+    <label><span>{t('scope')}</span><select value={String(content.scope ?? 'PROJECT')} onChange={(event) => set('scope', event.target.value)}>{options(['PROJECT', 'PACKAGE_RUN'])}</select></label>
+    <label><span>{t('historyMode')}</span><select value={String(content.historyMode ?? 'LATEST')} onChange={(event) => set('historyMode', event.target.value)}>{options(['NONE', 'LATEST', 'ALL'])}</select></label>
+    <label><span>{t('valueSource')}</span><select value={String(content.valueSource ?? 'REFRESH_QUERY')} onChange={(event) => set('valueSource', event.target.value)}>{options(['INPUT', 'REFRESH_QUERY', 'DEFAULT'])}</select></label>
     {content.valueSource === 'DEFAULT' && <label className="structured-draft-wide"><span>{t('defaultValue')}</span><input value={String(content.defaultValue ?? '')} onChange={(event) => set('defaultValue', event.target.value)} /></label>}
-    {content.valueSource === 'SQL' && <label className="structured-draft-wide"><span>{t('sqlCommand')}</span><textarea spellCheck={false} value={String(content.query ?? '')} onChange={(event) => set('query', event.target.value)} /></label>}
+    {content.valueSource === 'REFRESH_QUERY' && <label className="structured-draft-wide"><span>{t('sqlCommand')}</span><textarea spellCheck={false} value={String(content.query ?? 'SELECT SYSDATE - 1 FROM DUAL')} onChange={(event) => set('query', event.target.value)} /></label>}
   </div>
 
   if (type === 'SEQUENCE') return <div className="structured-draft-form">
@@ -38,8 +39,7 @@ export function StructuredDraftEditor({ type, value, onChange }: Props) {
   }
 
   if (type === 'KNOWLEDGE_MODULE') {
-    const tasks = Array.isArray(content.tasks) ? content.tasks.map(record) : []
-    return <div className="structured-draft-form"><label><span>{t('knowledgeModuleType')}</span><select value={String(content.kmType ?? 'IKM')} onChange={(event) => set('kmType', event.target.value)}><option>IKM</option><option>LKM</option><option>CKM</option><option>RKM</option></select></label><section className="structured-draft-wide structured-list-editor"><header><strong>{t('tasks')}</strong><button className="definition-button definition-button--quiet" type="button" onClick={() => set('tasks', [...tasks, { name: `${t('step')} ${tasks.length + 1}`, command: '' }])}><Plus size={15} />{t('addStep')}</button></header>{tasks.map((task, index) => <div key={index} className="structured-list-editor--stack"><input aria-label={t('stepName')} value={String(task.name ?? '')} onChange={(event) => set('tasks', tasks.map((item, position) => position === index ? { ...item, name: event.target.value } : item))} /><textarea aria-label={t('sqlCommand')} spellCheck={false} value={String(task.command ?? '')} onChange={(event) => set('tasks', tasks.map((item, position) => position === index ? { ...item, command: event.target.value } : item))} /><button className="definition-icon-button" type="button" aria-label={t('remove')} onClick={() => set('tasks', tasks.filter((_, position) => position !== index))}><Trash2 size={15} /></button></div>)}</section></div>
+    return <KnowledgeModuleEditor value={content} onChange={onChange} />
   }
 
   if (type === 'LOAD_PLAN') {

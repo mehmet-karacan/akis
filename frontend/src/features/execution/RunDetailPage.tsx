@@ -1,8 +1,9 @@
-import { ArrowLeft, Ban, CalendarClock, ChevronDown, ChevronRight, ListRestart, RefreshCw, Workflow, X } from 'lucide-react'
+import { ArrowLeft, Ban, CalendarClock, ChevronDown, ChevronRight, ListRestart, RefreshCw, Workflow } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
 import { operationsApi } from '../operations/api'
+import { Dialog as CoreDialog } from '../../core/ui/Dialog'
 import { CopyValue, Dialog, EmptyState, ErrorState, LoadingState, PageHeader, Panel } from '../operations/OperationsUi'
 import { apiErrorMessage, formatDate, redactSensitiveValues } from '../operations/utils'
 import { useRemoteData } from '../operations/useRemoteData'
@@ -59,12 +60,6 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
   const selectedStep = steps.data?.find((step) => step.uuid === selectedStepUuid) ?? steps.data?.[0]
   const selectedStepRowLabel = selectedStep?.connectionRole === 'SOURCE' ? t('selectedRows') : selectedStep && isInsertStep(selectedStep as RunStepNode) ? t('insertedRows') : t('rowCount')
 
-  useEffect(() => {
-    if (!panel || !onClose) return
-    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
-    window.addEventListener('keydown', closeOnEscape)
-    return () => window.removeEventListener('keydown', closeOnEscape)
-  }, [onClose, panel])
 
   const refresh = async () => {
     await Promise.all([run.reload(), steps.reload(), events.reload()])
@@ -99,7 +94,6 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
         actions={<>
           <button className="ops-button ops-button-secondary" type="button" onClick={() => void refresh()} disabled={run.loading || events.loading}><RefreshCw aria-hidden="true" /> {t('refresh')}</button>
           {canCancel ? <button className="ops-button ops-button-danger" type="button" onClick={() => setConfirmOpen(true)} disabled={executionDisabled}><Ban aria-hidden="true" /> {t('cancelRun')}</button> : null}
-          {panel && onClose ? <button className="ops-button ops-button-secondary execution-panel-close" type="button" onClick={onClose} aria-label={t('close')}><X aria-hidden="true" /></button> : null}
         </>}
       />
       {executionDisabled ? <ExecutionDisabledNotice /> : null}
@@ -186,5 +180,5 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
       ) : null}
     </section>
   )
-  return panel ? <div className="execution-panel-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose?.() }}><aside className="execution-detail-panel" role="dialog" aria-modal="true" aria-label={t('runDetail')}>{content}</aside></div> : content
+  return panel ? <CoreDialog open title={t('runDetail')} closeLabel={t('close')} onClose={() => onClose?.()} className="execution-detail-dialog">{content}</CoreDialog> : content
 }

@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
+import tr.com.innova.akis.metadata.NamedBindParser;
 
 /** Defense-in-depth validation immediately before a Procedure source SELECT. */
 final class ProcedureOracleSourceSqlContract {
@@ -24,7 +25,8 @@ final class ProcedureOracleSourceSqlContract {
                 || task.requiresApproval() || task.input() != null || task.output() == null
                 || task.output().maximumRows() < 1
                 || task.output().maximumRows() > ProcedureRuntimePlan.MAXIMUM_ROWSET_ROWS
-                || !task.namedBinds().isEmpty()
+                || !NamedBindParser.parse(task.command()).equals(task.namedBinds())
+                || !task.parameters().keySet().containsAll(task.namedBinds())
                 || binding.role() != ProcedureRuntimePlan.ConnectionRole.SOURCE
                 || !task.id().equals(binding.taskId())
                 || !identifier(binding.owner()) || !identifier(binding.objectName())) {
@@ -32,7 +34,10 @@ final class ProcedureOracleSourceSqlContract {
         }
         Pattern select = Pattern.compile(
                 "^SELECT\\s+(?<columns>[A-Z][A-Z0-9_$#]*(?:\\s*,\\s*[A-Z][A-Z0-9_$#]*)*)"
-                        + "\\s+FROM\\s+" + Pattern.quote(binding.physicalIdentity()) + "$",
+                        + "\\s+FROM\\s+" + Pattern.quote(binding.physicalIdentity())
+                        + "(?:\\s+WHERE\\s+[A-Z][A-Z0-9_$#]*\\s*=\\s*:[A-Z][A-Z0-9_]*"
+                        + "|\\s+WHERE\\s+[A-Z][A-Z0-9_$#]*\\s*>=\\s*:[A-Z][A-Z0-9_]*"
+                        + "\\s+AND\\s+[A-Z][A-Z0-9_$#]*\\s*<\\s*:[A-Z][A-Z0-9_]*\\s*\\+\\s*1)?$",
                 Pattern.CASE_INSENSITIVE);
         var match = select.matcher(task.command().strip());
         if (!match.matches()) {
@@ -47,7 +52,7 @@ final class ProcedureOracleSourceSqlContract {
             throw invalid();
         }
         return new ValidatedSource(
-                plan.runtimePlanHash(), task.command().strip(),
+                plan.runtimePlanHash(), ProcedureParameterBinder.positionalSql(task).strip(),
                 task.output().maximumRows(), columns);
     }
 

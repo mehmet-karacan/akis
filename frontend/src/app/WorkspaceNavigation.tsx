@@ -1,4 +1,4 @@
-import { FolderKanban, Gauge, Info, Network } from 'lucide-react'
+import { FolderKanban, History, Info, Network } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { NavLink, useLocation } from 'react-router-dom'
 import { projectRoute } from '../features/projects/CurrentProjectContext'
@@ -8,7 +8,7 @@ export type WorkspaceId = 'project' | 'development' | 'operations' | 'connection
 const workspaces = [
   { id: 'project', path: '', key: 'nav.projectTab', icon: Info },
   { id: 'development', path: '/objects', key: 'nav.development', icon: FolderKanban },
-  { id: 'operations', path: '/operations', key: 'nav.operations', icon: Gauge },
+  { id: 'operations', path: '/operations', key: 'nav.operations', icon: History },
   { id: 'connections', path: '/connections', key: 'nav.connections', icon: Network },
 ] as const
 

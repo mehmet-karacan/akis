@@ -5,12 +5,15 @@ import { topologyApi } from './api'
 import { getTopologyCopy } from './copy'
 
 describe('Oracle connection creation', () => {
-  it('shows provider-specific fields together and requires a fresh test before save', async () => {
+  it('shows provider-specific fields, allows saving without a test, and invalidates stale test results', async () => {
     vi.spyOn(topologyApi, 'testOracleDraftConnection').mockResolvedValue({
       connected: true, oracle19cCompatible: true, databaseProduct: 'Oracle', databaseVersion: 'Oracle Database 19c',
       databaseMajorVersion: 19, databaseMinorVersion: 0, driverName: 'Oracle JDBC driver', driverVersion: '23',
     })
-    const create = vi.spyOn(topologyApi, 'createOracleConnection')
+    const create = vi.spyOn(topologyApi, 'createOracleConnection').mockResolvedValue({
+      connection: { uuid: 'connection-1' },
+      initialVersion: { uuid: 'version-1', mode: 'JDBC' },
+    } as Awaited<ReturnType<typeof topologyApi.createOracleConnection>>)
     render(<OracleConnectionCreateForm projectUuid="project" copy={getTopologyCopy('tr')} onConnectionCreated={vi.fn()} onClose={vi.fn()} />)
 
     expect(screen.getByLabelText('Sağlayıcı *')).toBeInTheDocument()
@@ -22,7 +25,7 @@ describe('Oracle connection creation', () => {
     expect(screen.getByLabelText('Kullanıcı adı *')).toBeInTheDocument()
     expect(screen.getByLabelText('Şifre *')).toBeInTheDocument()
     const save = screen.getByRole('button', { name: 'Bağlantıyı Kaydet' })
-    expect(save).toBeDisabled()
+    expect(save).toBeEnabled()
 
     fireEvent.change(screen.getByLabelText('Ad *'), { target: { value: 'SKY' } })
     fireEvent.change(screen.getByLabelText('Kod *'), { target: { value: 'SKY' } })
@@ -33,11 +36,15 @@ describe('Oracle connection creation', () => {
     fireEvent.change(screen.getByLabelText('Şifre *'), { target: { value: 'local-secret' } })
     fireEvent.click(screen.getByRole('button', { name: 'Bağlantıyı Test Et' }))
 
-    await waitFor(() => expect(save).toBeEnabled())
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Bağlantı doğrulandı'))
     expect(create).not.toHaveBeenCalled()
     fireEvent.change(screen.getByLabelText('Ad *'), { target: { value: 'SKY Production' } })
     expect(save).toBeEnabled()
     fireEvent.change(screen.getByLabelText('Sunucu *'), { target: { value: '10.6.86.69' } })
-    expect(save).toBeDisabled()
+    expect(save).toBeEnabled()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+
+    fireEvent.click(save)
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1))
   })
 })

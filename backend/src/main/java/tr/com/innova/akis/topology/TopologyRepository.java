@@ -52,7 +52,9 @@ public class TopologyRepository {
                             proje_id, uuid, kod, saglayici_turu, ad, aciklama)
                         values (:projectId, :uuid, :code, :databaseType, :name, :description)
                         returning id, proje_id, uuid, kod, saglayici_turu,
-                                  'AKTIF'::text as durum, ad, aciklama, versiyon_no
+                                  'AKTIF'::text as durum, ad, aciklama, versiyon_no,
+                                  (select k.gorunen_ad from akis.kullanici k where k.id = baglanti.olusturan_kullanici_id) as created_by,
+                                  olusturulma_zamani as connection_created_at
                         """)
                 .param("projectId", projectId)
                 .param("uuid", uuid)
@@ -86,6 +88,8 @@ public class TopologyRepository {
                 select c.id as connection_id, c.proje_id, c.uuid as connection_uuid,
                        c.kod as connection_code, c.saglayici_turu, c.ad as connection_name,
                        c.aciklama as connection_description, c.versiyon_no as connection_version,
+                       (select k.gorunen_ad from akis.kullanici k where k.id = c.olusturan_kullanici_id) as created_by,
+                       c.olusturulma_zamani as connection_created_at,
                        rv.id, rv.uuid, rv.baglanti_id, rv.surum_no, rv.baglanti_modu,
                        rv.surucu_sinifi, bk.kullanici_adi, rv.sunucu_adi, rv.servis_adi, rv.sid,
                        rv.veritabani_adi, rv.jndi_adi, rv.tls_modu, rv.port,
@@ -126,7 +130,8 @@ public class TopologyRepository {
                             rs.getLong("connection_id"), rs.getLong("proje_id"),
                             rs.getObject("connection_uuid", UUID.class), rs.getString("connection_code"),
                             rs.getString("saglayici_turu"), "AKTIF", rs.getString("connection_name"),
-                            rs.getString("connection_description"), rs.getLong("connection_version"));
+                            rs.getString("connection_description"), rs.getLong("connection_version"),
+                            rs.getString("created_by"), rs.getObject("connection_created_at", OffsetDateTime.class));
                     ConnectionVersionRow displayed = rs.getObject("uuid", UUID.class) == null
                             ? null : mapConnectionVersion(rs, rowNum);
                     return new ConnectionCatalogRow(
@@ -176,7 +181,9 @@ public class TopologyRepository {
                            and arsivlenme_zamani is null
                            and versiyon_no = :expectedVersion
                         returning id, proje_id, uuid, kod, saglayici_turu,
-                                  'AKTIF'::text as durum, ad, aciklama, versiyon_no
+                                  'AKTIF'::text as durum, ad, aciklama, versiyon_no,
+                                  (select k.gorunen_ad from akis.kullanici k where k.id = baglanti.olusturan_kullanici_id) as created_by,
+                                  olusturulma_zamani as connection_created_at
                         """)
                 .param("projectId", projectId)
                 .param("uuid", uuid)
@@ -539,7 +546,9 @@ public class TopologyRepository {
         return """
                 select id, proje_id, uuid, kod, saglayici_turu,
                        case when arsivlenme_zamani is null then 'AKTIF' else 'PASIF' end as durum,
-                       ad, aciklama, versiyon_no
+                       ad, aciklama, versiyon_no,
+                       (select k.gorunen_ad from akis.kullanici k where k.id = baglanti.olusturan_kullanici_id) as created_by,
+                       olusturulma_zamani as connection_created_at
                   from akis.baglanti
                 """;
     }
@@ -550,7 +559,8 @@ public class TopologyRepository {
                 rs.getLong("id"), rs.getLong("proje_id"),
                 rs.getObject("uuid", UUID.class), rs.getString("kod"),
                 rs.getString("saglayici_turu"), rs.getString("durum"),
-                rs.getString("ad"), rs.getString("aciklama"), rs.getLong("versiyon_no"));
+                rs.getString("ad"), rs.getString("aciklama"), rs.getLong("versiyon_no"),
+                rs.getString("created_by"), rs.getObject("connection_created_at", OffsetDateTime.class));
     }
 
     private String connectionVersionSelect() {

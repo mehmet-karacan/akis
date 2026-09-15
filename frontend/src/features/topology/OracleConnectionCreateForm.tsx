@@ -49,7 +49,7 @@ export function OracleConnectionCreateForm({ projectUuid, copy: c, onConnectionC
   }
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!valid() || !tested) { setError(c.testBeforeSave); return }
+    if (!valid()) return
     setBusy('save'); setError('')
     try {
       const input = toOracleConnectionInput(draft)
@@ -58,7 +58,7 @@ export function OracleConnectionCreateForm({ projectUuid, copy: c, onConnectionC
         name: name.trim(), code: code.trim(), description: description.trim() || undefined,
         initialVersion, credentials,
       })
-      if (result.initialVersion.mode === 'JDBC') {
+      if (tested && result.initialVersion.mode === 'JDBC') {
         await topologyApi.makeConnectionCurrent(projectUuid, result.connection.uuid, result.initialVersion.uuid)
       }
       await onConnectionCreated(result.connection.uuid); onClose()
@@ -99,7 +99,7 @@ export function OracleConnectionCreateForm({ projectUuid, copy: c, onConnectionC
     <footer className="topology-form-actions">
       <button className="topology-button topology-button--quiet" type="button" onClick={onClose}>{c.cancel}</button>
       {provider === 'ORACLE' && <><button className="topology-button topology-button--test" type="button" onClick={() => void test()} disabled={Boolean(busy)}>{busy === 'test' ? <LoaderCircle className="is-spinning" /> : <ShieldCheck />}{busy === 'test' ? c.testing : c.testDraftConnection}</button>
-      <button className="topology-button" type="submit" disabled={Boolean(busy) || !tested}>{busy === 'save' ? <LoaderCircle className="is-spinning" /> : <Save />}{busy === 'save' ? c.creating : c.saveConnection}</button></>}
+      <button className="topology-button" type="submit" disabled={Boolean(busy)}>{busy === 'save' ? <LoaderCircle className="is-spinning" /> : <Save />}{busy === 'save' ? c.creating : c.saveConnection}</button></>}
     </footer>
   </form>
 }

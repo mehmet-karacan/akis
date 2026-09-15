@@ -41,6 +41,32 @@ class ProcedureOracleSourceSqlContractTest {
     }
 
     @Test
+    void acceptsTypedDateVariableAsAParameterizedPredicate() {
+        String sql = "SELECT ID, TANIMLAMA_ZAMANI FROM TTBP.HAKEDIS_TIPI "
+                + "WHERE TANIMLAMA_ZAMANI >= :KAYIT_TARIHI "
+                + "AND TANIMLAMA_ZAMANI < :KAYIT_TARIHI + 1";
+        ProcedureRuntimePlan.Task task = new ProcedureRuntimePlan.Task(
+                "READ_SOURCE", "Read source", ProcedureRuntimePlan.TaskType.SQL,
+                ProcedureRuntimePlan.ConnectionRole.SOURCE,
+                ProcedureRuntimePlan.RiskClass.READ_ONLY, sql, "d".repeat(64), false,
+                ProcedureRuntimePlan.ErrorPolicy.STOP, 30,
+                new ProcedureRuntimePlan.RowsetOutput(1_000), null,
+                List.of("KAYIT_TARIHI", "KAYIT_TARIHI"),
+                Map.of("KAYIT_TARIHI", new ProcedureRuntimePlan.ParameterValue(
+                        ProcedureRuntimePlan.ParameterType.DATE, "2026-09-14")),
+                ProcedureRuntimePlan.LogCounter.NONE,
+                ProcedureRuntimePlan.TransactionMode.AUTOCOMMIT, null,
+                ProcedureRuntimePlan.TransactionIsolation.DRIVER_DEFAULT,
+                ProcedureRuntimePlan.CommitMode.COMMIT);
+
+        var validated = ProcedureOracleSourceSqlContract.validate(
+                plan(task), task, plan(task).bindings().get(task.id()));
+
+        assertEquals("SELECT ID, TANIMLAMA_ZAMANI FROM TTBP.HAKEDIS_TIPI "
+                + "WHERE TANIMLAMA_ZAMANI >= ? AND TANIMLAMA_ZAMANI < ? + 1", validated.sql());
+    }
+
+    @Test
     void adapterRejectsSourceViewsUntilTheyHaveASeparateAttestationContract() {
         ProcedureRuntimePlan.TaskBinding view = binding("VIEW");
 

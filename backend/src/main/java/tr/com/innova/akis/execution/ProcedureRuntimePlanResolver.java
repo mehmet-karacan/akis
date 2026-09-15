@@ -33,6 +33,9 @@ import tr.com.innova.akis.execution.ProcedureRuntimePlan.RowsetOutput;
 import tr.com.innova.akis.execution.ProcedureRuntimePlan.Task;
 import tr.com.innova.akis.execution.ProcedureRuntimePlan.TaskBinding;
 import tr.com.innova.akis.execution.ProcedureRuntimePlan.TaskType;
+import tr.com.innova.akis.execution.ProcedureRuntimePlan.ParameterType;
+import tr.com.innova.akis.execution.ProcedureRuntimePlan.ParameterValue;
+import tr.com.innova.akis.execution.ProcedureRuntimePlan.ParameterSource;
 import tr.com.innova.akis.metadata.DefinitionContentValidator;
 import tr.com.innova.akis.metadata.DefinitionType;
 import tr.com.innova.akis.metadata.NamedBindParser;
@@ -283,7 +286,7 @@ public final class ProcedureRuntimePlanResolver {
                             "command", "requiresApproval", "onError", "timeoutSeconds",
                             "output", "input", "logCounter", "transactionMode",
                             "transactionChannel", "transactionIsolation", "commitMode",
-                            "logicalSchemaUuid", "environmentUuid"),
+                            "logicalSchemaUuid", "environmentUuid", "parameters"),
                     "Procedure task", ProcedurePlanFailure.UNSUPPORTED_PROCEDURE_SHAPE);
             String id = requireText(node, "id");
             String command = requireText(node, "command");
@@ -332,6 +335,10 @@ public final class ProcedureRuntimePlanResolver {
             catch (IllegalArgumentException exception) {
                 throw shape("Procedure command contains malformed quoting or comments.");
             }
+            Map<String, ParameterValue> parameters = parseParameters(node.get("parameters"));
+            if (input == null && !parameters.keySet().containsAll(namedBinds)) {
+                throw shape("Every named bind must have a typed parameter value.");
+            }
             tasks.add(new Task(
                     id,
                     optionalText(node, "name", id),
@@ -346,6 +353,7 @@ public final class ProcedureRuntimePlanResolver {
                     output,
                     input,
                     namedBinds,
+                    parameters,
                     logCounter,
                     transactionMode,
                     transactionChannel,
@@ -368,6 +376,48 @@ public final class ProcedureRuntimePlanResolver {
             }
         }
         return List.copyOf(tasks);
+    }
+
+    private Map<String, ParameterValue> parseParameters(JsonNode node) {
+        if (node == null || node.isNull()) return Map.of();
+        ObjectNode object = requireObject(node, ProcedurePlanFailure.UNSUPPORTED_PROCEDURE_SHAPE,
+                "Procedure task parameters");
+        Map<String, ParameterValue> result = new LinkedHashMap<>();
+        object.properties().forEach(entry -> {
+            if (!entry.getKey().matches("[A-Za-z][A-Za-z0-9_]{0,127}")) {
+                throw shape("Procedure parameter name is invalid.");
+            }
+            ObjectNode value = requireObject(entry.getValue(),
+                    ProcedurePlanFailure.UNSUPPORTED_PROCEDURE_SHAPE, "Procedure parameter");
+            ParameterType type = parseEnum(ParameterType.class, requireText(value, "type"));
+            ParameterSource source = value.has("valueSource")
+                    ? parseEnum(ParameterSource.class, requireText(value, "valueSource"))
+                    : ParameterSource.VALUE;
+            String text = source == ParameterSource.VALUE ? requireText(value, "value") : null;
+            String refreshQuery = source == ParameterSource.REFRESH_QUERY
+                    ? requireText(value, "query") : null;
+            UUID definitionUuid = value.has("definitionUuid")
+                    ? UUID.fromString(requireText(value, "definitionUuid")) : null;
+            if (source == ParameterSource.REFRESH_QUERY
+                    && !refreshQuery.strip().matches("(?i)^SELECT\\s+SYSDATE\\s*-\\s*1\\s+FROM\\s+DUAL$")) {
+                throw shape("Variable refresh query is outside the safe runtime contract.");
+            }
+            try {
+                if (source == ParameterSource.VALUE) switch (type) {
+                    case INTEGER -> Long.parseLong(text);
+                    case DECIMAL -> new java.math.BigDecimal(text);
+                    case BOOLEAN -> { if (!"true".equalsIgnoreCase(text) && !"false".equalsIgnoreCase(text)) throw new IllegalArgumentException(); }
+                    case DATE -> java.time.LocalDate.parse(text);
+                    case TIMESTAMP -> java.time.LocalDateTime.parse(text);
+                    case STRING -> { }
+                }
+            } catch (RuntimeException invalid) {
+                throw shape("Procedure parameter value does not match its type.");
+            }
+            result.put(entry.getKey(), new ParameterValue(
+                    type, text, source, refreshQuery, definitionUuid));
+        });
+        return Map.copyOf(result);
     }
 
     private void validateCommandContract(
@@ -911,6 +961,16 @@ public final class ProcedureRuntimePlanResolver {
             ArrayNode binds = objectMapper.createArrayNode();
             task.namedBinds().forEach(binds::add);
             node.set("namedBinds", binds);
+            ObjectNode parameters = objectMapper.createObjectNode();
+            task.parameters().forEach((name, parameter) -> {
+                ObjectNode value = parameters.putObject(name)
+                        .put("type", parameter.type().name())
+                        .put("valueSource", parameter.source().name());
+                if (parameter.value() != null) value.put("value", parameter.value());
+                if (parameter.refreshQuery() != null) value.put("query", parameter.refreshQuery());
+                if (parameter.definitionUuid() != null) value.put("definitionUuid", parameter.definitionUuid().toString());
+            });
+            node.set("parameters", parameters);
             node.put("onError", task.onError().name());
             if (task.output() != null) {
                 ObjectNode output = objectMapper.createObjectNode();

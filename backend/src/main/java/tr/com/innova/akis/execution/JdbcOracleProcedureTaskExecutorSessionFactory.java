@@ -253,7 +253,8 @@ final class JdbcOracleProcedureTaskExecutorSessionFactory
 
         private long executeStandalone(TaskCommand command, RuntimeOracleSession session) {
             try (PreparedStatement statement = session.applyQueryTimeout(
-                    session.connection().prepareStatement(command.task().command()))) {
+                    session.connection().prepareStatement(ProcedureParameterBinder.positionalSql(command.task())))) {
+                ProcedureParameterBinder.bind(statement, command.task());
                 boolean resultSet = statement.execute();
                 if (resultSet) {
                     throw new SQLException("Mutation unexpectedly returned a result set.");

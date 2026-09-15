@@ -1,4 +1,6 @@
 import { lazy, Suspense } from 'react'
+import { NetworkFeedback } from '../core/ui/NetworkFeedback'
+const UiCatalogPage = lazy(() => import('./UiCatalogPage').then((module) => ({ default: module.UiCatalogPage })))
 import { useTranslation } from 'react-i18next'
 import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import { useAuth } from '../core/auth/AuthContext'
@@ -13,9 +15,7 @@ const DefinitionsWorkspace = lazy(() => import('../features/definitions').then((
 const ConnectionsPage = lazy(() => import('../features/connections').then((module) => ({ default: module.ConnectionsPage })))
 const ConnectionCreatePage = lazy(() => import('../features/connections').then((module) => ({ default: module.ConnectionCreatePage })))
 const ConnectionDetailPage = lazy(() => import('../features/connections').then((module) => ({ default: module.ConnectionDetailPage })))
-const PhysicalSchemasPage = lazy(() => import('../features/connections').then((module) => ({ default: module.PhysicalSchemasPage })))
 const LogicalSchemasPage = lazy(() => import('../features/schemas').then((module) => ({ default: module.LogicalSchemasPage })))
-const SchemaBindingsPage = lazy(() => import('../features/schemas').then((module) => ({ default: module.SchemaBindingsPage })))
 const LogicalSchemaDetailPage = lazy(() => import('../features/schemas').then((module) => ({ default: module.LogicalSchemaDetailPage })))
 const EnvironmentDetailPage = lazy(() => import('../features/schemas').then((module) => ({ default: module.EnvironmentDetailPage })))
 const EnvironmentsPage = lazy(() => import('../features/environments').then((module) => ({ default: module.EnvironmentsPage })))
@@ -77,7 +77,7 @@ function ProjectPermissionRoute({ permission, fallback, children }: { permission
 export function App() {
   const { username } = useAuth()
   return (
-    <Suspense fallback={<RouteLoading />}><Routes>
+    <><NetworkFeedback /><Suspense fallback={<RouteLoading />}><Routes>
       <Route path="/login" element={username ? <Navigate to="/project/select" replace /> : <LoginPage />} />
       <Route path="/project/select" element={username ? <ProjectsPage /> : <Navigate to="/login" replace />} />
       <Route path="/projects" element={<Navigate to="/project/select" replace />} />
@@ -87,6 +87,7 @@ export function App() {
         <Route path="/project-bundles/import" element={<BundleImportPage />} />
         <Route path="/project/import" element={<BundleImportPage />} />
         <Route path="/project" element={<ProjectOverviewPage />} />
+        <Route path="/project/ui-kit" element={<UiCatalogPage />} />
         <Route path="/project/topology" element={<LegacyTopologyRedirect />} />
         <Route path="/project/models" element={<ModelsPage />} />
         <Route path="/project/models/:modelUuid/import" element={<ProjectPermissionRoute permission="KATALOG_KESFET" fallback="/project/models"><MetadataImportPage /></ProjectPermissionRoute>} />
@@ -104,15 +105,15 @@ export function App() {
         <Route path="/project/connections" element={<ConnectionsPage />} />
         <Route path="/project/connections/new" element={<ProjectPermissionRoute permission="BAGLANTI_YONET" fallback="/project/connections"><ConnectionCreatePage /></ProjectPermissionRoute>} />
         <Route path="/project/connections/:connectionUuid" element={<ConnectionDetailPage />} />
-        <Route path="/project/connections/:connectionUuid/physical-schemas" element={<PhysicalSchemasPage />} />
+        <Route path="/project/connections/:connectionUuid/physical-schemas" element={<Navigate to="/project/connections" replace />} />
         <Route path="/project/logical-schemas" element={<LogicalSchemasPage />} />
         <Route path="/project/logical-schemas/:logicalSchemaUuid" element={<LogicalSchemaDetailPage />} />
         <Route path="/project/environments" element={<EnvironmentsPage />} />
         <Route path="/project/environments/:environmentUuid" element={<EnvironmentDetailPage />} />
-        <Route path="/project/schema-bindings" element={<SchemaBindingsPage />} />
+        <Route path="/project/schema-bindings" element={<Navigate to="/project/logical-schemas" replace />} />
         <Route path="/identity/users" element={<IdentityUsersPage />} />
       </Route>
       <Route path="*" element={<Navigate to={username ? '/project/select' : '/login'} replace />} />
-    </Routes></Suspense>
+    </Routes></Suspense></>
   )
 }
