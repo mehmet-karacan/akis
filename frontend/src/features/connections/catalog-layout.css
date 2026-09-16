@@ -1,7 +1,8 @@
 /* Connection-specific layout. Shared surfaces, spacing and controls live in ant-design.css. */
 .connection-management-panel { display: grid; gap: 16px; }
-.connection-management-panel .ui-filter-bar { display: grid; grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr)); gap: 12px; padding: 0; margin: 0; }
+.connection-management-panel .ui-filter-bar { display: grid; grid-template-columns: minmax(220px, 2fr) repeat(2, minmax(180px, 1fr)); gap: 12px; padding: 0; margin: 0; align-items: end; }
 .connection-management-panel .ui-filter-bar label { display: grid; gap: 6px; min-width: 0; }
+.connection-management-panel .ui-filter-bar .ant-input, .connection-management-panel .ui-filter-bar .ant-select { width: 100%; min-width: 0; }
 .connection-filter-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .connection-view-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .connections-records-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }

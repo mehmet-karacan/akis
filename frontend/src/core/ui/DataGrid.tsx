@@ -30,7 +30,7 @@ function AuditedGrid({ auditKind, children, ...props }: GridProps & { auditKind:
   const head = sections.find(section => section.type === 'thead')
   const body = sections.find(section => section.type === 'tbody')
   const headers = elements(elements(head?.props.children)[0]?.props.children)
-  const actionIndex = headers.findIndex(cell => /^(actions?|işlemler|işlem)$/i.test(fieldText(cell.props.children).trim()))
+  const actionIndex = headers.findIndex(cell => /^(actions?|işlemler|işlem)$/.test(fieldText(cell.props.children).trim().toLocaleLowerCase('tr')))
   const insertAt = actionIndex < 0 ? headers.length : actionIndex
   const labels = tr ? ['Oluşturan', 'Oluşturulma Zamanı', 'Güncelleyen', 'Güncellenme Zamanı'] : ['Created By', 'Created At', 'Updated By', 'Updated At']
   const missing = audit.state === 'error' ? (tr ? 'Bilgi alınamadı' : 'Unavailable') : audit.state === 'loading' ? (tr ? 'Yükleniyor…' : 'Loading…') : (tr ? 'Kaydedilmemiş' : 'Not Recorded')
@@ -70,7 +70,7 @@ function Grid({ children, className, viewControls = true, auditKind: _, collecti
   }))
   const canChangeView = viewControls && !rows.some(row => row.cells.some(cell => (cell.props.colSpan ?? 1) !== 1 || (cell.props.rowSpan ?? 1) !== 1))
   const identityIndex = Math.max(0, headerCells.findIndex(cell => /^(name|ad|adı|model|bağlantı|connection|nesne|object|model adı|model name|şema adı|schema name|ortam adı|environment name|nesne adı|object name)$/i.test(fieldText(cell.props.children).trim())))
-  const actionsIndex = headerCells.findIndex(cell => /^(actions?|işlemler|işlem)$/i.test(fieldText(cell.props.children).trim()))
+  const actionsIndex = headerCells.findIndex(cell => /^(actions?|işlemler|işlem)$/.test(fieldText(cell.props.children).trim().toLocaleLowerCase('tr')))
   const activeView = canChangeView ? (view ?? (screens.md === false ? 'card' : 'table')) : 'table'
   return <div ref={gridRef} className={`ui-grid-container ${collectionTitle ? 'ui-grid-surface' : ''}`}>
     {(canChangeView || collectionTitle) && <div className="ui-grid-toolbar">{collectionTitle && <h2>{collectionTitle}</h2>}{canChangeView && <div className="ui-grid-view-control"><span>{i18n.language === 'tr' ? 'Görünüm' : 'View'}</span><ViewToggle value={activeView} onChange={setView} /></div>}</div>}

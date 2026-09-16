@@ -73,7 +73,7 @@ export function ConnectionsPage() {
     </FilterBar><div className="connection-filter-actions"><Button onClick={() => { setDraftFilters({ q: '', provider: 'ALL', sort: 'name' }); setParams({}) }}>{i18n.language === 'tr' ? 'Temizle' : 'Clear'}</Button><Button tone="primary" icon={<Search size={16} />} onClick={applyFilters}>{i18n.language === 'tr' ? 'Sorgula' : 'Search'}</Button></div></FilterSection></section>
     <SummaryStrip ariaLabel={i18n.language === 'tr' ? 'Bağlantı özeti' : 'Connection summary'} items={[
       { label: i18n.language === 'tr' ? 'Toplam Bağlantı' : 'Total Connections', value: catalog.length, icon: <Cable />, tone: 'info' },
-      { label: i18n.language === 'tr' ? 'Fiziksel Şema' : 'Physical Schemas', value: catalog.reduce((sum, item) => sum + item.physicalSchemaCount, 0), icon: <Database />, tone: 'success' },
+      { label: i18n.language === 'tr' ? 'Fiziksel Şema' : 'Physical Schemas', value: catalog.reduce((sum, item) => sum + item.physicalSchemaCount, 0), icon: <Database />, tone: 'info' },
       { label: i18n.language === 'tr' ? 'Mantıksal Şema' : 'Logical Schemas', value: catalog.reduce((sum, item) => sum + item.logicalSchemaCount, 0), icon: <GitBranch />, tone: 'neutral' },
       { label: i18n.language === 'tr' ? 'Test Edilmiş' : 'Tested', value: catalog.filter((item) => item.displayedVersion?.testedAt).length, icon: <ShieldCheck />, tone: 'success' },
     ]} />
