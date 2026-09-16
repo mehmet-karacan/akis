@@ -362,7 +362,7 @@ export function MappingGrid({ projectUuid, value, onChange, schemaVersion = 2, o
         <h3 id="strategy-title">{t('writeStrategy')}</h3>
         {schemaVersion === 3 ? <MappingKmOptions projectUuid={projectUuid} value={value} onChange={onChange} /> : <>
         <MappingDesignAssessment projectUuid={projectUuid} value={value} schemaVersion={schemaVersion} onUpgrade={onUpgrade} />
-        {onEnableKm && <div><AntActionButton type="button" disabled={value.writeStrategy.kind !== 'ATOMIC_DELETE_INSERT'} onClick={onEnableKm}>{language === 'tr' ? 'Atomik Tam Yenileme KM Planına Geç' : 'Use Atomic Full Refresh KM Plan'}</AntActionButton><p>{language === 'tr' ? 'KM için önce atomik tam yenileme stratejisini seçin. Hedefin tamamı değiştirilir; mevcut yayınlar değişmez.' : 'Select atomic full refresh first. The entire target is replaced; existing publications remain unchanged.'}</p></div>}
+        {onEnableKm && <section className="mapping-flow-upgrade"><div><strong>{language === 'tr' ? 'Staging Akışı (ODI / KM)' : 'Staging Flow (ODI / KM)'}</strong><p>{language === 'tr' ? 'Kaynak veriyi LKM ile staging alanına taşıyın, isteğe bağlı CKM ile kontrol edin ve IKM ile hedefe uygulayın.' : 'Move source data into staging with LKM, optionally validate it with CKM, and apply it to the target with IKM.'}</p></div><AntActionButton type="button" tone="primary" onClick={onEnableKm}>{language === 'tr' ? 'Staging Akışını Yapılandır' : 'Configure Staging Flow'}</AntActionButton></section>}
         <label>
           <span>{t('writeStrategy')}</span>
           <FormSelect

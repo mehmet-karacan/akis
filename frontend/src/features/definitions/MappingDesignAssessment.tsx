@@ -69,8 +69,8 @@ export function MappingDesignAssessment({ projectUuid, value, schemaVersion = 2,
       </Button>}
     </Space>
     <p className="definition-help">{tr
-      ? 'Bu kontrol veri çalıştırmaz. Katalog seçimi fiziksel bağ değildir; sürüm bağları, ortam yayını ve canlı ön kontroller ayrıca gereklidir. Staging/KM yürütmesi henüz desteklenmiyor.'
-      : 'This check does not execute data operations. Catalog selections are not physical bindings; version bindings, publication and live preflight are still required. Staging/KM execution is not supported yet.'}</p>
+      ? 'Bu kontrol veri çalıştırmaz. Katalog seçimi fiziksel bağ değildir; sürüm bağları, ortam yayını ve canlı ön kontroller ayrıca doğrulanır. Staging akışında LKM, CKM ve IKM seçimleri yayın öncesinde denetlenir.'
+      : 'This check does not execute data operations. Catalog selections are not physical bindings; version bindings, publication and live preflight are validated separately. LKM, CKM and IKM selections are validated before publishing a staged flow.'}</p>
     {value.writeStrategy.kind === 'ATOMIC_DELETE_INSERT' && <Alert type="warning" showIcon title={tr
       ? 'Tam yenileme: hedef tablonun tamamı DELETE + INSERT ile değiştirilir. Mevcut pilot sınırı 1.000 kaynak satırıdır.'
       : 'Full refresh replaces the entire target using DELETE + INSERT. The current pilot is limited to 1,000 source rows.'} />}

@@ -16,14 +16,15 @@
 .ui-query-actions .button { min-height: 36px; padding: 6px 12px; white-space: nowrap; }
 @media (max-width: 620px) { .ui-query-form { grid-template-columns: minmax(0, 1fr); } }
 .ui-summary-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
-.ui-summary-card { min-width: 0; display: flex; align-items: center; gap: 11px; min-height: 78px; padding: 12px 14px; }
-.ui-summary-icon { width: 36px; height: 36px; flex: 0 0 36px; display: grid; place-items: center; }
-.ui-summary-icon svg { width: 17px; height: 17px; }
-.ui-summary-content { min-width: 0; flex: 1; display: grid; gap: 4px; }
+.ui-summary-card { min-width: 0; min-height: 78px; }
+.ui-summary-card .ant-card-body { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; gap: 12px; min-height: 78px; padding: 12px 14px; }
+.ui-summary-icon { width: 40px; height: 40px; flex: 0 0 40px; display: grid; place-items: center; }
+.ui-summary-icon svg { width: 18px; height: 18px; }
+.ui-summary-content { min-width: 0; align-self: center; display: grid; gap: 2px; }
 .ui-summary-content > small { white-space: normal; overflow-wrap: anywhere; }
 .ui-summary-content > span { white-space: normal; }
 .ui-summary-card small, .ui-summary-card span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ui-summary-card strong { line-height: 1.2; }
+.ui-summary-card strong { max-width: 100%; font-size: 20px; line-height: 1; }
 .schema-search-field { position: relative; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 8px; }
 .schema-search-field > span { grid-column: 1 / -1; }
 .schema-search-field > svg { position: absolute; bottom: 11px; left: 12px; }

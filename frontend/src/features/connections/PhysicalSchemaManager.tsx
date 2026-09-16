@@ -5,6 +5,7 @@ import { Database, Plus } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AsyncState, Button } from '../../core/ui'
+import { DataGrid } from '../../core/ui/DataGrid'
 import { topologyApi, type ConnectionVersion, type PhysicalSchema } from '../topology/api'
 import '../schemas/schemas.css'
 
@@ -52,6 +53,6 @@ export function PhysicalSchemaManager({ projectUuid, connectionUuid, version, it
     {error && <div className="error-banner" role="alert">{error}</div>}
     {!usable && canManage && <p className="form-note">{t('schemas.testRequired')}</p>}
     {items.length > 0 && <div><label>{i18n.language.startsWith('tr') ? 'Şemaya Özel Prefixler' : 'Schema Prefix Overrides'}<FormSelect value={prefixSchema} onChange={event => setPrefixSchema(event.target.value)}><option value="">—</option>{items.map(item => <option key={item.uuid} value={item.uuid}>{item.schemaReference}</option>)}</FormSelect></label>{prefixSchema && <WorkPrefixEditor key={prefixSchema} projectUuid={projectUuid} subjectUuid={prefixSchema} scope="physical-schemas" canWrite={canManage} />}</div>}
-    {items.length ? <ul className="physical-schema-list">{items.map((item) => <li key={item.uuid}><span><Database size={15} /><strong>{item.name}</strong></span><code>{item.schemaReference}</code></li>)}</ul> : <AsyncState state="empty" compact title={t('schemas.noPhysical')} />}
+    {items.length ? <div className="physical-schema-table"><DataGrid viewControls={false}><thead><tr><th>{i18n.language.startsWith('tr') ? 'Şema Adı' : 'Schema Name'}</th><th>{i18n.language.startsWith('tr') ? 'Oracle Şeması / Kullanıcısı' : 'Oracle Schema / User'}</th></tr></thead><tbody>{items.map((item) => <tr key={item.uuid}><td><span className="physical-schema-name"><Database size={15} /><strong>{item.name}</strong></span></td><td><code>{item.schemaReference}</code></td></tr>)}</tbody></DataGrid></div> : <AsyncState state="empty" compact title={t('schemas.noPhysical')} />}
   </div>
 }

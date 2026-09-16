@@ -131,8 +131,10 @@
 .run-records-header h2 { margin: 0; }
 .run-records-header p { margin: 5px 0 0; }
 .run-refresh-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
-.run-refresh-interval, .run-auto-refresh { display: flex; align-items: center; gap: 8px; }
+.run-refresh-interval { display: grid; grid-template-columns: auto 4.5rem auto; align-items: center; gap: 6px; }
+.run-refresh-interval > svg { width: 16px; color: var(--ink-soft); }
+.run-refresh-interval .ant-input { width: 4.5rem; text-align: center; }
+.run-auto-refresh-button { width: 36px; min-width: 36px; height: 36px; padding: 0; }
 .run-numeric { text-align: right; }
-.run-auto-refresh { white-space: nowrap; }
 
 }

@@ -23,7 +23,10 @@
 .connections-page .ui-collection--card { grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); align-items: start; }
 .connections-page .ui-collection-card { position: relative; }
 .connections-page .ui-collection-card > header { padding: 16px 50px 12px 16px; }
-.connections-page .ui-collection-card > footer { position: absolute; top: 14px; right: 12px; padding: 0; }
+.connections-page .connection-record-card > footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.connections-page .connection-record-card > footer time { display: inline-flex; align-items: center; gap: 5px; min-width: 0; color: var(--ink-soft); }
+.connections-page .connection-record-card > footer time span { font-weight: 600; }
+.connection-card-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
 .connection-card-action { display: grid; place-items: center; width: 32px; height: 32px; }
 .connections-page .connection-card-endpoint { overflow-wrap: anywhere; margin: 4px 0 14px; }
 .connection-catalog-dialog { width: min(960px, 100%); max-height: calc(100dvh - 48px); overflow-y: auto; }
@@ -56,6 +59,7 @@
 .row-actions .connection-inline-test { display: block; }
 .row-actions .connection-inline-test small { display: none; }
 .connection-card-action { min-width: 32px; width: 32px; height: 32px; padding: 0; display: inline-grid; place-items: center; }
+.connection-last-test { min-width: 140px; white-space: nowrap; }
 .connections-pagination { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .connections-pagination > div { display: flex; align-items: center; gap: 8px; }
 .connections-pagination .button { min-height: 34px; }
@@ -72,8 +76,8 @@
 .connection-detail-section > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
 .connection-detail-section h2 { margin: 0; }
 .connection-detail-section header p { margin: 3px 0 0; }
-.physical-schema-list { margin: 0; padding: 0; list-style: none; }
-.physical-schema-list li { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.physical-schema-table { margin-top: 16px; overflow-x: auto; }
+.physical-schema-name { display: inline-flex; align-items: center; gap: 8px; }
 .connection-edit-dialog { width: min(780px, 100%); max-height: calc(100vh - 40px); overflow: auto; }
 .connection-edit-dialog details { padding: 12px; }
 .connection-edit-dialog summary { cursor: pointer; }
