@@ -109,6 +109,28 @@ body .shell-body.is-compact > .shell-navigation { position: absolute; top: 0; le
 .akis-tree-title > .ant-btn:first-child { min-width: 0; flex: 1; justify-content: flex-start; padding-inline: 4px; }
 .akis-tree-title > .ant-btn:first-child > span:not(.ant-btn-icon) { overflow: hidden; text-overflow: ellipsis; }
 .akis-tree-title small { margin-left: 6px; color: var(--ink-soft); }
+.project-folder-icon { color: #d89b24; fill: color-mix(in srgb, #f4c45e 28%, transparent); }
+.project-flow-root-icon { color: var(--ant-color-primary); }
+.project-component-root-icon { color: #7c5bd6; }
+.sidebar-project-tree [data-definition-type="MAPPING"] { color: #1677ff; }
+.sidebar-project-tree [data-definition-type="PROCEDURE"] { color: #d46b08; }
+.sidebar-project-tree [data-definition-type="PACKAGE"] { color: #7c5bd6; }
+.sidebar-project-tree [data-definition-type="LOAD_PLAN"] { color: #08979c; }
+.sidebar-project-tree [data-definition-type="VARIABLE"] { color: #c41d7f; }
+.sidebar-project-tree [data-definition-type="SEQUENCE"] { color: #389e0d; }
+.sidebar-project-tree [data-definition-type="USER_FUNCTION"] { color: #531dab; }
+.sidebar-project-tree [data-definition-type="KNOWLEDGE_MODULE"] { color: #ad6800; }
+.model-tree-model-icon { color: var(--ant-color-primary); }
+.model-tree-label { display: grid; min-width: 0; gap: 1px; text-align: left; line-height: 1.15; }
+.model-tree-label > span { overflow: hidden; text-overflow: ellipsis; }
+.model-tree-label small { margin: 0; color: var(--ant-color-text-tertiary); font-size: 10px; font-weight: 500; }
+.model-tree-table-icon { color: #08979c; }
+.model-tree-view-icon { color: #7c5bd6; }
+.model-object-drag { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 5px; min-width: 0; cursor: grab; }
+.model-object-drag:active { cursor: grabbing; }
+.model-object-drag > svg { color: var(--ant-color-text-quaternary); }
+.model-object-drag > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.model-object-drag > small { margin: 0; padding: 1px 4px; border-radius: 4px; color: var(--ant-color-text-secondary); background: var(--ant-color-fill-tertiary); font-size: 9px; text-transform: uppercase; }
 .sidebar-project-tree .ant-btn { color: var(--ink); }
 .sidebar-object-row.is-selected { background: var(--accent-soft); border-radius: 6px; }
 .sidebar-object-row small, .sidebar-folder-row small { color: var(--ink-soft); }

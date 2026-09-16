@@ -4,7 +4,7 @@ import { Select as FormSelect } from '../../core/ui/Select'
 import { Button as AntActionButton } from '../../core/ui/Button'
 import { Input as AntInput } from 'antd'
 import { Plus, Search, Trash2, Undo2 } from 'lucide-react'
-import { Fragment, useEffect, useMemo, useState, type KeyboardEvent } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState, type DragEvent, type KeyboardEvent } from 'react'
 import { topologyApi, type DataObject, type Model, type SchemaSnapshot } from '../topology/api'
 import { ExpressionBuilder, expressionSummary } from './ExpressionBuilder'
 import { definitionCodeLabel, useDefinitionsI18n } from './i18n'
@@ -13,6 +13,7 @@ import type { ColumnMapping, MappingContent, MappingDataset } from './types'
 import { MappingDiagram } from './MappingDiagram'
 import { MappingDesignAssessment } from './MappingDesignAssessment'
 import { MappingKmOptions } from './MappingKmOptions'
+import { decodeModelObjectDrag, MODEL_OBJECT_DRAG_TYPE } from '../models/modelObjectDrag'
 
 interface MappingGridProps {
   projectUuid: string
@@ -39,6 +40,24 @@ function createRow(value: MappingContent): ColumnMapping {
 }
 
 interface CatalogEntry { model: Model; object: DataObject; snapshot?: SchemaSnapshot }
+
+export function assignDataObjectToMapping(value: MappingContent, datasetId: string, entry: CatalogEntry): MappingContent {
+  const validColumns = new Set(entry.snapshot?.columns.map(column => column.reference) ?? [])
+  return {
+    ...value,
+    datasets: value.datasets.map(dataset => dataset.id === datasetId ? {
+      ...dataset,
+      dataObjectUuid: entry.object.uuid,
+      schemaSnapshotUuid: entry.snapshot?.uuid,
+      name: entry.object.name,
+    } : dataset),
+    columnMappings: value.columnMappings.filter(mapping => {
+      if (mapping.source?.dataset === datasetId && mapping.source.column && !validColumns.has(mapping.source.column)) return false
+      if (mapping.target.dataset === datasetId && mapping.target.column && !validColumns.has(mapping.target.column)) return false
+      return true
+    }),
+  }
+}
 
 export function MappingGrid({ projectUuid, value, onChange, schemaVersion = 2, onUpgrade, onEnableKm }: MappingGridProps) {
   const { language, t } = useDefinitionsI18n()
@@ -74,6 +93,20 @@ export function MappingGrid({ projectUuid, value, onChange, schemaVersion = 2, o
       current === index ? { ...dataset, ...patch } : dataset,
     )
     onChange({ ...value, datasets })
+  }
+
+  const assignDataObject = useCallback((datasetId: string, objectUuid: string) => {
+    const entry = catalog.find(item => item.object.uuid === objectUuid)
+    if (!entry) return
+    setUndoValue(structuredClone(value))
+    onChange(assignDataObjectToMapping(value, datasetId, entry))
+  }, [catalog, onChange, value])
+
+  const dropDataObject = (event: DragEvent<HTMLElement>, datasetId: string) => {
+    const payload = decodeModelObjectDrag(event.dataTransfer.getData(MODEL_OBJECT_DRAG_TYPE))
+    if (!payload) return
+    event.preventDefault()
+    assignDataObject(datasetId, payload.objectUuid)
   }
 
   function updateRow(index: number, updater: (row: ColumnMapping) => ColumnMapping) {
@@ -130,13 +163,18 @@ export function MappingGrid({ projectUuid, value, onChange, schemaVersion = 2, o
         {pendingDatasetDelete != null ? <div className="definition-notice definition-notice--info" role="alert"><span>{t('datasetDeleteImpact', { count: value.columnMappings.filter((row) => row.source?.dataset === value.datasets[pendingDatasetDelete]?.id || row.target.dataset === value.datasets[pendingDatasetDelete]?.id || expressionSummary(row.expression)?.includes(`${value.datasets[pendingDatasetDelete]?.id}.`)).length })}</span><AntActionButton tone="ghost" type="button" onClick={() => { const dataset = value.datasets[pendingDatasetDelete]; if (!dataset) return; setUndoValue(structuredClone(value)); onChange({ ...value, datasets: value.datasets.filter((_, position) => position !== pendingDatasetDelete), columnMappings: value.columnMappings.filter((row) => row.source?.dataset !== dataset.id && row.target.dataset !== dataset.id && !expressionSummary(row.expression)?.includes(`${dataset.id}.`)) }); setPendingDatasetDelete(null) }}>{t('confirmRemove')}</AntActionButton><AntActionButton tone="ghost" type="button" onClick={() => setPendingDatasetDelete(null)}>{t('cancel')}</AntActionButton></div> : null}
         <div className="mapping-datasets">
           {value.datasets.map((dataset, index) => (
-            <div className="mapping-dataset" key={index}>
+            <div className="mapping-dataset mapping-object-drop-target" key={index} onDragOver={event => {
+              if (event.dataTransfer.types.includes(MODEL_OBJECT_DRAG_TYPE)) {
+                event.preventDefault()
+                event.dataTransfer.dropEffect = 'copy'
+              }
+            }} onDrop={event => dropDataObject(event, dataset.id)}>
               <span className={`definition-role definition-role--${dataset.role.toLowerCase()}`}>
                 {dataset.role === 'SOURCE' ? t('source') : t('target')}
               </span>
               <label>
                 <span>{t('catalogObject')}</span>
-                <FormSelect value={dataset.dataObjectUuid ?? ''} onChange={(event) => { const entry = catalog.find((item) => item.object.uuid === event.target.value); updateDataset(index, { dataObjectUuid: entry?.object.uuid, schemaSnapshotUuid: entry?.snapshot?.uuid, name: dataset.name || entry?.object.name }) }}><option value="">{t('chooseDataObject')}</option>{catalog.map((entry) => <option key={entry.object.uuid} value={entry.object.uuid}>{entry.model.name} → {entry.object.name} · {entry.object.objectReference}</option>)}</FormSelect>
+                <FormSelect value={dataset.dataObjectUuid ?? ''} onChange={(event) => assignDataObject(dataset.id, event.target.value)}><option value="">{t('chooseDataObject')}</option>{catalog.map((entry) => <option key={entry.object.uuid} value={entry.object.uuid}>{entry.model.name} → {entry.object.name} · {entry.object.objectReference}</option>)}</FormSelect>
               </label><label>
                 <span>{t('datasetAlias')}</span>
                 <AntInput
@@ -158,7 +196,7 @@ export function MappingGrid({ projectUuid, value, onChange, schemaVersion = 2, o
         {undoValue ? <AntActionButton tone="secondary" className="mapping-undo" type="button" onClick={() => { onChange(undoValue); setUndoValue(null) }}><Undo2 size={15} />{t('undo')}</AntActionButton> : null}
       </section>
 
-      {view === 'diagram' && <MappingDiagram value={value} columns={Object.fromEntries(value.datasets.map((dataset) => [dataset.id, columnsFor(dataset.id).map((column) => column.reference)]))} onChange={onChange} />}
+      {view === 'diagram' && <MappingDiagram value={value} columns={Object.fromEntries(value.datasets.map((dataset) => [dataset.id, columnsFor(dataset.id)]))} onChange={onChange} onDropObject={assignDataObject} />}
       <section hidden={view !== 'columns'} className="mapping-section" aria-labelledby="mapping-rows-title">
         <div className="mapping-section-heading mapping-section-heading--wrap">
           <div>
