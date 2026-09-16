@@ -1,5 +1,19 @@
 /* Layout only. Component colors and dimensions belong in AntDesignProvider. */
 * { box-sizing: border-box; }
+:root {
+  --login-bg: #182640;
+  --login-bg-highlight: #263e65;
+  --login-ink: #ffffff;
+  --login-ink-soft: #bfcee3;
+  --login-accent: #91baff;
+}
+:root[data-theme="dark"] {
+  --login-bg: #101827;
+  --login-bg-highlight: #1d3154;
+  --login-ink: #f7faff;
+  --login-ink-soft: #c3d0e5;
+  --login-accent: #a9c7ff;
+}
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (pointer: coarse) { .ant-btn, .ant-select, .ant-input { min-height: 44px; } }
 html, body, #root { margin: 0; min-height: 100%; }
@@ -148,9 +162,9 @@ fieldset { border: 0; margin-inline: 0; min-width: 0; }
 .success-banner { background: var(--success-soft); color: var(--success); border-radius: 6px; padding: 12px; }
 .ui-async-state { color: var(--ink-soft); }
 .ui-async-state.error { color: var(--danger); }
-.login-page .login-story { color: #e8edf5; }
-.login-page .login-story h1, .login-page .login-story strong { color: #ffffff; }
-.login-page .login-story small, .login-page .login-proof p { color: #bfcee3; }
+.login-page .login-story { color: var(--login-ink-soft); }
+.login-page .login-story h1, .login-page .login-story strong { color: var(--login-ink); }
+.login-page .login-story small, .login-page .login-proof p { color: var(--login-ink-soft); }
 html { background: var(--bg); color: var(--ink); }
 .run-result-page { display: grid; gap: 16px; min-width: 0; }
 .run-result-header, .run-result-header > div, .run-result-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
@@ -198,12 +212,12 @@ body .procedure-general-properties label:not(.procedure-checkbox) { gap: 6px; }
 body .ant-input-affix-wrapper > input.ant-input { min-height: 0; height: auto; padding: 0; border: 0; box-shadow: none; background: transparent; }
 body .ant-input-affix-wrapper .ant-input-suffix { margin-inline-start: 8px; }
 .login-page { padding: 24px; gap: 0; background: var(--bg); grid-template-columns: minmax(300px, 1fr) minmax(360px, 1fr); }
-.login-page .login-story { min-height: calc(100dvh - 48px); border-radius: 12px 0 0 12px; background-color: #182640; background-image: radial-gradient(ellipse at top right, #263e65, transparent 65%); background-size: cover; background-repeat: no-repeat; padding: clamp(24px, 4vw, 64px); }
+.login-page .login-story { min-height: calc(100dvh - 48px); border-radius: 12px 0 0 12px; background-color: var(--login-bg); background-image: radial-gradient(ellipse at top right, var(--login-bg-highlight), transparent 65%); background-size: cover; background-repeat: no-repeat; padding: clamp(24px, 4vw, 64px); }
 .login-page .login-story::after { display: none; }
-.login-page .login-brand svg { color: #91baff; }
+.login-page .login-brand svg { color: var(--login-accent); }
 .login-page .login-copy { margin: 40px 0; }
 .login-page .login-copy h1 { font-size: clamp(28px, 3.4vw, 48px); line-height: 1.15; }
-.login-page .login-copy > p:not(.eyebrow) { color: #bfcee3; }
+.login-page .login-copy > p:not(.eyebrow) { color: var(--login-ink-soft); }
 .login-page .login-panel { background: var(--surface); border: 1px solid var(--line); border-left: 0; border-radius: 0 12px 12px 0; padding: 72px 32px 40px; min-height: 0; }
 .login-page .login-form { width: min(380px, 100%); }
 .login-page .login-form label { color: var(--ink); font-weight: 500; }

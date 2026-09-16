@@ -93,7 +93,7 @@ function PackageEditorInner({ projectUuid, definitionUuid, value, onChange, onOp
     target: edge.toStepId,
     label: t(outcomeKey[edge.outcome ?? 'ALWAYS']),
     animated: false,
-    style: edge.outcome === 'FAILURE' ? { strokeDasharray: '6 4', stroke: '#b42332' } : undefined,
+    style: edge.outcome === 'FAILURE' ? { strokeDasharray: '6 4', stroke: 'var(--danger)' } : undefined,
   })), [content.transitions, t])
 
   const persistPositions = (next: Record<string, PackagePosition>) => {
