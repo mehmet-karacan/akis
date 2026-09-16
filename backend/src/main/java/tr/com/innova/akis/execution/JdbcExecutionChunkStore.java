@@ -7,7 +7,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 @Repository
-final class JdbcExecutionChunkStore implements ExecutionChunkStore {
+class JdbcExecutionChunkStore implements ExecutionChunkStore {
 
     private final JdbcClient jdbc;
 

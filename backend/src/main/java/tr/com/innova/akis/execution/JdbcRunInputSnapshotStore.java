@@ -11,7 +11,7 @@ import tools.jackson.databind.ObjectMapper;
 import tr.com.innova.akis.knowledge.KmCanonical;
 
 @Repository
-final class JdbcRunInputSnapshotStore implements RunInputSnapshotStore {
+class JdbcRunInputSnapshotStore implements RunInputSnapshotStore {
 
     private final JdbcClient jdbc;
     private final ObjectMapper objectMapper;

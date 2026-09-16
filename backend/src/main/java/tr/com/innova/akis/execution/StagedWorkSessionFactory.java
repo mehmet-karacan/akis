@@ -11,7 +11,7 @@ import static tr.com.innova.akis.execution.RuntimeOracleConnectionProvider.Runti
 
 /** No fake catalog object for a table that does not yet exist; exact published staging binding only. */
 @Component
-final class StagedWorkSessionFactory {
+class StagedWorkSessionFactory {
     static final class WorkPermit { private WorkPermit() { } }
     private static final WorkPermit PERMIT=new WorkPermit();
     private final JdbcClient jdbc;

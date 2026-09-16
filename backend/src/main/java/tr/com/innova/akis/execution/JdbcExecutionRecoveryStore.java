@@ -16,7 +16,7 @@ import tr.com.innova.akis.execution.ExecutionModels.RunRow;
 import tr.com.innova.akis.execution.ExecutionRecoveryPolicy.RecoveryAction;
 
 @Repository
-final class JdbcExecutionRecoveryStore implements ExecutionRecoveryStore {
+class JdbcExecutionRecoveryStore implements ExecutionRecoveryStore {
 
     private final JdbcClient jdbc;
     private final ObjectMapper objectMapper;

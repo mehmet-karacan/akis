@@ -9,7 +9,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 @Repository
-final class JdbcChunkManifestStore implements ChunkManifestStore {
+class JdbcChunkManifestStore implements ChunkManifestStore {
 
     private final JdbcClient jdbc;
     JdbcChunkManifestStore(JdbcClient jdbc) { this.jdbc = jdbc; }
