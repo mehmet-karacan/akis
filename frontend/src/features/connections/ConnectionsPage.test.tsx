@@ -45,4 +45,14 @@ describe('ConnectionsPage', () => {
     expect(await screen.findByRole('heading', { name: 'Connection List' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Add Connection' })).not.toBeInTheDocument()
   })
+
+  it('opens record actions from the explicit action menu', async () => {
+    vi.mocked(topologyApi.listConnectionCatalog).mockResolvedValue(catalog.slice(0, 1))
+    render(<MemoryRouter initialEntries={['/projects/project/connections']}><Routes><Route path="/projects/:projectUuid/connections" element={<ConnectionsPage />} /></Routes></MemoryRouter>)
+
+    expect(await screen.findByRole('heading', { name: 'Connection List' })).toBeInTheDocument()
+    const actions = screen.getByRole('button', { name: 'Connection actions: Sky 00' })
+    fireEvent.click(actions)
+    expect(await screen.findByRole('menuitem', { name: 'Edit' })).toBeInTheDocument()
+  })
 })
