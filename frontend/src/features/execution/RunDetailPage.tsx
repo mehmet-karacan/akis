@@ -1,6 +1,6 @@
-import { Alert, Descriptions, Tree } from 'antd'
+import { Alert, Descriptions, Table, Tree } from 'antd'
 import type { DataNode } from 'antd/es/tree'
-import { ArrowLeft, Ban, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Ban, RefreshCw, RotateCcw, ShieldAlert } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Button } from '../../core/ui/Button'
@@ -18,16 +18,17 @@ import './execution.css'
 import { KmRunDetails } from './KmRunDetails'
 import { notifyFeedback } from '../../core/api/networkFeedback'
 import { useProjectAccess } from '../../core/auth/ProjectAccessContext'
+import { exactCount } from './types'
 
 interface RunDetailPageProps { runUuidOverride?: string; panel?: boolean; onClose?: () => void; objectName?: string }
-function totalRows(nodes: RunStepNode[], insert: boolean): number | null {
-  const values: number[] = []
+function totalRows(nodes: RunStepNode[], insert: boolean): bigint | null {
+  const values: bigint[] = []
   const visit = (items: RunStepNode[]) => items.forEach(step => {
     if (step.children.length) visit(step.children)
-    else if (step.status === 'BASARILI' && step.rowCount != null && (insert ? step.logCounter === 'INSERT' && step.transactionState === 'COMMITTED' : step.connectionRole === 'SOURCE')) values.push(step.rowCount)
+    else if (step.status === 'BASARILI' && (step.rowCountExact != null || step.rowCount != null) && (insert ? step.logCounter === 'INSERT' && ['COMMITTED', 'COMMIT_CONFIRMED'].includes(step.transactionState ?? '') : step.connectionRole === 'SOURCE')) values.push(exactCount(step.rowCountExact) ?? BigInt(step.rowCount!))
   })
   visit(nodes)
-  return values.length ? values.reduce((sum, value) => sum + value, 0) : null
+  return values.length ? values.reduce((sum, value) => sum + value, 0n) : null
 }
 function eventError(data: unknown): string | undefined {
   const safe = redactSensitiveValues(data)
@@ -46,19 +47,26 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
   const steps = useRemoteData(() => executionApi.listSteps(project, uuid), [project, uuid])
   const events = useRemoteData(() => executionApi.listEventPage(project, uuid), [project, uuid])
   const km = useRemoteData(() => executionApi.getKmDetails(project, uuid), [project, uuid])
+  const recovery = useRemoteData(() => executionApi.getRecoveryPlan(project, uuid), [project, uuid])
   const [selected, setSelected] = useState('')
   const [confirm, setConfirm] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [disabled, setDisabled] = useState(false)
+  const [chunkCursor, setChunkCursor] = useState('0')
+  const [chunkHistory, setChunkHistory] = useState<string[]>([])
+  const chunks = useRemoteData(() => selected
+    ? executionApi.listChunks(project, uuid, selected, chunkCursor)
+    : Promise.resolve({ items: [], nextCursor: null, hasMore: false }), [project, uuid, selected, chunkCursor])
   const hierarchy = useMemo(() => buildRunStepTree(steps.data ?? []), [steps.data])
   useEffect(() => { if (!selected && steps.data?.length) setSelected(firstFailedPath(hierarchy).at(-1) ?? steps.data[0]!.uuid) }, [hierarchy, selected, steps.data])
+  useEffect(() => { setChunkCursor('0'); setChunkHistory([]) }, [selected])
   const step = steps.data?.find(item => item.uuid === selected)
   const selectedRows = totalRows(hierarchy, false)
   const insertedRows = totalRows(hierarchy, true)
   const treeData = (nodes: RunStepNode[]): DataNode[] => nodes.map(item => ({ key: item.uuid, title: <span className="run-step-title"><span>{item.ordinal}. {item.name}</span><RunStatusBadge status={item.status} /></span>, children: treeData(item.children) }))
   const failure = events.data?.items.filter(item => /FAIL|ERROR|HATA|BASARISIZ/i.test(item.type)).map(item => eventError(item.data)).find(Boolean)
-  const refresh = () => Promise.all([run.reload(), steps.reload(), events.reload(), km.reload()])
+  const refresh = () => Promise.all([run.reload(), steps.reload(), events.reload(), km.reload(), recovery.reload(), chunks.reload()])
   async function cancel() {
     setBusy(true); setError('')
     try { run.setData(await executionApi.cancelRun(project, uuid)); setConfirm(false); await events.reload() }
@@ -70,6 +78,20 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
     try {
       const result = await executionApi.reconcileKm(project, uuid)
       notifyFeedback(result.message, ['PUBLISHED', 'NOT_PUBLISHED'].includes(result.outcome) ? 'success' : 'error')
+      await refresh()
+    } catch (reason) { notifyFeedback(apiErrorMessage(reason, t('requestFailed')), 'error') }
+    finally { setBusy(false) }
+  }
+  async function recover(action: string) {
+    if (!recovery.data) return
+    setBusy(true)
+    try {
+      const created = await executionApi.recoverRun(project, uuid, {
+        action,
+        expectedStateVersion: recovery.data.expectedStateVersion,
+        planHash: recovery.data.planHash,
+      }, crypto.randomUUID())
+      notifyFeedback(t('recoveryCreated', { number: created.attemptNumber }), 'success')
       await refresh()
     } catch (reason) { notifyFeedback(apiErrorMessage(reason, t('requestFailed')), 'error') }
     finally { setBusy(false) }
@@ -88,6 +110,15 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
         ...(insertedRows === null ? [] : [{ key: 'write', label: t('insertedRows'), children: insertedRows.toLocaleString(locale) }]),
       ]} />
       {run.data.status === 'BASARISIZ' && <Alert type="error" showIcon title={failure ?? t('errorMessageUnavailable')} />}
+      {!recovery.loading && recovery.data && (recovery.data.allowedActions.length > 0 || recovery.data.reasonCodes.length > 0) && <Panel title={t('safeRecovery')}>
+        {recovery.data.reconciliationRequired && <Alert type="warning" showIcon icon={<ShieldAlert size={16} />} title={t('reconciliationRequired')} description={t('reconciliationRequiredHelp')} />}
+        {!recovery.data.allowedActions.length && !recovery.data.reconciliationRequired && <Alert type="info" showIcon title={t('recoveryUnavailable')} description={recovery.data.reasonCodes.join(', ')} />}
+        {!!recovery.data.allowedActions.filter(action => ['RETRY_FAILED_UNIT', 'RESUME', 'RESTART'].includes(action)).length && <div className="run-result-actions">
+          {recovery.data.allowedActions.includes('RETRY_FAILED_UNIT') && <Button busy={busy} icon={<RotateCcw size={16} />} onClick={() => void recover('RETRY_FAILED_UNIT')}>{t('retryFailedUnit')}</Button>}
+          {recovery.data.allowedActions.includes('RESUME') && <Button busy={busy} icon={<RefreshCw size={16} />} onClick={() => void recover('RESUME')}>{t('resumeSafely')}</Button>}
+          {recovery.data.allowedActions.includes('RESTART') && <Button busy={busy} icon={<RotateCcw size={16} />} onClick={() => void recover('RESTART')}>{t('restartFromBeginning')}</Button>}
+        </div>}
+      </Panel>}
       <Panel title={t('steps')}>
         {!!km.error && <ErrorState message={apiErrorMessage(km.error, t('requestFailed'))} onRetry={() => void km.reload()} />}
         {!!km.data?.steps.length ? <>
@@ -101,8 +132,16 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
             { key: 'status', label: t('status'), children: <RunStatusBadge status={step.status} /> },
             { key: 'start', label: t('startedAt'), children: formatDate(step.startedAt, locale) },
             { key: 'end', label: t('finishedAt'), children: formatDate(step.finishedAt, locale) },
-            { key: 'rows', label: step.connectionRole === 'SOURCE' ? t('selectedRows') : step.logCounter === 'INSERT' && step.transactionState === 'COMMITTED' ? t('insertedRows') : t('rowCount'), children: step.rowCount ?? '—' },
-          ]} />{step.errorCode && <Alert type="error" showIcon title={step.errorCode} description={t('errorMessageUnavailable')} />}</section>}
+            { key: 'rows', label: step.connectionRole === 'SOURCE' ? t('selectedRows') : step.logCounter === 'INSERT' && ['COMMITTED', 'COMMIT_CONFIRMED'].includes(step.transactionState ?? '') ? t('insertedRows') : t('rowCount'), children: (exactCount(step.rowCountExact) ?? (step.rowCount == null ? null : BigInt(step.rowCount)))?.toLocaleString(locale) ?? '—' },
+          ]} />{step.errorCode && <Alert type="error" showIcon title={step.errorCode} description={t('errorMessageUnavailable')} />}
+          {!!chunks.data?.items.length && <section className="run-chunk-evidence" aria-label={t('chunkEvidence')}><h4>{t('chunkEvidence')}</h4><Table size="small" pagination={false} rowKey="uuid" dataSource={chunks.data.items} columns={[
+            { title: '#', dataIndex: 'sequence' },
+            { title: t('status'), dataIndex: 'status' },
+            { title: t('range'), render: (_, item) => `${item.lowerExclusive ?? '−∞'} → ${item.upperInclusive ?? '∞'}` },
+            { title: t('rowCount'), render: (_, item) => exactCount(item.rowCountExact)?.toLocaleString(locale) ?? '—' },
+            { title: t('byteCount'), render: (_, item) => exactCount(item.byteCountExact)?.toLocaleString(locale) ?? '—' },
+          ]} /><div className="run-result-actions"><Button disabled={!chunkHistory.length} onClick={() => { const previous = chunkHistory.at(-1) ?? '0'; setChunkHistory(value => value.slice(0, -1)); setChunkCursor(previous) }}>{t('previousPage')}</Button><Button disabled={!chunks.data.hasMore || !chunks.data.nextCursor} onClick={() => { if (!chunks.data?.nextCursor) return; setChunkHistory(value => [...value, chunkCursor]); setChunkCursor(chunks.data.nextCursor) }}>{t('nextPage')}</Button></div></section>}
+          </section>}
         </div>}
         </>}
       </Panel>

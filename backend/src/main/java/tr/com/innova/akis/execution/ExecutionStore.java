@@ -62,5 +62,9 @@ interface ExecutionStore {
 
     List<RunStepRow> listSteps(UUID projectUuid, UUID runUuid);
 
+    default boolean hasCompleteInputSnapshot(UUID projectUuid, UUID runUuid) {
+        return false;
+    }
+
     RunRow cancelQueued(RunRow run, Actor actor, UUID eventUuid);
 }

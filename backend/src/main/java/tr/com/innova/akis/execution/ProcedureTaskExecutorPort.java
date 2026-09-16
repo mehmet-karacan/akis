@@ -40,14 +40,31 @@ interface ProcedureTaskExecutorPort {
             permits Succeeded, SafeFailure, OutcomeUnknown, NotAttempted {
     }
 
-    record Succeeded(long rowCount, long byteCount, RowsetHandle output)
+    record Succeeded(
+            long rowCount,
+            long byteCount,
+            RowsetHandle output,
+            TransactionOutcome transactionOutcome)
             implements TaskResult {
+
+        Succeeded(long rowCount, long byteCount, RowsetHandle output) {
+            this(rowCount, byteCount, output, TransactionOutcome.COMMIT_CONFIRMED);
+        }
 
         public Succeeded {
             if (rowCount < 0 || byteCount < 0) {
                 throw new IllegalArgumentException("Procedure task metrics cannot be negative.");
             }
+            if (transactionOutcome == null) {
+                throw new IllegalArgumentException("Procedure transaction outcome is required.");
+            }
         }
+    }
+
+    enum TransactionOutcome {
+        NOT_APPLICABLE,
+        EXECUTED_UNCOMMITTED,
+        COMMIT_CONFIRMED
     }
 
     record SafeFailure(String errorCode, boolean rollbackConfirmed)

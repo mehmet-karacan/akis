@@ -1,5 +1,10 @@
 # n8n karşılaştırma raporu: uygulama ve kabul takibi
 
+> 2026-09-16: R01/R06/R09/R12 için yeni recovery çekirdeği
+> [ayrı kabul kaydında](EXECUTION_RECOVERY_ACCEPTANCE.md) izlenir. Bu ek çalışma,
+> aşağıdaki bekleyen ürün maddelerini veya gerçek Oracle kabulünü otomatik olarak
+> tamamlanmış saymaz.
+
 Tarih: 2026-09-15. Başlangıç commit'i: `3d1781365321c0f0d63bcc91cc78b197adefe284`.
 Kaynak: kullanıcının `AKIS_N8N_KARSILASTIRMA_VE_UYGULANABILIRLIK_RAPORU.md` raporu.
 

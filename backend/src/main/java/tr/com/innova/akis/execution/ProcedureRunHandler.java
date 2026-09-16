@@ -48,23 +48,33 @@ final class ProcedureRunHandler {
         }
 
         ProcedureStepEngine.RunResult engineResult;
+        ProcedureStepEngine engine = new ProcedureStepEngine(executor, journal);
         boolean engineReturned = false;
         boolean completingTransactions = false;
         try {
-            engineResult = new ProcedureStepEngine(executor, journal).execute(plan);
+            engineResult = engine.execute(plan);
             engineReturned = true;
             if (engineResult instanceof ProcedureStepEngine.Completed) {
                 completingTransactions = true;
                 executor.complete();
+                if (!engine.confirmPendingCommits(
+                        "run:" + token.run().runUuid() + ":generation:"
+                                + token.run().generation())) {
+                    throw new PendingTransactionJournalException();
+                }
             }
             else {
                 executor.abort();
+                if (!engine.confirmPendingRollbacks("TRANSACTION_GROUP_ROLLED_BACK")) {
+                    throw new PendingTransactionJournalException();
+                }
             }
         }
         catch (RuntimeException exception) {
             try { executor.abort(); } catch (RuntimeException ignored) { }
             try { executor.close(); } catch (RuntimeException ignored) { }
             if (completingTransactions) {
+                engine.markPendingOutcomeUnknown("PROCEDURE_TRANSACTION_COMMIT_UNKNOWN");
                 return new UnknownOutcome("TRANSACTION", "PROCEDURE_TRANSACTION_COMMIT_UNKNOWN");
             }
             return stopped(
@@ -164,4 +174,8 @@ final class ProcedureRunHandler {
 
         boolean read();
     }
+}
+
+final class PendingTransactionJournalException extends RuntimeException {
+    private static final long serialVersionUID = 1L;
 }

@@ -135,6 +135,47 @@ final class ExecutionController {
                 .toList();
     }
 
+    @GetMapping("/{runUuid}/recovery-plan")
+    RecoveryPlanView recoveryPlan(
+            @PathVariable UUID projectUuid,
+            @PathVariable UUID runUuid) {
+        authorization.requireProjectPermission(projectUuid, RUN_READ);
+        return RecoveryPlanView.from(service.recoveryPlan(projectUuid, runUuid));
+    }
+
+    @GetMapping("/{runUuid}/steps/{stepUuid}/chunks")
+    ChunkPageView chunks(
+            @PathVariable UUID projectUuid,
+            @PathVariable UUID runUuid,
+            @PathVariable UUID stepUuid,
+            @RequestParam(defaultValue = "0") long after,
+            @RequestParam(defaultValue = "100") int size,
+            @RequestParam(required = false) String status) {
+        authorization.requireProjectPermission(projectUuid, RUN_READ);
+        var page = service.chunks(projectUuid, runUuid, stepUuid, after, size, status);
+        return new ChunkPageView(
+                page.items().stream().map(ChunkView::from).toList(),
+                page.nextCursor() == null ? null : page.nextCursor().toString(),
+                page.hasMore());
+    }
+
+    @PostMapping("/{runUuid}/recovery")
+    ResponseEntity<RunView> recover(
+            @PathVariable UUID projectUuid,
+            @PathVariable UUID runUuid,
+            @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey,
+            @Valid @RequestBody RecoveryRequest request) {
+        authorization.requireProjectPermission(projectUuid, RUN_START);
+        var result = service.recover(
+                projectUuid, runUuid, idempotencyKey, request.action(),
+                request.expectedStateVersion(), request.planHash(), actorResolver.currentActor());
+        RunView view = RunView.from(result.run(), featureFlags);
+        return result.created()
+                ? ResponseEntity.created(URI.create(
+                        "/api/v1/projects/" + projectUuid + "/runs/" + view.runUuid())).body(view)
+                : ResponseEntity.ok(view);
+    }
+
     @PostMapping("/{runUuid}/cancel")
     RunView cancel(
             @PathVariable UUID projectUuid,
@@ -145,6 +186,40 @@ final class ExecutionController {
     }
 
     record StartRunRequest(@NotNull UUID publicationUuid) {
+    }
+
+    record RecoveryRequest(
+            @NotNull String action,
+            @NotNull String expectedStateVersion,
+            @NotNull String planHash) {
+    }
+
+    record ChunkPageView(List<ChunkView> items, String nextCursor, boolean hasMore) { }
+
+    record ChunkView(
+            UUID uuid,
+            String sequence,
+            String partitionCode,
+            String lowerExclusive,
+            String upperInclusive,
+            String lastKey,
+            String payloadHash,
+            String rowCountExact,
+            String byteCountExact,
+            String status,
+            String targetReceiptReference,
+            OffsetDateTime createdAt) {
+        static ChunkView from(ExecutionChunkStore.ChunkRow row) {
+            return new ChunkView(row.uuid(), Long.toString(row.sequence()),
+                    row.partitionCode(), decimal(row.lowerExclusive()),
+                    decimal(row.upperInclusive()), decimal(row.lastKey()),
+                    row.payloadHash(), Long.toString(row.rowCount()),
+                    Long.toString(row.byteCount()), row.status(),
+                    row.targetReceiptReference(), row.createdAt());
+        }
+        private static String decimal(java.math.BigDecimal value) {
+            return value == null ? null : value.toPlainString();
+        }
     }
 
     record RunView(
@@ -182,6 +257,45 @@ final class ExecutionController {
     record ActionAvailability(String action, boolean allowed, String reasonCode) {
     }
 
+    record RecoveryPlanView(
+            int evidenceVersion,
+            UUID runUuid,
+            String expectedStateVersion,
+            String planHash,
+            List<String> allowedActions,
+            List<String> reasonCodes,
+            List<RecoveryUnitView> units,
+            boolean reconciliationRequired,
+            boolean preservesWorkspace,
+            boolean resetsTarget) {
+
+        static RecoveryPlanView from(RecoveryPlan plan) {
+            return new RecoveryPlanView(
+                    plan.evidenceVersion(), plan.runUuid(),
+                    Long.toString(plan.expectedStateVersion()),
+                    plan.planHash(), plan.allowedActions().stream().map(Enum::name).sorted().toList(),
+                    plan.reasonCodes(), plan.units().stream().map(RecoveryUnitView::from).toList(),
+                    plan.reconciliationRequired(), plan.preservesWorkspace(), plan.resetsTarget());
+        }
+    }
+
+    record RecoveryUnitView(
+            String workUnitKey,
+            UUID stepUuid,
+            String stepCode,
+            String kind,
+            String decision,
+            String transactionOutcome,
+            String evidenceReference,
+            String reasonCode) {
+        static RecoveryUnitView from(RecoveryUnit unit) {
+            return new RecoveryUnitView(
+                    unit.workUnitKey(), unit.stepUuid(), unit.stepCode(), unit.kind().name(),
+                    unit.decision().name(), unit.transactionOutcome().name(),
+                    unit.evidenceReference(), unit.reasonCode());
+        }
+    }
+
     record RunPageView(List<RunSummaryView> items, long total, int page, int size) {
     }
 
@@ -197,14 +311,19 @@ final class ExecutionController {
             String environmentRisk,
             String initiatorName,
             Long selectedRows,
-            Long insertedRows) {
+            Long insertedRows,
+            String selectedRowsExact,
+            String insertedRowsExact) {
         static RunSummaryView from(RunSummaryRow row, ExecutionFeatureFlags flags) {
             return new RunSummaryView(
                     RunView.from(row.run(), flags), row.definitionUuid(), row.definitionCode(),
                     row.definitionName(), row.definitionType(), row.environmentUuid(),
                     row.environmentCode(), row.environmentName(), row.environmentRisk(),
-                    row.initiatorName(), row.selectedRows(), row.insertedRows());
+                    row.initiatorName(), row.selectedRows(), row.insertedRows(),
+                    exact(row.selectedRows()), exact(row.insertedRows()));
         }
+
+        private static String exact(Long value) { return value == null ? null : value.toString(); }
     }
 
     record RunEventView(
@@ -237,6 +356,8 @@ final class ExecutionController {
             OffsetDateTime finishedAt,
             Long rowCount,
             Long byteCount,
+            String rowCountExact,
+            String byteCountExact,
             String errorCode,
             String logCounter,
             String transactionState) {
@@ -245,8 +366,10 @@ final class ExecutionController {
             return new RunStepView(
                     row.uuid(), row.parentUuid(), row.code(), row.type(), row.ordinal(), row.name(),
                     row.status(), row.connectionRole(), row.risk(), row.startedAt(),
-                    row.finishedAt(), row.rowCount(), row.byteCount(), row.errorCode(),
-                    row.logCounter(), row.transactionState());
+                    row.finishedAt(), row.rowCount(), row.byteCount(),
+                    row.rowCount() == null ? null : row.rowCount().toString(),
+                    row.byteCount() == null ? null : row.byteCount().toString(),
+                    row.errorCode(), row.logCounter(), row.transactionState());
         }
     }
 }

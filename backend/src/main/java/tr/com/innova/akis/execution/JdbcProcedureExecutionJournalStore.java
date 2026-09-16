@@ -113,6 +113,56 @@ public class JdbcProcedureExecutionJournalStore {
                 .single());
     }
 
+    private boolean executedUncommitted(
+            ActiveExecutionToken token, ProcedureRuntimePlan plan, TaskEvidence evidence,
+            long rowCount, long byteCount) {
+        TaskEvidence safe = required(evidence, plan);
+        if (rowCount < 0 || byteCount < 0 || safe.task().riskClass() == RiskClass.READ_ONLY) {
+            throw new IllegalArgumentException("Uncommitted Procedure evidence is invalid.");
+        }
+        return invoke(() -> bindTask(jdbc.sql("""
+                select akis.prosedur_adimini_yurutuldu_isaretle(
+                    :runUuid, :workerReference, :runGeneration,
+                    :targetUuid, :targetGeneration, :stepCode, :rowCount, :byteCount)
+                """), token, safe)
+                .param("rowCount", rowCount)
+                .param("byteCount", byteCount)
+                .query(Boolean.class).single());
+    }
+
+    private boolean commitConfirmed(
+            ActiveExecutionToken token, ProcedureRuntimePlan plan, TaskEvidence evidence,
+            long rowCount, long byteCount, String commitReference) {
+        TaskEvidence safe = required(evidence, plan);
+        if (rowCount < 0 || byteCount < 0 || commitReference == null
+                || commitReference.isBlank() || commitReference.length() > 200) {
+            throw new IllegalArgumentException("Procedure commit evidence is invalid.");
+        }
+        return invoke(() -> bindTask(jdbc.sql("""
+                select akis.prosedur_adimini_commit_ile_tamamla(
+                    :runUuid, :workerReference, :runGeneration,
+                    :targetUuid, :targetGeneration, :stepCode,
+                    :rowCount, :byteCount, :commitReference)
+                """), token, safe)
+                .param("rowCount", rowCount).param("byteCount", byteCount)
+                .param("commitReference", commitReference)
+                .query(Boolean.class).single());
+    }
+
+    private boolean rollbackConfirmed(
+            ActiveExecutionToken token, ProcedureRuntimePlan plan, TaskEvidence evidence,
+            String errorCode) {
+        TaskEvidence safe = required(evidence, plan);
+        String safeError = requiredErrorCode(errorCode);
+        return invoke(() -> bindTask(jdbc.sql("""
+                select akis.prosedur_adimini_rollback_ile_tamamla(
+                    :runUuid, :workerReference, :runGeneration,
+                    :targetUuid, :targetGeneration, :stepCode, :errorCode)
+                """), token, safe)
+                .param("errorCode", safeError)
+                .query(Boolean.class).single());
+    }
+
     private boolean fail(
             ActiveExecutionToken token,
             ProcedureRuntimePlan plan,
@@ -309,6 +359,25 @@ public class JdbcProcedureExecutionJournalStore {
         @Override
         public boolean succeeded(TaskEvidence evidence, long rowCount, long byteCount) {
             return store.succeed(token, plan, evidence, rowCount, byteCount);
+        }
+
+        @Override
+        public boolean executedUncommitted(
+                TaskEvidence evidence, long rowCount, long byteCount) {
+            return store.executedUncommitted(token, plan, evidence, rowCount, byteCount);
+        }
+
+        @Override
+        public boolean commitConfirmed(
+                TaskEvidence evidence, long rowCount, long byteCount,
+                String commitReference) {
+            return store.commitConfirmed(
+                    token, plan, evidence, rowCount, byteCount, commitReference);
+        }
+
+        @Override
+        public boolean rollbackConfirmed(TaskEvidence evidence, String errorCode) {
+            return store.rollbackConfirmed(token, plan, evidence, errorCode);
         }
 
         @Override

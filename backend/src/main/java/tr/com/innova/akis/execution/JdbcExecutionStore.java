@@ -432,11 +432,8 @@ public class JdbcExecutionStore implements ExecutionStore {
                                d.satir_sayisi, d.bayt_sayisi, d.hata_kodu,
                                task.content->>'logCounter' as log_counter,
                                case when k.baglanti_rolu = 'SOURCE' then 'NOT_APPLICABLE'
-                                    when d.durum = 'BASARILI' and rd.durum = 'BASARILI' and task.content is not null
-                                      and (coalesce(task.content->>'transactionMode', 'AUTOCOMMIT') <> 'TRANSACTION'
-                                           or not exists (select 1 from akis.prosedur_adim_durumu failure
-                                               where failure.calistirma_id = r.id and failure.durum <> 'BASARILI')) then 'COMMITTED'
-                                    else 'UNCONFIRMED' end as transaction_state
+                                    else coalesce(d.transaction_outcome, 'NOT_ATTEMPTED') end
+                                    as transaction_state
                           from akis.calistirma_adimi a
                           join akis.calistirma r on r.id = a.calistirma_id
                           join akis.proje p on p.id = r.proje_id
@@ -469,6 +466,24 @@ public class JdbcExecutionStore implements ExecutionStore {
                         rs.getObject("bayt_sayisi", Long.class), rs.getString("hata_kodu"),
                         rs.getString("log_counter"), rs.getString("transaction_state")))
                 .list();
+    }
+
+    @Override
+    public boolean hasCompleteInputSnapshot(UUID projectUuid, UUID runUuid) {
+        return Boolean.TRUE.equals(jdbc.sql("""
+                        select exists(
+                            select 1
+                              from akis.calistirma r
+                              join akis.calistirma_girdi_goruntusu g
+                                on g.is_talebi_id = r.is_talebi_id
+                              join akis.proje p on p.id = r.proje_id
+                             where p.uuid = :projectUuid and r.uuid = :runUuid
+                               and g.durum = 'COMPLETE')
+                        """)
+                .param("projectUuid", projectUuid)
+                .param("runUuid", runUuid)
+                .query(Boolean.class)
+                .single());
     }
 
     @Override

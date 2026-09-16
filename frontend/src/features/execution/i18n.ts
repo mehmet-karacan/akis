@@ -32,6 +32,8 @@ const en = {
   pinnedContextUnavailable: 'Pinned environment and target context could not be loaded; run evidence remains available.', availableInterventions: 'Interventions', rerun: 'Run again', resumeRun: 'Resume from failed step', actionReason: 'Unavailable: {{reason}}',
   evidence: 'Run evidence', tab_SUMMARY: 'Summary', tab_LOGS: 'Logs', tab_EVENTS: 'Events', errorMessageUnavailable: 'A detailed error message was not recorded.', metricScope: 'Metrics below belong to the selected step; unknown values are not shown as zero.', operationalEventLog: 'Operational event log', eventLogScope: 'Structured run events; task stdout is not available in this runtime.', noStepLog: 'No structured event lines are available. The step may not have started.',
   expandStep: 'Expand step', collapseStep: 'Collapse step', executionRoot: 'Execution', selectedRows: 'Rows Selected', insertedRows: 'Rows Inserted', notRecorded: 'Not recorded',
+  safeRecovery: 'Safe recovery', recoveryUnavailable: 'Automatic recovery is unavailable', reconciliationRequired: 'Target reconciliation required', reconciliationRequiredHelp: 'The transaction outcome must be proven from target-local evidence before another write can start.', retryFailedUnit: 'Retry failed unit', resumeSafely: 'Resume safely', restartFromBeginning: 'Restart from beginning', recoveryCreated: 'Recovery attempt #{{number}} was created.',
+  chunkEvidence: 'Committed transfer chunks', range: 'Key range',
 } as const
 
 const tr: Record<keyof typeof en, string> = {
@@ -66,6 +68,8 @@ const tr: Record<keyof typeof en, string> = {
   pinnedContextUnavailable: 'Sabitlenmiş ortam ve hedef bağlamı yüklenemedi; çalıştırma kanıtları görüntülenmeye devam ediyor.', availableInterventions: 'Müdahaleler', rerun: 'Yeniden çalıştır', resumeRun: 'Başarısız adımdan devam et', actionReason: 'Kullanılamıyor: {{reason}}',
   evidence: 'Çalıştırma kanıtları', tab_SUMMARY: 'Özet', tab_LOGS: 'Loglar', tab_EVENTS: 'Olaylar', errorMessageUnavailable: 'Ayrıntılı hata mesajı kaydedilmemiş.', metricScope: 'Aşağıdaki metrikler seçili adıma aittir; bilinmeyen değerler sıfır gösterilmez.', operationalEventLog: 'Operasyonel olay günlüğü', eventLogScope: 'Yapılandırılmış çalıştırma olaylarıdır; bu runtime görev stdout’u sunmuyor.', noStepLog: 'Yapılandırılmış olay satırı yok. Adım henüz başlamamış olabilir.',
   expandStep: 'Adımı genişlet', collapseStep: 'Adımı daralt', executionRoot: 'Çalıştırma', selectedRows: 'Kaynaktan Seçilen Satır', insertedRows: 'Hedefe Eklenen Satır', notRecorded: 'Kaydedilmedi',
+  safeRecovery: 'Güvenli yeniden çalıştırma', recoveryUnavailable: 'Otomatik yeniden çalıştırma kullanılamıyor', reconciliationRequired: 'Hedef mutabakatı gerekli', reconciliationRequiredHelp: 'Yeni bir yazma başlamadan önce işlem sonucu hedefteki yerel kanıttan doğrulanmalıdır.', retryFailedUnit: 'Başarısız birimi yeniden dene', resumeSafely: 'Güvenle devam et', restartFromBeginning: 'Baştan yeniden başlat', recoveryCreated: '{{number}} numaralı kurtarma denemesi oluşturuldu.',
+  chunkEvidence: 'Commit edilmiş aktarım parçaları', range: 'Anahtar aralığı',
 }
 
 export type ExecutionMessageKey = keyof typeof en

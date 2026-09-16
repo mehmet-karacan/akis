@@ -14,6 +14,12 @@ class OracleWorkTableCleanupTest {
     private final UUID object=UUID.randomUUID();
     private final String shape="a".repeat(64);
     private final PreparedStatement drop=mock(PreparedStatement.class);
+    private final OracleDdlLockPort locks=mock(OracleDdlLockPort.class);
+
+    private OracleWorkTableManager manager() throws SQLException {
+        when(locks.acquire(eq(connection),anyString(),eq(30))).thenReturn(()->{});
+        return new OracleWorkTableManager(store,locks);
+    }
 
     private void setup(long actualId) throws SQLException {
         String database=KmCanonical.hash("DB\u0000PDB");
@@ -38,7 +44,7 @@ class OracleWorkTableCleanupTest {
         setup(123);
         try(var structure=mockStatic(OracleWorkStructure.class)) {
             structure.when(()->OracleWorkStructure.read(eq(connection),any(),eq(30))).thenReturn(shape);
-            new OracleWorkTableManager(store).cleanup(connection,owner,object,30);
+            manager().cleanup(connection,owner,object,30);
         }
         verify(connection).prepareStatement("DROP TABLE \"WORK\".\"AKIS_C_TEST\"");
         verify(drop,times(1)).execute();
@@ -48,21 +54,23 @@ class OracleWorkTableCleanupTest {
         setup(456);
         try(var structure=mockStatic(OracleWorkStructure.class)) {
             structure.when(()->OracleWorkStructure.read(eq(connection),any(),eq(30))).thenReturn(shape);
-            assertThrows(IllegalStateException.class,()->new OracleWorkTableManager(store).cleanup(connection,owner,object,30));
+            var manager=manager();
+            assertThrows(IllegalStateException.class,()->manager.cleanup(connection,owner,object,30));
         }
         verify(drop,never()).execute();
         verify(store).transition(owner,object,State.CLEANUP_PENDING,State.REVIEW_REQUIRED,null,null);
     }
     @Test void unconfirmedRunCannotAuthorizeDatabaseAccess() {
         when(store.claimCleanup(owner,object)).thenThrow(new IllegalStateException());
-        assertThrows(IllegalStateException.class,()->new OracleWorkTableManager(store).cleanup(connection,owner,object,30));
+        assertThrows(IllegalStateException.class,()->manager().cleanup(connection,owner,object,30));
         verifyNoInteractions(connection);
     }
     @Test void lostDropAcknowledgementIsNotRetried() throws Exception {
         setup(123);when(drop.execute()).thenThrow(new SQLException("secret endpoint"));
         try(var structure=mockStatic(OracleWorkStructure.class)) {
             structure.when(()->OracleWorkStructure.read(eq(connection),any(),eq(30))).thenReturn(shape);
-            var error=assertThrows(IllegalStateException.class,()->new OracleWorkTableManager(store).cleanup(connection,owner,object,30));
+            var manager=manager();
+            var error=assertThrows(IllegalStateException.class,()->manager.cleanup(connection,owner,object,30));
             assertFalse(error.toString().contains("secret"));
         }
         verify(drop,times(1)).execute();

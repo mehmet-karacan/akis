@@ -135,7 +135,8 @@ final class JdbcOracleProcedureTaskExecutorSessionFactory
                 handles.put(stored.uuid(), stored);
                 return new Succeeded(stored.rowCount(), stored.byteCount(),
                         new RowsetHandle(stored.uuid(), plan.runtimePlanHash(),
-                                command.task().id(), stored.rowCount(), stored.byteCount()));
+                                command.task().id(), stored.rowCount(), stored.byteCount()),
+                        ProcedureTaskExecutorPort.TransactionOutcome.NOT_APPLICABLE);
             }
             catch (RuntimeException exception) {
                 return new SafeFailure("PROCEDURE_SOURCE_READ_FAILED", true);
@@ -176,7 +177,11 @@ final class JdbcOracleProcedureTaskExecutorSessionFactory
                     closeQuietly(session);
                     session = null;
                 }
-                return new Succeeded(affected, 0, null);
+                return new Succeeded(affected, 0, null,
+                        managed && command.task().commitMode()
+                                == ProcedureRuntimePlan.CommitMode.NO_COMMIT
+                                ? ProcedureTaskExecutorPort.TransactionOutcome.EXECUTED_UNCOMMITTED
+                                : ProcedureTaskExecutorPort.TransactionOutcome.COMMIT_CONFIRMED);
             }
             catch (RuntimeException exception) {
                 if (managed) transactions.remove(transactionKey);

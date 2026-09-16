@@ -1,5 +1,10 @@
 # Akış
 
+> Güvenli yeniden çalıştırma ve büyük Oracle aktarımı için güncel tasarım:
+> [Execution recovery mimarisi](docs/architecture/EXECUTION_RECOVERY.md) ve
+> [kabul durumu](docs/EXECUTION_RECOVERY_ACCEPTANCE.md). Ortam kabulü tamamlanana
+> kadar yeni runtime capability'leri varsayılan kapalıdır.
+
 Current implementation status and remaining work are tracked in
 [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md).
 

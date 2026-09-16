@@ -53,6 +53,8 @@ export interface RunSummary {
   initiatorName: string
   selectedRows: number | null
   insertedRows: number | null
+  selectedRowsExact?: string | null
+  insertedRowsExact?: string | null
 }
 
 export interface RunPage {
@@ -90,7 +92,58 @@ export interface RunStep {
   finishedAt: string | null
   rowCount: number | null
   byteCount: number | null
+  rowCountExact?: string | null
+  byteCountExact?: string | null
   errorCode: string | null
+}
+
+export interface RecoveryUnit {
+  workUnitKey: string
+  stepUuid: string | null
+  stepCode: string
+  kind: string
+  decision: 'RUN' | 'SKIP_WITH_EVIDENCE' | 'REPLAY_DEPENDENCY' | 'RECONCILE_REQUIRED' | 'BLOCKED'
+  transactionOutcome: 'NOT_ATTEMPTED' | 'EXECUTED_UNCOMMITTED' | 'COMMIT_CONFIRMED' | 'ROLLBACK_CONFIRMED' | 'OUTCOME_UNKNOWN'
+  evidenceReference: string | null
+  reasonCode: string | null
+}
+
+export interface RecoveryPlan {
+  evidenceVersion: number
+  runUuid: string
+  expectedStateVersion: string
+  planHash: string
+  allowedActions: string[]
+  reasonCodes: string[]
+  units: RecoveryUnit[]
+  reconciliationRequired: boolean
+  preservesWorkspace: boolean
+  resetsTarget: boolean
+}
+
+export interface TransferChunk {
+  uuid: string
+  sequence: string
+  partitionCode: string
+  lowerExclusive: string | null
+  upperInclusive: string | null
+  lastKey: string | null
+  payloadHash: string
+  rowCountExact: string
+  byteCountExact: string
+  status: string
+  targetReceiptReference: string | null
+  createdAt: string
+}
+
+export interface TransferChunkPage {
+  items: TransferChunk[]
+  nextCursor: string | null
+  hasMore: boolean
+}
+
+export function exactCount(value: string | null | undefined) {
+  return value == null ? null : BigInt(value)
 }
 
 export interface ProjectCapabilities {

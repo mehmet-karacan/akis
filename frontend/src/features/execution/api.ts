@@ -1,5 +1,5 @@
 import { ApiProblem, apiRequest, jsonBody } from '../../core/api/client'
-import type { ProjectCapabilities, RunEvent, RunEventPage, RunPage, RunRecord, RunSearchInput, RunStep } from './types'
+import type { ProjectCapabilities, RecoveryPlan, RunEvent, RunEventPage, RunPage, RunRecord, RunSearchInput, RunStep, TransferChunkPage } from './types'
 import type { KmRunData } from './KmRunDetails'
 
 const runsPath = (projectUuid: string) =>
@@ -37,6 +37,29 @@ export const executionApi = {
   listSteps(projectUuid: string, runUuid: string) {
     return apiRequest<RunStep[]>(
       `${runsPath(projectUuid)}/${encodeURIComponent(runUuid)}/steps`,
+    )
+  },
+  getRecoveryPlan(projectUuid: string, runUuid: string) {
+    return apiRequest<RecoveryPlan>(
+      `${runsPath(projectUuid)}/${encodeURIComponent(runUuid)}/recovery-plan`,
+    )
+  },
+  listChunks(projectUuid: string, runUuid: string, stepUuid: string, after = '0', size = 100, status?: string) {
+    const query = new URLSearchParams({ after, size: String(size) })
+    if (status) query.set('status', status)
+    return apiRequest<TransferChunkPage>(
+      `${runsPath(projectUuid)}/${encodeURIComponent(runUuid)}/steps/${encodeURIComponent(stepUuid)}/chunks?${query.toString()}`,
+    )
+  },
+  recoverRun(
+    projectUuid: string,
+    runUuid: string,
+    request: { action: string; expectedStateVersion: string; planHash: string },
+    idempotencyKey: string,
+  ) {
+    return apiRequest<RunRecord>(
+      `${runsPath(projectUuid)}/${encodeURIComponent(runUuid)}/recovery`,
+      { method: 'POST', headers: { 'Idempotency-Key': idempotencyKey }, ...jsonBody(request) },
     )
   },
   startRun(projectUuid: string, publicationUuid: string, idempotencyKey: string) {

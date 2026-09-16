@@ -43,9 +43,18 @@ final class ProjectCapabilityController {
                         acceptsRequests && workerAvailable,
                         !acceptsRequests ? "EXECUTION_REQUESTS_DISABLED"
                                 : !workerAvailable ? "EXECUTION_WORKER_DISABLED" : null),
-                executionFlags.procedureRuntimeEnabled()
-                        ? executionFlags.stagedRuntimeEnabled()?List.of("ORACLE_TABLE_COPY_V1", "ORACLE_PROCEDURE_V1",StagedRuntimePlanResolver.CAPABILITY)
-                        : List.of("ORACLE_TABLE_COPY_V1", "ORACLE_PROCEDURE_V1") : List.of());
+                supportedCapabilities());
+    }
+
+    private List<String> supportedCapabilities() {
+        if (!executionFlags.procedureRuntimeEnabled()) return List.of();
+        var capabilities = new java.util.ArrayList<String>();
+        capabilities.add("ORACLE_TABLE_COPY_V1");
+        capabilities.add("ORACLE_PROCEDURE_V1");
+        if (executionFlags.stagedRuntimeEnabled()) capabilities.add(StagedRuntimePlanResolver.CAPABILITY);
+        if (executionFlags.recoveryRuntimeReady()) capabilities.add("ORACLE_PROCEDURE_RECOVERY_V1");
+        if (executionFlags.transferRecoveryReady()) capabilities.add("ORACLE_TRANSFER_RECOVERY_V1");
+        return List.copyOf(capabilities);
     }
 
     record ProjectCapabilities(

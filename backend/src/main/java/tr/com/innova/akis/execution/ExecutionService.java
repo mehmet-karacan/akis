@@ -5,6 +5,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
@@ -21,6 +22,8 @@ import tr.com.innova.akis.execution.ExecutionModels.RunSearch;
 import tr.com.innova.akis.execution.ExecutionModels.RunSummaryPage;
 import tr.com.innova.akis.execution.ExecutionModels.RunStepRow;
 import tr.com.innova.akis.execution.ExecutionModels.StartResult;
+import tr.com.innova.akis.execution.ExecutionRecoveryPolicy.RecoveryAction;
+import tr.com.innova.akis.execution.ExecutionRecoveryStore.RecoveryApplication;
 import tr.com.innova.akis.metadata.ApiException;
 
 @Service
@@ -35,17 +38,34 @@ public class ExecutionService {
     private final ExecutionPermissionGate permissionGate;
     private final ExecutionFeatureFlags flags;
     private final RunStateMachine stateMachine;
+    private final ExecutionRecoveryStore recoveryStore;
+    private ExecutionChunkStore chunkStore;
+    private final RecoveryPlanner recoveryPlanner = new RecoveryPlanner();
 
     ExecutionService(
             ExecutionStore store,
             ExecutionPermissionGate permissionGate,
             ExecutionFeatureFlags flags,
             RunStateMachine stateMachine) {
+        this(store, permissionGate, flags, stateMachine, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    ExecutionService(
+            ExecutionStore store,
+            ExecutionPermissionGate permissionGate,
+            ExecutionFeatureFlags flags,
+            RunStateMachine stateMachine,
+            ExecutionRecoveryStore recoveryStore) {
         this.store = store;
         this.permissionGate = permissionGate;
         this.flags = flags;
         this.stateMachine = stateMachine;
+        this.recoveryStore = recoveryStore;
     }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void setChunkStore(ExecutionChunkStore chunkStore) { this.chunkStore = chunkStore; }
 
     @Transactional
     StartResult start(
@@ -147,6 +167,104 @@ public class ExecutionService {
     List<RunStepRow> steps(UUID projectUuid, UUID runUuid) {
         get(projectUuid, runUuid);
         return store.listSteps(projectUuid, runUuid);
+    }
+
+    @Transactional(readOnly = true)
+    ExecutionChunkStore.ChunkPage chunks(
+            UUID projectUuid, UUID runUuid, UUID stepUuid,
+            long after, int size, String status) {
+        get(projectUuid, runUuid);
+        if (chunkStore == null) {
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "CAPABILITY_DISABLED",
+                    "Parçalı aktarım kanıtları bu dağıtımda kullanılamıyor.");
+        }
+        try { return chunkStore.list(projectUuid, runUuid, stepUuid, after, size, status); }
+        catch (IllegalArgumentException exception) {
+            throw validation("Chunk cursor veya durum filtresi geçersiz.");
+        }
+    }
+
+    @Transactional(readOnly = true)
+    RecoveryPlan recoveryPlan(UUID projectUuid, UUID runUuid) {
+        RunRow run = get(projectUuid, runUuid);
+        boolean snapshotComplete = store.hasCompleteInputSnapshot(projectUuid, runUuid);
+        return recoveryPlanner.plan(
+                run, store.listSteps(projectUuid, runUuid), snapshotComplete,
+                flags.recoveryRuntimeReady());
+    }
+
+    @Transactional
+    RecoveryApplication recover(
+            UUID projectUuid,
+            UUID runUuid,
+            String idempotencyKey,
+            String actionValue,
+            String expectedStateVersionValue,
+            String expectedPlanHash,
+            Actor actor) {
+        requireManualRequestsEnabled();
+        if (!flags.recoveryRuntimeReady() || recoveryStore == null) {
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "CAPABILITY_DISABLED",
+                    "Güvenli yeniden çalıştırma bu dağıtımda kapalıdır.");
+        }
+        RecoveryAction action;
+        try { action = RecoveryAction.valueOf(actionValue == null ? "" : actionValue); }
+        catch (IllegalArgumentException exception) {
+            throw validation("Recovery eylemi geçersiz.");
+        }
+        if (!List.of(RecoveryAction.RETRY_FAILED_UNIT, RecoveryAction.RESUME,
+                RecoveryAction.RESTART).contains(action)) {
+            throw validation("Bu eylem mevcut özel operasyon uç noktasından yürütülmelidir.");
+        }
+        String safeKey = idempotencyKey(idempotencyKey);
+        long expectedStateVersion;
+        try { expectedStateVersion = Long.parseLong(expectedStateVersionValue); }
+        catch (RuntimeException exception) {
+            throw validation("Recovery state sürümü geçersiz.");
+        }
+        if (expectedStateVersion < 0) throw validation("Recovery state sürümü geçersiz.");
+        String keyHash = sha256(safeKey);
+        String requestHash = sha256(projectUuid + "|" + runUuid + "|" + action.name()
+                + "|" + expectedStateVersion + "|" + expectedPlanHash);
+        RunRow locked = store.lock(projectUuid, runUuid)
+                .orElseThrow(() -> notFound("Çalıştırma bulunamadı."));
+        PublicationContext publication = store.lockPublication(
+                        projectUuid, locked.publicationUuid())
+                .orElseThrow(() -> conflict(
+                        "PUBLICATION_NOT_AVAILABLE",
+                        "Çalıştırmanın sabitlenmiş yayını artık erişilebilir değil."));
+        if (PRODUCTION_RISK.equals(publication.environmentRisk())) {
+            permissionGate.requireProductionRun(projectUuid);
+        }
+        if (!"AKTIF".equals(publication.publicationStatus())) {
+            throw conflict(
+                    "PUBLICATION_NOT_ACTIVE",
+                    "Geri kazanım yalnız aktif ve geri çekilmemiş yayınla uygulanabilir.");
+        }
+        Optional<RecoveryApplication> existing = recoveryStore.find(
+                projectUuid, runUuid, actor.id(), keyHash);
+        if (existing.isPresent()) {
+            if (!requestHash.equals(existing.get().requestHash())) {
+                throw conflict("IDEMPOTENCY_KEY_REUSED",
+                        "Idempotency-Key farklı bir recovery isteğinde kullanılmış.");
+            }
+            return existing.get();
+        }
+        RecoveryPlan current = recoveryPlanner.plan(
+                locked, store.listSteps(projectUuid, runUuid),
+                store.hasCompleteInputSnapshot(projectUuid, runUuid), true);
+        if (expectedStateVersion != current.expectedStateVersion()
+                || expectedPlanHash == null || !expectedPlanHash.equals(current.planHash())) {
+            throw conflict("RECOVERY_PLAN_STALE",
+                    "Çalıştırma kanıtı değişti; recovery planını yeniden yükleyin.");
+        }
+        if (!current.allowedActions().contains(action)) {
+            throw conflict(current.reasonCodes().isEmpty()
+                            ? "RECOVERY_NOT_ALLOWED" : current.reasonCodes().getFirst(),
+                    "İstenen recovery eylemi güncel kanıtla güvenli değildir.");
+        }
+        return recoveryStore.create(
+                locked, actor, action, keyHash, requestHash, current);
     }
 
     @Transactional

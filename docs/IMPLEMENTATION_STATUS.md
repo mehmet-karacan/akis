@@ -1,5 +1,13 @@
 # Akış implementation status
 
+## 2026-09-16 execution recovery çalışması
+
+Güvenli retry/resume/restart ve bounded Oracle transfer çekirdeği uygulanmaktadır.
+Mimari ve gerçek kabul sınırı [recovery mimarisinde](architecture/EXECUTION_RECOVERY.md),
+[runbook'ta](EXECUTION_RECOVERY_RUNBOOK.md) ve
+[kabul kaydında](EXECUTION_RECOVERY_ACCEPTANCE.md) ayrılmıştır. Yeni runtime
+capability'leri gerçek Oracle ve kapasite kabulü tamamlanmadığı için kapalıdır.
+
 ## 2026-09-15 güvenilirlik çalışması
 
 n8n karşılaştırma raporunun uygulaması başladı, tamamlanmadı. Güncel madde bazlı

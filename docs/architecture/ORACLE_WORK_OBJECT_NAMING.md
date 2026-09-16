@@ -34,4 +34,8 @@ Bu alanlar ancak aşağıdaki parçalar birlikte tamamlandığında ürüne ekle
 4. Aynı anda çalışan işlerde isim çakışmasını engelleyen deterministik üretici.
 5. `AKIS_` dışındaki nesnelere DDL uygulanmasını engelleyen güvenlik kontrolü.
 
-Bu kapı tamamlanana kadar bağlantı ekranında prefix alanı gösterilmez.
+V024 ile registry workspace/lifecycle/retention/cleanup kanıtları genişletildi.
+Ancak Oracle session-scoped DDL lock ve disposable-owner kabulü henüz tamamlanmış
+değildir. Bu nedenle managed-DDL capability kapalı, bağlantı ekranındaki prefix
+alanları ise yalnız çalışma şeması politikasına girdi olarak kalır; prefix sahiplik
+kanıtı veya doğrudan kullanıcı DDL hedefi değildir.

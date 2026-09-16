@@ -263,6 +263,127 @@ class ProcedureStepEngineTest {
                 fixture.commands.stream().map(command -> command.task().id()).toList());
     }
 
+    @Test
+    void managedNoCommitIsNotReportedSuccessfulBeforeGroupCommit() {
+        Task task = new Task(
+                "LOAD", "LOAD", TaskType.SQL, ConnectionRole.TARGET, RiskClass.DML,
+                "command", "d".repeat(64), false, ErrorPolicy.STOP, 30,
+                null, null, List.of(), ProcedureRuntimePlan.LogCounter.INSERT,
+                ProcedureRuntimePlan.TransactionMode.TRANSACTION, 0,
+                ProcedureRuntimePlan.TransactionIsolation.READ_COMMITTED,
+                ProcedureRuntimePlan.CommitMode.NO_COMMIT);
+        ProcedureRuntimePlan plan = new ProcedureRuntimePlan(
+                1, RUNTIME_HASH, "b".repeat(64), "c".repeat(64), UUID.randomUUID(),
+                UUID.randomUUID(), List.of(task), Map.of(task.id(), binding(task)),
+                new ObjectMapper().createObjectNode());
+        List<String> evidence = new ArrayList<>();
+        ProcedureExecutionJournalPort journal = new ProcedureExecutionJournalPort() {
+            public boolean started(TaskEvidence value) { evidence.add("START"); return true; }
+            public boolean succeeded(TaskEvidence value, long rows, long bytes) {
+                evidence.add("SUCCESS"); return true;
+            }
+            public boolean executedUncommitted(TaskEvidence value, long rows, long bytes) {
+                evidence.add("EXECUTED_UNCOMMITTED"); return true;
+            }
+            public boolean commitConfirmed(
+                    TaskEvidence value, long rows, long bytes, String reference) {
+                evidence.add("COMMIT_CONFIRMED:" + reference); return true;
+            }
+            public boolean failed(TaskEvidence value, String code, boolean attempted,
+                    boolean rollback, boolean continued) { return true; }
+            public boolean outcomeUnknown(TaskEvidence value, String code) { return true; }
+        };
+        ProcedureStepEngine engine = new ProcedureStepEngine(
+                command -> new ProcedureTaskExecutorPort.Succeeded(
+                        3, 24, null,
+                        ProcedureTaskExecutorPort.TransactionOutcome.EXECUTED_UNCOMMITTED),
+                journal);
+
+        assertInstanceOf(ProcedureStepEngine.Completed.class, engine.execute(plan));
+        assertEquals(List.of("START", "EXECUTED_UNCOMMITTED"), evidence);
+
+        assertEquals(true, engine.confirmPendingCommits("receipt-1"));
+        assertEquals(List.of("START", "EXECUTED_UNCOMMITTED",
+                "COMMIT_CONFIRMED:receipt-1"), evidence);
+    }
+
+    @Test
+    void committedGroupIsFinalizedBeforeAUnrelatedLaterFailure() {
+        UUID connection = UUID.randomUUID();
+        Task first = managedTask("A", ProcedureRuntimePlan.CommitMode.NO_COMMIT);
+        Task boundary = managedTask("B", ProcedureRuntimePlan.CommitMode.COMMIT);
+        Task later = managedTask("C", ProcedureRuntimePlan.CommitMode.COMMIT);
+        Map<String, TaskBinding> bindings = new LinkedHashMap<>();
+        for (Task task : List.of(first, boundary, later)) {
+            TaskBinding value = binding(task);
+            bindings.put(task.id(), new TaskBinding(
+                    value.taskId(), value.role(), value.definitionDataObjectUuid(),
+                    value.dataObjectUuid(), value.environmentSchemaBindingUuid(),
+                    value.physicalSchemaUuid(), connection, value.schemaSnapshotUuid(),
+                    value.bindingVersion(), value.schemaSnapshotFingerprint(),
+                    value.physicalIdentity(), value.owner(), value.objectName(),
+                    value.dataObjectType()));
+        }
+        ProcedureRuntimePlan plan = new ProcedureRuntimePlan(
+                1, RUNTIME_HASH, "b".repeat(64), "c".repeat(64), UUID.randomUUID(),
+                UUID.randomUUID(), List.of(first, boundary, later), bindings,
+                new ObjectMapper().createObjectNode());
+        ArrayDeque<TaskResult> results = new ArrayDeque<>();
+        results.add(new ProcedureTaskExecutorPort.Succeeded(
+                1, 8, null,
+                ProcedureTaskExecutorPort.TransactionOutcome.EXECUTED_UNCOMMITTED));
+        results.add(new ProcedureTaskExecutorPort.Succeeded(
+                1, 8, null,
+                ProcedureTaskExecutorPort.TransactionOutcome.COMMIT_CONFIRMED));
+        results.add(new ProcedureTaskExecutorPort.SafeFailure("C_FAILED", true));
+        List<String> evidence = new ArrayList<>();
+        ProcedureExecutionJournalPort journal = journal(evidence);
+        ProcedureStepEngine engine = new ProcedureStepEngine(command -> results.removeFirst(), journal);
+
+        ProcedureStepEngine.FailedSafely failed = assertInstanceOf(
+                ProcedureStepEngine.FailedSafely.class, engine.execute(plan));
+
+        assertEquals("C", failed.taskId());
+        assertEquals(1, evidence.stream()
+                .filter(value -> value.startsWith("COMMIT:A:")).count());
+        assertEquals(true, engine.confirmPendingRollbacks("LATER_FAILURE"));
+        assertFalse(evidence.stream().anyMatch(value -> value.startsWith("ROLLBACK:A")));
+    }
+
+    private static Task managedTask(String id, ProcedureRuntimePlan.CommitMode commitMode) {
+        return new Task(
+                id, id, TaskType.SQL, ConnectionRole.TARGET, RiskClass.DML,
+                "command", "d".repeat(64), false, ErrorPolicy.STOP, 30,
+                null, null, List.of(), ProcedureRuntimePlan.LogCounter.INSERT,
+                ProcedureRuntimePlan.TransactionMode.TRANSACTION, 0,
+                ProcedureRuntimePlan.TransactionIsolation.READ_COMMITTED, commitMode);
+    }
+
+    private static ProcedureExecutionJournalPort journal(List<String> evidence) {
+        return new ProcedureExecutionJournalPort() {
+            public boolean started(TaskEvidence value) {
+                evidence.add("START:" + value.task().id()); return true;
+            }
+            public boolean succeeded(TaskEvidence value, long rows, long bytes) {
+                evidence.add("SUCCESS:" + value.task().id()); return true;
+            }
+            public boolean executedUncommitted(TaskEvidence value, long rows, long bytes) {
+                evidence.add("UNCOMMITTED:" + value.task().id()); return true;
+            }
+            public boolean commitConfirmed(TaskEvidence value, long rows, long bytes, String reference) {
+                evidence.add("COMMIT:" + value.task().id() + ":" + reference); return true;
+            }
+            public boolean rollbackConfirmed(TaskEvidence value, String code) {
+                evidence.add("ROLLBACK:" + value.task().id()); return true;
+            }
+            public boolean failed(TaskEvidence value, String code, boolean attempted,
+                    boolean rollback, boolean continued) {
+                evidence.add("FAILED:" + value.task().id()); return true;
+            }
+            public boolean outcomeUnknown(TaskEvidence value, String code) { return true; }
+        };
+    }
+
     private static final class Fixture {
 
         private final ProcedureRuntimePlan plan = plan();

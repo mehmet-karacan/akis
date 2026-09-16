@@ -15,7 +15,11 @@ public final class OracleWorkTableManager {
     }
     public record Created(UUID uuid,String databaseIdentity,JdbcStagingTransfer.Table table,long objectId,String structureHash) { }
     private final WorkObjectStore store;
-    public OracleWorkTableManager(WorkObjectStore store) { this.store=Objects.requireNonNull(store); }
+    private final OracleDdlLockPort ddlLocks;
+    public OracleWorkTableManager(WorkObjectStore store) { this(store,new JdbcOracleDdlLock()); }
+    OracleWorkTableManager(WorkObjectStore store,OracleDdlLockPort ddlLocks) {
+        this.store=Objects.requireNonNull(store);this.ddlLocks=Objects.requireNonNull(ddlLocks);
+    }
     public Created create(Connection control,WorkObjectStore.Owner owner,String targetDatabaseIdentity,
             JdbcStagingTransfer.Table table,List<Column> columns,int timeout,Runnable checkpoint,WorkObjectStore.WorkArea workArea) {
         columns=List.copyOf(columns);
@@ -28,17 +32,19 @@ public final class OracleWorkTableManager {
             checkpoint.run();
             String database=databaseIdentity(control);
             if (!database.equals(targetDatabaseIdentity) || !sessionUser(control).equals(table.owner())) throw new IllegalStateException("Çalışma hesabı veya hedef DB/PDB eşleşmiyor.");
-            if (objectId(control,table)!=null) throw new IllegalStateException("Çalışma adı zaten var; mevcut nesne sahiplenilmedi.");
-            allocated=store.allocate(owner,"WORK_SOURCE_1",database,table.owner(),table.name(),structure,workArea);
-            store.transition(owner,allocated,State.ALLOCATED,State.CREATING,null,null); creating=true;
-            checkpoint.run();
-            String sql="CREATE TABLE "+table.sql()+" ("+String.join(",",columns.stream().map(c->quote(c.name())+" "+c.oracleType()).toList())+")";
-            execute(control,sql,timeout);
-            Long id=objectId(control,table);
-            if (id==null) throw new IllegalStateException("Oluşturulan nesnenin kimliği doğrulanamadı.");
-            if (!structure.equals(OracleWorkStructure.read(control,table,timeout))) throw new IllegalStateException("Oluşturulan nesnenin kolonları uyuşmuyor.");
-            store.transition(owner,allocated,State.CREATING,State.READY,id,null); creating=false;
-            return new Created(allocated,database,table,id,structure);
+            try(var ignored=ddlLocks.acquire(control,lockName(database,table),timeout)) {
+                if (objectId(control,table)!=null) throw new IllegalStateException("Çalışma adı zaten var; mevcut nesne sahiplenilmedi.");
+                allocated=store.allocate(owner,"WORK_SOURCE_1",database,table.owner(),table.name(),structure,workArea);
+                store.transition(owner,allocated,State.ALLOCATED,State.CREATING,null,null); creating=true;
+                checkpoint.run();
+                String sql="CREATE TABLE "+table.sql()+" ("+String.join(",",columns.stream().map(c->quote(c.name())+" "+c.oracleType()).toList())+")";
+                execute(control,sql,timeout);
+                Long id=objectId(control,table);
+                if (id==null) throw new IllegalStateException("Oluşturulan nesnenin kimliği doğrulanamadı.");
+                if (!structure.equals(OracleWorkStructure.read(control,table,timeout))) throw new IllegalStateException("Oluşturulan nesnenin kolonları uyuşmuyor.");
+                store.transition(owner,allocated,State.CREATING,State.READY,id,null); creating=false;
+                return new Created(allocated,database,table,id,structure);
+            }
         } catch(SQLException | RuntimeException failure) {
             if (creating) try { store.transition(owner,allocated,State.CREATING,State.REVIEW_REQUIRED,null,null); } catch(RuntimeException ignored) { }
             throw new IllegalStateException("Çalışma tablosu hazırlığı doğrulanamadı; otomatik DROP/tekrar yapılmadı.");
@@ -47,8 +53,10 @@ public final class OracleWorkTableManager {
     public void grantRead(Connection control,Created created,String targetUser,int timeout,Runnable checkpoint) {
         StagedMappingDefinition.identifier(targetUser);
         try {
-            verify(control,created,timeout); checkpoint.run();
-            if (!targetUser.equals(created.table().owner())) execute(control,"GRANT SELECT ON "+created.table().sql()+" TO "+quote(targetUser),timeout);
+            try(var ignored=ddlLocks.acquire(control,lockName(created.databaseIdentity(),created.table()),timeout)) {
+                verify(control,created,timeout); checkpoint.run();
+                if (!targetUser.equals(created.table().owner())) execute(control,"GRANT SELECT ON "+created.table().sql()+" TO "+quote(targetUser),timeout);
+            }
         } catch(SQLException ex) { throw new IllegalStateException("Çalışma tablosu okuma yetkisi doğrulanamadı."); }
     }
     public void verify(Connection control,Created created,int timeout) throws SQLException {
@@ -63,14 +71,16 @@ public final class OracleWorkTableManager {
         var row=store.claimCleanup(owner,object);
         var table=new JdbcStagingTransfer.Table(row.owner(),row.name());
         try {
-            Long actualId=objectId(control,table);
-            if(actualId==null) throw new IllegalStateException("Nesne yok; önceki DROP sonucunun mutabakatı gerekir.");
-            WorkObjectLifecycle.requireDrop(row.state(),row.databaseIdentity(),databaseIdentity(control),
-                    row.owner(),sessionUser(control),row.objectId(),actualId,row.structureHash(),
-                    OracleWorkStructure.read(control,table,timeout),true);
-            execute(control,"DROP TABLE "+table.sql(),timeout);
-            if(objectId(control,table)!=null) throw new IllegalStateException("DROP sonrası nesne hâlâ var.");
-            store.transition(owner,object,State.CLEANUP_PENDING,State.DROPPED,null,null);
+            try(var ignored=ddlLocks.acquire(control,lockName(row.databaseIdentity(),table),timeout)) {
+                Long actualId=objectId(control,table);
+                if(actualId==null) throw new IllegalStateException("Nesne yok; önceki DROP sonucunun mutabakatı gerekir.");
+                WorkObjectLifecycle.requireDrop(row.state(),row.databaseIdentity(),databaseIdentity(control),
+                        row.owner(),sessionUser(control),row.objectId(),actualId,row.structureHash(),
+                        OracleWorkStructure.read(control,table,timeout),true);
+                execute(control,"DROP TABLE "+table.sql(),timeout);
+                if(objectId(control,table)!=null) throw new IllegalStateException("DROP sonrası nesne hâlâ var.");
+                store.transition(owner,object,State.CLEANUP_PENDING,State.DROPPED,null,null);
+            }
         } catch(SQLException | RuntimeException failure) {
             try { store.transition(owner,object,State.CLEANUP_PENDING,State.REVIEW_REQUIRED,null,null); } catch(RuntimeException ignored) { }
             throw new IllegalStateException("Çalışma tablosu temizliği doğrulanamadı; tekrar DROP yapılmadı.");
@@ -100,6 +110,9 @@ public final class OracleWorkTableManager {
     }
     private static void execute(Connection connection,String sql,int timeout) throws SQLException {
         try(PreparedStatement statement=connection.prepareStatement(sql)) { statement.setQueryTimeout(timeout); statement.execute(); }
+    }
+    private static String lockName(String database,JdbcStagingTransfer.Table table) {
+        return "AKIS_DDL/1/"+database+"/"+table.owner()+"/"+table.name();
     }
     private static String quote(String name) { return "\""+StagedMappingDefinition.identifier(name)+"\""; }
 }

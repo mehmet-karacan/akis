@@ -42,6 +42,17 @@ class ProjectCapabilityControllerTest {
         assertTrue(controller.get(UUID.randomUUID()).runtime().runnable());
     }
 
+    @Test
+    void configuredRecoveryFlagsAreNotAdvertisedWithoutInstalledHandlers() {
+        var controller = new ProjectCapabilityController(new CapturingAuthorization(),
+                new ExecutionFeatureFlags(true, false, true, false, true, true));
+
+        var capabilities = controller.get(UUID.randomUUID()).supportedRuntimeCapabilities();
+
+        assertFalse(capabilities.contains("ORACLE_PROCEDURE_RECOVERY_V1"));
+        assertFalse(capabilities.contains("ORACLE_TRANSFER_RECOVERY_V1"));
+    }
+
     private static final class CapturingAuthorization extends AuthorizationService {
         private UUID projectUuid;
         private String permission;

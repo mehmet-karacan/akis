@@ -1,6 +1,8 @@
 package tr.com.innova.akis.execution;
 
 import java.util.Objects;
+import java.util.ArrayList;
+import java.util.List;
 
 import tr.com.innova.akis.execution.ProcedureExecutionJournalPort.TaskEvidence;
 import tr.com.innova.akis.execution.ProcedureRuntimePlan.ErrorPolicy;
@@ -19,6 +21,7 @@ final class ProcedureStepEngine {
 
     private final ProcedureTaskExecutorPort executor;
     private final ProcedureExecutionJournalPort journal;
+    private final List<PendingCommit> pendingCommits = new ArrayList<>();
 
     ProcedureStepEngine(
             ProcedureTaskExecutorPort executor,
@@ -77,9 +80,27 @@ final class ProcedureStepEngine {
                     }
                     return failure.terminalResult();
                 }
-                if (!accepted(() -> journal.succeeded(
-                        evidence, success.rowCount(), success.byteCount()))) {
+                boolean journalAccepted = success.transactionOutcome()
+                        == ProcedureTaskExecutorPort.TransactionOutcome.EXECUTED_UNCOMMITTED
+                        ? accepted(() -> journal.executedUncommitted(
+                                evidence, success.rowCount(), success.byteCount()))
+                        : accepted(() -> journal.succeeded(
+                                evidence, success.rowCount(), success.byteCount()));
+                if (!journalAccepted) {
                     return new StoppedFailClosed(FailureCode.CONTROL_PLANE_UNCONFIRMED);
+                }
+                if (success.transactionOutcome()
+                        == ProcedureTaskExecutorPort.TransactionOutcome.EXECUTED_UNCOMMITTED) {
+                    pendingCommits.add(new PendingCommit(
+                            transactionGroup(task, binding), evidence,
+                            success.rowCount(), success.byteCount()));
+                }
+                else if (task.transactionMode()
+                        == ProcedureRuntimePlan.TransactionMode.TRANSACTION
+                        && !confirmCommittedGroup(transactionGroup(task, binding),
+                                groupCommitReference(plan, task))) {
+                    return new StoppedFailClosed(
+                            FailureCode.CONTROL_PLANE_UNCONFIRMED);
                 }
                 long nextRows;
                 long nextBytes;
@@ -152,6 +173,62 @@ final class ProcedureStepEngine {
             return new StoppedFailClosed(FailureCode.INVALID_RUNTIME_PLAN);
         }
         return new Completed(completed, warnings, rows, bytes);
+    }
+
+    boolean confirmPendingCommits(String commitReference) {
+        if (commitReference == null || commitReference.isBlank()) return false;
+        for (PendingCommit pending : pendingCommits) {
+            if (!accepted(() -> journal.commitConfirmed(
+                    pending.evidence(), pending.rowCount(), pending.byteCount(),
+                    commitReference))) return false;
+        }
+        pendingCommits.clear();
+        return true;
+    }
+
+    private boolean confirmCommittedGroup(
+            TransactionGroupKey group, String commitReference) {
+        List<PendingCommit> committed = pendingCommits.stream()
+                .filter(pending -> pending.group().equals(group)).toList();
+        for (PendingCommit pending : committed) {
+            if (!accepted(() -> journal.commitConfirmed(
+                    pending.evidence(), pending.rowCount(), pending.byteCount(),
+                    commitReference))) return false;
+        }
+        pendingCommits.removeAll(committed);
+        return true;
+    }
+
+    private TransactionGroupKey transactionGroup(Task task, TaskBinding binding) {
+        return new TransactionGroupKey(
+                binding.connectionVersionUuid(), task.transactionChannel(),
+                task.transactionMode());
+    }
+
+    private String groupCommitReference(ProcedureRuntimePlan plan, Task task) {
+        return "group:" + plan.runtimePlanHash().substring(0, 16)
+                + ":channel:" + task.transactionChannel()
+                + ":through:" + task.id();
+    }
+
+    boolean confirmPendingRollbacks(String errorCode) {
+        for (PendingCommit pending : pendingCommits) {
+            if (!accepted(() -> journal.rollbackConfirmed(pending.evidence(), errorCode))) {
+                return false;
+            }
+        }
+        pendingCommits.clear();
+        return true;
+    }
+
+    boolean markPendingOutcomeUnknown(String errorCode) {
+        for (PendingCommit pending : pendingCommits) {
+            if (!accepted(() -> journal.outcomeUnknown(pending.evidence(), errorCode))) {
+                return false;
+            }
+        }
+        pendingCommits.clear();
+        return true;
     }
 
     private FailureHandling failedAtExecutorBoundary(
@@ -262,6 +339,19 @@ final class ProcedureStepEngine {
     }
 
     private record FailureHandling(boolean continued, RunResult terminalResult) {
+    }
+
+    private record PendingCommit(
+            TransactionGroupKey group,
+            TaskEvidence evidence,
+            long rowCount,
+            long byteCount) {
+    }
+
+    private record TransactionGroupKey(
+            java.util.UUID connectionVersionUuid,
+            Integer channel,
+            ProcedureRuntimePlan.TransactionMode mode) {
     }
 
     @FunctionalInterface
