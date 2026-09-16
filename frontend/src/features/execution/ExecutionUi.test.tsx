@@ -15,6 +15,7 @@ vi.mock('./api', () => ({
     listEvents: vi.fn(),
     listEventPage: vi.fn(),
     listSteps: vi.fn(),
+    getKmDetails: vi.fn().mockResolvedValue({ steps: [], workObjects: [] }),
     cancelRun: vi.fn(),
   },
   isExecutionDisabled: vi.fn(() => false),

@@ -15,6 +15,9 @@ import { useExecutionI18n } from './i18n'
 import { RunStatusBadge } from './RunStatusBadge'
 import { buildRunStepTree, firstFailedPath, type RunStepNode } from './runTree'
 import './execution.css'
+import { KmRunDetails } from './KmRunDetails'
+import { notifyFeedback } from '../../core/api/networkFeedback'
+import { useProjectAccess } from '../../core/auth/ProjectAccessContext'
 
 interface RunDetailPageProps { runUuidOverride?: string; panel?: boolean; onClose?: () => void; objectName?: string }
 function totalRows(nodes: RunStepNode[], insert: boolean): number | null {
@@ -37,10 +40,12 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
   const { runUuid: routeUuid = '' } = useParams()
   const uuid = runUuidOverride ?? routeUuid
   const project = useCurrentProjectUuid()
+  const { can } = useProjectAccess()
   const { t, locale } = useExecutionI18n()
   const run = useRemoteData(() => executionApi.getRun(project, uuid), [project, uuid])
   const steps = useRemoteData(() => executionApi.listSteps(project, uuid), [project, uuid])
   const events = useRemoteData(() => executionApi.listEventPage(project, uuid), [project, uuid])
+  const km = useRemoteData(() => executionApi.getKmDetails(project, uuid), [project, uuid])
   const [selected, setSelected] = useState('')
   const [confirm, setConfirm] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -53,11 +58,20 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
   const insertedRows = totalRows(hierarchy, true)
   const treeData = (nodes: RunStepNode[]): DataNode[] => nodes.map(item => ({ key: item.uuid, title: <span className="run-step-title"><span>{item.ordinal}. {item.name}</span><RunStatusBadge status={item.status} /></span>, children: treeData(item.children) }))
   const failure = events.data?.items.filter(item => /FAIL|ERROR|HATA|BASARISIZ/i.test(item.type)).map(item => eventError(item.data)).find(Boolean)
-  const refresh = () => Promise.all([run.reload(), steps.reload(), events.reload()])
+  const refresh = () => Promise.all([run.reload(), steps.reload(), events.reload(), km.reload()])
   async function cancel() {
     setBusy(true); setError('')
     try { run.setData(await executionApi.cancelRun(project, uuid)); setConfirm(false); await events.reload() }
     catch (reason) { if (isExecutionDisabled(reason)) { setDisabled(true); setConfirm(false) } else setError(apiErrorMessage(reason, t('requestFailed'))) }
+    finally { setBusy(false) }
+  }
+  async function reconcileKm() {
+    setBusy(true)
+    try {
+      const result = await executionApi.reconcileKm(project, uuid)
+      notifyFeedback(result.message, ['PUBLISHED', 'NOT_PUBLISHED'].includes(result.outcome) ? 'success' : 'error')
+      await refresh()
+    } catch (reason) { notifyFeedback(apiErrorMessage(reason, t('requestFailed')), 'error') }
     finally { setBusy(false) }
   }
   const content = <section className="run-result-page">
@@ -75,6 +89,11 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
       ]} />
       {run.data.status === 'BASARISIZ' && <Alert type="error" showIcon title={failure ?? t('errorMessageUnavailable')} />}
       <Panel title={t('steps')}>
+        {!!km.error && <ErrorState message={apiErrorMessage(km.error, t('requestFailed'))} onRetry={() => void km.reload()} />}
+        {!!km.data?.steps.length ? <>
+          <KmRunDetails data={km.data} />
+          {run.data.status === 'SONUC_BELIRSIZ' && can('CALISTIRMA_BASLAT') && <Button busy={busy} onClick={() => void reconcileKm()} icon={<RefreshCw size={16} />}>{locale.startsWith('tr') ? 'Hedef Sonucunu Doğrula' : 'Reconcile Target Outcome'}</Button>}
+        </> : <>
         {steps.loading && <LoadingState />}{!!steps.error && <ErrorState message={apiErrorMessage(steps.error, t('requestFailed'))} onRetry={() => void steps.reload()} />}
         {!steps.loading && !steps.error && !steps.data?.length && <EmptyState>{t('emptySteps')}</EmptyState>}
         {!!steps.data?.length && <div className="run-result-steps"><Tree blockNode defaultExpandAll key={uuid + steps.data.length} treeData={treeData(hierarchy)} selectedKeys={[selected]} onSelect={keys => { if (keys[0]) setSelected(String(keys[0])) }} aria-label={t('steps')} />
@@ -85,6 +104,7 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
             { key: 'rows', label: step.connectionRole === 'SOURCE' ? t('selectedRows') : step.logCounter === 'INSERT' && step.transactionState === 'COMMITTED' ? t('insertedRows') : t('rowCount'), children: step.rowCount ?? '—' },
           ]} />{step.errorCode && <Alert type="error" showIcon title={step.errorCode} description={t('errorMessageUnavailable')} />}</section>}
         </div>}
+        </>}
       </Panel>
       {events.error && <ErrorState message={apiErrorMessage(events.error, t('requestFailed'))} onRetry={() => void events.reload()} />}
     </>}

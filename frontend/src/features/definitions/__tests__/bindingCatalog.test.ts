@@ -3,6 +3,10 @@ import { bindingNodes, candidateLabel, unboundNodes } from '../bindingCatalog'
 import type { BindingCandidate, DataBinding } from '../types'
 
 describe('definition binding catalog', () => {
+  it('reads names from saved editor metadata without changing binding identity', () => {
+    expect(bindingNodes('MAPPING', { datasets: [{ id: 'S', role: 'SOURCE', ui: { name: 'Orders', dataObjectUuid: 'hint-only' } }] }))
+      .toEqual([{ code: 'S', name: 'Orders', role: 'KAYNAK' }])
+  })
   it('derives governed procedure nodes and roles from immutable content', () => {
     expect(bindingNodes('PROCEDURE', { tasks: [
       { id: 'READ_SOURCE', name: 'Read source', connectionRole: 'SOURCE' },

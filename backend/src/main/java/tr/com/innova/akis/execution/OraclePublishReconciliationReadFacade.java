@@ -234,7 +234,7 @@ final class OraclePublishReconciliationReadFacade
                 || pinned.originalPublish() == null || pinned.barrier() == null) {
             throw invalid();
         }
-        PilotRuntimePlan plan = pinned.plan();
+        MappingExecutionContract plan = pinned.plan();
         PinnedExecutionContext execution = pinned.execution();
         PilotPublishIntent original = pinned.originalPublish();
         BarrierEvidence barrier = pinned.barrier();
@@ -272,7 +272,8 @@ final class OraclePublishReconciliationReadFacade
                 || barrier.targetIdentityVersion() != original.targetIdentityVersion()) {
             throw invalid();
         }
-        String expectedPublishKey = publishKeys.create(
+        boolean staged=plan instanceof StagedRuntimePlan;
+        String expectedPublishKey = staged?StagedPublishFacade.publishKey(plan,original.jobRequestUuid(),original.canonicalTargetHash()):publishKeys.create(
                 original.jobRequestUuid(), original.runtimePlanHash(),
                 original.canonicalTargetHash(), PilotPublishKeyV1.PILOT_STEP_CODE);
         if (!equalHash(expectedPublishKey, original.publishKeyHash())) {
@@ -288,7 +289,7 @@ final class OraclePublishReconciliationReadFacade
                 barrier.barrierTargetGeneration(), barrier.canonicalTargetHash(),
                 barrier.targetIdentityVersion());
         PublishEvidence publishEvidence = new PublishEvidence(
-                PilotPublishKeyV1.PILOT_STEP_CODE,
+                staged?"KM_ATOMIC_REPLACE":PilotPublishKeyV1.PILOT_STEP_CODE,
                 original.publishKeyHash(),
                 original.payloadHash(),
                 original.rowCount(),
@@ -424,7 +425,7 @@ final class OraclePublishReconciliationReadFacade
     }
 
     private record VerifiedEvidence(
-            PilotRuntimePlan plan,
+            MappingExecutionContract plan,
             PinnedExecutionContext execution,
             PilotPublishIntent original,
             TargetFenceToken barrierFence,

@@ -1,5 +1,6 @@
 import { ArrowLeft, Database, GitBranch, ShieldAlert, Trash2 } from 'lucide-react'
 import { Tabs } from 'antd'
+import { WorkPrefixEditor } from './WorkPrefixEditor'
 import { useRecordAudit } from '../../core/ui/useRecordAudit'
 import { RecordAuditFields } from '../../core/ui/RecordAuditFields'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -40,6 +41,7 @@ export function ConnectionDetailPage({ selectedUuid, onDeleted, onChanged }: { s
   const [error, setError] = useState('')
   const [dialog, setDialog] = useState<'delete' | null>(null)
   const [busy, setBusy] = useState(false)
+  const [prefixOpen, setPrefixOpen] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -106,6 +108,7 @@ export function ConnectionDetailPage({ selectedUuid, onDeleted, onChanged }: { s
       { label: t('connections.logical'), value: logical.filter(item => relatedLogical.has(item.uuid)).length, icon: <GitBranch />, tone: 'info' },
     ]} />
     <details className="ui-audit-disclosure"><summary>{i18n.language === 'tr' ? 'Kayıt Bilgileri' : 'Record Information'}</summary><RecordAuditFields record={audit.records[connectionUuid]} state={audit.state} /></details>
+    {connection.databaseType === 'ORACLE' && <details className="ui-audit-disclosure" onToggle={event => setPrefixOpen(event.currentTarget.open)}><summary>{i18n.language === 'tr' ? 'Çalışma Tablosu Prefixleri' : 'Work Table Prefixes'}</summary>{prefixOpen && <WorkPrefixEditor key={connectionUuid} projectUuid={projectUuid} subjectUuid={connectionUuid} canWrite={canWrite} />}</details>}
     <Tabs items={[{ key: 'details', label: copy.connectionDefinition, children: <section id="details" className="connection-detail-section">
       {current ? <OracleConnectionEndpointEditForm key={current.uuid + connection.version} projectUuid={projectUuid} connectionUuid={connectionUuid} connection={connection} version={current} copy={copy} readOnly={!canWrite} footerActions={canWrite ? <Button tone="danger" icon={<Trash2 size={16} />} onClick={() => setDialog('delete')}>{t('connections.delete')}</Button> : undefined} onSaved={async () => { await load(); onChanged?.() }} /> : <AsyncState state="empty" title={t('connections.noConnectionInfo')} />}
     </section> }, { key: 'physical', label: t('connections.physical'), children: <section id="physical" className="connection-detail-section"><p>{t('connections.physicalHint')}</p><PhysicalSchemaManager projectUuid={projectUuid} connectionUuid={connectionUuid} version={current} items={physical} canManage={canWrite} onChanged={async () => { await load(); onChanged?.() }} /></section> }, { key: 'usage', label: t('connections.usage'), children: <section id="usage" className="connection-detail-section"><p>{t('connections.usageHint')}</p><p>{t('connections.usageCount', { count: relatedLogical.size })}</p></section> }]} />

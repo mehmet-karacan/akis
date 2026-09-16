@@ -29,7 +29,7 @@ import tr.com.innova.akis.execution.RunReconciliationPort.ReconciliationLeaseTok
 
 /**
  * Composes PostgreSQL reconciliation ownership with the fresh Oracle evidence
- * read. No scheduler or endpoint invokes this service yet.
+ * read. The feature-gated KM reconciliation endpoint invokes this service explicitly.
  */
 @Service
 final class PublishReconciliationService {
@@ -150,7 +150,7 @@ final class PublishReconciliationService {
                 || pinned.barrier() == null) {
             return false;
         }
-        PilotRuntimePlan plan = pinned.plan();
+        MappingExecutionContract plan = pinned.plan();
         PinnedExecutionContext execution = pinned.execution();
         PilotPublishIntent original = pinned.originalPublish();
         BarrierEvidence barrier = pinned.barrier();

@@ -28,12 +28,18 @@ public class JdbcPinnedPublishReconciliationStore
     private final PinnedExecutionContextPort executionContexts;
     private final ReconciliationPlanResolver plans;
 
-    @Autowired
     public JdbcPinnedPublishReconciliationStore(
             JdbcClient jdbc,
             PinnedExecutionContextPort executionContexts,
             PilotRuntimePlanResolver plans) {
         this(jdbc, executionContexts, plans::resolve);
+    }
+    @Autowired
+    public JdbcPinnedPublishReconciliationStore(JdbcClient jdbc,PinnedExecutionContextPort executionContexts,
+            PilotRuntimePlanResolver pilot,StagedRuntimePlanResolver staged) {
+        this(jdbc,executionContexts,(release,hash,scenario,manifest)->
+                StagedRuntimePlanResolver.CAPABILITY.equals(manifest.path("runtimeCapability").asText())
+                    ?staged.resolve(release,hash,scenario,manifest):pilot.resolve(release,hash,scenario,manifest));
     }
 
     JdbcPinnedPublishReconciliationStore(
@@ -148,7 +154,7 @@ public class JdbcPinnedPublishReconciliationStore
             return Optional.empty();
         }
         PinnedExecutionContext pinned = execution.get();
-        PilotRuntimePlan plan = plans.resolve(
+        MappingExecutionContract plan = plans.resolve(
                 pinned.releaseHash(), pinned.planHash(),
                 pinned.scenarioPlan(), pinned.physicalManifest());
         if (!plan.runtimePlanHash().equals(stored.get().intent().runtimePlanHash())) {
@@ -165,7 +171,7 @@ public class JdbcPinnedPublishReconciliationStore
 
     @FunctionalInterface
     interface ReconciliationPlanResolver {
-        PilotRuntimePlan resolve(
+        MappingExecutionContract resolve(
                 String releaseHash,
                 String planHash,
                 JsonNode scenarioPlan,

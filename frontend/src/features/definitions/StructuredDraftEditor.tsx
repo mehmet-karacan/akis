@@ -63,7 +63,7 @@ export function StructuredDraftEditor({ projectUuid, type, value, onChange }: Pr
   }
 
   if (type === 'KNOWLEDGE_MODULE') {
-    return <KnowledgeModuleEditor value={content} onChange={onChange} />
+    return <KnowledgeModuleEditor projectUuid={projectUuid} value={content} onChange={onChange} />
   }
 
   if (type === 'LOAD_PLAN') {

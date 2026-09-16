@@ -23,10 +23,13 @@ export const operationsApi = {
       `${projectPath(projectUuid)}/publications/${encodeURIComponent(publicationUuid)}`,
     )
   },
-  createPublication(projectUuid: string, scenarioUuid: string, environmentUuid: string) {
+  previewStagedPlan(projectUuid: string, scenarioUuid: string, environmentUuid: string) {
+    return apiRequest<{ plan: { physicalPlanHash: string; steps: Array<{ id: string; site: string; operation: string; slot: string }> }; executionVerified: boolean; message: string }>(`${projectPath(projectUuid)}/publications/physical-plan/preview`, { method: 'POST', ...jsonBody({ scenarioUuid, environmentUuid }) })
+  },
+  createPublication(projectUuid: string, scenarioUuid: string, environmentUuid: string, expectedPhysicalPlanHash?: string) {
     return apiRequest<Publication>(`${projectPath(projectUuid)}/publications`, {
       method: 'POST',
-      ...jsonBody({ scenarioUuid, environmentUuid }),
+      ...jsonBody({ scenarioUuid, environmentUuid, ...(expectedPhysicalPlanHash ? { expectedPhysicalPlanHash } : {}) }),
     })
   },
   decidePublication(

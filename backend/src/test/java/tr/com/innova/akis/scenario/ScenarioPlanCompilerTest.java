@@ -27,6 +27,21 @@ class ScenarioPlanCompilerTest {
             objectMapper, new DefinitionContentValidator(), new SecretValueSanitizer());
 
     @Test
+    void savedAuthoringMetadataSurvivesCompilationAndMatchesPilotContract() throws Exception {
+        JsonNode mapping = json("""
+                {"datasets":[{"id":"s","role":"SOURCE","ui":{"name":"Orders","dataObjectUuid":"selection","schemaSnapshotUuid":"hint"}},
+                             {"id":"t","role":"TARGET"}],
+                 "columnMappings":[{"source":{"dataset":"s","column":"ID"},"target":{"dataset":"t","column":"ID"}}],
+                 "writeStrategy":{"kind":"ATOMIC_DELETE_INSERT"}}
+                """);
+        CompiledPlan plan = compiler.compile(source(mapping, DefinitionType.MAPPING, 2));
+        var resolver = new tr.com.innova.akis.execution.PilotRuntimePlanResolver(objectMapper, new SecretValueSanitizer());
+        org.junit.jupiter.api.Assertions.assertTrue(resolver.isPilotCandidate(plan.plan()));
+        assertEquals("selection", plan.plan().path("executable").path("definition").path("datasets").get(0).path("ui").path("dataObjectUuid").asText());
+        // Candidate is not publication approval: physical bindings remain mandatory.
+    }
+
+    @Test
     void compilesEquivalentObjectsToTheSameCanonicalSha256Plan() throws Exception {
         JsonNode first = json("""
                 {"firstStepId":"START","steps":[{"type":"MAPPING","id":"START"}],

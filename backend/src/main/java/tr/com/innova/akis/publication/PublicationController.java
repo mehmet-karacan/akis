@@ -50,8 +50,9 @@ final class PublicationController {
             @PathVariable UUID projectUuid,
             @Valid @RequestBody CreatePublicationRequest request) {
         authorization.requireProjectPermission(projectUuid, PUBLICATION_CREATE);
-        CreateResult result = service.create(
-                projectUuid, request.scenarioUuid(), request.environmentUuid());
+        CreateResult result = request.expectedPhysicalPlanHash() == null
+                ? service.create(projectUuid, request.scenarioUuid(), request.environmentUuid())
+                : service.create(projectUuid, request.scenarioUuid(), request.environmentUuid(), request.expectedPhysicalPlanHash());
         PublicationView view = PublicationView.from(result.publication());
         if (!result.created()) {
             return ResponseEntity.ok(view);
@@ -66,6 +67,12 @@ final class PublicationController {
     List<PublicationView> list(@PathVariable UUID projectUuid) {
         authorization.requireProjectPermission(projectUuid, PUBLICATION_READ);
         return service.list(projectUuid).stream().map(PublicationView::from).toList();
+    }
+
+    @PostMapping("/physical-plan/preview")
+    JsonNode preview(@PathVariable UUID projectUuid, @Valid @RequestBody CreatePublicationRequest request) {
+        authorization.requireProjectPermission(projectUuid, PUBLICATION_READ);
+        return service.previewStaged(projectUuid, request.scenarioUuid(), request.environmentUuid());
     }
 
     @GetMapping("/{publicationUuid}")
@@ -98,7 +105,9 @@ final class PublicationController {
 
     record CreatePublicationRequest(
             @NotNull UUID scenarioUuid,
-            @NotNull UUID environmentUuid) {
+            @NotNull UUID environmentUuid,
+            String expectedPhysicalPlanHash) {
+        CreatePublicationRequest(UUID scenarioUuid, UUID environmentUuid) { this(scenarioUuid,environmentUuid,null); }
     }
 
     record ApprovalDecisionRequest(

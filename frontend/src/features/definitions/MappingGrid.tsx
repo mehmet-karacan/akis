@@ -11,11 +11,16 @@ import { definitionCodeLabel, useDefinitionsI18n } from './i18n'
 import { filterMappingRows, MAPPING_PAGE_SIZE, pageCount, safePage } from './mappingUtils'
 import type { ColumnMapping, MappingContent, MappingDataset } from './types'
 import { MappingDiagram } from './MappingDiagram'
+import { MappingDesignAssessment } from './MappingDesignAssessment'
+import { MappingKmOptions } from './MappingKmOptions'
 
 interface MappingGridProps {
   projectUuid: string
   value: MappingContent
   onChange: (value: MappingContent) => void
+  schemaVersion?: number
+  onUpgrade?: () => void
+  onEnableKm?: () => void
 }
 
 function createDataset(role: 'SOURCE' | 'TARGET', datasets: MappingDataset[]): MappingDataset {
@@ -35,7 +40,7 @@ function createRow(value: MappingContent): ColumnMapping {
 
 interface CatalogEntry { model: Model; object: DataObject; snapshot?: SchemaSnapshot }
 
-export function MappingGrid({ projectUuid, value, onChange }: MappingGridProps) {
+export function MappingGrid({ projectUuid, value, onChange, schemaVersion = 2, onUpgrade, onEnableKm }: MappingGridProps) {
   const { language, t } = useDefinitionsI18n()
   const [view, setView] = useState('diagram')
   const [query, setQuery] = useState('')
@@ -355,6 +360,9 @@ export function MappingGrid({ projectUuid, value, onChange }: MappingGridProps) 
 
       <section hidden={view !== 'execution'} className="mapping-section mapping-strategy" aria-labelledby="strategy-title">
         <h3 id="strategy-title">{t('writeStrategy')}</h3>
+        {schemaVersion === 3 ? <MappingKmOptions projectUuid={projectUuid} value={value} onChange={onChange} /> : <>
+        <MappingDesignAssessment projectUuid={projectUuid} value={value} schemaVersion={schemaVersion} onUpgrade={onUpgrade} />
+        {onEnableKm && <div><AntActionButton type="button" disabled={value.writeStrategy.kind !== 'ATOMIC_DELETE_INSERT'} onClick={onEnableKm}>{language === 'tr' ? 'Atomik Tam Yenileme KM Planına Geç' : 'Use Atomic Full Refresh KM Plan'}</AntActionButton><p>{language === 'tr' ? 'KM için önce atomik tam yenileme stratejisini seçin. Hedefin tamamı değiştirilir; mevcut yayınlar değişmez.' : 'Select atomic full refresh first. The entire target is replaced; existing publications remain unchanged.'}</p></div>}
         <label>
           <span>{t('writeStrategy')}</span>
           <FormSelect
@@ -388,6 +396,7 @@ export function MappingGrid({ projectUuid, value, onChange }: MappingGridProps) 
             />
           </label>
         )}
+        </>}
       </section>
     </div>
   )

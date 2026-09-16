@@ -31,6 +31,8 @@ import { bindingNodes, candidateLabel, unboundNodes } from './bindingCatalog'
 import { createDefaultContent, isMappingContent, isProcedureContent } from './defaults'
 import { definitionTypeKey, useDefinitionsI18n } from './i18n'
 import { MappingGrid } from './MappingGrid'
+import { StagedPlanPreview } from './StagedPlanPreview'
+import { editMapping, storeMapping, initialSchemaVersion } from './mappingAuthoring'
 import { PackageEditor } from './PackageEditor'
 import { ProcedureEditor } from './ProcedureEditor'
 import { StructuredDraftEditor } from './StructuredDraftEditor'
@@ -81,7 +83,7 @@ function errorMessage(error: unknown, fallback: string) {
 }
 
 export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: DefinitionsWorkspaceProps) {
-  const { t } = useDefinitionsI18n()
+  const { language, t } = useDefinitionsI18n()
   const navigate = useNavigate()
   const { setPendingChanges } = usePendingChanges()
   const { can } = useProjectAccess()
@@ -234,7 +236,8 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
       if (definitionRequest.current !== requestNumber) return
       setDraft(nextDraft)
       setSchemaVersion(nextDraft?.schemaVersion ?? (selectedDefinition.type === 'MAPPING' || selectedDefinition.type === 'PROCEDURE' ? 2 : 1))
-      setContent(nextDraft?.content ?? createDefaultContent(selectedDefinition.type))
+      const loadedContent = nextDraft?.content ?? createDefaultContent(selectedDefinition.type)
+      setContent(selectedDefinition.type === 'MAPPING' && isMappingContent(loadedContent) ? editMapping(loadedContent) : loadedContent)
       setDirty(false)
       setVersions(nextVersions)
       setSelectedVersionUuid(nextVersions[0]?.uuid ?? null)
@@ -280,11 +283,11 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
         projectUuid,
         selectedDefinition.uuid,
         draft?.version ?? 0,
-        schemaVersion,
-        content,
+        selectedDefinition.type === 'KNOWLEDGE_MODULE' && content && typeof content === 'object' && 'language' in content && content.language === 'AKIS_KM/1' ? 2 : schemaVersion,
+        selectedDefinition.type === 'MAPPING' && isMappingContent(content) ? storeMapping(content) : content,
       )
       setDraft(saved)
-      setContent(saved.content)
+      setContent(selectedDefinition.type === 'MAPPING' && isMappingContent(saved.content) ? editMapping(saved.content) : saved.content)
       setDirty(false)
       notifyFeedback(t('saved'))
       return true
@@ -418,7 +421,7 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
                 setStatus(null)
                 try {
                   const created = await definitionsApi.createDefinition(projectUuid, input)
-                  await definitionsApi.saveDraft(projectUuid, created.uuid, 0, input.type === 'PROCEDURE' ? 2 : 1, initialContent)
+                  await definitionsApi.saveDraft(projectUuid, created.uuid, 0, initialSchemaVersion(input.type, initialContent), input.type === 'MAPPING' && isMappingContent(initialContent) ? storeMapping(initialContent) : initialContent)
                   setDefinitions((current) => [created, ...current])
                   window.dispatchEvent(new Event('akis:definitions-changed'))
                   setSelectedUuid(created.uuid)
@@ -483,7 +486,9 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
               ) : tab === 'draft' ? (
                 <section id="definition-panel-draft" className="definition-editor-panel" role="tabpanel" aria-labelledby="definition-tab-draft">
                   <fieldset className="definition-readonly-gate" disabled={!canWrite}>{selectedDefinition.type === 'MAPPING' && isMappingContent(content) ? (
-                    <MappingGrid projectUuid={projectUuid} value={content} onChange={updateContent} />
+                    <MappingGrid projectUuid={projectUuid} value={content} onChange={updateContent} schemaVersion={schemaVersion}
+                      onEnableKm={() => { setSchemaVersion(3); updateContent({ ...content, staging: { logicalSchemaUuid: '' }, modules: {}, options: { batchRows: 500, fetchRows: 500, maxRows: 100000, maxBytes: 268435456, allowEmptySource: false }, writeStrategy: { kind: 'ATOMIC_DELETE_INSERT' } }) }}
+                      onUpgrade={() => { setSchemaVersion(2); setDirty(true); notifyFeedback(language === 'tr' ? 'Taslak sürüm 2 olarak hazırlanıyor. Kaydedin ve yeni bir tanım sürümü oluşturun; mevcut yayınlar değişmez.' : 'Draft prepared for schema 2. Save and create a new definition version; existing publications remain unchanged.') }} />
                   ) : selectedDefinition.type === 'PROCEDURE' && isProcedureContent(content) ? (
                     <ProcedureEditor projectUuid={projectUuid} definition={selectedDefinition} value={content} onChange={updateContent} limits={capabilities?.procedure} />
                   ) : selectedDefinition.type === 'PACKAGE' ? (
@@ -737,6 +742,7 @@ function VersionsPanel(props: VersionsPanelProps) {
   const [environmentUuid, setEnvironmentUuid] = useState('')
   const [preparingScenarioUuid, setPreparingScenarioUuid] = useState('')
   const [prepared, setPrepared] = useState<Record<string, Publication>>({})
+  const [kmPreviews, setKmPreviews] = useState<Record<string, string>>({})
   useEffect(() => {
     if (!props.environments.some((item) => item.uuid === environmentUuid)) setEnvironmentUuid(props.environments[0]?.uuid ?? '')
   }, [environmentUuid, props.environments])
@@ -744,7 +750,7 @@ function VersionsPanel(props: VersionsPanelProps) {
     if (!environmentUuid) return
     setPreparingScenarioUuid(scenario.uuid)
     try {
-      const publication = await operationsApi.createPublication(props.projectUuid, scenario.uuid, environmentUuid)
+      const publication = await operationsApi.createPublication(props.projectUuid, scenario.uuid, environmentUuid, kmPreviews[`${scenario.uuid}:${environmentUuid}`])
       setPrepared((current) => ({ ...current, [scenario.uuid]: publication }))
     } catch (error) { props.onError(errorMessage(error, t('requestError'))) }
     finally { setPreparingScenarioUuid('') }
@@ -791,7 +797,8 @@ function VersionsPanel(props: VersionsPanelProps) {
                 <time dateTime={scenario.createdAt}>{formatter.format(new Date(scenario.createdAt))}</time>
                 {props.canPublish && <div className="definition-runnable-actions">
                   <label><span>{t('environment')}</span><FormSelect value={environmentUuid} onChange={(event) => setEnvironmentUuid(event.target.value)} disabled={props.environments.length === 0}>{props.environments.map((environment) => <option key={environment.uuid} value={environment.uuid}>{environment.name} · {environment.code}</option>)}</FormSelect></label>
-                  {prepared[scenario.uuid] ? <Link className="definition-button definition-button--quiet" to={`/project/publications/${prepared[scenario.uuid]!.uuid}`}>{t('reviewRunnableVersion')}</Link> : <AntActionButton tone="primary" type="button" disabled={!environmentUuid || preparingScenarioUuid === scenario.uuid} onClick={() => void prepare(scenario)}>{preparingScenarioUuid === scenario.uuid ? t('preparingRunnableVersion') : t('prepareRunnableVersion')}</AntActionButton>}
+                  {selected?.schemaVersion === 3 && <StagedPlanPreview projectUuid={props.projectUuid} scenarioUuid={scenario.uuid} environmentUuid={environmentUuid} tr={language === 'tr'} onReady={hash => setKmPreviews(current => ({ ...current, [`${scenario.uuid}:${environmentUuid}`]: hash }))} />}
+                  {prepared[scenario.uuid] ? <Link className="definition-button definition-button--quiet" to={`/project/publications/${prepared[scenario.uuid]!.uuid}`}>{t('reviewRunnableVersion')}</Link> : <AntActionButton tone="primary" type="button" disabled={!environmentUuid || preparingScenarioUuid === scenario.uuid || (selected?.schemaVersion === 3 && !kmPreviews[`${scenario.uuid}:${environmentUuid}`])} onClick={() => void prepare(scenario)}>{preparingScenarioUuid === scenario.uuid ? t('preparingRunnableVersion') : t('prepareRunnableVersion')}</AntActionButton>}
                 </div>}
               </article>
             ))}

@@ -44,7 +44,8 @@ final class ProjectCapabilityController {
                         !acceptsRequests ? "EXECUTION_REQUESTS_DISABLED"
                                 : !workerAvailable ? "EXECUTION_WORKER_DISABLED" : null),
                 executionFlags.procedureRuntimeEnabled()
-                        ? List.of("ORACLE_TABLE_COPY_V1", "ORACLE_PROCEDURE_V1") : List.of());
+                        ? executionFlags.stagedRuntimeEnabled()?List.of("ORACLE_TABLE_COPY_V1", "ORACLE_PROCEDURE_V1",StagedRuntimePlanResolver.CAPABILITY)
+                        : List.of("ORACLE_TABLE_COPY_V1", "ORACLE_PROCEDURE_V1") : List.of());
     }
 
     record ProjectCapabilities(

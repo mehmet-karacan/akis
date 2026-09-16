@@ -11,7 +11,7 @@ interface OracleTargetFencePort {
     OracleTargetFenceResult acquire(OracleTargetFenceCommand command);
 
     record OracleTargetFenceCommand(
-            PilotRuntimePlan plan,
+            MappingExecutionContract plan,
             PinnedExecutionContext execution,
             TargetFenceToken fence) {
     }

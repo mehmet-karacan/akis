@@ -21,7 +21,7 @@ public record PilotRuntimePlan(
         DatasetBinding target,
         List<DirectColumnMapping> columnMappings,
         WriteStrategy writeStrategy,
-        JsonNode canonicalPlan) {
+        JsonNode canonicalPlan) implements MappingExecutionContract {
 
     static final int CURRENT_VERSION = 1;
     static final int MAXIMUM_SOURCE_ROWS = 1_000;

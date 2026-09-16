@@ -1,10 +1,17 @@
 import { ApiProblem, apiRequest, jsonBody } from '../../core/api/client'
 import type { ProjectCapabilities, RunEvent, RunEventPage, RunPage, RunRecord, RunSearchInput, RunStep } from './types'
+import type { KmRunData } from './KmRunDetails'
 
 const runsPath = (projectUuid: string) =>
   `/api/v1/projects/${encodeURIComponent(projectUuid)}/runs`
 
 export const executionApi = {
+  getKmDetails(projectUuid: string, runUuid: string) {
+    return apiRequest<KmRunData>(`${runsPath(projectUuid)}/${encodeURIComponent(runUuid)}/knowledge-modules`)
+  },
+  reconcileKm(projectUuid: string, runUuid: string) {
+    return apiRequest<{ outcome: string; message: string }>(`${runsPath(projectUuid)}/${encodeURIComponent(runUuid)}/knowledge-modules/reconcile`, { method: 'POST' })
+  },
   getCapabilities(projectUuid: string) {
     return apiRequest<ProjectCapabilities>(`/api/v1/projects/${encodeURIComponent(projectUuid)}/capabilities`)
   },

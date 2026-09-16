@@ -6,13 +6,14 @@ import { Input as AntInput } from 'antd'
 import { useState } from 'react'
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
 import { useDefinitionsI18n } from './i18n'
+import { KnowledgeLanguageEditor } from './KnowledgeLanguageEditor'
 
 type RecordValue = Record<string, unknown>
 const records = (value: unknown): RecordValue[] => Array.isArray(value) ? value.filter((item): item is RecordValue => !!item && typeof item === 'object' && !Array.isArray(item)) : []
 export const moduleTypes = ['RKM', 'LKM', 'CKM', 'IKM', 'JKM', 'SKM', 'XKM'] as const
 
 /** Authoring metadata only: no execution capability is implied by the editor. */
-export function KnowledgeModuleEditor({ value, onChange }: { value: RecordValue; onChange(value: unknown): void }) {
+export function KnowledgeModuleEditor({ value, onChange, projectUuid }: { value: RecordValue; onChange(value: unknown): void; projectUuid?: string }) {
   const { language } = useDefinitionsI18n()
   const tr = language === 'tr'
   const [tab, setTab] = useState('tasks')
@@ -32,7 +33,13 @@ export function KnowledgeModuleEditor({ value, onChange }: { value: RecordValue;
   const labels = tr
     ? ['Tersine Mühendislik', 'Yükleme', 'Veri Kontrolü', 'Entegrasyon', 'Değişiklik Yakalama', 'Servis', 'Dönüştürme']
     : ['Reverse Engineering', 'Loading', 'Data Check', 'Integration', 'Change Data Capture', 'Service', 'Transformation']
+  if (value.language === 'AKIS_KM/1' && projectUuid) return <KnowledgeLanguageEditor projectUuid={projectUuid} value={value} onChange={onChange} />
   return <div className="km-editor">
+    {projectUuid && tasks.length === 0 && options.length === 0 && ['LKM', 'IKM', 'CKM'].includes(String(value.kmType ?? 'IKM')) && <AntActionButton type="button" tone="secondary" onClick={() => {
+      const kind = String(value.kmType ?? 'IKM')
+      const steps = kind === 'LKM' ? 'ADIM HAZIRLA STAGING CREATE_WORK WORK_SOURCE_1\nADIM AKTAR STAGING TRANSFER_JDBC WORK_SOURCE_1\nADIM MUHURLE STAGING SEAL_WORK WORK_SOURCE_1' : kind === 'IKM' ? 'ADIM HEDEFE_YAZ TARGET ATOMIC_REPLACE WORK_SOURCE_1' : 'ADIM BOSLUK_KONTROL STAGING CHECK_NOT_NULL WORK_SOURCE_1'
+      update({ language: 'AKIS_KM/1', source: `AKIS_KM/1\nMODUL ${kind}\n${steps}\n` })
+    }}>{tr ? 'AKIŞ KM Diliyle Tanımla' : 'Use AKIŞ KM Language'}</AntActionButton>}
     <label className="km-type"><span>{tr ? 'Modül Türü' : 'Module Type'}</span><FormSelect value={String(value.kmType ?? 'IKM')} onChange={(event) => update({ kmType: event.target.value })}>{moduleTypes.map((type, i) => <option key={type} value={type}>{type} · {labels[i]}</option>)}</FormSelect></label>
     <p className="definition-help" role="note">{tr ? 'Bu ekran modül tanımını saklar. Özel modül görevlerinin çalışma motorunda yürütülmesi henüz desteklenmiyor.' : 'This editor stores module definitions. Executing custom module tasks in the runtime is not yet supported.'}</p>
     <TabBar className="procedure-command-tabs" role="tablist" aria-label={tr ? 'Modül Bölümleri' : 'Module Sections'}>{[['tasks', tr ? 'Görevler' : 'Tasks'], ['options', tr ? 'Seçenekler' : 'Options']].map(([key = '', label]) => <AntActionButton tone="ghost" type="button" role="tab" aria-selected={tab === key} key={key} onClick={() => setTab(key)}>{label}</AntActionButton>)}</TabBar>

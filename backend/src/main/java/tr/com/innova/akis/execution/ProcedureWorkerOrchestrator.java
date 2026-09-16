@@ -33,6 +33,9 @@ final class ProcedureWorkerOrchestrator {
     private final ObjectMapper objectMapper;
     private final RunExecutionTransitionPort transitions;
     private final ProcedureRunHandler handler;
+    private StagedWorkerOrchestrator staged;
+    @org.springframework.beans.factory.annotation.Autowired
+    void configureStagedWorker(StagedWorkerOrchestrator worker) { this.staged=worker; }
 
     ProcedureWorkerOrchestrator(
             WorkerLeaseService leases,
@@ -89,6 +92,10 @@ final class ProcedureWorkerOrchestrator {
             if (!Objects.equals(context.releaseHash(), claimed.releaseHash())
                     || !Objects.equals(context.planHash(), claimed.planHash())) {
                 throw new IllegalStateException();
+            }
+            if(StagedRuntimePlanResolver.CAPABILITY.equals(context.physicalManifest().path("runtimeCapability").asText())) {
+                if(staged==null) throw new IllegalStateException();
+                return staged.run(context,gate);
             }
             plan = plans.resolve(claimed.releaseHash(), claimed.planHash(),
                     context.scenarioPlan(), context.physicalManifest());

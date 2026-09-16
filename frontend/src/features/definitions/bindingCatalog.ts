@@ -31,10 +31,12 @@ export function bindingNodes(type: DefinitionType, content: unknown): BindingNod
     return records(content, 'datasets').flatMap((dataset) => {
       const code = typeof dataset.id === 'string' ? dataset.id : ''
       const role = dataset.role
+      const ui = dataset.ui && typeof dataset.ui === 'object' && !Array.isArray(dataset.ui) ? dataset.ui as Record<string, unknown> : {}
+      const name = typeof dataset.name === 'string' ? dataset.name : ui.name
       if (!code || (role !== 'SOURCE' && role !== 'TARGET')) return []
       return [{
         code,
-        name: typeof dataset.name === 'string' && dataset.name ? dataset.name : code,
+        name: typeof name === 'string' && name ? name : code,
         role: role === 'SOURCE' ? 'KAYNAK' as const : 'HEDEF' as const,
       }]
     })

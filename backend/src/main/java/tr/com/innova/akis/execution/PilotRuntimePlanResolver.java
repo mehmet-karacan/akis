@@ -66,6 +66,15 @@ public final class PilotRuntimePlanResolver {
         }
     }
 
+    /** Design-time shape check only. Does not resolve bindings or open a connection. */
+    void validateDraftShape(int schemaVersion, JsonNode definition) {
+        if (schemaVersion != 2) {
+            throw shape("Mapping schema version 2 is required.");
+        }
+        ObjectNode object = requireObject(definition, PilotPlanFailure.UNSUPPORTED_MAPPING_SHAPE, "mapping");
+        mappingShape(object);
+    }
+
     public PilotRuntimePlan resolve(
             String expectedReleaseHash,
             String expectedScenarioPlanHash,

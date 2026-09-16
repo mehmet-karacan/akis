@@ -90,7 +90,8 @@ final class RuntimeOracleConnectionProvider {
     RuntimeOracleSession openTargetData(
             DatasetBinding binding, TargetDataPermit permit) {
         if (!(permit instanceof OracleAtomicPublishFacade.PublishPermit)
-                && !(permit instanceof JdbcOracleProcedureTaskExecutorSessionFactory.ProcedurePermit)) {
+                && !(permit instanceof JdbcOracleProcedureTaskExecutorSessionFactory.ProcedurePermit)
+                && !(permit instanceof StagedPublishFacade.PublishPermit)) {
             throw failure(Failure.INVALID_CONTRACT);
         }
         requireRole(binding, DatasetRole.TARGET);
@@ -119,6 +120,11 @@ final class RuntimeOracleConnectionProvider {
 
     RuntimeOracleSession openVariable(ConnectionProfile profile, java.util.UUID expectedVersion) {
         return openProfile(profile, expectedVersion, SessionPurpose.SOURCE_READ);
+    }
+    RuntimeOracleSession openWork(ConnectionProfile profile,java.util.UUID expectedVersion,boolean control,
+            StagedWorkSessionFactory.WorkPermit permit) {
+        if(permit==null) throw failure(Failure.INVALID_CONTRACT);
+        return openProfile(profile,expectedVersion,control?SessionPurpose.WORK_CONTROL:SessionPurpose.WORK_DATA);
     }
 
     private RuntimeOracleSession openProfile(ConnectionProfile profile, java.util.UUID expectedVersion, SessionPurpose purpose) {
@@ -315,7 +321,9 @@ final class RuntimeOracleConnectionProvider {
         TARGET_IDENTITY_READ(true),
         TARGET_FENCE(false),
         TARGET_DATA(false),
-        TARGET_RECONCILIATION(false);
+        TARGET_RECONCILIATION(false),
+        WORK_CONTROL(false),
+        WORK_DATA(false);
 
         private final boolean readOnly;
 
@@ -331,7 +339,8 @@ final class RuntimeOracleConnectionProvider {
     /** Compile-time capability; only the atomic facade can construct its permit. */
     sealed interface TargetDataPermit
             permits OracleAtomicPublishFacade.PublishPermit,
-                    JdbcOracleProcedureTaskExecutorSessionFactory.ProcedurePermit {
+                    JdbcOracleProcedureTaskExecutorSessionFactory.ProcedurePermit,
+                    StagedPublishFacade.PublishPermit {
     }
 
     @FunctionalInterface
@@ -426,6 +435,19 @@ final class RuntimeOracleConnectionProvider {
                 commitOutcomeUnknown = false;
             }
             catch (SQLException | RuntimeException exception) {
+                throw new RuntimeOracleConnectionException(Failure.SESSION_OPERATION_FAILED);
+            }
+        }
+        void commitWorkBatch() {
+            if(purpose!=SessionPurpose.WORK_DATA) throw new RuntimeOracleConnectionException(Failure.INVALID_CONTRACT);
+            requireTarget();
+            commitOutcomeUnknown=true;
+            try {
+                connection.commit();
+                commitOutcomeUnknown=false;
+                // The next batch begins another transaction. close() must still rollback unfinished work.
+                transactionResolved=false;
+            } catch(SQLException | RuntimeException failure) {
                 throw new RuntimeOracleConnectionException(Failure.SESSION_OPERATION_FAILED);
             }
         }

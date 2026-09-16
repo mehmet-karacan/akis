@@ -1,4 +1,6 @@
 import { SuggestionInput } from '../../core/ui/SuggestionInput'
+import { WorkPrefixEditor } from './WorkPrefixEditor'
+import { Select as FormSelect } from '../../core/ui/Select'
 import { Database, Plus } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,7 +16,8 @@ export function PhysicalSchemaManager({ projectUuid, connectionUuid, version, it
   canManage: boolean
   onChanged: () => Promise<void>
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const [prefixSchema, setPrefixSchema] = useState('')
   const [available, setAvailable] = useState<string[]>([])
   const [schema, setSchema] = useState('')
   const [discovering, setDiscovering] = useState(false)
@@ -48,6 +51,7 @@ export function PhysicalSchemaManager({ projectUuid, connectionUuid, version, it
     </form>}
     {error && <div className="error-banner" role="alert">{error}</div>}
     {!usable && canManage && <p className="form-note">{t('schemas.testRequired')}</p>}
+    {items.length > 0 && <div><label>{i18n.language.startsWith('tr') ? 'Şemaya Özel Prefixler' : 'Schema Prefix Overrides'}<FormSelect value={prefixSchema} onChange={event => setPrefixSchema(event.target.value)}><option value="">—</option>{items.map(item => <option key={item.uuid} value={item.uuid}>{item.schemaReference}</option>)}</FormSelect></label>{prefixSchema && <WorkPrefixEditor key={prefixSchema} projectUuid={projectUuid} subjectUuid={prefixSchema} scope="physical-schemas" canWrite={canManage} />}</div>}
     {items.length ? <ul className="physical-schema-list">{items.map((item) => <li key={item.uuid}><span><Database size={15} /><strong>{item.name}</strong></span><code>{item.schemaReference}</code></li>)}</ul> : <AsyncState state="empty" compact title={t('schemas.noPhysical')} />}
   </div>
 }

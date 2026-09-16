@@ -121,7 +121,7 @@ public class JdbcPinnedSchemaSnapshotStore implements PinnedSchemaSnapshotPort {
 
     @Override
     @Transactional(readOnly = true)
-    public PinnedSnapshots load(PilotRuntimePlan plan) {
+    public PinnedSnapshots load(MappingExecutionContract plan) {
         validatePlan(plan);
         try {
             LoadedSnapshot source = loadBinding(
@@ -146,7 +146,7 @@ public class JdbcPinnedSchemaSnapshotStore implements PinnedSchemaSnapshotPort {
     }
 
     private LoadedSnapshot loadBinding(
-            PilotRuntimePlan plan,
+            MappingExecutionContract plan,
             DatasetBinding binding,
             DatasetRole role,
             String publicationStatus) {
@@ -351,7 +351,7 @@ public class JdbcPinnedSchemaSnapshotStore implements PinnedSchemaSnapshotPort {
         }
     }
 
-    private void validatePlan(PilotRuntimePlan plan) {
+    private void validatePlan(MappingExecutionContract plan) {
         if (plan == null || plan.definitionUuid() == null
                 || plan.definitionVersionUuid() == null
                 || !hash(plan.releaseHash())) {

@@ -11,7 +11,7 @@ import tr.com.innova.akis.discovery.SchemaFingerprintInput;
  */
 interface PinnedSchemaSnapshotPort {
 
-    PinnedSnapshots load(PilotRuntimePlan plan);
+    PinnedSnapshots load(MappingExecutionContract plan);
 
     record PinnedSnapshots(
             UUID projectUuid,

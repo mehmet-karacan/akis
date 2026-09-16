@@ -17,7 +17,7 @@ interface PinnedPublishReconciliationPort {
     Optional<PinnedReconciliation> find(UUID runUuid);
 
     record PinnedReconciliation(
-            PilotRuntimePlan plan,
+            MappingExecutionContract plan,
             PinnedExecutionContext execution,
             PilotPublishIntent originalPublish,
             BarrierEvidence barrier) {

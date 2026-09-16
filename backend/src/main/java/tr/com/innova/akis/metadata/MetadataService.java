@@ -38,6 +38,12 @@ public class MetadataService {
     private final ObjectMapper objectMapper;
     private final DefinitionContentValidator contentValidator;
     private final SecretValueSanitizer secretSanitizer;
+    private tr.com.innova.akis.knowledge.KnowledgeModuleRegistry knowledgeModules;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void configureKnowledgeModules(tr.com.innova.akis.knowledge.KnowledgeModuleRegistry registry) {
+        this.knowledgeModules = registry;
+    }
 
     public MetadataService(
             MetadataRepository repository,
@@ -340,6 +346,11 @@ public class MetadataService {
                     "Taslak sürümü istekle uyuşmuyor.");
         }
         contentValidator.validate(definition.type(), draft.schemaVersion(), draft.content());
+        tr.com.innova.akis.knowledge.KnowledgeModuleRegistry.Bundle modules = null;
+        if (definition.type() == DefinitionType.MAPPING && draft.schemaVersion() == 3) {
+            if (knowledgeModules == null || definition.projectId() == null) throw validation("KM kayıt servisi/proje kapsamı gerekli.");
+            modules = knowledgeModules.resolve(definition.projectId(), tr.com.innova.akis.knowledge.StagedMappingDefinition.parse(draft.content()));
+        }
         validateOwnership(definition, draft.content());
         JsonNode canonical = canonicalize(draft.content());
         VersionRow version = repository.createVersion(
@@ -349,6 +360,7 @@ public class MetadataService {
                 canonical,
                 trimToNull(description));
         repository.activateDraftDefinition(definition.id());
+        if (modules != null) knowledgeModules.link(definition.projectId(), version.uuid(), modules);
         return version;
     }
 

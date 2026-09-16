@@ -107,7 +107,7 @@ final class JdbcOracleSchemaPreflight {
     }
 
     PreflightResult verify(
-            PilotRuntimePlan plan,
+            MappingExecutionContract plan,
             Connection sourceConnection,
             ExpectedSnapshot sourceSnapshot,
             Connection targetConnection,
@@ -127,7 +127,7 @@ final class JdbcOracleSchemaPreflight {
 
     /** Re-attests the source immediately before a bounded read on the same session. */
     BindingResult verifySource(
-            PilotRuntimePlan plan,
+            MappingExecutionContract plan,
             Connection sourceConnection,
             ExpectedSnapshot sourceSnapshot) {
         if (plan == null || sourceConnection == null || sourceSnapshot == null) {
@@ -139,7 +139,7 @@ final class JdbcOracleSchemaPreflight {
 
     /** Re-attests the target during the fresh read-only identity session. */
     BindingResult verifyTarget(
-            PilotRuntimePlan plan,
+            MappingExecutionContract plan,
             Connection targetConnection,
             ExpectedSnapshot targetSnapshot) {
         if (plan == null || targetConnection == null || targetSnapshot == null) {
@@ -158,7 +158,7 @@ final class JdbcOracleSchemaPreflight {
      * owning its transaction remain the enclosing facade's responsibility.
      */
     BindingResult verifyLockedTarget(
-            PilotRuntimePlan plan,
+            MappingExecutionContract plan,
             Connection lockedTargetConnection,
             ExpectedSnapshot sourceSnapshot,
             ExpectedSnapshot targetSnapshot) {
@@ -410,7 +410,7 @@ final class JdbcOracleSchemaPreflight {
     }
 
     private void validateMappings(
-            PilotRuntimePlan plan,
+            MappingExecutionContract plan,
             List<Column> expectedSourceColumns,
             VerifiedBinding target) {
         Map<String, Column> sourceColumns = byReference(expectedSourceColumns);
