@@ -6,9 +6,9 @@ import { useTranslation } from 'react-i18next'
 import { RecordFields, type RecordField } from '../../core/ui/RecordFields'
 import { DatabaseProviderIcon } from '../topology/DatabaseProviderIcon'
 import type { ConnectionCatalogItem } from './catalog'
-import { Card, Dropdown } from 'antd'
+import { Card } from 'antd'
 import { Button } from '../../core/ui'
-import { MoreHorizontal, Pencil } from 'lucide-react'
+import { Pencil } from 'lucide-react'
 import { memo } from 'react'
 
 export const ConnectionCards = memo(function ConnectionCards({ items, view, onOpen, audit }: { audit?: ReturnType<typeof useRecordAudit>; items: ConnectionCatalogItem[]; view: 'card' | 'list'; onOpen: (uuid: string) => void }) {
@@ -30,7 +30,7 @@ export const ConnectionCards = memo(function ConnectionCards({ items, view, onOp
     ]
     if (version?.mode === 'JNDI') fields.splice(0, 3, { icon: <Server />, label: tr ? 'JNDI Adı' : 'JNDI Name', value: version.jndiName || missing })
     return <Card key={connection.uuid} className="connection-record-card" data-connection-uuid={connection.uuid}>
-      <header><span className="ui-collection-icon"><DatabaseProviderIcon databaseType={connection.databaseType} /></span><div className="connection-record-identity"><strong>{connection.name}</strong><small>{connection.databaseType === 'ORACLE' ? 'Oracle' : connection.databaseType}</small></div><span title={version?.testedAt ? `${tr ? 'Son başarılı test' : 'Last successful test'}: ${new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(version.testedAt))}` : t('connections.notTested')} className={`connection-header-state ${tested ? 'connection-test-pass' : 'connection-test-pending'}`}>{tested ? <CheckCircle2 size={12} /> : <CircleAlert size={12} />}{tested ? (tr ? 'Doğrulandı' : 'Verified') : t('connections.notTested')}</span><Dropdown trigger={['click']} menu={{ items: [{ key: 'edit', icon: <Pencil size={14} />, label: tr ? 'Düzenle' : 'Edit' }] as const, onClick: () => onOpen(connection.uuid) }}><Button className="connection-card-action" icon={<MoreHorizontal size={18} />} aria-label={`${tr ? 'Bağlantı aksiyonları' : 'Connection actions'}: ${connection.name}`} /></Dropdown></header>
+      <header><span className="ui-collection-icon"><DatabaseProviderIcon databaseType={connection.databaseType} /></span><div className="connection-record-identity"><strong>{connection.name}</strong><small>{connection.databaseType === 'ORACLE' ? 'Oracle' : connection.databaseType}</small></div><span title={version?.testedAt ? `${tr ? 'Son başarılı test' : 'Last successful test'}: ${new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(version.testedAt))}` : t('connections.notTested')} className={`connection-header-state ${tested ? 'connection-test-pass' : 'connection-test-pending'}`}>{tested ? <CheckCircle2 size={12} /> : <CircleAlert size={12} />}{tested ? (tr ? 'Doğrulandı' : 'Verified') : t('connections.notTested')}</span><Button type="button" className="connection-card-action" icon={<Pencil size={16} />} aria-label={`${tr ? 'Düzenle' : 'Edit'}: ${connection.name}`} onClick={() => onOpen(connection.uuid)} /></header>
       <RecordFields fields={fields.filter(field => field.label !== (tr ? 'Test Durumu' : 'Test Status') && field.label !== (tr ? 'Son Test Zamanı' : 'Last Tested'))} />
       <section className="connection-card-audit" aria-label={tr ? 'Kayıt bilgileri' : 'Record information'}><h3>{tr ? 'Kayıt bilgileri' : 'Record information'}</h3><RecordAuditFields record={audit?.records[connection.uuid]} state={audit?.state} /></section>
       {connection.description && <p className="connection-card-description">{connection.description}</p>}

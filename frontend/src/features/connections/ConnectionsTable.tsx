@@ -1,7 +1,6 @@
 import { DataGrid } from '../../core/ui/DataGrid'
 import { ConnectionTestButton } from './ConnectionTestButton'
-import { MoreHorizontal, Pencil } from 'lucide-react'
-import { Dropdown } from 'antd'
+import { Pencil } from 'lucide-react'
 import { Button } from '../../core/ui'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
@@ -25,7 +24,7 @@ export function ConnectionsTable({ projectUuid, items, labels, onOpen }: {
       <td>{displayedVersion?.host || displayedVersion?.jndiName || labels.testRequired}</td><td>{displayedVersion?.port ?? labels.testRequired}</td><td>{displayedVersion?.sid || displayedVersion?.serviceName || displayedVersion?.databaseName || labels.testRequired}</td><td>{displayedVersion?.username || labels.testRequired}</td>
       <td><StatusBadge tone={displayedVersion?.testedAt ? 'success' : 'warning'}>{displayedVersion?.testedAt ? (tr ? 'Son Test Başarılı' : 'Last Test Passed') : labels.testRequired}</StatusBadge></td>
       <td className="numeric">{physicalSchemaCount}</td><td className="numeric">{logicalSchemaCount}</td>
-      <td className="row-actions"><ConnectionTestButton connectionUuid={connection.uuid} versionUuid={displayedVersion?.uuid} /><Dropdown trigger={['click']} menu={{ items: [{ key: 'edit', icon: <Pencil size={14} />, label: i18n.language === 'tr' ? 'Düzenle' : 'Edit' }] as const, onClick: () => onOpen?.(connection.uuid) }}><Button className="connection-card-action" icon={<MoreHorizontal size={18} />} aria-label={`${i18n.language === 'tr' ? 'Bağlantı aksiyonları' : 'Connection actions'}: ${connection.name}`} /></Dropdown></td>
+      <td className="row-actions"><ConnectionTestButton connectionUuid={connection.uuid} versionUuid={displayedVersion?.uuid} /><Button type="button" className="connection-card-action" icon={<Pencil size={16} />} aria-label={`${tr ? 'Düzenle' : 'Edit'}: ${connection.name}`} onClick={() => onOpen?.(connection.uuid)} /></td>
     </tr>)}</tbody>
   </DataGrid></div>
 }
