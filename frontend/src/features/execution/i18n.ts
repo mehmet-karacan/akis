@@ -40,7 +40,7 @@ const tr: Record<keyof typeof en, string> = {
   transactionState: 'İşlem Kanıtı',
   runs: 'Çalıştırma Geçmişi', runsHelp: 'Aktif ve değişmez yayınlardan oluşturulan çalıştırma talepleri.', startRun: 'Çalıştırma Başlat', starting: 'Başlatılıyor…',
   publication: 'Yayın', choosePublication: 'Çalıştırılabilir etkin bir yayın seçin', noActivePublication: 'Çalıştırılabilir etkin yayın bulunmuyor. Çalıştırmadan önce desteklenen bir eşleme veya prosedür yayınlayın.',
-  attempt: 'Deneme', startType: 'Başlatma türü', startInitial: 'İlk çalıştırma', status: 'Durum', createdAt: 'Oluşturulma', startedAt: 'Başlangıç', finishedAt: 'Bitiş', actions: 'İşlemler',
+  attempt: 'Deneme', startType: 'Başlatma türü', startInitial: 'İlk çalıştırma', status: 'Durum', createdAt: 'Oluşturulma zamanı', startedAt: 'Başlangıç', finishedAt: 'Bitiş', actions: 'İşlemler',
   viewDetails: 'Detayları Aç', emptyRuns: 'Bu proje için henüz çalıştırma talebi yok.', loading: 'Yükleniyor…', retry: 'Tekrar Dene', requestFailed: 'İstek tamamlanamadı.',
   close: 'Kapat', runDetail: 'Çalıştırma detayı', runContext: 'Çalıştırma bağlamı', events: 'Olaylar', emptyEvents: 'Bu çalıştırma için henüz olay kaydedilmedi.',
   refresh: 'Yenile', backToRuns: 'Çalıştırmalara Dön', cancelRun: 'Çalıştırmayı İptal Et', cancelling: 'İptal ediliyor…', confirmCancel: 'Bekleyen çalıştırma iptal edilsin mi?', confirmCancelHelp: 'Yalnız bekleyen çalıştırma güvenle iptal edilebilir. Bu işlem bir iptal olayı kaydeder.',

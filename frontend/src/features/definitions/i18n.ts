@@ -475,7 +475,7 @@ const tr: Record<keyof typeof en, string> = {
   createVersion: 'Değişmez Sürüm Oluştur',
   creatingVersion: 'Sürüm oluşturuluyor…',
   noVersions: 'Henüz değişmez sürüm yok.',
-  createdAt: 'Oluşturulma',
+  createdAt: 'Oluşturulma zamanı',
   contentHash: 'İçerik özeti',
   compile: 'Senaryo Derle',
   compiling: 'Derleniyor…',

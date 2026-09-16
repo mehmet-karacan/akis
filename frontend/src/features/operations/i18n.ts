@@ -118,7 +118,7 @@ const tr: Record<keyof typeof en, string> = {
   risk: 'Risk',
   status: 'Durum',
   releaseHash: 'Sürüm özeti',
-  createdAt: 'Oluşturulma',
+  createdAt: 'Oluşturulma zamanı',
   publishedAt: 'Yayınlanma',
   actions: 'İşlemler',
   viewDetails: 'Detayları Aç',
