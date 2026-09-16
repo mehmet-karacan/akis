@@ -11,8 +11,15 @@ $settings = @{}
 Get-Content -LiteralPath (Join-Path $taskRoot '.env') |
     Where-Object { $_ -match '^[A-Za-z_][A-Za-z0-9_]*=' } |
     ForEach-Object { $name, $value = $_ -split '=', 2; $settings[$name] = $value.Trim('"') }
-$databaseUser = (& $docker exec $container sh -lc 'printf %s "$POSTGRES_USER"').Trim()
-if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($databaseUser)) { throw 'PostgreSQL container is unavailable.' }
+if (-not (Test-Path -LiteralPath $docker -PathType Leaf)) {
+    throw "Docker CLI is unavailable: $docker"
+}
+$databaseUserOutput = & $docker exec $container sh -lc 'printf %s "$POSTGRES_USER"' 2>&1
+$dockerExitCode = $LASTEXITCODE
+$databaseUser = if ($null -eq $databaseUserOutput) { '' } else { ($databaseUserOutput | Out-String).Trim() }
+if ($dockerExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($databaseUser)) {
+    throw "PostgreSQL container '$container' is unavailable. Docker output: $databaseUser"
+}
 if ($testDatabase -notmatch '^akis_execution_test_[0-9]+$') { throw 'Unsafe test database name.' }
 $previous = @{}
 foreach ($name in @('SPRING_DATASOURCE_URL', 'SPRING_DATASOURCE_USERNAME', 'SPRING_DATASOURCE_PASSWORD')) {
