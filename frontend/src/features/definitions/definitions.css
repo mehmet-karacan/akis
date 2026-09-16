@@ -332,12 +332,28 @@ span.explorer-toggle { pointer-events: none; }
 .km-task-detail { display: grid; gap: 1rem; margin-top: 1rem; padding: 1rem; }
 .km-task-detail header { display: flex; justify-content: space-between; align-items: center; }
 .km-options fieldset { display: grid; grid-template-columns: 1fr 2fr 1fr auto; gap: .75rem; margin-bottom: .75rem; }
-.mapping-diagram { height: clamp(22rem, 45dvh, 36rem); overflow: hidden; }
-.mapping-diagram-card { width: 260px; overflow: visible; }
-.mapping-diagram-card header { padding: .7rem; }
-.mapping-diagram-card p { padding: .7rem; }
-.mapping-diagram-column { position: relative; height: 28px; padding: 4px 12px; }
-.mapping-diagram-column .react-flow__handle { width: 8px; height: 8px; }
+.mapping-diagram-guide { display: grid; gap: .15rem; margin: .7rem 0; padding: .65rem .8rem; border: 1px solid var(--ant-color-border-secondary); border-radius: var(--ant-border-radius-lg); background: var(--ant-color-fill-quaternary); }
+.mapping-diagram-guide span { color: var(--ant-color-text-secondary); }
+.mapping-diagram { height: clamp(24rem, 48dvh, 38rem); overflow: hidden; border: 1px solid var(--ant-color-border-secondary); border-radius: var(--ant-border-radius-lg); background: var(--ant-color-bg-layout); }
+.mapping-diagram-card { width: 260px; overflow: visible; border: 1px solid var(--ant-color-border-secondary); border-radius: var(--ant-border-radius-lg); background: var(--ant-color-bg-container); box-shadow: var(--ant-box-shadow-tertiary); }
+.mapping-diagram-card header { display: flex; align-items: center; justify-content: space-between; gap: .5rem; min-height: 2.75rem; padding: .6rem .75rem; border-bottom: 1px solid var(--ant-color-border-secondary); }
+.mapping-diagram-card header span { padding: .1rem .4rem; border-radius: 999px; color: var(--ant-color-primary); background: var(--ant-color-primary-bg); font-size: var(--ant-font-size-sm); }
+.mapping-diagram-card p { margin: 0; padding: .8rem; color: var(--ant-color-text-secondary); }
+.mapping-diagram-column { position: relative; display: flex; height: 32px; align-items: center; gap: .4rem; padding: 4px 18px; border-bottom: 1px solid var(--ant-color-border-secondary); transition: background-color .16s ease, color .16s ease; }
+.mapping-diagram-column:last-child { border-bottom: 0; }
+.mapping-diagram-column > span { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mapping-diagram-column > small { display: grid; width: 1rem; height: 1rem; place-items: center; border-radius: 50%; color: var(--ant-color-success); background: var(--ant-color-success-bg); }
+.mapping-diagram-column.is-connected { background: var(--ant-color-primary-bg); }
+.mapping-diagram-column:hover { background: var(--ant-color-fill-secondary); }
+.mapping-diagram-column .react-flow__handle.mapping-diagram-port { width: 14px; height: 14px; border: 3px solid var(--ant-color-bg-container); background: var(--ant-color-primary); box-shadow: 0 0 0 1px var(--ant-color-primary); cursor: crosshair; transition: transform .16s ease, box-shadow .16s ease; }
+.mapping-diagram-column .react-flow__handle.mapping-diagram-port:hover { transform: scale(1.25); box-shadow: 0 0 0 4px var(--ant-color-primary-bg); }
+.mapping-diagram-column .react-flow__handle.mapping-diagram-port--source { right: -7px; }
+.mapping-diagram-column .react-flow__handle.mapping-diagram-port--target { left: -7px; }
+.mapping-diagram-column .react-flow__handle.mapping-diagram-port--target.connectingto { background: var(--ant-color-success); box-shadow: 0 0 0 4px var(--ant-color-success-bg); }
+.mapping-diagram-column .react-flow__handle.mapping-diagram-port--target:not(.connectable) { background: var(--ant-color-text-quaternary); box-shadow: 0 0 0 1px var(--ant-color-border); cursor: not-allowed; }
+.mapping-diagram .react-flow__edge.mapping-diagram-edge .react-flow__edge-path { stroke: var(--ant-color-primary); stroke-width: 2.25; }
+.mapping-diagram .react-flow__edge.selected .react-flow__edge-path { stroke: var(--ant-color-error); stroke-width: 3; }
+.mapping-diagram .react-flow__connection-path { stroke: var(--ant-color-primary); stroke-width: 2.25; stroke-dasharray: 5 4; }
 @media (max-width: 700px) { .km-options fieldset { grid-template-columns: 1fr; } }
 .mapping-editor > [hidden] { display: none; }
 .variable-value-history { margin: 1rem; padding: 1rem; min-width: 0; }
