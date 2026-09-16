@@ -4,6 +4,8 @@
 .connections-page { display: grid; gap: 16px; }
 .connections-page .connections-records .ui-collection--card { grid-template-columns: repeat(auto-fill, minmax(min(100%, 370px), 1fr)); }
 .connection-card-description { margin-bottom: 0; }
+.connection-card-audit { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.connection-card-audit h3 { margin: 0 0 8px; font-size: var(--font-caption); color: var(--ink-soft); font-weight: 600; }
 .connections-page .ui-collection--list { gap: 0; overflow: hidden; }
 .ui-collection--list .ui-record-fields { display: flex; flex-wrap: wrap; gap: 12px 18px; }
 .ui-collection--list .ui-record-field { padding: 0; }

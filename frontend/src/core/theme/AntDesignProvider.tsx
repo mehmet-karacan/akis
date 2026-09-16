@@ -36,6 +36,7 @@ function TokenBridge({ children }: PropsWithChildren) {
       '--surface-subtle': token.colorFillAlter, '--surface-strong': token.colorBgElevated,
       '--ink': token.colorText, '--ink-soft': token.colorTextSecondary, '--ink-faint': token.colorTextSecondary,
       '--line': token.colorBorderSecondary, '--line-strong': token.colorBorder,
+      '--shadow-color': token.colorFillQuaternary,
       '--accent': token.colorPrimary, '--accent-hover': token.colorPrimaryHover,
       '--accent-soft': token.colorPrimaryBg, '--on-accent': '#ffffff',
       '--success': token.colorSuccessText, '--success-soft': token.colorSuccessBg, '--success-line': token.colorSuccessBorder,

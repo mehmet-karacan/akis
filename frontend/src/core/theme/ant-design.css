@@ -81,7 +81,10 @@ body .shell-body.is-compact > .shell-navigation { position: absolute; top: 0; le
 .ui-field small { color: var(--ink-soft); }
 .ui-field .ui-field-error { color: var(--danger); }
 .ui-field-label-row { margin-bottom: 0; }
-.ui-view-toggle { padding: 0; }
+.ui-view-toggle { padding: 3px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface-subtle); box-shadow: inset 0 1px 2px var(--shadow-color); }
+.ui-view-toggle .ant-segmented-item { color: var(--ink-soft); }
+.ui-view-toggle .ant-segmented-item-selected { color: var(--ink); font-weight: 700; box-shadow: 0 1px 3px var(--shadow-color); }
+.ui-view-toggle .view-mode-icon { display: inline-grid; place-items: center; min-width: 28px; min-height: 24px; }
 .ui-view-toggle .ant-btn { width: 34px; }
 .ant-modal-body form { display: grid; gap: 16px; }
 .ant-modal-body form label { display: grid; gap: 6px; }
