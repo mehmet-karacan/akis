@@ -40,7 +40,7 @@ public record PilotRuntimePlan(
         ATOMIC_DELETE_INSERT
     }
 
-    public record DirectColumnMapping(String sourceColumn, String targetColumn) {
+    public record DirectColumnMapping(String sourceColumn, String targetColumn) implements MappingExecutionContract.ColumnProjection {
     }
 
     public record DatasetBinding(

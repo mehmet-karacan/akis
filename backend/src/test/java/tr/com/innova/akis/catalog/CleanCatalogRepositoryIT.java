@@ -49,6 +49,14 @@ class CleanCatalogRepositoryIT {
         assertEquals(model.uuid(), repository.listSubmodels(projectId, model.id()).getFirst().modelUuid());
         assertEquals("VIEW", repository.listDataObjects(projectId, model.id()).getFirst().type());
         assertEquals(object.uuid(), repository.findDataObject(projectId, object.uuid()).orElseThrow().uuid());
+        var moved = repository.moveDataObject(projectId, model.id(), object.uuid(), null, object.version()).orElseThrow();
+        assertEquals(null, moved.submodelUuid());
+        assertEquals(object.version() + 1, moved.version());
+        assertEquals(object.objectReference(), moved.objectReference());
+        assertEquals(object.uuid(), moved.uuid());
+        assertEquals(true, repository.moveDataObject(projectId, model.id(), object.uuid(), submodel.id(), object.version()).isEmpty());
+        var restored = repository.moveDataObject(projectId, model.id(), object.uuid(), submodel.id(), moved.version()).orElseThrow();
+        assertEquals(submodel.uuid(), restored.submodelUuid());
     }
 
     private static String required(String name) {

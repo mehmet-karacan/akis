@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { NetworkFeedback } from '../core/ui/NetworkFeedback'
 const UiCatalogPage = lazy(() => import('./UiCatalogPage').then((module) => ({ default: module.UiCatalogPage })))
 import { useTranslation } from 'react-i18next'
@@ -28,12 +28,22 @@ const PublicationsPage = lazy(() => import('../features/operations').then((modul
 const ProjectsPage = lazy(() => import('../features/projects/ProjectsPage').then((module) => ({ default: module.ProjectsPage })))
 const ProjectOverviewPage = lazy(() => import('../features/projects/ProjectOverviewPage').then((module) => ({ default: module.ProjectOverviewPage })))
 const ModelsPage = lazy(() => import('../features/models').then((module) => ({ default: module.ModelsPage })))
+const SchemaMetadataPage = lazy(() => import('../features/schema-metadata').then((module) => ({ default: module.SchemaMetadataPage })))
 const ModelDetailPage = lazy(() => import('../features/models').then((module) => ({ default: module.ModelDetailPage })))
 const MetadataImportPage = lazy(() => import('../features/models').then((module) => ({ default: module.MetadataImportPage })))
 
 function ProtectedShell() {
   const { username } = useAuth()
   return username ? <AppShell /> : <Navigate to="/login" replace />
+}
+
+function LoginRoute() {
+  const { username, logout } = useAuth()
+  const location = useLocation()
+  const expired = new URLSearchParams(location.search).get('reason') === 'expired'
+  useEffect(() => { if (expired && username) logout() }, [expired, logout, username])
+  if (expired && username) return <RouteLoading />
+  return username ? <Navigate to="/project/select" replace /> : <LoginPage />
 }
 
 function DefinitionsRoute() {
@@ -78,7 +88,7 @@ export function App() {
   const { username } = useAuth()
   return (
     <><NetworkFeedback /><Suspense fallback={<RouteLoading />}><Routes>
-      <Route path="/login" element={username ? <Navigate to="/project/select" replace /> : <LoginPage />} />
+      <Route path="/login" element={<LoginRoute />} />
       <Route path="/project/select" element={username ? <ProjectsPage /> : <Navigate to="/login" replace />} />
       <Route path="/projects" element={<Navigate to="/project/select" replace />} />
       <Route path="/projects/import" element={<Navigate to="/project/import" replace />} />
@@ -112,6 +122,7 @@ export function App() {
         <Route path="/project/environments/:environmentUuid" element={<EnvironmentDetailPage />} />
         <Route path="/project/schema-bindings" element={<Navigate to="/project/logical-schemas" replace />} />
         <Route path="/identity/users" element={<IdentityUsersPage />} />
+        <Route path="/schema-metadata" element={<SchemaMetadataPage />} />
       </Route>
       <Route path="*" element={<Navigate to={username ? '/project/select' : '/login'} replace />} />
     </Routes></Suspense></>

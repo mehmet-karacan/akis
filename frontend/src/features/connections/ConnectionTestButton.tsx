@@ -1,28 +1,33 @@
 import { useState } from 'react'
-import { ShieldCheck } from 'lucide-react'
+import { PlugZap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '../../core/ui'
 import { useProjectAccess } from '../../core/auth/ProjectAccessContext'
 import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
 import { topologyApi } from '../topology/api'
+import { notifyFeedback } from '../../core/api/networkFeedback'
 
-export function ConnectionTestButton({ connectionUuid, versionUuid }: { connectionUuid: string; versionUuid?: string }) {
+export function ConnectionTestButton({ connectionUuid, onTested }: { connectionUuid: string; onTested?: () => void }) {
   const projectUuid = useCurrentProjectUuid()
   const { can } = useProjectAccess()
   const { i18n } = useTranslation()
   const tr = i18n.language === 'tr'
   const [busy, setBusy] = useState(false)
-  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null)
   if (!can('BAGLANTI_YONET')) return null
   async function test() {
-    if (!versionUuid || busy) return
-    setBusy(true); setResult(null)
+    if (busy) return
+    setBusy(true)
     try {
-      const attempt = await topologyApi.testConnectionVersion(projectUuid, connectionUuid, versionUuid)
+      const attempt = await topologyApi.testConnection(projectUuid, connectionUuid)
       const ok = attempt.outcome === 'PASSED'
-      setResult({ ok, text: ok ? `${tr ? 'Bağlantı Başarılı' : 'Connection Successful'} · ${attempt.durationMs} ms` : (tr ? 'Bağlantı Testi Başarısız' : 'Connection Test Failed') })
-    } catch { setResult({ ok: false, text: tr ? 'Test tamamlanamadı. Bağlantı veya VPN erişimini kontrol edin.' : 'Test could not complete. Check connection or VPN access.' }) }
+      const message = ok ? `${tr ? 'Bağlantı başarılı' : 'Connection successful'}: ${attempt.durationMs} ms` : (attempt.errorCode || (tr ? 'Bağlantı testi başarısız.' : 'Connection test failed.'))
+      notifyFeedback(message, ok ? 'success' : 'error')
+      onTested?.()
+    } catch (reason) {
+      notifyFeedback(reason instanceof Error && reason.message ? reason.message : (tr ? 'Test tamamlanamadı.' : 'Test could not complete.'), 'error')
+    }
     finally { setBusy(false) }
   }
-  return <div className="connection-inline-test" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}><Button icon={<ShieldCheck size={14} />} disabled={!versionUuid} busy={busy} busyLabel={tr ? 'Test Ediliyor' : 'Testing'} onClick={() => void test()}>{tr ? 'Bağlantıyı Test Et' : 'Test Connection'}</Button>{result && <small role="status" className={result.ok ? 'connection-test-pass' : 'connection-test-pending'}>{result.text}</small>}</div>
+  const label = tr ? 'Bağlantıyı Test Et' : 'Test Connection'
+  return <div className="connection-inline-test" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}><Button aria-label={label} title={label} icon={<PlugZap size={14} />} busy={busy} busyLabel={tr ? 'Test Ediliyor' : 'Testing'} onClick={() => void test()}><span className="connection-test-label">{label}</span></Button></div>
 }

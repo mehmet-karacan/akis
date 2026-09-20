@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Folder } from '../features/definitions/types'
-import { buildFolderTree, matchesObjectSearch } from './ProjectObjectTreeAdapter'
+import { buildFolderTree, folderPath, matchesObjectSearch } from './ProjectObjectTreeAdapter'
 
 const folder = (uuid: string, parentUuid: string | null, name = uuid): Folder => ({ uuid, parentUuid, code: uuid.toUpperCase(), status: 'AKTIF', name, description: null, version: 1 })
 
@@ -16,5 +16,13 @@ describe('project object tree adapter', () => {
   it('uses Turkish casing for İ and ı', () => {
     expect(matchesObjectSearch('İş Akışı', 'IS_AKISI', 'Veri akışı', 'iş', 'tr')).toBe(true)
     expect(matchesObjectSearch('Işık', 'ISIK', 'Değişken', 'ışık', 'tr')).toBe(true)
+  })
+  it('returns the full rendered ancestor path for nested and recovered folders', () => {
+    const tree = buildFolderTree([folder('root', null), folder('child', 'root'), folder('leaf', 'child'), folder('orphan', 'missing')])
+    expect(folderPath(tree, 'leaf')).toEqual(['root', 'child', 'leaf'])
+    expect(folderPath(tree, 'orphan')).toEqual(['orphan'])
+    expect(folderPath(tree, 'missing')).toEqual([])
+    const recovered = buildFolderTree([folder('alpha', 'beta'), folder('beta', 'alpha')])
+    expect(folderPath(recovered, 'beta')).toEqual(['alpha', 'beta'])
   })
 })

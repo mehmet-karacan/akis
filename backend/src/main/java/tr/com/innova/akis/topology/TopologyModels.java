@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import tools.jackson.databind.JsonNode;
 
+/** Global topology rows (ODI master-repository model): no project scope, no versioning. */
 final class TopologyModels {
 
     private TopologyModels() {
@@ -15,25 +16,39 @@ final class TopologyModels {
 
     record ConnectionRow(
             long id,
-            long projectId,
             UUID uuid,
             String code,
-            String databaseType,
-            String status,
             String name,
             String description,
-            long version,
+            String databaseType,
+            String mode,
+            String driverReference,
+            String host,
+            Integer port,
+            String serviceName,
+            String sid,
+            String databaseName,
+            String jdbcUrlExtra,
+            String jndiName,
+            String username,
+            boolean hasPassword,
+            int fetchSize,
+            int batchSize,
+            int connectTimeoutMs,
+            int readTimeoutMs,
+            int queryTimeoutSeconds,
+            String onConnectSql,
+            String onDisconnectSql,
+            OffsetDateTime lastTestedAt,
+            Boolean lastTestPassed,
+            String status,
             String createdBy,
-            OffsetDateTime createdAt) {
-        ConnectionRow(long id, long projectId, UUID uuid, String code, String databaseType, String status, String name, String description, long version) {
-            this(id, projectId, uuid, code, databaseType, status, name, description, version, null, null);
-        }
+            OffsetDateTime createdAt,
+            OffsetDateTime updatedAt) {
     }
 
     record ConnectionCatalogRow(
             ConnectionRow connection,
-            ConnectionVersionRow displayedVersion,
-            Integer latestVersionNumber,
             int physicalSchemaCount,
             int logicalSchemaCount) {
     }
@@ -41,31 +56,24 @@ final class TopologyModels {
     record ConnectionDependencyRow(UUID uuid, String type, String name) {
     }
 
-    record ConnectionVersionRow(
+    record ConnectionTestRow(
             long id,
             UUID uuid,
             long connectionId,
-            int versionNumber,
-            String mode,
-            String driverReference,
-            String username,
-            String host,
-            String serviceName,
-            String sid,
-            String databaseName,
-            String jndiName,
-            String tlsMode,
-            Integer port,
-            int policyVersion,
-            JsonNode policy,
-            OffsetDateTime createdAt,
-            String lifecycleStatus,
-            long lifecycleVersion,
+            int attemptNumber,
+            String outcome,
+            String errorCode,
+            String databaseProduct,
+            String databaseVersion,
+            String driverName,
+            String driverVersion,
+            Integer databaseMajorVersion,
+            Integer databaseMinorVersion,
             Integer targetIdentityVersion,
             String targetFingerprint,
-            UUID latestSuccessfulTestUuid,
-            OffsetDateTime testedAt,
-            OffsetDateTime activatedAt) {
+            OffsetDateTime startedAt,
+            OffsetDateTime completedAt,
+            long durationMs) {
     }
 
     record PhysicalSchemaRow(
@@ -74,32 +82,45 @@ final class TopologyModels {
             long connectionId,
             UUID connectionUuid,
             String code,
-            String schemaReference,
-            String status,
             String name,
-            long version) {
+            String description,
+            String databaseType,
+            String catalogName,
+            String schemaName,
+            String workCatalogName,
+            String workSchemaName,
+            boolean defaultSchema,
+            String loadingPrefix,
+            String integrationPrefix,
+            String errorPrefix,
+            String tempPrefix,
+            String objectPattern,
+            String remoteObjectPattern,
+            String sequencePattern,
+            String status) {
     }
 
     record LogicalSchemaRow(
             long id,
             UUID uuid,
             String code,
-            String status,
             String name,
             String description,
-            long version) {
+            String databaseType,
+            String status) {
     }
 
     record EnvironmentRow(
             long id,
             UUID uuid,
             String code,
+            String name,
+            String description,
             String risk,
-            String status,
+            boolean defaultEnvironment,
             int policyVersion,
             JsonNode policy,
-            String name,
-            long version) {
+            String status) {
     }
 
     record SchemaBindingRow(
@@ -107,8 +128,6 @@ final class TopologyModels {
             UUID logicalSchemaUuid,
             UUID environmentUuid,
             UUID physicalSchemaUuid,
-            UUID connectionVersionUuid,
-            String status,
-            long version) {
+            String databaseType) {
     }
 }

@@ -6,19 +6,37 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.sql.*;
 import java.util.*;
+import tools.jackson.databind.JsonNode;
 
 /** Streams a single source cursor to an already-owned stage. Never touches the final target. */
 public final class JdbcStagingTransfer {
     public static final long BUFFER_BYTES = 16L * 1024 * 1024;
     public enum Type { NUMBER, VARCHAR2, NVARCHAR2, DATE, TIMESTAMP }
-    public record Column(String source, String stage, Type type) {
-        public Column { StagedMappingDefinition.identifier(source); StagedMappingDefinition.identifier(stage); Objects.requireNonNull(type); }
+    public record Column(String sourceObject, String source, String stage, Type type, JsonNode expression) {
+        public Column(String sourceObject,String source,String stage,Type type) { this(sourceObject,source,stage,type,null); }
+        public Column(String source, String stage, Type type) { this("SOURCE_1", source, stage, type); }
+        public Column {
+            if(expression==null) { StagedMappingDefinition.identifier(sourceObject); StagedMappingDefinition.identifier(source); }
+            else { if(sourceObject!=null || source!=null) throw new IllegalArgumentException("İfade ve doğrudan kaynak aynı anda verilemez.");expression=expression.deepCopy(); }
+            StagedMappingDefinition.identifier(stage); Objects.requireNonNull(type);
+        }
+        @Override public JsonNode expression() { return expression==null?null:expression.deepCopy(); }
     }
     public record Table(String owner, String name) {
         public Table { StagedMappingDefinition.identifier(owner); StagedMappingDefinition.identifier(name); }
         public String sql() { return quote(owner)+"."+quote(name); }
     }
     public record Result(long rows, long logicalBytes, String payloadHash) { }
+    public record QuerySource(String object, String alias, Table table, Set<String> columns) {
+        public QuerySource(String object,String alias,Table table) { this(object,alias,table,Set.of()); }
+        public QuerySource { StagedMappingDefinition.identifier(object); StagedMappingDefinition.identifier(alias); Objects.requireNonNull(table);columns=Set.copyOf(columns);columns.forEach(StagedMappingDefinition::identifier); }
+    }
+    public record QueryOptions(boolean distinct, String oracleHint, List<QuerySource> sources,
+            List<StagedMappingDefinition.Join> joins, List<StagedMappingDefinition.Filter> filters) {
+        public QueryOptions(boolean distinct, String oracleHint) { this(distinct,oracleHint,List.of(),List.of(),List.of()); }
+        public QueryOptions { oracleHint = safeHint(oracleHint); sources=List.copyOf(sources);joins=List.copyOf(joins);filters=List.copyOf(filters); }
+        public static QueryOptions defaults() { return new QueryOptions(false, ""); }
+    }
     public static final class TransferFailure extends RuntimeException {
         private final boolean commitUncertain;
         TransferFailure(String message, boolean commitUncertain) { super(message); this.commitUncertain=commitUncertain; }
@@ -27,13 +45,18 @@ public final class JdbcStagingTransfer {
     public Result transfer(Connection source, Connection stage, Table from, Table to, List<Column> columns,
             StagedMappingDefinition.Options options, int timeoutSeconds, Runnable checkpoint) {
         return transfer(source, stage, from, to, columns, options, timeoutSeconds, checkpoint,
-                JdbcTransactionBoundary.direct(stage));
+                JdbcTransactionBoundary.direct(stage), QueryOptions.defaults());
     }
     public Result transfer(Connection source, Connection stage, Table from, Table to, List<Column> columns,
             StagedMappingDefinition.Options options, int timeoutSeconds, Runnable checkpoint,
             JdbcTransactionBoundary transaction) {
+        return transfer(source,stage,from,to,columns,options,timeoutSeconds,checkpoint,transaction,QueryOptions.defaults());
+    }
+    public Result transfer(Connection source, Connection stage, Table from, Table to, List<Column> columns,
+            StagedMappingDefinition.Options options, int timeoutSeconds, Runnable checkpoint,
+            JdbcTransactionBoundary transaction, QueryOptions queryOptions) {
         Objects.requireNonNull(transaction);
-        Objects.requireNonNull(checkpoint); Objects.requireNonNull(options);
+        Objects.requireNonNull(checkpoint); Objects.requireNonNull(options); Objects.requireNonNull(queryOptions);
         columns=List.copyOf(columns);
         if (columns.isEmpty() || columns.size()>256 || timeoutSeconds<1 || timeoutSeconds>3600
                 || options.batchRows()<1 || options.batchRows()>5000 || options.fetchRows()<1 || options.fetchRows()>5000
@@ -46,13 +69,20 @@ public final class JdbcStagingTransfer {
         try { digest=MessageDigest.getInstance("SHA-256"); }
         catch (java.security.NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
         frame(digest,"AKIS_STAGE/1");
-        for (var c:columns) { frame(digest,c.source()); frame(digest,c.stage()); frame(digest,c.type().name()); }
-        String select="SELECT "+String.join(",",columns.stream().map(c->quote(c.source())).toList())+" FROM "+from.sql();
+        for (var c:columns) { frame(digest,c.sourceObject()); frame(digest,c.source()); frame(digest,c.stage()); frame(digest,c.type().name());if(c.expression()!=null) frame(digest,c.expression().toString()); }
+        String hint=queryOptions.oracleHint().isBlank()?"":"/*+ "+queryOptions.oracleHint()+" */ ";
+        QuerySql query=query(from,columns,queryOptions);
+        String select="SELECT "+hint+(queryOptions.distinct()?"DISTINCT ":"")+query.columns()+" FROM "+query.from()+query.where();
         String insert="INSERT INTO "+to.sql()+" ("+String.join(",",columns.stream().map(c->quote(c.stage())).toList())+") VALUES ("+String.join(",",Collections.nCopies(columns.size(),"?"))+")";
         try {
             if (stage.getAutoCommit()) throw new IllegalArgumentException("Stage bağlantısında autocommit kapalı olmalıdır.");
             checkpoint.run();
             try (PreparedStatement read=source.prepareStatement(select); PreparedStatement write=stage.prepareStatement(insert)) {
+                for(int i=0;i<query.parameters().size();i++) {
+                    Object value=query.parameters().get(i);
+                    if(value instanceof BigDecimal number) read.setBigDecimal(i+1,number);
+                    else read.setString(i+1,(String)value);
+                }
                 read.setFetchSize(options.fetchRows()); read.setQueryTimeout(timeoutSeconds); write.setQueryTimeout(timeoutSeconds);
                 try (ResultSet cursor=read.executeQuery()) {
                     verifyMetadata(cursor.getMetaData(),columns);
@@ -95,6 +125,75 @@ public final class JdbcStagingTransfer {
             throw ex;
         }
     }
+    private record QuerySql(String columns,String from,String where,List<Object> parameters) { }
+    public record SqlPreview(String select, String insert) { }
+    /** Statement text only, for the pre-run report; binds stay as placeholders and nothing is executed. */
+    public static SqlPreview previewSql(Table from, Table to, List<Column> columns, QueryOptions options) {
+        if (from == null && options.sources().isEmpty()) throw new IllegalArgumentException("Kaynak tablosu gerekir.");
+        if (columns.isEmpty()) throw new IllegalArgumentException("En az bir kolon eşlemesi gerekir.");
+        String hint=options.oracleHint().isBlank()?"":"/*+ "+options.oracleHint()+" */ ";
+        QuerySql query=query(from,List.copyOf(columns),options);
+        String select="SELECT "+hint+(options.distinct()?"DISTINCT ":"")+query.columns()+" FROM "+query.from()+query.where();
+        String insert="INSERT INTO "+to.sql()+" ("+String.join(",",columns.stream().map(c->quote(c.stage())).toList())+") VALUES ("+String.join(",",Collections.nCopies(columns.size(),"?"))+")";
+        return new SqlPreview(select, insert);
+    }
+    private static QuerySql query(Table fallback,List<Column> columns,QueryOptions options) {
+        if(options.sources().isEmpty()) {
+            if(!options.filters().isEmpty() || !options.joins().isEmpty()) throw new IllegalArgumentException("Filtre/join için açık kaynak sözleşmesi gerekir.");
+            if(columns.stream().anyMatch(column->column.expression()!=null)) throw new IllegalArgumentException("SQL ifadeleri için sabitlenmiş kaynak kataloğu gerekir.");
+            return new QuerySql(String.join(",",columns.stream().map(c->quote(c.source())).toList()),fallback.sql(),"",List.of());
+        }
+        Map<String,QuerySource> sources=new LinkedHashMap<>();
+        options.sources().forEach(source->{if(sources.put(source.object(),source)!=null) throw new IllegalArgumentException("Kaynak kimliği tekrar edemez.");});
+        if(options.sources().stream().map(QuerySource::alias).distinct().count()!=sources.size()) throw new IllegalArgumentException("Kaynak takma adları benzersiz olmalıdır.");
+        for(var filter:options.filters()) if(!Set.of("SOURCE","GLOBAL").contains(filter.scope()) || !sources.containsKey(filter.object())) throw new IllegalArgumentException("Filtre kapsamı veya kaynağı geçersiz.");
+        if(columns.stream().anyMatch(column->column.expression()==null && !sources.containsKey(column.sourceObject()))) throw new IllegalArgumentException("Kolon kaynağı sorgu sözleşmesinde yok.");
+        var graph=StagedQueryGraph.compile(options.sources().stream().map(QuerySource::object).toList(),options.joins());
+        QuerySource first=sources.get(graph.firstSource());
+        List<Object> parameters=new ArrayList<>();
+        var catalog=options.sources().stream().map(source->new MappingSql.Source(source.object(),source.alias(),source.columns())).toList();
+        List<String> projections=new ArrayList<>();
+        // SELECT placeholders precede FROM inline-view and final WHERE binds.
+        for(Column column:columns) {
+            if(column.expression()!=null) {
+                var expression=MappingSql.render(column.expression(),catalog,false);
+                projections.add(expression.sql());parameters.addAll(expression.parameters());
+            } else projections.add(quote(sources.get(column.sourceObject()).alias())+"."+quote(column.source()));
+        }
+        StringBuilder from=new StringBuilder(sourceSql(first,options.filters(),parameters));
+        for(var step:graph.steps()) {
+            String keyword=switch(step.type()){case "INNER"->" JOIN ";case "LEFT"->" LEFT JOIN ";case "RIGHT"->" RIGHT JOIN ";case "FULL"->" FULL OUTER JOIN ";default->throw new IllegalArgumentException("Join türü geçersiz.");};
+            from.append(keyword).append(sourceSql(sources.get(step.source()),options.filters(),parameters)).append(" ON ")
+                    .append(String.join(" AND ",step.conditions().stream().map(join->reference(sources,join.left())+" = "+reference(sources,join.right())).toList()));
+        }
+        List<String> predicates=new ArrayList<>();
+        for(var join:graph.remainingConditions()) predicates.add(reference(sources,join.left())+" = "+reference(sources,join.right()));
+        for(var filter:options.filters()) if("GLOBAL".equals(filter.scope())) predicates.add(filterSql(sources.get(filter.object()),filter,parameters,catalog));
+        String selectColumns=String.join(",",projections);
+        return new QuerySql(selectColumns,from.toString(),predicates.isEmpty()?"":" WHERE "+String.join(" AND ",predicates),List.copyOf(parameters));
+    }
+    private static String sourceSql(QuerySource source,List<StagedMappingDefinition.Filter> filters,List<Object> parameters) {
+        List<String> predicates=new ArrayList<>();
+        var catalog=List.of(new MappingSql.Source(source.object(),source.alias(),source.columns()));
+        for(var filter:filters) if("SOURCE".equals(filter.scope()) && source.object().equals(filter.object())) predicates.add(filterSql(source,filter,parameters,catalog));
+        String table=source.table().sql()+" "+quote(source.alias());
+        return predicates.isEmpty()?table:"(SELECT * FROM "+table+" WHERE "+String.join(" AND ",predicates)+") "+quote(source.alias());
+    }
+    private static String filterSql(QuerySource source,StagedMappingDefinition.Filter filter,List<Object> parameters,List<MappingSql.Source> catalog) {
+        if(filter.predicate()!=null) {
+            var predicate=MappingSql.render(filter.predicate(),catalog,true);
+            parameters.addAll(predicate.parameters());
+            return "("+predicate.sql()+")";
+        }
+        String ref=quote(source.alias())+"."+quote(filter.column());
+        String predicate=switch(filter.operator()){case "EQUALS"->ref+" = ?";case "NOT_EQUALS"->ref+" <> ?";case "GREATER_THAN"->ref+" > ?";case "LESS_THAN"->ref+" < ?";case "LIKE"->ref+" LIKE ? ESCAPE '\\'";case "IS_NULL"->ref+" IS NULL";case "IS_NOT_NULL"->ref+" IS NOT NULL";default->throw new IllegalArgumentException("Filtre işleci geçersiz.");};
+        if(!Set.of("IS_NULL","IS_NOT_NULL").contains(filter.operator())) {
+            if(filter.value()==null) throw new IllegalArgumentException("Filtre değeri zorunludur.");
+            parameters.add(filter.value());
+        }
+        return predicate;
+    }
+    private static String reference(Map<String,QuerySource> sources,StagedMappingDefinition.ColumnRef ref) { QuerySource source=sources.get(ref.object());if(source==null) throw new IllegalArgumentException("Join kaynağı bulunamadı.");return quote(source.alias())+"."+quote(ref.column()); }
     private static void execute(PreparedStatement write,int expected) throws SQLException {
         int[] counts=write.executeBatch();
         if (counts.length!=expected || Arrays.stream(counts).anyMatch(n->n!=1)) throw new TransferFailure("Stage satır sayısı kesin doğrulanamadı.",false);
@@ -127,4 +226,10 @@ public final class JdbcStagingTransfer {
         digest.update(ByteBuffer.allocate(4).putInt(value==null?-1:bytes.length).array()); digest.update(bytes);
     }
     private static String quote(String name) { return "\""+StagedMappingDefinition.identifier(name)+"\""; }
+    public static String safeHint(String value) {
+        String hint=value==null?"":value.strip();
+        if(hint.length()>256 || !hint.matches("[A-Za-z0-9_$#., ()+\\-]*") || hint.contains("--") || hint.contains("/*") || hint.contains("*/"))
+            throw new IllegalArgumentException("Oracle hint yalnız güvenli anahtar, sayı ve parametre karakterleri içerebilir.");
+        return hint;
+    }
 }

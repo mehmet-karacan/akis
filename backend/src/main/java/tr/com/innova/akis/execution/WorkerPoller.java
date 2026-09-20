@@ -9,6 +9,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.stereotype.Component;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import tr.com.innova.akis.execution.RunLeasePort.WorkerIdentity;
 
@@ -18,6 +20,7 @@ import tr.com.innova.akis.execution.RunLeasePort.WorkerIdentity;
 @ConditionalOnProperty(name = "akis.execution.worker-enabled", havingValue = "true")
 final class WorkerPoller {
 
+    private static final Logger LOG = LoggerFactory.getLogger(WorkerPoller.class);
     private final ProcedureWorkerOrchestrator procedures;
     private final WorkerIdentity identity;
     private final Duration lease;
@@ -31,13 +34,15 @@ final class WorkerPoller {
         this.procedures = procedures;
         this.identity = new WorkerIdentity(workerReference, profileUuid);
         this.lease = Duration.ofSeconds(leaseSeconds);
+        LOG.info("Worker poller enabled: reference={} profile={} lease={}s", workerReference, profileUuid, leaseSeconds);
     }
 
     @Scheduled(fixedDelayString = "${akis.execution.worker-poll-delay-ms:2000}")
     void poll() {
         if (!running.compareAndSet(false, true)) return;
         try {
-            procedures.runOnce(identity, lease);
+            var result = procedures.runOnce(identity, lease);
+            if (!(result instanceof ProcedureWorkerOrchestrator.Idle)) LOG.info("Worker poll result: {}", result);
         }
         finally {
             running.set(false);

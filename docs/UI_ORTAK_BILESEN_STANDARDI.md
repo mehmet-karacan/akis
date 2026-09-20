@@ -117,3 +117,31 @@ Yeni varyant gerektiğinde önce UI katalog ekranında ve responsive testlerde d
 Bağlantı Bilgileri doğrudan düzenlenebilir tek formdur; ayrı “Bağlantıyı Düzenle” aşaması yoktur. Salt okunur yetkide alanlar devre dışıdır. Sil, Test ve Kaydet işlemleri formun sağ altındadır. Silme onayı ve bağımlılık engeli korunur. Şifre gösterilmez; yalnız tanım adı/açıklaması değiştiğinde yeniden istenmez. Adres/kimlik değişikliği test gerektirir.
 
 Karttaki doğrulama rozeti son başarılı testin bilgisidir, canlı erişilebilirlik garantisi değildir. Oluşturan API'deki audit kaydından gelir; geçmişte kaydedilmemişse kullanıcı adı uydurulmaz. Nesne düzenleyicilerinin ortak başlık, grid ve düğme stilleri workbench-standard.css dosyasındadır; SQL yazı tipi ve diyagram koordinatları bundan etkilenmez.
+# Renkli İkon Sistemi — 20 Eylül
+
+Tüm ekranlar (giriş dahil) tek bir anlam-renk sözlüğü kullanır; tokenlar `core/theme/icons.css`
+içinde `:root` düzeyindedir (`--schema-color-info/success/warning/danger/neutral/teal/pink`,
+koyu tema varyantlarıyla). Ekran başına yeni renk tanımlanmaz.
+
+- Her ikon etiketinin anlamını taşır: `RecordFieldIcon` etiketten ikonu seçer ve
+  `data-field-icon` ile renk kuralına bağlanır (ör. risk → kalkan/kırmızı, eşleme → bağlantı/mor,
+  varsayılan → yıldız/yeşil, süre → kronometre/amber, teknoloji → işlemci/teal). Yeni bir alan
+  etiketi eklendiğinde önce bu sözlüğe eklenir; gri "açıklama" ikonuna düşen etiket kabul edilmez.
+- Sayfa başlığı, koleksiyon başlığı ve diyalog başlığı ikonları mavi (info); arama etiketi teal,
+  görünüm etiketi mor; sekme ikonları bağlantı tanımı mavi, fiziksel/çalışma alanı teal.
+- Kabuk gezinmesi: her çalışma alanının sabit rengi vardır (Proje mavi, Nesneler mor, Operasyon amber,
+  Bağlantılar teal, Şema Metadata yeşil); alt gezinme ve proje kısayolları aynı şemayı izler.
+- Satır aksiyonları: görüntüle/düzenle mavi, sil kırmızı. Durum rozetleri
+  `connectionStatusTagStyles` (success/warning/danger/neutral) ile renklenir.
+- Özet kartında ton yalnız ikon rengi ve ikon arka planında gösterilir; kart kenarına
+  renkli çizgi çekilmez.
+- Giriş ekranı aynı sözlüğü kullanır: ürün vaadi kartları (mor/yeşil/pembe), çalışma alanı
+  çipleri (teal/amber/mavi), kullanıcı alanı yeşil, parola alanı amber, güvenlik notu yeşil.
+
+## İkon–Metin Boşluğu ve Simülasyon — 20 Eylül (ek)
+
+- **İkon asla metne yapışmaz:** düğme, çip, tablo başlığı, ağaç satırı ve başlıklarda ikon ile metin arasında **8px** boşluk zorunludur (`core/theme/buttons.css` — "Icon spacing standard"). Sayaç rozetleri metinden 8px sonra gelir.
+- **Simülasyon zorunlu adımdır:** Sürümler sekmesinde her senaryo için "Simüle Et" → "Çalıştırma Öncesi Rapor" (özet kartlar · adımlar · çalıştırılacak SQL · uyarılar; `.md` ve `.json` indirilebilir). "Çalıştırılabilir Sürüm Hazırla" simülasyon yapılmadan kilitlidir. Arayüz için plan backend'den (`sqlPreview`), prosedür ve paket için tanım + ortam bağlarından üretilir.
+- **Ortam seçtirilmez:** senaryo, projenin varsayılan ortamında (yoksa ilk ortamda) hazırlanır; ortam yalnız çip olarak gösterilir.
+- **Sürüm dili:** "Sürüm Oluştur" (değişmez vurgusu kaldırıldı).
+- **Tanım-seviyesi sekmeler yatay** (Tanım · Adımlar/Tasarım/Diyagram · Sürümler); adım detayı sekmeleri de yatay — sol rail yalnız gezgin ağacındadır.

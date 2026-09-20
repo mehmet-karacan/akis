@@ -1,6 +1,6 @@
 import { Button as AntActionButton } from '../core/ui/Button'
 import { Input as AntInput } from 'antd'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, FolderOpenDot } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Dialog } from '../core/ui/Dialog'
@@ -31,10 +31,10 @@ export function ProjectSwitcher({ currentProject, projectUuid, onNavigate }: {
 
   const filtered = projects.filter((item) => `${item.code} ${item.name}`.toLocaleLowerCase(i18n.language).includes(query.trim().toLocaleLowerCase(i18n.language)))
   return <>
-    <AntActionButton type="button" tone="ghost" className="project-switcher" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open}>
-      <span className="project-dot" />
-      <span><small>{t('nav.workspace')}</small><strong>{currentProject?.name ?? t('header.noProject')}</strong></span>
-      <ChevronDown size={16} />
+    <AntActionButton type="button" tone="ghost" className="project-switcher" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open} title={currentProject?.name}>
+      <span className="project-icon"><FolderOpenDot size={16} /></span>
+      <span><small className="sr-only">{t('nav.workspace')}</small><strong>{currentProject?.name ?? t('header.noProject')}</strong></span>
+      <ChevronDown size={15} className="project-switcher-chevron" />
     </AntActionButton>
     <Dialog open={open} title={t('projectSwitcher.title')} eyebrow={t('projectSwitcher.eyebrow')} closeLabel={t('common.close')} onClose={() => setOpen(false)} className="project-switcher-dialog">
       <label>{t('projectSwitcher.search')}<AntInput autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('projectSwitcher.searchPlaceholder')} /></label>

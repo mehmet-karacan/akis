@@ -27,10 +27,10 @@ public class WorkObjectStore {
                 .param("scope",databaseIdentity+"|"+owner).query((r,n)->true).single();
         int maximum=jdbc.sql("""
                 select k.max_objects from akis.km_work_area_policy k join akis.proje p on p.id=k.proje_id
-                join akis.fiziksel_sema f on f.proje_id=p.id and f.id=k.fiziksel_sema_id
-                join akis.baglanti b on b.proje_id=p.id and b.id=f.baglanti_id
-                where p.uuid=:project and f.uuid=:schema and f.sema_adi=:owner and k.enabled and k.version=:version
-                  and p.arsivlenme_zamani is null and f.arsivlenme_zamani is null and b.arsivlenme_zamani is null
+                join akis.fiziksel_sema f on f.id=k.fiziksel_sema_id
+                join akis.baglanti b on b.id=f.baglanti_id
+                where p.uuid=:project and f.uuid=:schema and f.calisma_sema_adi=:owner and k.enabled and k.version=:version
+                  and p.arsivlenme_zamani is null and f.durum='ETKIN' and b.durum='ETKIN'
                   and b.saglayici_turu='ORACLE' for share of k
                 """).param("project",token.projectUuid()).param("schema",workArea.physicalSchemaUuid()).param("owner",owner)
                 .param("version",workArea.policyVersion()).query(Integer.class).optional()

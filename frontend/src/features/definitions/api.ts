@@ -1,7 +1,5 @@
 import { ApiProblem, apiRequest, jsonBody } from '../../core/api/client'
 import type {
-  DataBinding,
-  BindingCandidate,
   Definition,
   DefinitionType,
   DefinitionTypeDescriptor,
@@ -19,6 +17,8 @@ const base = '/api/v1'
 const segment = encodeURIComponent
 
 export const definitionsApi = {
+  compileMappingExpression: (projectUuid: string, input: { sql: string; predicate?: boolean; sources: { object: string; alias: string; columns: string[] }[] }) =>
+    apiRequest<{ expression: Record<string, unknown>; references: { object: string; column: string }[] }>(`${base}/projects/${segment(projectUuid)}/mapping-expressions/compile`, { method: 'POST', ...jsonBody(input) }),
   listTypes: () => apiRequest<DefinitionTypeDescriptor[]>(`${base}/definition-types`),
 
   listFolders: (projectUuid: string) =>
@@ -53,6 +53,8 @@ export const definitionsApi = {
       ...jsonBody(input),
     }),
 
+  updateDefinition: (projectUuid: string, definitionUuid: string, body: { name: string; description: string | null; expectedVersion: number }) =>
+    apiRequest<Definition>(`${base}/projects/${segment(projectUuid)}/definitions/${segment(definitionUuid)}`, { method: 'PATCH', ...jsonBody(body) }),
   async getDraft(projectUuid: string, definitionUuid: string): Promise<Draft | null> {
     try {
       return await apiRequest<Draft>(
@@ -107,26 +109,5 @@ export const definitionsApi = {
     apiRequest<Scenario>(
       `${base}/projects/${segment(projectUuid)}/definitions/${segment(definitionUuid)}/versions/${segment(versionUuid)}/scenarios/compile`,
       { method: 'POST' },
-    ),
-
-  listBindings: (projectUuid: string, definitionUuid: string, versionUuid: string) =>
-    apiRequest<DataBinding[]>(
-      `${base}/projects/${segment(projectUuid)}/definitions/${segment(definitionUuid)}/versions/${segment(versionUuid)}/data-bindings`,
-    ),
-
-  listBindingCandidates: (projectUuid: string, definitionUuid: string, versionUuid: string) =>
-    apiRequest<BindingCandidate[]>(
-      `${base}/projects/${segment(projectUuid)}/definitions/${segment(definitionUuid)}/versions/${segment(versionUuid)}/data-bindings/candidates`,
-    ),
-
-  createBinding: (
-    projectUuid: string,
-    definitionUuid: string,
-    versionUuid: string,
-    input: Pick<DataBinding, 'nodeCode' | 'role' | 'dataObjectUuid' | 'schemaSnapshotUuid'>,
-  ) =>
-    apiRequest<DataBinding>(
-      `${base}/projects/${segment(projectUuid)}/definitions/${segment(definitionUuid)}/versions/${segment(versionUuid)}/data-bindings`,
-      { method: 'POST', ...jsonBody(input) },
     ),
 }

@@ -4,7 +4,7 @@ import java.util.List;
 
 public enum DefinitionType {
     MAPPING("Mapping", "TASARIM", true, false,
-            List.of("datasets", "columnMappings", "writeStrategy")),
+            List.of("sources", "target", "joins", "filters", "columnMappings", "modules")),
     REUSABLE_MAPPING("Yeniden Kullanılabilir Mapping", "TASARIM", true, true,
             List.of("inputs", "outputs", "nodes")),
     PACKAGE("Paket", "TASARIM", true, false,
@@ -15,8 +15,6 @@ public enum DefinitionType {
             List.of("dataType", "scope", "historyMode", "valueSource")),
     SEQUENCE("Sequence", "TASARIM", false, true,
             List.of("implementation", "start", "increment", "cycle")),
-    USER_FUNCTION("Kullanıcı Fonksiyonu", "TASARIM", false, true,
-            List.of("returnType", "parameters", "implementations")),
     KNOWLEDGE_MODULE("Knowledge Module", "TASARIM", false, true,
             List.of("kmType", "tasks", "options")),
     LOAD_PLAN("Load Plan", "ORKESTRASYON", false, false,

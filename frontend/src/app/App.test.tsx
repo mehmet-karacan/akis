@@ -34,7 +34,8 @@ describe('application foundation', () => {
 
   it('switches the sign-in experience to Turkish', async () => {
     renderApp()
-    fireEvent.click(screen.getByRole('button', { name: /TR/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Language/ }))
+    fireEvent.click(await screen.findByText('Turkish'))
     expect(await screen.findByRole('heading', { name: 'Güvenilir veri akışları tasarlayın.' })).toBeInTheDocument()
     expect(document.documentElement.lang).toBe('tr')
   })

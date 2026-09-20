@@ -26,7 +26,7 @@ class CleanVariableHistoryIT {
         var provider=mock(RuntimeOracleConnectionProvider.class);
         var session=mock(RuntimeOracleConnectionProvider.RuntimeOracleSession.class);
         var connection=mock(Connection.class); var statement=mock(PreparedStatement.class); var rows=mock(ResultSet.class); var meta=mock(ResultSetMetaData.class);
-        when(provider.openVariable(any(),eq(version))).thenReturn(session);
+        when(provider.openVariable(any(),eq(version),eq("APP"))).thenReturn(session);
         when(session.connection()).thenReturn(connection); when(connection.prepareStatement(anyString())).thenReturn(statement);
         when(statement.executeQuery()).thenReturn(rows); when(rows.getMetaData()).thenReturn(meta); when(meta.getColumnCount()).thenReturn(1);
         when(rows.next()).thenReturn(true,false,true,false,true,false,true,false,true,false,true,false);
@@ -39,7 +39,7 @@ class CleanVariableHistoryIT {
             node.putObject("variableBindings").putObject(definition.toString()).put("projectUuid",project.toString())
                 .put("environmentUuid",environment.toString()).put("logicalSchemaUuid",logical.toString())
                 .put("connectionVersionUuid",version.toString()).put("physicalSchemaUuid",UUID.randomUUID().toString())
-                .put("historyMode",mode).put("type","DATE").put("query","SELECT SYSDATE - 1 FROM DUAL");
+                .put("historyMode",mode).put("type","DATE").put("query","SELECT SYSDATE - 1 FROM DUAL").put("owner","APP");
             var plan=new ProcedureRuntimePlan(1,"a".repeat(64),"b".repeat(64),"c".repeat(64),definition,UUID.randomUUID(),List.of(),Map.of(),node);
             var parameter=new ProcedureRuntimePlan.ParameterValue(ProcedureRuntimePlan.ParameterType.DATE,null,ProcedureRuntimePlan.ParameterSource.REFRESH_QUERY,"SELECT SYSDATE - 1 FROM DUAL",definition,logical,mode);
             UUID run=UUID.randomUUID(); assertEquals(date,runtime.resolve(run,plan,parameter));
@@ -48,7 +48,7 @@ class CleanVariableHistoryIT {
         }
         assertEquals(2,jdbc.sql("select count(*) from akis.degisken_deger_gecmisi where tanim_uuid=:d and gecmis_modu='ALL'").param("d",definition).query(Integer.class).single());
         assertEquals(1,jdbc.sql("select count(*) from akis.degisken_deger_gecmisi where tanim_uuid=:d and gecmis_modu='LATEST'").param("d",definition).query(Integer.class).single());
-        verify(provider,times(6)).openVariable(any(),eq(version));
+        verify(provider,times(6)).openVariable(any(),eq(version),eq("APP"));
         var invalidPlan=new ProcedureRuntimePlan(1,"a".repeat(64),"b".repeat(64),"c".repeat(64),definition,UUID.randomUUID(),List.of(),Map.of(),mapper.createObjectNode());
         assertThrows(SQLException.class,()->runtime.resolve(UUID.randomUUID(),invalidPlan,new ProcedureRuntimePlan.ParameterValue(ProcedureRuntimePlan.ParameterType.DATE,null,ProcedureRuntimePlan.ParameterSource.REFRESH_QUERY,"SELECT SYSDATE - 1 FROM DUAL",definition,logical,"ALL")));
     }

@@ -4,7 +4,7 @@ import { useEffect, useRef, type ReactNode } from 'react'
 
 interface DialogProps {
   open: boolean
-  title: string
+  title: ReactNode
   eyebrow?: string
   children: ReactNode
   onClose: () => void

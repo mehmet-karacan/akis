@@ -20,7 +20,7 @@ export function redactSensitiveValues(value: unknown): unknown {
   return typeof value === 'string' ? redactSensitiveText(value) : value
 }
 
-export function formatDate(value: string | null | undefined, locale: string, fallback = '—') {
+export function formatDate(value: string | null | undefined, locale: string, fallback = '-') {
   return formatDateTime(value, locale, fallback)
 }
 

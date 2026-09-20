@@ -13,6 +13,7 @@ import jakarta.validation.constraints.NotNull;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -208,6 +209,16 @@ final class MetadataController {
                 projectUuid, definitionUuid, request.folderUuid(), request.expectedVersion()));
     }
 
+    @PatchMapping("/projects/{projectUuid}/definitions/{definitionUuid}")
+    DefinitionView updateDefinition(
+            @PathVariable UUID projectUuid,
+            @PathVariable UUID definitionUuid,
+            @Valid @RequestBody UpdateDefinitionRequest request) {
+        authorization.requireProjectPermission(projectUuid, DEFINITION_WRITE);
+        return DefinitionView.from(service.updateDefinition(
+                projectUuid, definitionUuid, request.name(), request.description(), request.expectedVersion()));
+    }
+
     @GetMapping("/projects/{projectUuid}/definitions/{definitionUuid}/draft")
     DraftView draft(
             @PathVariable UUID projectUuid,
@@ -271,6 +282,9 @@ final class MetadataController {
     }
 
     record MoveFolderRequest(UUID parentUuid, Long expectedVersion) {
+    }
+
+    record UpdateDefinitionRequest(@NotBlank String name, String description, Long expectedVersion) {
     }
 
     record MoveDefinitionRequest(UUID folderUuid, Long expectedVersion) {

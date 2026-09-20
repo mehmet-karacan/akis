@@ -22,11 +22,9 @@ class OracleSchemaSnapshotCaptureService {
     PersistResult capture(
             UUID projectUuid,
             UUID connectionUuid,
-            UUID connectionVersionUuid,
             UUID physicalSchemaUuid,
             UUID dataObjectUuid) {
         return writer.persist(discoveryService.captureSchemaSnapshot(
-                projectUuid, connectionUuid, connectionVersionUuid,
-                physicalSchemaUuid, dataObjectUuid));
+                projectUuid, connectionUuid, physicalSchemaUuid, dataObjectUuid));
     }
 }

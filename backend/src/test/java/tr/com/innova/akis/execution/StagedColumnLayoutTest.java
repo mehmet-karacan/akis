@@ -12,7 +12,7 @@ class StagedColumnLayoutTest {
     private final JsonMapper mapper=new JsonMapper();
     private StagedRuntimePlan plan(boolean checking) {
         var plan=mock(StagedRuntimePlan.class);
-        when(plan.columnMappings()).thenReturn(List.of(new PilotRuntimePlan.DirectColumnMapping("SOURCE_ID","ID")));
+        doReturn(List.of(new PilotRuntimePlan.DirectColumnMapping("SOURCE_ID","ID"))).when(plan).columnMappings();
         when(plan.program()).thenReturn(AkisKmInterpreter.compile(new AkisKmInterpreter.Modules(AkisKmLanguage.example(AkisKmLanguage.Kind.LKM),
                 checking?AkisKmLanguage.example(AkisKmLanguage.Kind.CKM)+"ADIM UNIQUE_KEY STAGING CHECK_UNIQUE WORK_SOURCE_1\n":null,AkisKmLanguage.example(AkisKmLanguage.Kind.IKM))));
         return plan;

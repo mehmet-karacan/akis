@@ -13,16 +13,19 @@ import tools.jackson.databind.ObjectMapper;
 import tr.com.innova.akis.metadata.ApiException;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.ConnectionProfile;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.Credentials;
+import tr.com.innova.akis.security.ConnectionCredentialCipher;
 
 class EnvironmentCredentialResolverTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ConnectionCredentialCipher cipher = new ConnectionCredentialCipher("test-key");
 
     @Test
     void resolvesOnlyTheNamedEnvironmentCredentialBundle() {
         EnvironmentCredentialResolver resolver = new EnvironmentCredentialResolver(
                 objectMapper,
-                Map.of("AKIS_ORACLE_TEST_CREDENTIAL", "{\"username\":\"reader\",\"password\":\"private-value\"}")::get);
+                Map.of("AKIS_ORACLE_TEST_CREDENTIAL", "{\"username\":\"reader\",\"password\":\"private-value\"}")::get,
+                cipher);
 
         try (Credentials credentials = resolver.resolve(profile(
                 "ENV", "AKIS_ORACLE_TEST_CREDENTIAL", "AKTIF"))) {
@@ -37,7 +40,8 @@ class EnvironmentCredentialResolverTest {
                 objectMapper,
                 ignored -> {
                     throw new AssertionError("Environment must not be accessed");
-                });
+                },
+                cipher);
 
         ApiException error = assertThrows(
                 ApiException.class,
@@ -52,7 +56,8 @@ class EnvironmentCredentialResolverTest {
         String secret = "do-not-leak-this-value";
         EnvironmentCredentialResolver resolver = new EnvironmentCredentialResolver(
                 objectMapper,
-                ignored -> secret);
+                ignored -> secret,
+                cipher);
 
         ApiException error = assertThrows(
                 ApiException.class,

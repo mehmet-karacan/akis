@@ -1,0 +1,34 @@
+/* Project object type marks: one color per type, shared by the sidebar tree, catalogs, chips and menus. */
+:root { --schema-color-brown: #b45309; }
+:root[data-theme="dark"] { --schema-color-brown: #f0b25f; }
+
+.definition-type-icon { --type-color: var(--schema-color-info); display: inline-grid; place-items: center; flex: 0 0 auto; border-radius: 7px; color: var(--type-color); background: color-mix(in srgb, var(--type-color) 14%, var(--surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--type-color) 28%, transparent); vertical-align: middle; }
+.definition-type-icon > svg { color: inherit; }
+.definition-type-icon--mapping { --type-color: var(--schema-color-info); }
+.definition-type-icon--reusable-mapping { --type-color: var(--schema-color-info); }
+.definition-type-icon--procedure { --type-color: var(--schema-color-warning); }
+.definition-type-icon--package { --type-color: var(--schema-color-neutral); }
+.definition-type-icon--load-plan { --type-color: var(--schema-color-teal); }
+.definition-type-icon--variable { --type-color: var(--schema-color-pink); }
+.definition-type-icon--sequence { --type-color: var(--schema-color-success); }
+.definition-type-icon--knowledge-module { --type-color: var(--schema-color-brown); }
+.definition-type-icon--folder { --type-color: var(--schema-color-warning); }
+.definition-type-icon--folder > svg { fill: color-mix(in srgb, var(--type-color) 22%, transparent); }
+.definition-type-icon--folder.is-open > svg { fill: color-mix(in srgb, var(--type-color) 12%, transparent); }
+
+/* Compact sizes inside the sidebar tree and dropdown menus. */
+body .sidebar-project-tree .definition-type-icon { border-radius: 6px; }
+body .ant-dropdown-menu-item .definition-type-icon { width: 22px !important; height: 22px !important; }
+body .definition-type-chip .definition-type-icon { margin-right: 6px; }
+
+/* Models tree shares the badge language: model blue, table teal, view purple. */
+.definition-type-icon--model { --type-color: var(--schema-color-info); }
+.definition-type-icon--table { --type-color: var(--schema-color-teal); }
+.definition-type-icon--view { --type-color: var(--schema-color-neutral); }
+
+/* Folders are slate so they never compete with the amber procedure mark; group headers show a plain icon, items a badge. */
+.definition-type-icon--folder { --type-color: #64748b; }
+:root[data-theme="dark"] .definition-type-icon--folder { --type-color: #94a3b8; }
+.definition-type-icon--folder > svg { fill: color-mix(in srgb, var(--type-color) 18%, transparent); }
+body .sidebar-project-tree .akis-tree-title--group .definition-type-icon,
+body .sidebar-project-tree .akis-tree-title--section .definition-type-icon { background: transparent; box-shadow: none; }

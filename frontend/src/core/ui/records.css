@@ -8,8 +8,10 @@
 .ui-record-field dt { line-height: 1.4; }
 .ui-record-field dd { margin: 3px 0 0; line-height: 1.4; overflow-wrap: anywhere; }
 .ui-records-sentinel { display: flex; justify-content: center; padding-top: 16px; }
-.ui-feedback-toast { position: fixed; right: 20px; bottom: 20px; z-index: 1500; display: flex; align-items: center; gap: 10px; max-width: min(420px, calc(100vw - 32px)); padding: 12px 14px; }
-.ui-feedback-toast > svg { flex-shrink: 0; }
+/* Ant Notification owns positioning and layout; legacy fixed/flex rules clip
+   multiline messages and detach the text from its notification surface. */
+.ui-feedback-toast { max-width: min(420px, calc(100vw - 32px)); }
+.ui-feedback-toast .ant-notification-notice-title { overflow-wrap: anywhere; }
 .ui-query-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 12px; }
 .ui-query-form label { display: grid; gap: 6px; min-width: 0; }
 .ui-query-actions { display: flex; gap: 8px; justify-content: flex-end; }
@@ -32,8 +34,72 @@
 }
 .ui-field-heading, .ui-grid-record dt, .ui-record-audit dt { display: flex; align-items: center; gap: 6px; }
 .ui-field-heading svg, .ui-grid-record dt svg, .ui-record-audit svg { flex: 0 0 16px; color: var(--accent); }
+/* Field icons carry their semantic meaning through data-field-icon. Keep the
+   catalog scannable when many columns are visible at once. */
+[data-field-icon="table"] { color: #2563eb !important; }
+[data-field-icon="columns"] { color: #0891b2 !important; }
+[data-field-icon="constraints"] { color: #d97706 !important; }
+[data-field-icon="indexes"] { color: #7c3aed !important; }
+[data-field-icon="relationships"] { color: #db2777 !important; }
+[data-field-icon="sequences"] { color: #059669 !important; }
+[data-field-icon="database"] { color: #0f766e !important; }
+[data-field-icon="count"] { color: #4f46e5 !important; }
+[data-field-icon="status"] { color: #16a34a !important; }
+[data-field-icon="description"] { color: #64748b !important; }
 .ui-record-audit { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--line); }
 .ui-record-audit > div { min-width: 0; }
 .ui-record-audit dt { color: var(--ink-soft); font-size: var(--font-caption); }
 .ui-record-audit dd { margin: 3px 0 0 22px; overflow-wrap: anywhere; font-size: var(--font-body); }
-@media (max-width: 480px) { .ui-record-audit { grid-template-columns: minmax(0, 1fr); } }
+.ui-record-audit--footer {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.ui-record-audit--compact { gap: 3px 8px; }
+.ui-record-audit--compact dt { gap: 3px; font-size: 9px; line-height: 1.1; }
+.ui-record-audit--compact dd { margin: 1px 0 0 15px; font-size: 10px; line-height: 1.15; }
+.ui-record-audit--compact svg { flex-basis: 12px; width: 12px; height: 12px; }
+.ui-grid-footer-content { width: 100%; display: flex; align-items: center; gap: 10px; }
+.ui-grid-footer-content > .ui-record-audit--footer { flex: 1; min-width: 0; }
+.ui-grid-footer-action { flex: 0 0 auto; margin-left: auto; }
+.ui-data-grid .ui-record-audit-column {
+  width: 148px;
+  min-width: 148px;
+  max-width: 172px;
+  padding-inline: 10px;
+  font-size: var(--font-body);
+  line-height: 1.35;
+  white-space: nowrap;
+}
+.ui-data-grid .ui-grid-actions-column { width: 52px; min-width: 52px; padding-inline: 8px; text-align: right; }
+.ui-data-grid td.ui-grid-actions-column > * { margin-left: auto; }
+.ui-record-card.ant-card { min-width: 0; height: 100%; }
+body .ui-record-card.ant-card > .ant-card-body { display: grid; grid-template-rows: auto 1fr auto auto auto; gap: 12px; height: 100%; padding: 16px; }
+.ui-record-card > .ant-card-body > header { display: flex; align-items: center; min-width: 0; gap: 10px; }
+.ui-grid-record-header-title { min-width: 0; }
+.ui-grid-record-header-extra { display: flex; justify-content: flex-end; min-width: 0; margin-left: auto; }
+.ui-record-card-fields { min-width: 0; }
+.ui-record-card-fields > dl { margin: 0; }
+.ui-record-card-audit { min-width: 0; border-top: 1px solid var(--line); padding-top: 12px; }
+.ui-record-card-audit:empty { border: 0; padding: 0; }
+.ui-record-card-audit h3 { margin: 0 0 8px; font-size: var(--font-body); font-weight: 600; }
+body .ui-record-card-audit .ui-record-audit { border: 0; margin: 0; padding: 0; }
+.ui-record-card-description { color: var(--ink-soft); overflow-wrap: anywhere; }
+body .ui-record-card.ant-card > .ant-card-body > footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 0; padding-top: 12px; border-top: 1px solid var(--line); }
+/* Grid records contain actions only. Connection cards also have a left-hand
+   test timestamp, so retain their two-sided footer rather than overriding it. */
+body .ui-record-card.ui-grid-record.ant-card > .ant-card-body > footer { justify-content: flex-end; }
+/* Shared tracks align each section across cards, even when one value wraps. */
+@supports (grid-template-rows: subgrid) {
+  .ui-collection--card, .ui-grid-records--card { row-gap: 12px; }
+  .ui-collection--card > .ui-record-card, .ui-grid-records--card > .ui-record-card { display: grid; grid-row: span 5; grid-template-rows: subgrid; }
+  body .ui-collection--card > .ui-record-card > .ant-card-body,
+  body .ui-grid-records--card > .ui-record-card > .ant-card-body { grid-row: 1 / -1; grid-template-rows: subgrid; }
+}
+@media (max-width: 680px) { .ui-record-audit--footer { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 480px) {
+  .ui-record-audit:not(.ui-record-audit--footer) { grid-template-columns: minmax(0, 1fr); }
+  .ui-record-audit--footer { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

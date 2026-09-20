@@ -5,7 +5,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
 import { PageHeader } from '../../core/ui'
 import { getTopologyCopy } from '../topology/copy'
-import { OracleConnectionCreateForm } from '../topology/OracleConnectionCreateForm'
+import { ConnectionForm } from '../topology/ConnectionForm'
 import './connections.css'
 
 export function ConnectionCreatePage() {
@@ -16,6 +16,6 @@ export function ConnectionCreatePage() {
   return <section className="page-stack connection-form-page">
     <Link className="connection-back-link" to={`/projects/${projectUuid}/connections`}><ArrowLeft size={16} />{t('connections.back')}</Link>
     <PageHeader title={t('connections.createTitle')} description={t('connections.createDescription')} />
-    <div className="connection-form-surface"><OracleConnectionCreateForm projectUuid={projectUuid} copy={copy} onClose={() => navigate(`/projects/${projectUuid}/connections`)} onConnectionCreated={async (connectionUuid) => { navigate(`/projects/${projectUuid}/connections/${connectionUuid}`, { replace: true }) }} /></div>
+    <div className="connection-form-surface"><ConnectionForm projectUuid={projectUuid} copy={copy} onClose={() => navigate(`/projects/${projectUuid}/connections`)} onSaved={(created) => { navigate(`/projects/${projectUuid}/connections/${created.uuid}`, { replace: true }) }} /></div>
   </section>
 }

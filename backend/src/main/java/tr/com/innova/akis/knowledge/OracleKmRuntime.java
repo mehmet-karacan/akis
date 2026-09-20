@@ -21,10 +21,18 @@ public final class OracleKmRuntime implements AkisKmInterpreter.Runtime {
             String targetDatabaseIdentity, String targetUser, JdbcStagingTransfer.Table source,
             JdbcStagingTransfer.Table work, List<OracleWorkTableManager.Column> workColumns,
             List<JdbcStagingTransfer.Column> transferColumns, StagedMappingDefinition.Options options,
-            JdbcWorkQualityChecks.Contract quality, int timeoutSeconds,WorkObjectStore.WorkArea workArea) {
+            JdbcWorkQualityChecks.Contract quality, int timeoutSeconds,WorkObjectStore.WorkArea workArea,
+            JdbcStagingTransfer.QueryOptions queryOptions) {
+        public Contract(WorkObjectStore.Owner owner, AkisKmInterpreter.Plan plan,
+                String targetDatabaseIdentity, String targetUser, JdbcStagingTransfer.Table source,
+                JdbcStagingTransfer.Table work, List<OracleWorkTableManager.Column> workColumns,
+                List<JdbcStagingTransfer.Column> transferColumns, StagedMappingDefinition.Options options,
+                JdbcWorkQualityChecks.Contract quality, int timeoutSeconds,WorkObjectStore.WorkArea workArea) {
+            this(owner,plan,targetDatabaseIdentity,targetUser,source,work,workColumns,transferColumns,options,quality,timeoutSeconds,workArea,JdbcStagingTransfer.QueryOptions.defaults());
+        }
         public Contract {
             Objects.requireNonNull(owner); Objects.requireNonNull(plan); Objects.requireNonNull(source);
-            Objects.requireNonNull(work); Objects.requireNonNull(options); Objects.requireNonNull(quality);
+            Objects.requireNonNull(work); Objects.requireNonNull(options); Objects.requireNonNull(quality); Objects.requireNonNull(queryOptions);
             Objects.requireNonNull(workArea);
             workColumns = List.copyOf(workColumns); transferColumns = List.copyOf(transferColumns);
             StagedMappingDefinition.identifier(targetUser);
@@ -97,7 +105,7 @@ public final class OracleKmRuntime implements AkisKmInterpreter.Runtime {
         change(State.LOADING, null);
         try {
             seal = transfer.transfer(source, workData, contract.source(), contract.work(), contract.transferColumns(),
-                    contract.options(), contract.timeoutSeconds(), guard::checkpoint, transaction);
+                    contract.options(), contract.timeoutSeconds(), guard::checkpoint, transaction, contract.queryOptions());
             return seal.rows();
         } catch (RuntimeException failure) {
             review(); throw failure;

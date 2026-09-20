@@ -33,6 +33,7 @@ import tr.com.innova.akis.execution.RuntimeOracleConnectionMetadataPort.Connecti
 final class RuntimeOracleConnectionProvider {
 
     private static final String ORACLE_DRIVER = "oracle.jdbc.OracleDriver";
+    private static final String POSTGRES_DRIVER = "org.postgresql.Driver";
     private static final Pattern HOST = Pattern.compile(
             "(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?");
     private static final Pattern DATABASE_NAME = Pattern.compile("[A-Za-z0-9_.-]{1,128}");
@@ -54,8 +55,9 @@ final class RuntimeOracleConnectionProvider {
 
     @Autowired
     RuntimeOracleConnectionProvider(
-            RuntimeOracleConnectionMetadataPort metadata, ObjectMapper objectMapper) {
-        this(metadata, objectMapper, System::getenv, DriverManager::getConnection,
+            RuntimeOracleConnectionMetadataPort metadata, ObjectMapper objectMapper,
+            tr.com.innova.akis.security.ConnectionCredentialCipher cipher) {
+        this(metadata, objectMapper, cipher::decrypt, DriverManager::getConnection,
                 Runnable::run);
     }
 
@@ -119,7 +121,11 @@ final class RuntimeOracleConnectionProvider {
     }
 
     RuntimeOracleSession openVariable(ConnectionProfile profile, java.util.UUID expectedVersion) {
-        return openProfile(profile, expectedVersion, SessionPurpose.SOURCE_READ);
+        return openProfile(profile, expectedVersion, SessionPurpose.VARIABLE_READ);
+    }
+    RuntimeOracleSession openVariable(ConnectionProfile profile, java.util.UUID expectedVersion, String owner) {
+        if (owner == null || !USERNAME.matcher(owner).matches()) throw failure(Failure.INVALID_CONTRACT);
+        return openProfile(profile, expectedVersion, SessionPurpose.VARIABLE_READ, owner);
     }
     RuntimeOracleSession openWork(ConnectionProfile profile,java.util.UUID expectedVersion,boolean control,
             StagedWorkSessionFactory.WorkPermit permit) {
@@ -128,6 +134,10 @@ final class RuntimeOracleConnectionProvider {
     }
 
     private RuntimeOracleSession openProfile(ConnectionProfile profile, java.util.UUID expectedVersion, SessionPurpose purpose) {
+        return openProfile(profile, expectedVersion, purpose, null);
+    }
+
+    private RuntimeOracleSession openProfile(ConnectionProfile profile, java.util.UUID expectedVersion, SessionPurpose purpose, String owner) {
         validateProfile(expectedVersion, profile);
         TimeoutPolicy timeouts = timeoutPolicy(profile.policy());
         Credentials credentials = credentials(profile);
@@ -137,17 +147,28 @@ final class RuntimeOracleConnectionProvider {
             Class.forName(profile.driverReference());
             properties.setProperty("user", credentials.username());
             properties.setProperty("password", new String(credentials.password()));
-            properties.setProperty("oracle.net.CONNECT_TIMEOUT",
-                    Integer.toString(timeouts.connectTimeoutMs()));
-            properties.setProperty("oracle.jdbc.ReadTimeout",
-                    Integer.toString(timeouts.readTimeoutMs()));
-            properties.setProperty("oracle.net.keepAlive", "true");
+            if (ORACLE_DRIVER.equals(profile.driverReference())) {
+                properties.setProperty("oracle.net.CONNECT_TIMEOUT", Integer.toString(timeouts.connectTimeoutMs()));
+                properties.setProperty("oracle.jdbc.ReadTimeout", Integer.toString(timeouts.readTimeoutMs()));
+                properties.setProperty("oracle.net.keepAlive", "true");
+            } else {
+                properties.setProperty("loginTimeout", Integer.toString(Math.max(1, timeouts.connectTimeoutMs() / 1000)));
+                properties.setProperty("socketTimeout", Integer.toString(timeouts.readTimeoutMs()));
+                properties.setProperty("tcpKeepAlive", "true");
+            }
             connection = opener.open(jdbcUrl(profile), properties);
             connection.setNetworkTimeout(
                     networkTimeoutExecutor, timeouts.networkTimeoutMs());
             if (purpose.readOnly()) {
                 connection.setReadOnly(true);
-                connection.setAutoCommit(true);
+                connection.setAutoCommit(purpose != SessionPurpose.VARIABLE_READ);
+                if (purpose == SessionPurpose.VARIABLE_READ) {
+                    try (var statement = connection.createStatement()) {
+                        statement.setQueryTimeout(timeouts.queryTimeoutSeconds());
+                        if (owner != null) statement.execute("ALTER SESSION SET CURRENT_SCHEMA = \"" + owner + "\"");
+                        statement.execute("SET TRANSACTION READ ONLY");
+                    }
+                }
             }
             else {
                 connection.setReadOnly(false);
@@ -158,7 +179,9 @@ final class RuntimeOracleConnectionProvider {
         }
         catch (ClassNotFoundException | LinkageError | SQLException | RuntimeException exception) {
             closeAfterFailedOpen(connection, purpose);
-            throw failure(Failure.CONNECTION_FAILED);
+            throw new RuntimeOracleConnectionException(
+                connection == null ? Failure.CONNECTION_FAILED : Failure.SESSION_OPERATION_FAILED,
+                exception instanceof SQLException sql ? sql.getErrorCode() : null);
         }
         finally {
             credentials.close();
@@ -176,15 +199,16 @@ final class RuntimeOracleConnectionProvider {
         boolean hasSid = validDatabaseName(profile.sid());
         if (!"JDBC".equals(profile.mode())
                 || !expectedVersion.equals(profile.connectionVersionUuid())
-                || !ORACLE_DRIVER.equals(profile.driverReference())
+                || !(ORACLE_DRIVER.equals(profile.driverReference()) || POSTGRES_DRIVER.equals(profile.driverReference()))
                 || !validHost(profile.host())
                 || profile.port() < 1 || profile.port() > 65_535
-                || hasService == hasSid
+                || (POSTGRES_DRIVER.equals(profile.driverReference()) ? !validDatabaseName(profile.serviceName()) : hasService == hasSid)
                 || !TLS_MODES.contains(profile.tlsMode())
                 || profile.policy() == null || !profile.policy().isObject()
-                || !"ENV".equals(profile.secretProvider())
-                || profile.secretReferencePath() == null
-                || !ENVIRONMENT_NAME.matcher(profile.secretReferencePath()).matches()) {
+                || profile.secretReferencePath() == null || profile.secretReferencePath().isBlank()
+                || !("TABLO".equals(profile.secretProvider())
+                    || ("ENV".equals(profile.secretProvider())
+                        && ENVIRONMENT_NAME.matcher(profile.secretReferencePath()).matches()))) {
             throw failure(Failure.UNSUPPORTED_PROFILE);
         }
     }
@@ -267,6 +291,10 @@ final class RuntimeOracleConnectionProvider {
     }
 
     private String jdbcUrl(ConnectionProfile profile) {
+        if (POSTGRES_DRIVER.equals(profile.driverReference())) {
+            String ssl = "REQUIRED".equals(profile.tlsMode()) ? "sslmode=require" : "sslmode=disable";
+            return "jdbc:postgresql://" + profile.host() + ":" + profile.port() + "/" + profile.serviceName() + "?" + ssl;
+        }
         String protocol = "DISABLED".equals(profile.tlsMode()) ? "TCP" : "TCPS";
         String connectData = profile.serviceName() != null
                 ? "SERVICE_NAME=" + profile.serviceName()
@@ -297,7 +325,7 @@ final class RuntimeOracleConnectionProvider {
             return;
         }
         try {
-            if (!purpose.readOnly() && !connection.getAutoCommit()) {
+            if ((!purpose.readOnly() || purpose == SessionPurpose.VARIABLE_READ) && !connection.getAutoCommit()) {
                 connection.rollback();
             }
         }
@@ -318,6 +346,7 @@ final class RuntimeOracleConnectionProvider {
 
     enum SessionPurpose {
         SOURCE_READ(true),
+        VARIABLE_READ(true),
         TARGET_IDENTITY_READ(true),
         TARGET_FENCE(false),
         TARGET_DATA(false),
@@ -380,7 +409,7 @@ final class RuntimeOracleConnectionProvider {
                     connection, queryTimeoutSeconds);
             this.purpose = purpose;
             this.queryTimeoutSeconds = queryTimeoutSeconds;
-            this.transactionResolved = purpose.readOnly();
+            this.transactionResolved = purpose.readOnly() && purpose != SessionPurpose.VARIABLE_READ;
         }
 
         Connection connection() {

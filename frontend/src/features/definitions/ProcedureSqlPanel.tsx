@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, Modal } from 'antd'
-import { Copy, Expand, Shrink, SquarePen } from 'lucide-react'
+import { Alert, Modal, Tooltip } from 'antd'
+import { Copy, Database, DatabaseZap, Expand, Info, Shrink, SquarePen } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '../../core/ui/Button'
 import { SqlEditor } from '../../core/ui/SqlEditor'
@@ -46,19 +46,25 @@ export function ProcedureSqlPanel({ projectUuid, role, task, variables, onApply 
         parameters[name] = { type: type as NonNullable<ProcedureTask['parameters']>[string]['type'], valueSource: 'REFRESH_QUERY', query: content.query, definitionUuid: variable.uuid, logicalSchemaUuid: String(content.logicalSchemaUuid), historyMode: (content.historyMode ?? 'LATEST') as 'NONE' | 'LATEST' | 'ALL' }
       }
       for (const name of existing) if (!compiled.names.includes(name)) delete parameters[name]
-      if (mounted.current) { onApply(compiled.command, parameters); close() }
+      if (mounted.current) {
+        onApply(compiled.command, parameters)
+        // Persist bind syntax, but keep the friendlier authoring notation visible.
+        setValue(displayProjectSql(compiled.command, compiled.names))
+        close()
+      }
     } catch (e) { if (mounted.current) setError(e instanceof Error ? e.message : String(e)) }
     finally { if (mounted.current) setBusy(false) }
   }
+  const variableHint = tr ? 'Proje değişkeni için @ yazın; öneriden seçin. :ID gibi alanlar kaynak satırından gelir.' : 'Type @ to select a project variable. Fields such as :ID come from the source row.'
   const content = <>
-    <p className="sql-variable-hint">{tr ? 'Proje değişkeni için @ yazın; öneriden seçin. :ID gibi alanlar kaynak satırından gelir.' : 'Type @ to select a project variable. Fields such as :ID come from the source row.'}</p>
+    {open && <p className="sql-variable-hint">{variableHint}</p>}
     {error && <Alert type="error" showIcon title={error} />}
     <SqlEditor showToolbar={open} label={tr ? 'SQL Düzenleyici' : 'SQL Editor'} value={value} onChange={next => { setValue(next); setCopied(false); setError('') }} projectVariables={names} validateSql={validate} checkLabel={tr ? 'SQL’i Kontrol Et' : 'Check SQL'} checkedLabel={tr ? 'SQL politikası kontrol edildi' : 'SQL policy checked'} formatLabel={tr ? 'Biçimlendir' : 'Format'} formatSql={async text => { const compiled = compileProjectSql(text, names); const { format } = await import('sql-formatter'); return displayProjectSql(format(compiled.command, { language: 'plsql', keywordCase: 'upper', tabWidth: 2 }), compiled.names) }} toolbar={<><Button onClick={async () => { try { await navigator.clipboard.writeText(value); setCopied(true) } catch { setError(tr ? 'Panoya kopyalanamadı.' : 'Could not copy to clipboard.') } }} icon={<Copy size={16} />}>{copied ? (tr ? 'Kopyalandı' : 'Copied') : (tr ? 'Kopyala' : 'Copy')}</Button><Button onClick={() => { if (!open) { setPanelSnapshot(value); setOpen(true); setExpanded(true) } else setExpanded(!expanded) }} icon={expanded ? <Shrink size={16} /> : <Expand size={16} />}>{expanded ? (tr ? 'Küçült' : 'Restore') : (tr ? 'Büyüt' : 'Expand')}</Button></>} />
   </>
-  const footer = <><span className="sql-apply-hint">{tr ? 'Uygula adıma aktarır. Kalıcı kayıt için prosedürü kaydedin.' : 'Apply updates the step. Save the procedure to persist it.'}</span><Button disabled={busy} onClick={() => { setValue(open ? panelSnapshot : displayProjectSql(task?.command ?? '', existing)); setError(''); close() }}>{tr ? 'İptal' : 'Cancel'}</Button><Button tone="primary" disabled={busy} onClick={() => void apply()}>{busy ? (tr ? 'Uygulanıyor…' : 'Applying…') : (tr ? 'Uygula' : 'Apply')}</Button></>
+  const footer = <><span className="sql-apply-hint">{tr ? 'Uygula adıma aktarır. Kalıcı kayıt için prosedürü kaydedin.' : 'Apply updates the step. Save the procedure to persist it.'}</span><Button tone="ghost" disabled={busy} onClick={() => { setValue(open ? panelSnapshot : displayProjectSql(task?.command ?? '', existing)); setError(''); close() }}>{tr ? 'İptal' : 'Cancel'}</Button><Button tone="primary" disabled={busy} onClick={() => void apply()}>{busy ? (tr ? 'Uygulanıyor…' : 'Applying…') : (tr ? 'Uygula' : 'Apply')}</Button></>
   return <div className="procedure-sql-inline">
-    <header><strong>{role === 'SOURCE' ? (tr ? 'Kaynak SQL' : 'Source SQL') : (tr ? 'Hedef SQL' : 'Target SQL')}</strong><Button icon={<SquarePen size={16} />} onClick={() => { setPanelSnapshot(value); setOpen(true) }}>{tr ? 'SQL Düzenle' : 'Edit SQL'}</Button></header>
+    <header><span className={`procedure-sql-caption procedure-sql-caption--${role.toLowerCase()}`}>{role === 'SOURCE' ? <DatabaseZap size={15} aria-hidden="true" /> : <Database size={15} aria-hidden="true" />}<strong>{role === 'SOURCE' ? (tr ? 'Kaynak SQL' : 'Source SQL') : (tr ? 'Hedef SQL' : 'Target SQL')}</strong><Tooltip title={variableHint}><Button tone="ghost" icon={<Info size={14} />} aria-label={tr ? 'SQL değişken yardımı' : 'SQL variable help'} /></Tooltip></span><Button tone="secondary" className="procedure-sql-edit" icon={<SquarePen size={16} />} onClick={() => { setPanelSnapshot(value); setOpen(true) }}>{tr ? 'SQL Düzenle' : 'Edit SQL'}</Button></header>
     {!open && <>{content}<footer>{footer}</footer></>}
-    {open && <Modal open centered width={expanded ? 'calc(100vw - 32px)' : 'min(1200px, calc(100vw - 32px))'} className={`procedure-sql-modal ${expanded ? 'is-expanded' : ''}`} title={`${task?.name ?? ''} · ${role === 'SOURCE' ? (tr ? 'Kaynak SQL' : 'Source SQL') : (tr ? 'Hedef SQL' : 'Target SQL')}`} onCancel={() => { if (!busy) { setValue(panelSnapshot); setError(''); close() } }} mask={{ closable: false }} keyboard={!busy} footer={footer}>{open && content}</Modal>}
+    {open && <Modal open centered width={expanded ? 'calc(100vw - 32px)' : 'min(1200px, calc(100vw - 32px))'} className={`procedure-sql-modal akis-modal connection-catalog-dialog ${expanded ? "is-expanded" : ""}`} title={`${task?.name ?? ''} · ${role === 'SOURCE' ? (tr ? 'Kaynak SQL' : 'Source SQL') : (tr ? 'Hedef SQL' : 'Target SQL')}`} onCancel={() => { if (!busy) { setValue(panelSnapshot); setError(''); close() } }} mask={{ closable: false }} keyboard={!busy} footer={footer}>{open && content}</Modal>}
   </div>
 }

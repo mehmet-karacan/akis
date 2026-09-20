@@ -1,8 +1,9 @@
 package tr.com.innova.akis.topology;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.UUID;
 
@@ -10,16 +11,50 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
-import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
 
-import tr.com.innova.akis.projectbundle.SecretValueSanitizer;
+import tr.com.innova.akis.metadata.ApiException;
+import tr.com.innova.akis.security.ConnectionCredentialCipher;
+import tr.com.innova.akis.topology.TopologyService.ConnectionInput;
+import tr.com.innova.akis.topology.TopologyService.PhysicalSchemaInput;
 
+/** Runs against the generated clean baseline; topology tables are global (no project scope) since V033. */
 class CleanTopologyRepositoryIT {
+
+    private static TopologyRepository repository;
+    private static TopologyService service;
+    private static ConnectionCredentialCipher cipher;
+    private static JdbcClient jdbc;
+    private static long projectId;
+    private static UUID projectUuid;
+
+    @BeforeAll
+    static void connectToCleanBaseline() {
+        String url = required("SPRING_DATASOURCE_URL");
+        if (!url.matches(".*(/akis_connections_test_[0-9]+)(?:\\?.*)?$")) {
+            throw new IllegalStateException("Clean topology test requires its generated test database.");
+        }
+        var dataSource = new DriverManagerDataSource(
+                url, required("SPRING_DATASOURCE_USERNAME"), required("SPRING_DATASOURCE_PASSWORD"));
+        jdbc = JdbcClient.create(dataSource);
+        var mapper = new ObjectMapper();
+        cipher = new ConnectionCredentialCipher("topology-it-key");
+        repository = new TopologyRepository(jdbc, mapper);
+        service = new TopologyService(repository, mapper, cipher, null);
+        projectId = jdbc.sql("insert into akis.proje(kod, ad) values ('TOPOLOGY_IT', 'Topology IT') returning id")
+                .query(Long.class).single();
+        projectUuid = jdbc.sql("select uuid from akis.proje where id = :id")
+                .param("id", projectId).query(UUID.class).single();
+    }
+
+    private static ConnectionInput oracle(String code, String host, String password) {
+        return new ConnectionInput(code, code + " name", null, "ORACLE", "JDBC", null, host, 1521, "ORCL", null,
+                null, null, null, "reader", password, null, null, 12000, 45000, 90, null, null, null);
+    }
 
     @Test
     void recordAttributionUsesSuccessfulEventsOnly() {
-        var record = repository.createLogicalSchema(projectId, UUID.randomUUID(), "AUDIT_TEST", "Audit", null);
+        var record = repository.createLogicalSchema("AUDIT_TEST", "Audit", null, "ORACLE", null);
         var authorization = new tr.com.innova.akis.security.AuthorizationService(null, "fail-closed") {
             @Override public void requireProjectPermission(UUID project, String permission) { assertEquals(projectUuid, project); }
         };
@@ -39,201 +74,113 @@ class CleanTopologyRepositoryIT {
     }
 
     @Test
-    void contextEditsCheckVersionsAndArchiveWithoutDeletingHistory() {
-        var logical = repository.createLogicalSchema(projectId, UUID.randomUUID(), "EDIT_CONTEXT", "Before", null);
-        assertTrue(repository.changeContext(projectId, logical.uuid(), true, "After", "Description", logical.version(), false));
-        assertTrue(!repository.changeContext(projectId, logical.uuid(), true, "Stale", null, logical.version(), false));
-        var updated = repository.findLogicalSchema(projectId, logical.uuid()).orElseThrow();
-        assertEquals("After", updated.name());
-        assertTrue(!repository.contextInUse(projectId, logical.uuid(), true));
-        service.changeContext(projectUuid, logical.uuid(), true, null, null, updated.version(), true);
-        assertTrue(repository.findLogicalSchema(projectId, logical.uuid()).isEmpty());
-        var environment = repository.createEnvironment(projectId, UUID.randomUUID(), "EDIT_ENV", "DUSUK", 1, new ObjectMapper().createObjectNode(), "Before");
-        service.changeContext(projectUuid, environment.uuid(), false, "After", null, environment.version(), false);
-        assertTrue(!repository.contextInUse(projectId, environment.uuid(), false));
-        assertThrows(RuntimeException.class, () -> service.changeContext(projectUuid, environment.uuid(), false, null, null, environment.version(), true));
-        service.changeContext(projectUuid, environment.uuid(), false, null, null, environment.version() + 1, true);
-        assertTrue(repository.findEnvironment(projectId, environment.uuid()).isEmpty());
-    }
+    void connectionStoresTheEncryptedPasswordAndKeepsItOnUpdatesWithoutOne() {
+        var created = service.createConnection(oracle("ORACLE_MAIN", "db.example", "local-secret"));
+        assertTrue(created.hasPassword());
+        assertEquals("oracle.jdbc.OracleDriver", created.driverReference());
+        assertEquals(12000, created.connectTimeoutMs());
+        assertEquals("ETKIN", created.status());
+        String stored = repository.findEncryptedPassword(created.id()).orElseThrow();
+        assertFalse(stored.contains("local-secret"));
+        assertEquals("local-secret", cipher.decrypt(stored));
 
-    private static TopologyRepository repository;
-    private static TopologyService service;
-    private static JdbcClient jdbc;
-    private static long projectId;
-    private static UUID projectUuid;
+        var renamed = service.updateConnection(created.uuid(), oracle("ORACLE_RENAMED", "db-next.example", null));
+        assertEquals("ORACLE_RENAMED", renamed.code());
+        assertEquals("db-next.example", renamed.host());
+        assertEquals(stored, repository.findEncryptedPassword(created.id()).orElseThrow());
 
-    @BeforeAll
-    static void connectToCleanBaseline() {
-        String url = required("SPRING_DATASOURCE_URL");
-        if (!url.matches(".*(/akis_connections_test_[0-9]+)(?:\\?.*)?$")) {
-            throw new IllegalStateException("Clean topology test requires its generated test database.");
-        }
-        var dataSource = new DriverManagerDataSource(
-                url, required("SPRING_DATASOURCE_USERNAME"), required("SPRING_DATASOURCE_PASSWORD"));
-        jdbc = JdbcClient.create(dataSource);
-        repository = new TopologyRepository(jdbc, new ObjectMapper());
-        service = new TopologyService(repository, new ObjectMapper(), new SecretValueSanitizer());
-        projectId = jdbc.sql("insert into akis.proje(kod, ad) values ('TOPOLOGY_IT', 'Topology IT') returning id")
-                .query(Long.class).single();
-        projectUuid = jdbc.sql("select uuid from akis.proje where id = :id")
-                .param("id", projectId).query(UUID.class).single();
+        assertThrows(ApiException.class, () -> service.createConnection(oracle("ORACLE_RENAMED", "x.example", "pw")));
+        assertThrows(ApiException.class, () -> service.createConnection(oracle("NO_PASSWORD", "x.example", null)));
+        var badIdentifier = new ConnectionInput("BAD", "Bad", null, "ORACLE", "JDBC", null, "h.example", 1521, "ORCL", "ORCL",
+                null, null, null, "reader", "pw", null, null, null, null, null, null, null, null);
+        assertThrows(ApiException.class, () -> service.createConnection(badIdentifier));
     }
 
     @Test
-    void persistsTypedConnectionPolicyAndSchemaBindingInAkis() {
-        var connection = repository.createConnection(
-                projectId, UUID.randomUUID(), "ORACLE_MAIN", "ORACLE", "Oracle Main", null);
-        var policy = new ObjectMapper().createObjectNode()
-                .put("connectTimeoutMs", 12000)
-                .put("readTimeoutMs", 45000)
-                .put("networkTimeoutMs", 50000)
-                .put("queryTimeoutSeconds", 90)
-                .put("purpose", "ETL");
-        var version = repository.createConnectionVersion(
-                projectId, connection.id(), UUID.randomUUID(), 1, "JDBC",
-                "oracle.jdbc.OracleDriver", "db.example", "ORCL", null, null,
-                null, "DISABLED", 1521, 2, policy);
-        repository.bindCredential(projectId, version.id(), "ENV", "AKIS_TEST_PASSWORD", "KIMLIK", "reader");
-        var physical = repository.createPhysicalSchema(
-                projectId, connection.id(), UUID.randomUUID(), "MAIN_APP", "APP", "App Schema");
-        var logical = repository.createLogicalSchema(
-                projectId, UUID.randomUUID(), "ORDERS", "Orders", null);
-        var environment = repository.createEnvironment(
-                projectId, UUID.randomUUID(), "TEST", "DUSUK", 1,
-                new ObjectMapper().createObjectNode(), "Test");
-        var binding = repository.createSchemaBinding(
-                projectId, UUID.randomUUID(), logical.id(), environment.id(),
-                physical.id(), version.id());
+    void physicalSchemasDefaultTheirWorkSchemaAndKeepOneDefaultPerConnection() {
+        var connection = service.createConnection(oracle("PHYSICAL_HOST", "db.example", "pw"));
+        var app = service.createPhysicalSchema(new PhysicalSchemaInput(connection.uuid(), null, null, null, null,
+                "app", null, null, true, null, null, null, null, null, null, null, null));
+        assertEquals("APP", app.schemaName());
+        assertEquals("APP", app.workSchemaName());
+        assertEquals("APP", app.code());
+        assertEquals("C$_", app.loadingPrefix());
+        assertEquals("ORACLE", app.databaseType());
+        assertTrue(app.defaultSchema());
 
-        assertTrue(repository.contextInUse(projectId, logical.uuid(), true));
-        assertTrue(repository.contextInUse(projectId, environment.uuid(), false));
-        assertThrows(RuntimeException.class, () -> service.changeContext(projectUuid, logical.uuid(), true, null, null, logical.version(), true));
-        assertThrows(RuntimeException.class, () -> service.changeContext(projectUuid, environment.uuid(), false, null, null, environment.version(), true));
-        var stored = repository.listConnectionVersions(projectId, connection.id()).getFirst();
-        assertEquals(12000, stored.policy().get("connectTimeoutMs").intValue());
-        assertEquals("ETL", stored.policy().get("purpose").stringValue());
-        assertEquals("DISABLED", stored.tlsMode());
-        assertEquals("AKTIF", repository.listConnections(projectId).getFirst().status());
-        assertEquals(binding.uuid(), repository.listSchemaBindings(projectId).stream()
-                .filter(item -> item.uuid().equals(binding.uuid())).findFirst().orElseThrow().uuid());
-        assertTrue(repository.findPhysicalSchema(projectId, physical.uuid()).isPresent());
-        var catalog = repository.listConnectionCatalog(projectId).stream()
-                .filter(item -> item.connection().uuid().equals(connection.uuid()))
-                .findFirst().orElseThrow();
-        assertEquals(version.uuid(), catalog.displayedVersion().uuid());
-        assertEquals(1, catalog.latestVersionNumber());
+        var stage = service.createPhysicalSchema(new PhysicalSchemaInput(connection.uuid(), "STAGE_AREA", "Stage", null, null,
+                "STAGE", null, "STAGE_WORK", true, "L$_", "I$_", "E$_", "T$_", null, null, null, null));
+        assertEquals("STAGE_WORK", stage.workSchemaName());
+        assertTrue(stage.defaultSchema());
+        assertFalse(repository.findPhysicalSchema(app.uuid()).orElseThrow().defaultSchema());
+
+        var duplicatePrefix = new PhysicalSchemaInput(connection.uuid(), null, null, null, null,
+                "OTHER", null, null, false, "X$_", "X$_", "E$_", "T$_", null, null, null, null);
+        assertThrows(ApiException.class, () -> service.createPhysicalSchema(duplicatePrefix));
+        var conflict = assertThrows(ApiException.class, () -> service.deleteConnection(connection.uuid()));
+        assertEquals("CONNECTION_HAS_PHYSICAL_SCHEMAS", conflict.code());
+    }
+
+    @Test
+    void schemaBindingsEnforceOneTechnologyAndBlockDependentDeletes() {
+        var connection = service.createConnection(oracle("BINDING_HOST", "db.example", "pw"));
+        var physical = service.createPhysicalSchema(new PhysicalSchemaInput(connection.uuid(), null, null, null, null,
+                "ORDERS_APP", null, null, false, null, null, null, null, null, null, null, null));
+        var environment = service.createEnvironment("BIND_TEST", "Bind Test", null, "DUSUK", false, new ObjectMapper().createObjectNode());
+        var logical = service.createLogicalSchema("ORDERS", "Orders", null, null, environment.uuid(), physical.uuid());
+        assertEquals("ORACLE", logical.databaseType());
+
+        var binding = repository.listSchemaBindings().stream()
+                .filter(item -> item.logicalSchemaUuid().equals(logical.uuid())).findFirst().orElseThrow();
+        assertEquals(physical.uuid(), binding.physicalSchemaUuid());
+        assertEquals(environment.uuid(), binding.environmentUuid());
+        assertTrue(repository.logicalSchemaInUse(logical.uuid()));
+        assertTrue(repository.environmentInUse(environment.uuid()));
+        assertTrue(repository.physicalSchemaInUse(physical.uuid()));
+
+        var catalog = repository.listConnectionCatalog().stream()
+                .filter(item -> item.connection().uuid().equals(connection.uuid())).findFirst().orElseThrow();
         assertEquals(1, catalog.physicalSchemaCount());
         assertEquals(1, catalog.logicalSchemaCount());
+        assertEquals(logical.name(), service.listConnectionDependencies(connection.uuid()).getFirst().name());
 
-        var nextVersion = repository.createConnectionVersion(
-                projectId, connection.id(), UUID.randomUUID(), 2, "JDBC",
-                "oracle.jdbc.OracleDriver", "db-next.example", "ORCL", null, null,
-                null, "DISABLED", 1521, 2, policy);
-        UUID successfulTestUuid = UUID.randomUUID();
-        jdbc.sql("""
-                insert into akis.baglanti_testi(
-                    proje_id, baglanti_surumu_id, deneme_no, sonuc,
-                    urun_adi, urun_surumu, hedef_kimlik_surumu, hedef_parmak_izi,
-                    baslama_zamani, tamamlanma_zamani, sure_milisaniye, uuid)
-                values (:projectId, :versionId, 1, 'BASARILI',
-                        'Oracle', '19c', 1, repeat('a', 64),
-                        current_timestamp, current_timestamp, 0, :uuid)
-                """)
-                .param("projectId", projectId)
-                .param("versionId", nextVersion.id())
-                .param("uuid", successfulTestUuid)
-                .update();
-        jdbc.sql("""
-                update akis.baglanti_surumu
-                   set durum = 'TEST_EDILDI',
-                       son_basarili_test_uuid = :testUuid,
-                       hedef_kimlik_surumu = 1,
-                       hedef_parmak_izi = repeat('a', 64),
-                       test_edilme_zamani = current_timestamp
-                 where id = :id
-                """)
-                .param("id", nextVersion.id())
-                .param("testUuid", successfulTestUuid)
-                .update();
-        var updatedBinding = service.updateSchemaBinding(
-                projectUuid, binding.uuid(), logical.uuid(), environment.uuid(),
-                physical.uuid(), binding.version());
-        assertEquals(binding.uuid(), updatedBinding.uuid());
-        assertEquals(nextVersion.uuid(), updatedBinding.connectionVersionUuid());
-        assertEquals(2, updatedBinding.version());
+        var postgres = service.createConnection(new ConnectionInput("PG_OTHER", "Postgres", null, "POSTGRESQL", "JDBC", null,
+                "pg.example", 5432, null, null, "akis", null, null, "akis", "pw", null, null, null, null, null, null, null, null));
+        var pgSchema = service.createPhysicalSchema(new PhysicalSchemaInput(postgres.uuid(), null, null, null, null,
+                "public", null, null, false, null, null, null, null, null, null, null, null));
+        assertThrows(ApiException.class, () -> service.updateSchemaBinding(binding.uuid(), logical.uuid(), environment.uuid(), pgSchema.uuid()));
 
-        var createdLogical = service.createLogicalSchema(
-                projectUuid, "CURRENT_TARGET", "Current Target", null,
-                environment.uuid(), physical.uuid());
-        var createdMapping = repository.listSchemaBindings(projectId).stream()
-                .filter(item -> item.logicalSchemaUuid().equals(createdLogical.uuid()))
-                .findFirst().orElseThrow();
-        assertEquals(physical.uuid(), createdMapping.physicalSchemaUuid());
-        assertEquals(nextVersion.uuid(), createdMapping.connectionVersionUuid());
+        assertEquals("CONNECTION_IN_USE", assertThrows(ApiException.class, () -> service.deleteConnection(connection.uuid())).code());
+        assertThrows(ApiException.class, () -> service.deleteLogicalSchema(logical.uuid()));
+        assertThrows(ApiException.class, () -> service.deleteEnvironment(environment.uuid()));
+        assertThrows(ApiException.class, () -> service.deletePhysicalSchema(physical.uuid()));
+
+        service.deleteSchemaBinding(binding.uuid());
+        service.deleteLogicalSchema(logical.uuid());
+        service.deletePhysicalSchema(physical.uuid());
+        service.deleteConnection(connection.uuid());
+        assertTrue(repository.findConnection(connection.uuid()).isEmpty());
+        assertTrue(repository.findLogicalSchema(logical.uuid()).isEmpty());
     }
 
     @Test
-    void createsOracleDefinitionWithItsInitialVersionAsOneServiceBoundary() throws Exception {
-        var policy = new ObjectMapper().createObjectNode()
-                .put("connectTimeoutMs", 10000)
-                .put("readTimeoutMs", 30000)
-                .put("networkTimeoutMs", 30000)
-                .put("queryTimeoutSeconds", 300);
-
-        var created = service.createOracleConnectionWithInitialVersion(
-                projectUuid, "ORACLE_ATOMIC", "Oracle Atomic", null,
-                "JDBC", "oracle.example", "ORCL", null, 1521, null,
-                2, policy, "ENV", "AKIS_ORACLE_ATOMIC_CREDENTIAL", "reader");
-
-        assertEquals(created.connection().id(), created.initialVersion().connectionId());
-        assertEquals("oracle.example", created.initialVersion().host());
-        assertEquals("reader", repository.listConnectionVersions(
-                projectId, created.connection().id()).getFirst().username());
-        assertEquals(1, repository.listConnectionVersions(
-                projectId, created.connection().id()).size());
-        assertTrue(TopologyService.class.getDeclaredMethod(
-                        "createOracleConnectionWithInitialVersion",
-                        UUID.class, String.class, String.class, String.class, String.class,
-                        String.class, String.class, String.class, Integer.class, String.class,
-                        int.class, tools.jackson.databind.JsonNode.class, String.class, String.class, String.class)
-                .isAnnotationPresent(Transactional.class));
-    }
-
-    @Test
-    void blocksArchivingAConnectionWithLogicalDependencies() {
-        var connection = repository.createConnection(
-                projectId, UUID.randomUUID(), "ARCHIVE_ME", "ORACLE", "Archive Me", null);
-        var version = repository.createConnectionVersion(
-                projectId, connection.id(), UUID.randomUUID(), 1, "JDBC",
-                "oracle.jdbc.OracleDriver", "archive.example", "ORCL", null, null,
-                null, "DISABLED", 1521, 2, new ObjectMapper().createObjectNode());
-        var physical = repository.createPhysicalSchema(
-                projectId, connection.id(), UUID.randomUUID(), "ARCHIVE_APP", "APP", "App");
-        var logical = repository.createLogicalSchema(
-                projectId, UUID.randomUUID(), "ARCHIVE_LOGICAL", "Archive Logical", null);
-        var environment = repository.createEnvironment(
-                projectId, UUID.randomUUID(), "ARCHIVE_TEST", "DUSUK", 1,
-                new ObjectMapper().createObjectNode(), "Archive Test");
-        repository.createSchemaBinding(
-                projectId, UUID.randomUUID(), logical.id(), environment.id(), physical.id(), version.id());
-
-        var updated = service.updateConnection(
-                projectUuid, connection.uuid(), "ARCHIVE_RENAMED", "Renamed", "Description", connection.version());
-        assertEquals("ARCHIVE_RENAMED", updated.code());
-        assertEquals(2, updated.version());
-
-        var conflict = assertThrows(tr.com.innova.akis.metadata.ApiException.class,
-                () -> service.archiveConnection(projectUuid, connection.uuid(), updated.version()));
-        assertEquals("CONNECTION_IN_USE", conflict.code());
-        assertTrue(repository.findConnection(projectId, connection.uuid()).isPresent());
-        assertTrue(repository.findPhysicalSchema(projectId, physical.uuid()).isPresent());
-        assertTrue(repository.findLogicalSchema(projectId, logical.uuid()).isPresent());
-        assertEquals(logical.name(), service.listConnectionDependencies(projectUuid, connection.uuid()).getFirst().name());
-
-        var unused = repository.createConnection(
-                projectId, UUID.randomUUID(), "ARCHIVE_UNUSED", "ORACLE", "Archive Unused", null);
-        service.archiveConnection(projectUuid, unused.uuid(), unused.version());
-        assertTrue(repository.findConnection(projectId, unused.uuid()).isEmpty());
+    void contextEditsRenameInPlace() {
+        var logical = repository.createLogicalSchema("EDIT_CONTEXT", "Before", null, "ORACLE", null);
+        var updated = service.updateLogicalSchema(logical.uuid(), "After", "Description", "PASIF");
+        assertEquals("After", updated.name());
+        assertEquals("PASIF", updated.status());
+        var environment = service.createEnvironment("EDIT_ENV", "Before", null, "DUSUK", true, new ObjectMapper().createObjectNode());
+        assertTrue(environment.defaultEnvironment());
+        var other = service.createEnvironment("EDIT_ENV_2", "Other", null, "URETIM", true, new ObjectMapper().createObjectNode());
+        assertTrue(other.defaultEnvironment());
+        assertFalse(repository.findEnvironment(environment.uuid()).orElseThrow().defaultEnvironment());
+        var renamed = service.updateEnvironment(environment.uuid(), "After", null, "ORTA", true, null);
+        assertEquals("After", renamed.name());
+        assertEquals("ORTA", renamed.risk());
+        assertTrue(renamed.defaultEnvironment());
+        assertFalse(repository.findEnvironment(other.uuid()).orElseThrow().defaultEnvironment());
+        service.deleteEnvironment(environment.uuid());
+        assertTrue(repository.findEnvironment(environment.uuid()).isEmpty());
     }
 
     private static String required(String name) {

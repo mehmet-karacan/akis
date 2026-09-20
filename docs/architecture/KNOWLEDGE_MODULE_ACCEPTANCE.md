@@ -2,7 +2,44 @@
 
 Bu belge otomatik canlı çalıştırma izni değildir. Yalnız ayrılmış test ortamında uygulanır.
 
-## İlk kapsam
+## Yerel PostgreSQL runtime ve CI kontrol noktası: 2026-09-17
+
+- `PostgresRuntimeConnectionIT`, dinamik sağlayıcı profiliyle gerçek yerel PostgreSQL oturumu açıp `select 1` sorgusunu başarıyla çalıştırdı. Kimlik bilgileri yalnızca test ortamından sağlandı; kaynak veya çıktıya yazılmadı.
+- Sağlayıcı birim testleri PostgreSQL JDBC URL üretimini, timeout ayarlarını, salt-okunur oturumu, rollback ve maskelenmiş hataları doğruluyor.
+- CI workflow'u bu canlı kabul fazında bilinçli olarak devre dışıdır; kalite kapıları yerel olarak çalıştırılmıştır.
+- TTBP erişimi Oracle kabul fixture'ı olarak kullanılabilir; ayrı bir Oracle ortamı zorunlu değildir.
+
+## TTBP Oracle erişim kontrolü: 2026-09-17
+
+- `OracleTtbpConnectivityIT`, `.env` içindeki TTBP kaynak bağlantısıyla gerçek Oracle oturumu açtı ve yalnızca `select 1 from dual` sorgusunu çalıştırdı: başarılı.
+- Bu kabul TTBP erişimini yeterli Oracle fixture olarak kullanır; başka bir Oracle ortamına bağımlı değildir. Prosedür/DML yürütmesi bu salt-okunur probe kapsamında değildir.
+
+## Büyük tablo aktarım kabulü: 2026-09-17
+
+- TTBP `INNOVA_ODI.AKIS_MILLION_TEST` altında ayrılmış test tablosu oluşturuldu ve 1.000.000 sentetik kayıt üretildi.
+- Kayıtlar fetch-size 5.000 ve batch insert 5.000 kullanılarak `akis_pg_target."AKIS_MILLION_TEST"` tablosuna aktarıldı.
+- PostgreSQL hedef sayımı `TRANSFERRED_ROWS=1000000` döndürdü; kaynak ve hedef işlemleri test nesnesiyle sınırlıdır.
+
+## Güncel kabul kapsamı: 2026-09-17
+
+Aşağıdaki matris mevcut kodu esas alır. Sonraki "İlk kapsam" bölümü önceki pilotun tarihsel kaydıdır; oradaki JOIN/MERGE/APPEND kapsam dışı ifadeleri ve AKIS_KM/1 önerisi yeni sürümün kapsamı olarak kullanılmamalıdır. Migration ve çalışma bayrakları bu belgenin okunmasıyla yetkilendirilmez.
+
+| Gereksinim | Mevcut uygulama ve yerel kanıt | Canlı kabul için gereken |
+|---|---|---|
+| Kendi dilimiz ve dinamik modüller | AkisKmLanguage ve AkisKmInterpreter, AKIS_KM/2 seçeneklerini ve Boolean EGER koşullarını yorumlar. Dil/interpreter testleri adım sırasını, koşulu ve hatada hedefe geçilmemesini doğrular. | Kullanıcının oluşturduğu sürümlü LKM/CKM/IKM seçimiyle gerçek yayın ve çalıştırma. |
+| Sürüm ve seçeneklerin korunması | KnowledgeModuleRegistry tip, zorunluluk, varsayılan ve yerleşik seçenek kurallarını kontrol eder. StagedRuntimePlanResolver sabitlenmiş kaynak/seçenekleri yeniden derler; fiziksel adım planıyla karşılaştırır. | Gerçek kayıt, yeniden açma, yayın ve sürüm sabitleme yolculuğu; değiştirilmiş planın reddi. |
+| LKM seçenekleri | StagedWorkerOrchestrator, DISTINCT ve ORACLE_HINT değerlerini JdbcStagingTransfer.QueryOptions'a aktarır. Aktarım testleri üretilen sorgu, bind sırası ve satır/byte sınırlarını kapsar. | İzinli test kaynağında DISTINCT açık/kapalı sonuç farkı ve geçerli Oracle hint davranışı. |
+| CKM koşulları | CHECK_NOT_NULL ve CHECK_UNIQUE, mühürlenmiş çalışma nesnesinde koşullu çalışır. OracleKmRuntime başarısız kontrolde hedef yayınını başlatmaz. | Gerçek null/duplicate verisinde hedefin değişmediğinin doğrulanması. |
+| IKM yazma seçenekleri | StagedPublishFacade yazma modu, anahtarlar ve hedef hint değerini writer'a taşır. APPEND, MERGE, TRUNCATE_LOAD ve ATOMIC_DELETE_INSERT bulunur. TRUNCATE_LOAD için ayrıca Boolean TRUNCATE_TARGET=true gerekir. | Her modda kontrollü hedef tablosu, satır sayıları ve hata/geri alma davranışı. TRUNCATE atomik DML değildir. |
+| Çok kaynak, join, filtre, ifade | Kaynaklar aynı bağlantı sürümünde olmalıdır. Kaynak filtreleri join öncesinde, genel filtreler sonrasında uygulanır. Plan AST ifadelerini ve metadata sürümlerini korur. | Birden çok kaynak ve farklı filtre kapsamlarıyla gerçek SQL sonucu, kayıt ve yayın doğrulaması. |
+
+17 Eylül 04:41:40 yerel test kaydı: AkisKmLanguageTest, AkisKmInterpreterTest, KnowledgeModuleRegistryTest, StagedRuntimePlanResolverTest, OracleKmRuntimeTest, JdbcStagingTransferTest, JdbcStagedAtomicRefreshWriterTest ve iki VariableTest test sınıfında **83 test**, sıfır hata/başarısızlık/atlama, Maven BUILD SUCCESS. Bu birim/mocked JDBC kanıtıdır; Oracle üzerinde başarı veya gerçek metadata veritabanında kayıt kanıtı değildir.
+
+Dil sonlu operasyonlardan oluşur. Kullanıcının tanımladığı seçenek ancak EGER koşulunda veya desteklenen yürütme davranışında kullanıldığında etkilidir; seçenek eklemek kendiliğinden yeni SQL/Java operasyonu yaratmaz. Serbest Java/eval ve özel RKM yürütücüsü bu kanıtla tamamlanmış sayılmaz. Arayüz, standart JDBC reverse-engineering ile özel RKM çalıştırmayı birbirine karıştırmamalıdır.
+
+Başarılı canlı Oracle testi, gerçek yayın/persistence, DDL kilit/fence ve belirsiz commit kurtarması tamamlanmadan bu matris kabul edilmiş sayılmaz. Ayrılmış hedef için açık yetki olmadan yazma veya TRUNCATE testi yapılmaz.
+
+## İlk kapsam (tarihsel pilot kaydı)
 
 Tek Oracle kaynak, aynı hedef DB/PDB içindeki yönetilen çalışma şeması ve tek hedef tablo.
 Doğrudan kolon eşlemesi; atomik tam hedef yenileme. MERGE, APPEND, JOIN, CDC kapsam dışıdır.

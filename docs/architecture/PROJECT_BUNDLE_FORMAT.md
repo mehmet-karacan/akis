@@ -123,7 +123,7 @@ Alanları `type`, `code`, nullable `folderPath`, `status`, `name`, nullable
 `description`, nullable `draft` ve `versions` şeklindedir.
 
 Tanım türleri `MAPPING`, `REUSABLE_MAPPING`, `PACKAGE`, `PROCEDURE`, `VARIABLE`,
-`SEQUENCE`, `USER_FUNCTION`, `KNOWLEDGE_MODULE` ve `LOAD_PLAN` değerleridir.
+`SEQUENCE`, `KNOWLEDGE_MODULE` ve `LOAD_PLAN` değerleridir.
 
 `MAPPING`, `REUSABLE_MAPPING`, `PACKAGE` ve `PROCEDURE` için `folderPath`
 zorunludur. Verildiğinde path aynı bundle'daki bir klasörü göstermelidir. Tanım

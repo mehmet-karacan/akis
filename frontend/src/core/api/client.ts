@@ -1,3 +1,5 @@
+import { recordChangeFor, recordChangedEvent } from './recordChanges'
+
 export interface ProblemDetails {
   type?: string
   title?: string
@@ -22,6 +24,7 @@ export class ApiProblem extends Error {
 }
 
 let authorizationHeader: string | null = null
+export const unauthorizedEvent = 'akis:unauthorized'
 
 export function setAuthorizationHeader(value: string | null) {
   authorizationHeader = value
@@ -41,16 +44,30 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
     if (init.signal?.aborted || (typeof error === 'object' && error !== null && 'name' in error && error.name === 'AbortError')) throw error
     throw networkError()
   }
-  if ([502, 503, 504].includes(response.status)) throw networkError()
   if (!response.ok) {
     let problem: ProblemDetails = { status: response.status, title: response.statusText }
+    let parsed = false
     try {
       problem = (await response.json()) as ProblemDetails
+      parsed = true
     } catch {
       // A network intermediary may return a non-JSON response.
     }
+    if ([502, 503, 504].includes(response.status) && (!parsed || (!problem.detail && !problem.code))) {
+      throw networkError()
+    }
+    if (response.status === 401) {
+      authorizationHeader = null
+      sessionStorage.removeItem('akis.localSession')
+      // Let provider listeners finish mounting when the first page request is
+      // the request that discovers an expired development credential.
+      setTimeout(() => window.dispatchEvent(new Event(unauthorizedEvent)), 0)
+      if (window.location.pathname !== '/login') window.location.replace('/login?reason=expired')
+    }
     throw new ApiProblem(problem, response.status)
   }
+  const change = recordChangeFor(path, init.method ?? 'GET')
+  if (change) window.dispatchEvent(new CustomEvent(recordChangedEvent, { detail: change }))
   if (response.status === 204) return undefined as T
   return (await response.json()) as T
 }

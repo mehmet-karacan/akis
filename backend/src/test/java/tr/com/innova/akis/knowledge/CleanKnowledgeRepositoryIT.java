@@ -6,7 +6,6 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import tools.jackson.databind.json.JsonMapper;
 import tr.com.innova.akis.metadata.DefinitionContentValidator;
-import tr.com.innova.akis.topology.WorkPrefixService;
 import static org.junit.jupiter.api.Assertions.*;
 
 class CleanKnowledgeRepositoryIT {
@@ -14,7 +13,7 @@ class CleanKnowledgeRepositoryIT {
         var jdbc=jdbc(); UUID project=UUID.randomUUID(),run=UUID.randomUUID(); String hash="a".repeat(64);
         long p=jdbc.sql("insert into akis.proje(uuid,kod,ad) values(:u,:k,'KM journal') returning id")
                 .param("u",project).param("k","KM_"+project.toString().replace("-", "").toUpperCase()).query(Long.class).single();
-        long o=jdbc.sql("insert into akis.ortam(proje_id,kod,ad) values(:p,'TEST','Test') returning id").param("p",p).query(Long.class).single();
+        long o=jdbc.sql("insert into akis.ortam(kod,ad) values(:k,'Test') returning id").param("k","KM_"+project.toString().replace("-", "").toUpperCase()).query(Long.class).single();
         long t=jdbc.sql("insert into akis.tanim(proje_id,tur,kod,ad) values(:p,'MAPPING','MAP','Mapping') returning id").param("p",p).query(Long.class).single();
         long v=jdbc.sql("insert into akis.tanim_surumu(proje_id,tanim_id,surum_no,sema_surumu,icerik_ozeti,icerik) values(:p,:t,1,3,:h,'{}') returning id").param("p",p).param("t",t).param("h",hash).query(Long.class).single();
         long d=jdbc.sql("insert into akis.dogrulama(proje_id,tanim_surumu_id,icerik_ozeti,sonuc,sonuc_ayrintisi) values(:p,:v,:h,'GECTI','{}') returning id").param("p",p).param("v",v).param("h",hash).query(Long.class).single();
@@ -44,23 +43,14 @@ class CleanKnowledgeRepositoryIT {
         if(url==null || !url.matches(".*[/]akis_km_test_[0-9]+$")) throw new IllegalStateException("Isolated KM database required.");
         return JdbcClient.create(new DriverManagerDataSource(url,System.getenv("SPRING_DATASOURCE_USERNAME"),System.getenv("SPRING_DATASOURCE_PASSWORD")));
     }
-    @Test void prefixesInheritAndRejectStaleAndCrossProjectChanges() {
+    @Test void workAreaPolicyRejectsStaleAndCrossProjectChanges() {
         var jdbc=jdbc(); UUID project=UUID.randomUUID(),connection=UUID.randomUUID(),schema=UUID.randomUUID();
         long projectId=jdbc.sql("insert into akis.proje(uuid,kod,ad) values(:u,:code,'KM test') returning id")
                 .param("u",project).param("code","KM_"+project.toString().replace("-", "").toUpperCase()).query(Long.class).single();
-        long connectionId=jdbc.sql("insert into akis.baglanti(proje_id,uuid,kod,ad,saglayici_turu) values(:p,:u,'KM_DB','DB','ORACLE') returning id")
-                .param("p",projectId).param("u",connection).query(Long.class).single();
-        jdbc.sql("insert into akis.fiziksel_sema(proje_id,baglanti_id,uuid,kod,ad,sema_adi) values(:p,:b,:u,'WORK','Work','WORK')")
-                .param("p",projectId).param("b",connectionId).param("u",schema).update();
-        var service=new WorkPrefixService(jdbc);
-        assertEquals("PLATFORM",service.get(project,connection,null).origin());
-        service.save(project,connection,null,0,new WorkObjectPrefixes("LOAD","INT","ERR"));
-        assertEquals("LOAD",service.get(project,null,schema).prefixes().loading());
-        service.save(project,null,schema,0,new WorkObjectPrefixes("SC","SI","SE"));
-        assertEquals("SCHEMA",service.get(project,null,schema).origin());
-        assertThrows(RuntimeException.class,()->service.save(project,null,schema,0,WorkObjectPrefixes.DEFAULTS));
-        assertThrows(RuntimeException.class,()->service.get(UUID.randomUUID(),connection,null));
-        assertEquals("LOAD",service.inherit(project,schema,1).prefixes().loading());
+        long connectionId=jdbc.sql("insert into akis.baglanti(uuid,kod,ad,saglayici_turu,baglanti_modu,surucu_sinifi,sunucu_adi,port,servis_adi,kullanici_adi) values(:u,:k,'DB','ORACLE','JDBC','oracle.jdbc.OracleDriver','db.local',1521,'ORCL','APP') returning id")
+                .param("k","KM_"+connection.toString().replace("-", "").toUpperCase()).param("u",connection).query(Long.class).single();
+        jdbc.sql("insert into akis.fiziksel_sema(baglanti_id,saglayici_turu,uuid,kod,ad,sema_adi,calisma_sema_adi) values(:b,'ORACLE',:u,:k,'Work','WORK','WORK')")
+                .param("b",connectionId).param("u",schema).param("k","W_"+schema.toString().replace("-", "").toUpperCase()).update();
         var areas=new WorkAreaPolicyService(jdbc);
         assertFalse(areas.get(project,schema).policy().enabled());
         var enabled=new WorkAreaPolicyService.Policy(true,false,5,10000,1000000,24);

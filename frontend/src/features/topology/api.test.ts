@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { topologyApi } from './api'
+import { topologyApi, type ConnectionRequest } from './api'
 import { getTopologyCopy } from './copy'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -15,132 +15,100 @@ function mockResponse(body: unknown = {}) {
   return fetchMock
 }
 
+const oracleRequest: ConnectionRequest = {
+  code: 'ORACLE_MAIN', name: 'Oracle Main', databaseType: 'ORACLE', mode: 'JDBC',
+  host: '10.0.0.1', port: 1521, serviceName: 'ORCL', username: 'reader', password: 'local-secret',
+}
+
 describe('topology API contracts', () => {
+  it('moves only the catalog folder with optimistic concurrency', async () => {
+    const fetchMock = mockResponse({ uuid: 'object', version: 8 })
+    await topologyApi.moveDataObject('p id', 'm id', 'o id', { submodelUuid: null, expectedVersion: 7 })
+    const [path, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(path).toBe('/api/v1/projects/p%20id/models/m%20id/data-objects/o%20id/folder')
+    expect(init.method).toBe('PATCH')
+    expect(JSON.parse(String(init.body))).toEqual({ submodelUuid: null, expectedVersion: 7 })
+  })
   it('loads the connection catalog through one summary endpoint', async () => {
     const fetchMock = mockResponse([])
     await topologyApi.listConnectionCatalog('project id')
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/projects/project%20id/connections/catalog')
   })
 
-  it('creates an Oracle definition and its first endpoint atomically', async () => {
-    const fetchMock = mockResponse({ connection: { uuid: 'connection' }, initialVersion: { uuid: 'version' } })
-    const initialVersion = {
-      mode: 'JDBC' as const,
-      jdbc: {
-        host: 'oracle.example', port: 1521,
-        connectIdentifier: { type: 'SERVICE_NAME' as const, value: 'ORCL' },
-        transport: 'TCP' as const,
-      },
-      policyVersion: 2 as const,
-      executionPolicy: {
-        connectTimeoutMs: 10000, readTimeoutMs: 30000,
-        networkTimeoutMs: 30000, queryTimeoutSeconds: 300,
-      },
-    }
+  it('tests unsaved connection fields without creating metadata', async () => {
+    const fetchMock = mockResponse({ connected: true })
 
-    await topologyApi.createOracleConnection('project id', {
-      code: 'ORACLE_MAIN', name: 'Oracle Main', initialVersion,
-      credentials: { username: 'reader', password: 'local-secret' },
-    })
+    await topologyApi.testDraftConnection('project id', oracleRequest)
 
     const [path, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(path).toBe('/api/v2/projects/project%20id/connections')
-    expect(JSON.parse(String(init.body))).toEqual({
-      code: 'ORACLE_MAIN', name: 'Oracle Main', initialVersion,
-      credentials: { username: 'reader', password: 'local-secret' },
-    })
-  })
-
-  it('tests unsaved Oracle fields without creating metadata', async () => {
-    const fetchMock = mockResponse({ connected: true, oracle19cCompatible: true })
-    const draft = {
-      mode: 'JDBC' as const,
-      jdbc: { host: '10.0.0.1', port: 1521, connectIdentifier: { type: 'SID' as const, value: 'ORCL' }, transport: 'TCP' as const },
-      credentials: { username: 'reader', password: 'local-secret' },
-      policyVersion: 2 as const,
-      executionPolicy: { connectTimeoutMs: 10000, readTimeoutMs: 30000, networkTimeoutMs: 30000, queryTimeoutSeconds: 300 },
-    }
-
-    await topologyApi.testOracleDraftConnection('project id', draft)
-
-    const [path, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(path).toBe('/api/v2/projects/project%20id/connections/test')
+    expect(path).toBe('/api/v1/projects/project%20id/connections/test')
     expect(init.method).toBe('POST')
-    expect(JSON.parse(String(init.body))).toEqual(draft)
+    expect(JSON.parse(String(init.body))).toEqual(oracleRequest)
   })
 
-  it('creates Oracle connection versions through the isolated V2 contract', async () => {
-    const fetchMock = mockResponse({ mode: 'JNDI' })
-    const body = {
-      mode: 'JNDI' as const,
-      jndi: { name: 'java:comp/env/jdbc/OracleMain' },
-      policyVersion: 2 as const,
-      executionPolicy: {
-        connectTimeoutMs: 10000, readTimeoutMs: 30000,
-        networkTimeoutMs: 30000, queryTimeoutSeconds: 300,
-      },
-    }
+  it('creates a connection with its endpoint and credentials in one flat request', async () => {
+    const fetchMock = mockResponse({ uuid: 'connection' })
 
-    await topologyApi.createVersion('project id', 'connection/id', body)
+    await topologyApi.createConnection('project id', oracleRequest)
 
     const [path, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(path).toBe('/api/v2/projects/project%20id/connections/connection%2Fid/versions')
-    expect(JSON.parse(String(init.body))).toEqual(body)
+    expect(path).toBe('/api/v1/projects/project%20id/connections')
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(String(init.body))).toEqual(oracleRequest)
   })
 
-  it('persists Oracle connection tests through the V2 lifecycle endpoint', async () => {
+  it('updates a connection in place and deletes it without a version token', async () => {
+    const fetchMock = mockResponse({ uuid: 'connection/id' })
+    const withoutPassword: ConnectionRequest = { ...oracleRequest, password: undefined }
+
+    await topologyApi.updateConnection('project id', 'connection/id', withoutPassword)
+    await topologyApi.deleteConnection('project id', 'connection/id')
+
+    const [updatePath, updateInit] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(updatePath).toBe('/api/v1/projects/project%20id/connections/connection%2Fid')
+    expect(updateInit.method).toBe('PATCH')
+    expect(JSON.parse(String(updateInit.body))).toEqual(withoutPassword)
+    const [deletePath, deleteInit] = fetchMock.mock.calls[1] as [string, RequestInit]
+    expect(deletePath).toBe('/api/v1/projects/project%20id/connections/connection%2Fid')
+    expect(deleteInit.method).toBe('DELETE')
+  })
+
+  it('records and lists connection tests on the connection itself', async () => {
     const fetchMock = mockResponse({ outcome: 'PASSED' })
 
-    await topologyApi.testConnectionVersion('project id', 'connection/id', 'version id')
+    await topologyApi.testConnection('project id', 'connection/id')
+    await topologyApi.listConnectionTests('project id', 'connection/id', 5)
 
-    expect(fetchMock).toHaveBeenCalledOnce()
     const [path, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(path).toBe('/api/v2/projects/project%20id/connections/connection%2Fid/versions/version%20id/tests')
+    expect(path).toBe('/api/v1/projects/project%20id/connections/connection%2Fid/tests')
     expect(init.method).toBe('POST')
     expect(init.body).toBeUndefined()
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/v1/projects/project%20id/connections/connection%2Fid/tests?limit=5')
   })
 
-  it('loads bounded test evidence and activates with optimistic state', async () => {
-    const fetchMock = mockResponse([])
-
-    await topologyApi.listConnectionVersionTests('project', 'connection', 'version', 5)
-    await topologyApi.activateConnectionVersion('project', 'connection', 'version', {
-      testUuid: 'test-uuid',
-      expectedStateVersion: 3,
-    })
-
-    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v2/projects/project/connections/connection/versions/version/tests?limit=5')
-    const [activatePath, activateInit] = fetchMock.mock.calls[1] as [string, RequestInit]
-    expect(activatePath).toBe('/api/v2/projects/project/connections/connection/versions/version/activate')
-    expect(activateInit.method).toBe('POST')
-    expect(JSON.parse(String(activateInit.body))).toEqual({ testUuid: 'test-uuid', expectedStateVersion: 3 })
-  })
-
-  it('updates a schema mapping with optimistic concurrency', async () => {
-    const fetchMock = mockResponse({ uuid: 'binding', version: 2 })
+  it('updates a schema mapping by its own identity', async () => {
+    const fetchMock = mockResponse({ uuid: 'binding' })
     await topologyApi.updateBinding('project', 'binding/id', {
-      logicalSchemaUuid: 'logical', environmentUuid: 'environment',
-      physicalSchemaUuid: 'physical', expectedVersion: 1,
+      logicalSchemaUuid: 'logical', environmentUuid: 'environment', physicalSchemaUuid: 'physical',
     })
     const [path, init] = fetchMock.mock.calls[0] as [string, RequestInit]
     expect(path).toBe('/api/v1/projects/project/schema-bindings/binding%2Fid')
     expect(init.method).toBe('PATCH')
     expect(JSON.parse(String(init.body))).toEqual({
-      logicalSchemaUuid: 'logical', environmentUuid: 'environment',
-      physicalSchemaUuid: 'physical', expectedVersion: 1,
+      logicalSchemaUuid: 'logical', environmentUuid: 'environment', physicalSchemaUuid: 'physical',
     })
   })
 
   it('sends discovery filters to the physical-schema discovery endpoint', async () => {
     const fetchMock = mockResponse({ tables: [] })
 
-    await topologyApi.discoverOracle('project', 'connection', 'version', 'physical/schema', {
+    await topologyApi.discoverOracle('project', 'connection', 'physical/schema', {
       tableName: 'CUSTOMER',
       limit: 25,
     })
 
     const [path, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(path).toBe('/api/v1/projects/project/connections/connection/versions/version/physical-schemas/physical%2Fschema/discover')
+    expect(path).toBe('/api/v1/projects/project/connections/connection/physical-schemas/physical%2Fschema/discover')
     expect(JSON.parse(String(init.body))).toEqual({ tableName: 'CUSTOMER', limit: 25 })
   })
 
@@ -154,16 +122,31 @@ describe('topology API contracts', () => {
     expect(JSON.parse(String(init.body))).toEqual({ code: 'TEST', name: 'Test Ortamı' })
   })
 
-  it('loads Oracle schemas and creates a physical schema from one user-facing value', async () => {
+  it('loads database schemas and creates a physical schema with its work schema and prefixes', async () => {
     const fetchMock = mockResponse(['TTBP', 'INNOVA_ODI'])
 
-    await topologyApi.listOracleSchemas('project', 'connection', 'version')
-    await topologyApi.createPhysicalSchema('project', { connectionUuid: 'connection', schema: 'TTBP' })
+    await topologyApi.listDatabaseSchemas('project', 'connection')
+    await topologyApi.createPhysicalSchema('project', { connectionUuid: 'connection', schemaName: 'TTBP', workSchemaName: 'TTBP_WORK', loadingPrefix: 'C$_' })
 
-    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/projects/project/connections/connection/versions/version/schemas')
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/projects/project/connections/connection/schemas')
     const [createPath, createInit] = fetchMock.mock.calls[1] as [string, RequestInit]
     expect(createPath).toBe('/api/v1/projects/project/physical-schemas')
-    expect(JSON.parse(String(createInit.body))).toEqual({ connectionUuid: 'connection', schema: 'TTBP' })
+    expect(JSON.parse(String(createInit.body))).toEqual({ connectionUuid: 'connection', schemaName: 'TTBP', workSchemaName: 'TTBP_WORK', loadingPrefix: 'C$_' })
+  })
+
+  it('updates and deletes a physical schema by its identity', async () => {
+    const fetchMock = mockResponse({ uuid: 'physical/schema' })
+
+    await topologyApi.updatePhysicalSchema('project id', 'physical/schema', { name: 'Stage', schemaName: 'STAGE_OWNER' })
+    await topologyApi.deletePhysicalSchema('project id', 'physical/schema')
+
+    const [updatePath, updateInit] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(updatePath).toBe('/api/v1/projects/project%20id/physical-schemas/physical%2Fschema')
+    expect(updateInit.method).toBe('PATCH')
+    expect(JSON.parse(String(updateInit.body))).toEqual({ name: 'Stage', schemaName: 'STAGE_OWNER' })
+    const [deletePath, deleteInit] = fetchMock.mock.calls[1] as [string, RequestInit]
+    expect(deletePath).toBe('/api/v1/projects/project%20id/physical-schemas/physical%2Fschema')
+    expect(deleteInit.method).toBe('DELETE')
   })
 
   it('captures a server-produced schema snapshot without sending client metadata', async () => {
@@ -172,13 +155,12 @@ describe('topology API contracts', () => {
     await topologyApi.captureOracleSchemaSnapshot(
       'project id',
       'connection/id',
-      'version id',
       'physical schema',
       'data/object',
     )
 
     const [path, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(path).toBe('/api/v2/projects/project%20id/connections/connection%2Fid/versions/version%20id/physical-schemas/physical%20schema/data-objects/data%2Fobject/schema-snapshots:discover')
+    expect(path).toBe('/api/v1/projects/project%20id/connections/connection%2Fid/physical-schemas/physical%20schema/data-objects/data%2Fobject/schema-snapshots:discover')
     expect(init.method).toBe('POST')
     expect(init.body).toBeUndefined()
   })

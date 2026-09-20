@@ -29,8 +29,8 @@ export function KmRunDetails({ data }: { data: KmRunData }) {
   const writes = data.reconciliation?.outcome === 'PUBLISHED' ? data.reconciliation.rows : current.find(step => step.operation === 'ATOMIC_REPLACE' && step.state === 'SUCCEEDED')?.affectedRows
   return <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
     <Descriptions size="small" bordered column={{ xs: 1, sm: 2 }} items={[
-      { key: 'read', label: tr ? 'Kaynak Satır' : 'Source Rows', children: reads ?? '—' },
-      { key: 'write', label: tr ? 'Hedefe Eklenen Satır' : 'Inserted Rows', children: writes ?? '—' },
+      { key: 'read', label: tr ? 'Kaynak Satır' : 'Source Rows', children: reads ?? (tr ? 'Kaydedilmedi' : 'Not recorded') },
+      { key: 'write', label: tr ? 'Hedefe Eklenen Satır' : 'Inserted Rows', children: writes ?? (tr ? 'Kaydedilmedi' : 'Not recorded') },
     ]} />
     {data.reconciliation && <Alert type={data.reconciliation.outcome === 'PUBLISHED' ? 'success' : 'warning'} showIcon title={data.reconciliation.outcome === 'PUBLISHED' ? (tr ? 'Hedef yayını mutabakat ile doğrulandı.' : 'Target publication confirmed by reconciliation.') : data.reconciliation.outcome === 'NOT_PUBLISHED' ? (tr ? 'Hedefe yazılmadığı doğrulandı.' : 'Confirmed that no target publication occurred.') : (tr ? 'Yayın kanıtında çakışma var.' : 'Publication evidence conflict.')} description={tr ? 'İlk çalıştırmanın adım kayıtları korunur. Çalışma tabloları inceleme için saklanır; işlem tekrar çalıştırılmaz.' : 'Original step records are preserved. Work tables remain available for review; the operation is not replayed.'} />}
     {!data.reconciliation && current.some(step => step.state === 'UNKNOWN') && <Alert type="warning" showIcon title={tr ? 'Hedef sonucu doğrulanmalı. Aynı işlem otomatik tekrar edilmez.' : 'The target outcome must be reconciled. The operation is not automatically retried.'} />}
@@ -39,14 +39,14 @@ export function KmRunDetails({ data }: { data: KmRunData }) {
       { title: tr ? 'Adım' : 'Step', dataIndex: 'operation', render: value => operations[value]?.[language] ?? value },
       { title: tr ? 'Konum' : 'Location', dataIndex: 'site', render: value => value === 'STAGING' ? (tr ? 'Çalışma Alanı' : 'Work Area') : (tr ? 'Hedef' : 'Target') },
       { title: tr ? 'Durum' : 'Status', dataIndex: 'state', render: state },
-      { title: tr ? 'Satır' : 'Rows', dataIndex: 'affectedRows', render: (value, row) => ['TRANSFER_JDBC', 'ATOMIC_REPLACE'].includes(row.operation) ? value ?? '—' : '—' },
-      { title: tr ? 'Hata' : 'Error', dataIndex: 'errorCode', render: value => value ?? '—' },
+      { title: tr ? 'Satır' : 'Rows', dataIndex: 'affectedRows', render: (value, row) => ['TRANSFER_JDBC', 'ATOMIC_REPLACE'].includes(row.operation) ? value ?? (tr ? 'Kaydedilmedi' : 'Not recorded') : '' },
+      { title: tr ? 'Hata' : 'Error', dataIndex: 'errorCode', render: value => value ?? (tr ? 'Bulunmuyor' : 'None') },
     ]} />
     {data.workObjects.length > 0 && <Table size="small" pagination={false} dataSource={data.workObjects} rowKey="uuid" scroll={{ x: 'max-content' }} columns={[
       { title: tr ? 'Çalışma Şeması' : 'Work Schema', dataIndex: 'owner' },
       { title: tr ? 'Çalışma Tablosu' : 'Work Table', dataIndex: 'name' },
       { title: tr ? 'Durum' : 'Status', dataIndex: 'state', render: state },
-      { title: tr ? 'Satır' : 'Rows', dataIndex: 'rows', render: value => value ?? '—' },
+      { title: tr ? 'Satır' : 'Rows', dataIndex: 'rows', render: value => value ?? (tr ? 'Kaydedilmedi' : 'Not recorded') },
     ]} />}
   </Space>
 }

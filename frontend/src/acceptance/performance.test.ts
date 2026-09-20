@@ -12,7 +12,7 @@ describe('large repository interaction budgets', () => {
   it('keeps representative client projections inside their p95 budgets', () => {
     const folders: Folder[] = Array.from({ length: 10_000 }, (_, index) => ({ uuid: `F${index}`, parentUuid: null, code: `F${index}`, status: 'AKTIF', name: `Folder ${index}`, description: null, version: 1 }))
     const tasks = Array.from({ length: 10_000 }, (_, index) => ({ id: `T${index}`, name: `Task ${index}` })) as ProcedureTask[]
-    const rows: ColumnMapping[] = Array.from({ length: 1_000 }, (_, index) => ({ source: { dataset: 'S', column: `S${index}` }, target: { dataset: 'T', column: `T${index}` } }))
+    const rows: ColumnMapping[] = Array.from({ length: 1_000 }, (_, index) => ({ source: { object: 'S', column: `S${index}` }, target: { object: 'T', column: `T${index}` } }))
     const steps = Array.from({ length: 500 }, (_, index) => ({ id: `S${index}`, type: 'PROCEDURE' as const }))
     const packageContent: PackageContent = { firstStepId: 'S0', steps, transitions: steps.slice(1).map((step, index) => ({ fromStepId: `S${index}`, toStepId: step.id, outcome: 'SUCCESS' })) }
 

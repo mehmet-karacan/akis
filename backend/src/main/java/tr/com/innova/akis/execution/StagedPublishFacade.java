@@ -30,7 +30,7 @@ final class StagedPublishFacade {
         this.policies=policies;this.journal=journal;
     }
     static String publishKey(StagedRuntimePlan plan,PinnedExecutionContext execution,TargetFenceToken fence) {
-        return publishKey(plan,execution.jobRequestUuid(),fence.canonicalTargetHash());
+        return KmCanonical.hash("AKIS_KM_PUBLISH/1|"+execution.jobRequestUuid()+"|"+plan.runtimePlanHash()+"|"+fence.canonicalTargetHash()+"|KM_"+writeMode(plan));
     }
     static String publishKey(MappingExecutionContract plan,UUID job,String targetHash) {
         return KmCanonical.hash("AKIS_KM_PUBLISH/1|"+job+"|"+plan.runtimePlanHash()+"|"+targetHash+"|KM_ATOMIC_REPLACE");
@@ -68,21 +68,27 @@ final class StagedPublishFacade {
         JdbcStagedAtomicRefreshWriter.Result result;
         try {
             var connection=session.connection();
-            var evidence=new PublishEvidence("KM_ATOMIC_REPLACE",key,seal.payloadHash(),seal.rows(),seal.rows(),0,null,null);
+            String mode=writeMode(plan);
+            var evidence=new PublishEvidence("KM_"+mode,key,seal.payloadHash(),seal.rows(),seal.rows(),0,null,null);
+            var writerMode=JdbcStagedAtomicRefreshWriter.WriteMode.valueOf(mode);
+            String keyOption=plan.definition().stringOption("integration","KEY_COLUMNS");
+            List<String> keys=keyOption.isBlank()?List.of():Arrays.stream(keyOption.split(",")).map(String::strip).peek(StagedMappingDefinition::identifier).toList();
             result=new JdbcStagedAtomicRefreshWriter(ledger).publish(connection,TargetLedgerContext.from(fence,execution),evidence,object.table(),
                     new JdbcStagingTransfer.Table(plan.target().owner(),plan.target().objectName()),plan.columnMappings().stream()
                         .map(c->new JdbcStagedAtomicRefreshWriter.Column(c.targetColumn(),c.targetColumn())).toList(),30,()->{
                             verifyPolicy(plan);
-                            new JdbcOracleSchemaPreflight(mapper).verifyLockedTarget(plan,connection,
-                                    new JdbcOracleSchemaPreflight.ExpectedSnapshot(pinned.source().schemaSnapshotUuid(),pinned.source().body()),
-                                    new JdbcOracleSchemaPreflight.ExpectedSnapshot(pinned.target().schemaSnapshotUuid(),pinned.target().body()));
+                            new JdbcOracleSchemaPreflight(mapper).verifyLockedStagedTarget(plan,connection,pinned);
                             verifyWork(connection,object);
                         },leaseCheckpoint,new JdbcTransactionBoundary() {
                             public void commit() { session.commitConfirmed(); }
                             public void rollback() { session.rollbackConfirmed(); }
-                        });
+                        },plan.definition().stringOption("integration","ORACLE_HINT"),writerMode,keys);
         } finally { try { session.close(); } catch(RuntimeException ignored) { } }
         return new OracleKmRuntime.PublishResult(OracleKmRuntime.PublishOutcome.valueOf(result.outcome().name()),result.inserted()==null?0:result.inserted());
+    }
+    private static String writeMode(StagedRuntimePlan plan) {
+        String configured=plan.definition().stringOption("integration","WRITE_MODE");
+        return configured.isBlank()?"ATOMIC_DELETE_INSERT":configured;
     }
     private void verifyPolicy(StagedRuntimePlan plan) {
         var staging=plan.staging();

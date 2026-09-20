@@ -6,7 +6,7 @@ import { FolderPlus } from 'lucide-react'
 import { Button, Dialog } from '../../core/ui'
 import { topologyApi, type Submodel } from '../topology/api'
 
-export function CreateModelFolder({ projectUuid, modelUuid, folders, onCreated }: { projectUuid: string; modelUuid: string; folders: Submodel[]; onCreated(): void }) {
+export function CreateModelFolder({ projectUuid, modelUuid, folders, parentUuid, onCreated }: { projectUuid: string; modelUuid: string; folders: Submodel[]; parentUuid?: string; onCreated(): void }) {
   const { i18n, t } = useTranslation()
   const tr = i18n.language === 'tr'
   const [open, setOpen] = useState(false)
@@ -20,5 +20,5 @@ export function CreateModelFolder({ projectUuid, modelUuid, folders, onCreated }
       setOpen(false); onCreated(); window.dispatchEvent(new Event('akis:models-changed'))
     } catch { setError(t('common.saveError')) } finally { setBusy(false) }
   }
-  return <><Button icon={<FolderPlus size={16} />} onClick={() => setOpen(true)}>{tr ? 'Klasör Ekle' : 'Add Folder'}</Button><Dialog open={open} title={tr ? 'Model Klasörü Ekle' : 'Add Model Folder'} closeLabel={t('common.close')} onClose={() => setOpen(false)} busy={busy}><form onSubmit={(event) => void save(event)}>{error && <p role="alert">{error}</p>}<label>{tr ? 'Üst Klasör' : 'Parent Folder'}<FormSelect name="parentUuid"><option value="">{tr ? 'Model Kökü' : 'Model Root'}</option>{folders.map((folder) => <option key={folder.uuid} value={folder.uuid}>{folder.name} ({folder.code})</option>)}</FormSelect></label><label>{tr ? 'Kod' : 'Code'}<AntInput name="code" required pattern="[A-Za-z][A-Za-z0-9_]{0,99}" /></label><label>{tr ? 'Ad' : 'Name'}<AntInput name="name" required /></label><footer><Button type="submit" tone="primary" busy={busy}>{tr ? 'Kaydet' : 'Save'}</Button></footer></form></Dialog></>
+  return <><Button icon={<FolderPlus size={16} />} onClick={() => setOpen(true)}>{tr ? 'Klasör Ekle' : 'Add Folder'}</Button><Dialog open={open} title={tr ? 'Model Klasörü Ekle' : 'Add Model Folder'} closeLabel={t('common.close')} onClose={() => setOpen(false)} busy={busy}><form onSubmit={(event) => void save(event)}>{error && <p role="alert">{error}</p>}<label>{tr ? 'Üst Klasör' : 'Parent Folder'}<FormSelect name="parentUuid" defaultValue={parentUuid ?? ''}><option value="">{tr ? 'Model Kökü' : 'Model Root'}</option>{folders.map((folder) => <option key={folder.uuid} value={folder.uuid}>{folder.name} ({folder.code})</option>)}</FormSelect></label><label>{tr ? 'Kod' : 'Code'}<AntInput name="code" required pattern="[A-Za-z][A-Za-z0-9_]{0,99}" /></label><label>{tr ? 'Ad' : 'Name'}<AntInput name="name" required /></label><footer><Button type="submit" tone="primary" busy={busy}>{tr ? 'Kaydet' : 'Save'}</Button></footer></form></Dialog></>
 }

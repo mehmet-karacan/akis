@@ -1,6 +1,7 @@
 package tr.com.innova.akis.execution;
 
 import java.util.UUID;
+import java.util.Map;
 
 import tr.com.innova.akis.discovery.SchemaFingerprintInput;
 
@@ -17,7 +18,12 @@ interface PinnedSchemaSnapshotPort {
             UUID projectUuid,
             UUID publicationUuid,
             PinnedSnapshot source,
-            PinnedSnapshot target) {
+            PinnedSnapshot target,
+            Map<String, PinnedSnapshot> sources) {
+        public PinnedSnapshots { sources = Map.copyOf(sources); }
+        public PinnedSnapshots(UUID projectUuid, UUID publicationUuid, PinnedSnapshot source, PinnedSnapshot target) {
+            this(projectUuid, publicationUuid, source, target, Map.of());
+        }
     }
 
     record PinnedSnapshot(

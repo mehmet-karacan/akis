@@ -80,8 +80,8 @@ const codeLabels: Record<'en' | 'tr', Record<string, string>> = {
 }
 
 export function executionCodeLabel(code: string | null | undefined, locale: string) {
-  if (!code) return '—'
   const language = locale.startsWith('tr') ? 'tr' : 'en'
+  if (!code) return language === 'tr' ? 'Kaydedilmedi' : 'Not recorded'
   if (code === 'COMMITTED') return language === 'tr' ? 'Kalıcılaştırıldı' : 'Committed'
   if (code === 'UNCONFIRMED') return language === 'tr' ? 'İşlem Sonucu Teyit Edilmedi' : 'Transaction Outcome Unconfirmed'
   if (code === 'NOT_APPLICABLE') return language === 'tr' ? 'Salt Okuma' : 'Read Only'

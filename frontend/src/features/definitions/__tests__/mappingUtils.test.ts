@@ -5,8 +5,8 @@ import type { ColumnMapping, MappingContent } from '../types'
 
 function rows(count: number): ColumnMapping[] {
   return Array.from({ length: count }, (_, index) => ({
-    source: { dataset: 'SOURCE_1', column: `SRC_${index}` },
-    target: { dataset: 'TARGET_1', column: `TARGET_${index}` },
+    source: { object: 'SOURCE_1', column: `SRC_${index}` },
+    target: { object: 'TARGET', column: `TARGET_${index}` },
   }))
 }
 
@@ -26,9 +26,8 @@ describe('mapping grid helpers', () => {
   it('returns independent starter documents', () => {
     const first = createDefaultContent('MAPPING') as MappingContent
     const second = createDefaultContent('MAPPING') as MappingContent
-    first.datasets[0]!.id = 'CHANGED'
-    expect(second.datasets[0]!.id).toBe('SOURCE_1')
+    first.sources[0]!.id = 'CHANGED'
+    expect(second.sources[0]!.id).toBe('SOURCE_1')
     expect(isMappingContent(second)).toBe(true)
   })
 })
-

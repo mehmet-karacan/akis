@@ -25,7 +25,9 @@ class StagedRuntimePlanResolverTest {
         for(var kind:List.of(AkisKmLanguage.Kind.LKM,AkisKmLanguage.Kind.IKM)) {
             String role=kind==AkisKmLanguage.Kind.LKM?"loading":"integration",id=UUID.randomUUID().toString();
             pins.putObject(role).put("versionUuid",id).put("contentHash","a".repeat(64));
-            modules.putObject(role).put("versionUuid",id).put("contentHash","a".repeat(64)).put("kind",kind.name()).put("source",AkisKmLanguage.example(kind));
+            var module=modules.putObject(role).put("versionUuid",id).put("contentHash","a".repeat(64)).put("kind",kind.name()).put("source",AkisKmLanguage.example(kind));
+            if(kind==AkisKmLanguage.Kind.LKM) module.putObject("options").put("DISTINCT",false);
+            else module.putObject("options").put("WRITE_MODE","ATOMIC_DELETE_INSERT").put("TRUNCATE_TARGET",false);
         }
         scenario=mapper.createObjectNode().put("compiler","AKIS").put("compilerVersion",2);
         scenario.putObject("executable").put("kind","MAPPING").set("definition",content);
@@ -62,10 +64,69 @@ class StagedRuntimePlanResolverTest {
         sign();
     }
     private void sign() { manifest.remove("releaseHash");manifest.put("releaseHash",KmCanonical.hash(mapper,manifest)); }
+    @Test void conditionalPinnedStepsAreRecompiledAndCannotDriftFromPhysicalPlan() {
+        for (boolean enabled : List.of(false, true)) {
+            fixture();
+            String source = "AKIS_KM/2\nMODUL CKM\nSECENEK CHECK_ROWS BOOLEAN ISTEGE_BAGLI true YOK\n"
+                    + "ADIM QUALITY STAGING CHECK_NOT_NULL WORK_SOURCE_1 EGER CHECK_ROWS\n";
+            String version = UUID.randomUUID().toString();
+            var content = (ObjectNode) scenario.path("executable").path("definition");
+            ((ObjectNode) content.path("modules")).putObject("checking").put("versionUuid", version).put("contentHash", "c".repeat(64));
+            String contentHash = KmCanonical.hash(mapper, content);
+            ((ObjectNode) scenario.path("source")).put("contentHash", contentHash);
+            ((ObjectNode) manifest.path("definition")).put("contentHash", contentHash);
+            scenarioHash = KmCanonical.hash(mapper, scenario);
+            ((ObjectNode) manifest.path("scenario")).put("planHash", scenarioHash);
+            var physical = (ObjectNode) manifest.path("stagedPlan");
+            physical.put("scenarioPlanHash", scenarioHash);
+            var module = ((ObjectNode) physical.path("modules")).putObject("checking")
+                    .put("versionUuid", version).put("contentHash", "c".repeat(64)).put("kind", "CKM").put("source", source);
+            module.putObject("options").put("CHECK_ROWS", enabled);
+            var expected = AkisKmInterpreter.compile(new AkisKmInterpreter.Modules(
+                    AkisKmLanguage.example(AkisKmLanguage.Kind.LKM), source, AkisKmLanguage.example(AkisKmLanguage.Kind.IKM),
+                    Map.of("checking", Map.of("CHECK_ROWS", enabled))));
+            physical.set("steps", mapper.valueToTree(expected.steps()));
+            signPhysical();
+            var resolved = resolve();
+            assertEquals(enabled ? 5 : 4, resolved.program().steps().size());
+            assertEquals(resolved.program(), AkisKmInterpreter.compile(resolved.modules()));
+            ((ObjectNode) module.path("options")).put("CHECK_ROWS", !enabled);
+            signPhysical();
+            assertThrows(IllegalArgumentException.class, this::resolve);
+        }
+    }
     private void signPhysical() { var physical=(ObjectNode)manifest.path("stagedPlan");physical.remove("physicalPlanHash");String hash=KmCanonical.hash(mapper,physical);physical.put("physicalPlanHash",hash);manifest.put("runtimePlanHash",hash);sign(); }
     private StagedRuntimePlan resolve() { return resolver.resolve(manifest.path("releaseHash").asText(),scenarioHash,mapper.readTree(scenario.toString()),mapper.readTree(manifest.toString())); }
     @Test void resolvesRoundTrippedPlanWithoutLegacyRowLimit() {
         fixture();var plan=resolve();assertEquals(1201,plan.definition().options().maxRows());assertEquals(4,plan.program().steps().size());
+    }
+    @Test void roundTripsSchemaFourExpressionThroughSignedPublicationWithoutFabricatingSourceColumn() {
+        fixture();var content=(ObjectNode)scenario.path("executable").path("definition");
+        content.remove(List.of("datasets","writeStrategy","staging"));
+        var source=manifest.path("bindings").get(0);var target=manifest.path("bindings").get(1);
+        content.putArray("sources").addObject().put("id","SRC").put("alias","SOURCE_ALIAS")
+                .put("dataObjectUuid",source.path("dataObjectUuid").asText()).put("schemaSnapshotUuid",source.path("schemaSnapshotUuid").asText());
+        content.putObject("target").put("id","TGT").put("alias","TARGET_ALIAS")
+                .put("dataObjectUuid",target.path("dataObjectUuid").asText()).put("schemaSnapshotUuid",target.path("schemaSnapshotUuid").asText());
+        content.putArray("joins");content.putArray("filters");
+        var ast=MappingSql.parse("SOURCE_ALIAS.ID * 2",List.of(new MappingSql.Source("SRC","SOURCE_ALIAS",Set.of("ID"))),false);
+        var column=content.putArray("columnMappings").addObject();column.set("expression",ast);column.putObject("target").put("object","TGT").put("column","ID");
+        String hash=KmCanonical.hash(mapper,content);
+        ((ObjectNode)scenario.path("source")).put("schemaVersion",4).put("contentHash",hash);
+        ((ObjectNode)manifest.path("definition")).put("schemaVersion",4).put("contentHash",hash);
+        scenarioHash=KmCanonical.hash(mapper,scenario);
+        ((ObjectNode)manifest.path("scenario")).put("planHash",scenarioHash);
+        var physical=(ObjectNode)manifest.path("stagedPlan");physical.put("scenarioPlanHash",scenarioHash);physical.set("columns",content.path("columnMappings").deepCopy());signPhysical();
+        var plan=resolve();var projection=plan.columnMappings().getFirst();
+        assertInstanceOf(MappingExecutionContract.ExpressionProjection.class,projection);
+        assertNull(projection.sourceColumn());assertEquals("ID",projection.targetColumn());
+        // JSON round-trip can normalize DecimalNode(2) to IntNode(2).
+        // Assert the executable SQL, bound values and references are unchanged.
+        var catalog=List.of(new MappingSql.Source("SRC","SOURCE_ALIAS",Set.of("ID")));
+        assertEquals(MappingSql.render(ast,catalog,false),MappingSql.render(projection.expression(),catalog,false));
+        ((ObjectNode)projection.expression()).put("operator","EVIL");assertEquals("*",projection.expression().path("operator").asText());
+        ((ObjectNode)physical.path("columns").get(0).path("expression")).put("operator","+");signPhysical();
+        assertThrows(IllegalArgumentException.class,this::resolve);
     }
     @Test void rejectsTamperedPhysicalOptionsEvenIfOuterManifestIsRehashed() {
         fixture();((ObjectNode)manifest.path("stagedPlan").path("options")).put("maxRows",9999);signPhysical();
@@ -80,5 +141,32 @@ class StagedRuntimePlanResolverTest {
     @Test void physicalBindingsCannotDisagreeWithManifestEvenAfterRehashing() {
         fixture();((ObjectNode)manifest.path("stagedPlan").path("bindings").get(0)).put("owner","DIFFERENT");signPhysical();
         assertThrows(IllegalArgumentException.class,this::resolve);
+    }
+    @Test void rejectsRehashedRuntimeOptionsThatDisagreeWithExecutableDeclarations() {
+        for (var change : List.of(
+                Map.entry("DISTINCT", "true"), Map.entry("ORACLE_HINT", "x */ DELETE FROM T --"),
+                Map.entry("UNDECLARED", "value"))) {
+            fixture();
+            ((ObjectNode)manifest.path("stagedPlan").path("modules").path("loading").path("options")).put(change.getKey(),change.getValue());
+            signPhysical();assertThrows(IllegalArgumentException.class,this::resolve,change.getKey());
+        }
+    }
+    @Test void refusesMissingVersionedDefaultsInsteadOfChangingRuntimeMeaning() {
+        fixture();((ObjectNode)manifest.path("stagedPlan").path("modules").path("loading")).remove("options");signPhysical();
+        assertThrows(IllegalArgumentException.class,this::resolve);
+    }
+    @Test void refusesTruncateWithoutBooleanConfirmationAndMergeWithoutKeys() {
+        for(String mode:List.of("TRUNCATE_LOAD","MERGE")) {
+            fixture();((ObjectNode)manifest.path("stagedPlan").path("modules").path("integration").path("options")).put("WRITE_MODE",mode);
+            signPhysical();assertThrows(IllegalArgumentException.class,this::resolve,mode);
+        }
+    }
+    @Test void acceptsValidatedResolvedTruncateAndHintOptions() {
+        fixture();
+        ((ObjectNode)manifest.path("stagedPlan").path("modules").path("integration").path("options"))
+                .put("WRITE_MODE","TRUNCATE_LOAD").put("TRUNCATE_TARGET",true).put("ORACLE_HINT","APPEND");
+        signPhysical();var plan=resolve();
+        assertEquals("TRUNCATE_LOAD",plan.definition().stringOption("integration","WRITE_MODE"));
+        assertTrue(plan.definition().booleanOption("integration","TRUNCATE_TARGET"));
     }
 }

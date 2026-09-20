@@ -1,4 +1,6 @@
 import { Database } from 'lucide-react'
+import oracleLogo from './assets/oracle-logo.svg'
+import postgresLogo from './assets/postgresql-logo.svg'
 
 interface ProviderVisual {
   label: string
@@ -37,7 +39,7 @@ export function DatabaseProviderIcon({ databaseType }: { databaseType: string })
       title={provider.label}
       data-provider={provider.tone}
     >
-      {provider.tone === 'oracle' ? <svg className="oracle-mark" viewBox="0 0 32 20" aria-hidden="true"><rect x="2" y="3" width="28" height="14" rx="7" fill="none" stroke="currentColor" strokeWidth="3.5" /></svg> : <Database aria-hidden="true" />}
+      {provider.tone === 'oracle' ? <img className="oracle-mark" src={oracleLogo} alt="" aria-hidden="true" /> : provider.tone === 'postgresql' ? <img className="postgres-mark" src={postgresLogo} alt="" aria-hidden="true" /> : <Database aria-hidden="true" />}
     </span>
   )
 }

@@ -23,46 +23,31 @@ import tr.com.innova.akis.security.AuthorizationService;
 import static tr.com.innova.akis.security.PermissionCodes.DISCOVERY_WRITE;
 
 @RestController
-@RequestMapping("/api/v1/projects/{projectUuid}/connections/{connectionUuid}/versions/{connectionVersionUuid}")
+@RequestMapping("/api/v1/projects/{projectUuid}/connections/{connectionUuid}")
 final class OracleDiscoveryController {
 
     private final OracleDiscoveryService service;
-    private final OracleConnectionLifecycleService lifecycleService;
     private final AuthorizationService authorization;
 
     OracleDiscoveryController(
             OracleDiscoveryService service,
-            OracleConnectionLifecycleService lifecycleService,
             AuthorizationService authorization) {
         this.service = service;
-        this.lifecycleService = lifecycleService;
         this.authorization = authorization;
-    }
-
-    @PostMapping("/test")
-    ConnectionTestView testConnection(
-            @PathVariable UUID projectUuid,
-            @PathVariable UUID connectionUuid,
-            @PathVariable UUID connectionVersionUuid) {
-        authorization.requireProjectPermission(projectUuid, DISCOVERY_WRITE);
-        return ConnectionTestView.from(lifecycleService.test(
-                projectUuid, connectionUuid, connectionVersionUuid));
     }
 
     @GetMapping("/schemas")
     List<String> listSchemas(
             @PathVariable UUID projectUuid,
-            @PathVariable UUID connectionUuid,
-            @PathVariable UUID connectionVersionUuid) {
+            @PathVariable UUID connectionUuid) {
         authorization.requireProjectPermission(projectUuid, DISCOVERY_WRITE);
-        return service.listSchemas(projectUuid, connectionUuid, connectionVersionUuid);
+        return service.listSchemas(connectionUuid);
     }
 
     @PostMapping("/physical-schemas/{physicalSchemaUuid}/discover")
     DiscoveryView discover(
             @PathVariable UUID projectUuid,
             @PathVariable UUID connectionUuid,
-            @PathVariable UUID connectionVersionUuid,
             @PathVariable UUID physicalSchemaUuid,
             @Valid @RequestBody(required = false) DiscoveryRequest request) {
         authorization.requireProjectPermission(projectUuid, DISCOVERY_WRITE);
@@ -71,13 +56,11 @@ final class OracleDiscoveryController {
                 : request;
         int limit = safeRequest.limit() == null ? 100 : safeRequest.limit();
         DiscoveryResult result = service.discover(
-                projectUuid,
                 connectionUuid,
-                connectionVersionUuid,
                 physicalSchemaUuid,
                 safeRequest.tableName(),
                 limit);
-        return DiscoveryView.from(connectionVersionUuid, physicalSchemaUuid, result);
+        return DiscoveryView.from(connectionUuid, physicalSchemaUuid, result);
     }
 
     record DiscoveryRequest(
@@ -85,34 +68,8 @@ final class OracleDiscoveryController {
             @Min(1) @Max(200) Integer limit) {
     }
 
-    record ConnectionTestView(
-            UUID connectionVersionUuid,
-            boolean connected,
-            boolean oracle19cCompatible,
-            String databaseProduct,
-            String databaseVersion,
-            int databaseMajorVersion,
-            int databaseMinorVersion,
-            String driverName,
-            String driverVersion) {
-
-        static ConnectionTestView from(
-                OracleConnectionLifecycleModels.TestAttemptRow attempt) {
-            return new ConnectionTestView(
-                    attempt.connectionVersionUuid(),
-                    true,
-                    true,
-                    attempt.databaseProduct(),
-                    attempt.databaseVersion(),
-                    attempt.databaseMajorVersion(),
-                    attempt.databaseMinorVersion(),
-                    attempt.driverName(),
-                    attempt.driverVersion());
-        }
-    }
-
     record DiscoveryView(
-            UUID connectionVersionUuid,
+            UUID connectionUuid,
             UUID physicalSchemaUuid,
             String owner,
             OffsetDateTime discoveredAt,
@@ -120,11 +77,11 @@ final class OracleDiscoveryController {
             List<TableView> tables) {
 
         static DiscoveryView from(
-                UUID connectionVersionUuid,
+                UUID connectionUuid,
                 UUID physicalSchemaUuid,
                 DiscoveryResult result) {
             return new DiscoveryView(
-                    connectionVersionUuid,
+                    connectionUuid,
                     physicalSchemaUuid,
                     result.owner(),
                     result.discoveredAt(),

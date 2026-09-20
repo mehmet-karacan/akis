@@ -65,18 +65,19 @@ public class JdbcProcedurePreflightContextStore
     public Optional<ConnectionEvidence> findConnectionEvidence(
             UUID projectUuid, UUID connectionVersionUuid) {
         return jdbc.sql("""
-                        select bs.hedef_kimlik_surumu,
-                               bs.hedef_parmak_izi
-                          from akis.baglanti_surumu bs
-                          join akis.proje p on p.id = bs.proje_id
-                         where p.uuid = :projectUuid
-                           and bs.uuid = :connectionVersionUuid
-                           and bs.durum = 'ETKIN'
-                           and bs.hedef_kimlik_surumu = 1
-                           and bs.hedef_parmak_izi ~ '^[0-9a-f]{64}$'
+                        select t.hedef_kimlik_surumu,
+                               t.hedef_parmak_izi
+                          from akis.baglanti b
+                          join akis.baglanti_testi t on t.baglanti_id = b.id
+                         where b.uuid = :connectionUuid
+                           and b.durum = 'ETKIN'
+                           and t.sonuc = 'BASARILI'
+                           and t.hedef_kimlik_surumu = 1
+                           and t.hedef_parmak_izi ~ '^[0-9a-f]{64}$'
+                         order by t.deneme_no desc
+                         limit 1
                         """)
-                .param("projectUuid", projectUuid)
-                .param("connectionVersionUuid", connectionVersionUuid)
+                .param("connectionUuid", connectionVersionUuid)
                 .query((rs, rowNum) -> new ConnectionEvidence(
                         rs.getInt("hedef_kimlik_surumu"),
                         rs.getString("hedef_parmak_izi")))

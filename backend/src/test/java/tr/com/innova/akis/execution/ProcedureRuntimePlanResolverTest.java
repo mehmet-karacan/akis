@@ -107,6 +107,26 @@ class ProcedureRuntimePlanResolverTest {
     }
 
     @Test
+    void disabledTasksAreLeftOutOfTheRuntimePlan() {
+        ObjectNode definition = definition();
+        ((ObjectNode) definition.get("tasks").get(3)).put("enabled", false);
+        ObjectNode scenario = scenario(definition);
+        String hash = sha256(canonicalize(scenario).toString());
+        ObjectNode manifest = manifest(definition, scenario, hash);
+        ((ArrayNode) manifest.get("bindings")).remove(3);
+        String pinned = resolver.compileHashForPublication(hash, scenario, manifest);
+        manifest.put("runtimePlanHash", pinned);
+        String release = sha256(canonicalize(manifest).toString());
+        manifest.put("releaseHash", release);
+        assertEquals(3, resolver.resolve(release, hash, scenario, manifest).tasks().size());
+        for (JsonNode task : definition.get("tasks")) ((ObjectNode) task).put("enabled", false);
+        ObjectNode allOff = scenario(definition);
+        String offHash = sha256(canonicalize(allOff).toString());
+        assertThrows(ProcedureRuntimePlanException.class,
+            () -> resolver.compileHashForPublication(offHash, allOff, manifest(definition, allOff, offHash)));
+    }
+
+    @Test
     void productionDmlRequiresEnvironmentApprovalEvenWhenTasksDoNot() {
         ObjectNode definition = definition();
         ArrayNode tasks = (ArrayNode) definition.get("tasks");

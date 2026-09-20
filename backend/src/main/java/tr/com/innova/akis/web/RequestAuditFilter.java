@@ -50,15 +50,17 @@ public final class RequestAuditFilter extends OncePerRequestFilter {
             HttpServletRequest request,
             HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
+        boolean completed = false;
         try {
             filterChain.doFilter(request, response);
+            completed = true;
         }
         finally {
-            appendAudit(request, response);
+            appendAudit(request, response, completed);
         }
     }
 
-    private void appendAudit(HttpServletRequest request, HttpServletResponse response) {
+    private void appendAudit(HttpServletRequest request, HttpServletResponse response, boolean completed) {
         try {
             String path = request.getRequestURI();
             UUID projectUuid = projectUuid(path);
@@ -68,8 +70,9 @@ public final class RequestAuditFilter extends OncePerRequestFilter {
             ObjectNode detail = objectMapper.createObjectNode();
             detail.put("method", request.getMethod());
             detail.put("path", path);
-            detail.put("status", response.getStatus());
-            String createdLocation = response.getStatus() == 201 ? response.getHeader("Location") : null;
+            int status = completed ? response.getStatus() : Math.max(500, response.getStatus());
+            detail.put("status", status);
+            String createdLocation = completed && status == 201 ? response.getHeader("Location") : null;
             if (createdLocation != null) detail.put("createdLocation", createdLocation);
             Actor actor = actor(request);
             if (actor.name() != null) {
@@ -81,7 +84,7 @@ public final class RequestAuditFilter extends OncePerRequestFilter {
                     correlationId(response),
                     actor.type(),
                     "HTTP_" + request.getMethod(),
-                    result(response.getStatus()),
+                    result(status),
                     detail);
         }
         catch (RuntimeException exception) {
@@ -116,7 +119,7 @@ public final class RequestAuditFilter extends OncePerRequestFilter {
     }
 
     private String result(int status) {
-        if (status < 400) {
+        if (status >= 200 && status < 300) {
             return "BASARILI";
         }
         return status == 401 || status == 403 ? "RED" : "BASARISIZ";

@@ -8,7 +8,8 @@ import java.util.regex.Pattern;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import tr.com.innova.akis.metadata.ApiException;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.ConnectionProbe;
@@ -16,187 +17,132 @@ import tr.com.innova.akis.oracle.OracleDiscoveryModels.ConnectionProfile;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.Credentials;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.DataObjectCaptureProfile;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.DiscoveryResult;
+import tr.com.innova.akis.oracle.OracleDiscoveryModels.DraftConnection;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.GovernedSnapshotCapture;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.PhysicalSchemaProfile;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.SnapshotCapture;
 
+/** Connection probing and metadata discovery against the global topology. */
 @Service
 public class OracleDiscoveryService {
 
-    private static final String ORACLE_DRIVER = "oracle.jdbc.OracleDriver";
+    private static final Set<String> ALLOWED_DRIVERS = Set.of(
+            "oracle.jdbc.OracleDriver", "org.postgresql.Driver",
+            "com.mysql.cj.jdbc.Driver", "com.microsoft.sqlserver.jdbc.SQLServerDriver");
     private static final Pattern HOST = Pattern.compile("[A-Za-z0-9.-]{1,253}");
     private static final Pattern DATABASE_NAME = Pattern.compile("[A-Za-z0-9_$#.-]{1,128}");
-    private static final Pattern JNDI_NAME = Pattern.compile(
-            "java:comp/env/jdbc/[A-Za-z0-9_.-]{1,180}");
+    private static final Pattern JNDI_NAME = Pattern.compile("java:comp/env/jdbc/[A-Za-z0-9_.-]{1,180}");
     private static final Pattern IDENTIFIER = Pattern.compile("[A-Z][A-Z0-9_$#]{0,127}");
-    private static final Set<String> TLS_MODES = Set.of(
-            "DISABLED", "REQUIRED", "VERIFY_CA", "VERIFY_FULL");
 
     private final OracleDiscoveryRepository repository;
     private final EnvironmentCredentialResolver credentialResolver;
     private final OracleMetadataGateway gateway;
+    private final ObjectMapper objectMapper;
 
     public OracleDiscoveryService(
             OracleDiscoveryRepository repository,
             EnvironmentCredentialResolver credentialResolver,
-            OracleMetadataGateway gateway) {
+            OracleMetadataGateway gateway,
+            ObjectMapper objectMapper) {
         this.repository = repository;
         this.credentialResolver = credentialResolver;
         this.gateway = gateway;
+        this.objectMapper = objectMapper;
     }
 
-    public ConnectionProbe testConnection(
-            UUID projectUuid,
-            UUID connectionUuid,
-            UUID connectionVersionUuid) {
-        ConnectionProfile profile = profile(projectUuid, connectionUuid, connectionVersionUuid);
+    public ConnectionProbe testConnection(UUID connectionUuid) {
+        ConnectionProfile profile = validatedProfile(repository.findConnectionProfile(connectionUuid)
+                .orElseThrow(() -> notFound("Bağlantı bulunamadı.")));
         try (Credentials credentials = credentials(profile)) {
-            ConnectionProbe probe = gateway.test(profile, credentials);
-            requireOracle19c(probe);
-            requireTargetIdentity(probe);
-            return probe;
+            return probe(profile, credentials);
         }
     }
 
-    public ConnectionProbe testDraftConnection(
-            String mode,
-            String jndiName,
-            String host,
-            String serviceName,
-            String sid,
-            Integer port,
-            JsonNode policy,
-            String credentialReferencePath) {
-        String normalizedMode = mode == null ? "" : mode.trim().toUpperCase(Locale.ROOT);
-        ConnectionProfile draft = new ConnectionProfile(
-                0L, 0L, new UUID(0L, 0L), new UUID(0L, 0L), "ORACLE",
-                normalizedMode, jndiName, "JDBC".equals(normalizedMode) ? ORACLE_DRIVER : null,
-                host, serviceName, sid, "DISABLED", port == null ? 0 : port,
-                policy, "JDBC".equals(normalizedMode) ? "ENV" : null,
-                "JDBC".equals(normalizedMode) ? credentialReferencePath : null,
-                "JDBC".equals(normalizedMode) ? "AKTIF" : null);
-        ConnectionProfile profile = validatedProfile(draft);
-        try (Credentials credentials = credentials(profile)) {
-            ConnectionProbe probe = gateway.test(profile, credentials);
-            requireOracle19c(probe);
-            requireTargetIdentity(probe);
-            return probe;
-        }
-    }
-
-    public ConnectionProbe testDraftConnection(
-            String mode, String jndiName, String host, String serviceName, String sid,
-            Integer port, JsonNode policy, String username, char[] password) {
-        String normalizedMode = mode == null ? "" : mode.trim().toUpperCase(Locale.ROOT);
+    public ConnectionProbe testDraftConnection(DraftConnection draft) {
+        String mode = draft.mode() == null ? "JDBC" : draft.mode().trim().toUpperCase(Locale.ROOT);
+        String databaseType = draft.databaseType() == null ? "" : draft.databaseType().trim().toUpperCase(Locale.ROOT);
+        boolean oracle = "ORACLE".equals(databaseType);
+        ObjectNode policy = objectMapper.createObjectNode();
+        policy.put("connectTimeoutMs", draft.connectTimeoutMs() == null ? 10000 : draft.connectTimeoutMs());
+        policy.put("readTimeoutMs", draft.readTimeoutMs() == null ? 60000 : draft.readTimeoutMs());
+        policy.put("networkTimeoutMs", draft.readTimeoutMs() == null ? 60000 : draft.readTimeoutMs());
+        policy.put("queryTimeoutSeconds", draft.queryTimeoutSeconds() == null ? 60 : draft.queryTimeoutSeconds());
+        UUID none = new UUID(0L, 0L);
         ConnectionProfile profile = validatedProfile(new ConnectionProfile(
-                0L, 0L, new UUID(0L, 0L), new UUID(0L, 0L), "ORACLE",
-                normalizedMode, jndiName, "JDBC".equals(normalizedMode) ? ORACLE_DRIVER : null,
-                host, serviceName, sid, "DISABLED", port == null ? 0 : port,
-                policy, null, null, null));
-        try (Credentials credentials = "JNDI".equals(normalizedMode)
+                0L, 0L, none, none, databaseType, mode, draft.jndiName(),
+                "JDBC".equals(mode) ? driverFor(databaseType, draft.driverReference()) : null,
+                draft.host(), oracle ? draft.serviceName() : draft.databaseName(), oracle ? draft.sid() : null,
+                "DISABLED", draft.port() == null ? 0 : draft.port(), policy,
+                null, null, null));
+        try (Credentials credentials = "JNDI".equals(mode)
                 ? new Credentials("", new char[0])
-                : new Credentials(username, password)) {
-            ConnectionProbe probe = gateway.test(profile, credentials);
-            requireOracle19c(probe);
-            requireTargetIdentity(probe);
-            return probe;
+                : new Credentials(nullSafe(draft.username()), nullSafe(draft.password()).toCharArray())) {
+            return probe(profile, credentials);
         }
     }
 
-    public DiscoveryResult discover(
-            UUID projectUuid,
-            UUID connectionUuid,
-            UUID connectionVersionUuid,
-            UUID physicalSchemaUuid,
-            String tableName,
-            int limit) {
-        ConnectionProfile profile = profile(projectUuid, connectionUuid, connectionVersionUuid);
-        requireActive(profile);
+    private ConnectionProbe probe(ConnectionProfile profile, Credentials credentials) {
+        ConnectionProbe probe = gateway.test(profile, credentials);
+        if ("ORACLE".equals(profile.databaseType())) {
+            requireOracle19c(probe);
+            requireTargetIdentity(probe);
+        }
+        return probe;
+    }
+
+    public DiscoveryResult discover(UUID connectionUuid, UUID physicalSchemaUuid, String tableName, int limit) {
+        ConnectionProfile profile = oracleProfile(connectionUuid);
         PhysicalSchemaProfile physicalSchema = physicalSchema(profile, physicalSchemaUuid);
         if (limit < 1 || limit > 200) {
             throw validation("Keşif tablo limiti 1-200 aralığında olmalıdır.");
         }
         String owner = identifier(physicalSchema.schemaReference(), "Fiziksel şema referansı");
-        String normalizedTableName = tableName == null || tableName.isBlank()
-                ? null
-                : identifier(tableName, "Tablo adı");
+        String normalizedTableName = tableName == null || tableName.isBlank() ? null : identifier(tableName, "Tablo adı");
         try (Credentials credentials = credentials(profile)) {
             return gateway.discover(profile, credentials, owner, normalizedTableName, limit);
         }
     }
 
-    public List<String> listSchemas(
-            UUID projectUuid,
-            UUID connectionUuid,
-            UUID connectionVersionUuid) {
-        ConnectionProfile profile = profile(projectUuid, connectionUuid, connectionVersionUuid);
-        if (!Set.of("TESTED", "ACTIVE").contains(profile.lifecycleStatus())) {
-            throw new ApiException(
-                    HttpStatus.CONFLICT,
-                    "CONNECTION_VERSION_NOT_TESTED",
-                    "Oracle şemaları okunmadan önce bağlantı başarıyla test edilmelidir.");
-        }
+    public List<String> listSchemas(UUID connectionUuid) {
+        ConnectionProfile profile = oracleProfile(connectionUuid);
         try (Credentials credentials = credentials(profile)) {
             return gateway.listSchemas(profile, credentials);
         }
     }
 
+    /** Captures a governed snapshot; target identity evidence comes from a live probe at capture time. */
     GovernedSnapshotCapture captureSchemaSnapshot(
-            UUID projectUuid,
-            UUID connectionUuid,
-            UUID connectionVersionUuid,
-            UUID physicalSchemaUuid,
-            UUID dataObjectUuid) {
-        ConnectionProfile profile = profile(projectUuid, connectionUuid, connectionVersionUuid);
-        requireActive(profile);
+            UUID projectUuid, UUID connectionUuid, UUID physicalSchemaUuid, UUID dataObjectUuid) {
+        long projectId = repository.findProjectId(projectUuid).orElseThrow(() -> notFound("Proje bulunamadı."));
+        ConnectionProfile profile = oracleProfile(connectionUuid);
         PhysicalSchemaProfile physicalSchema = physicalSchema(profile, physicalSchemaUuid);
         DataObjectCaptureProfile dataObject = repository.findDataObjectCaptureProfile(
-                        profile.projectId(), dataObjectUuid,
-                        physicalSchemaUuid, connectionVersionUuid)
-                .orElseThrow(() -> validation(
-                        "Veri nesnesi aktif fiziksel şema bağıyla eşleşmiyor."));
+                        projectId, dataObjectUuid, physicalSchemaUuid)
+                .orElseThrow(() -> validation("Veri nesnesi fiziksel şema eşlemesiyle uyuşmuyor."));
         if (!"AKTIF".equals(dataObject.status()) || !"TABLO".equals(dataObject.objectType())) {
             throw validation("Oracle snapshot yalnız aktif tablo veri nesnesi için alınabilir.");
         }
         String tableName = identifier(dataObject.objectReference(), "Veri nesnesi referansı");
-        if (profile.latestSuccessfulTestUuid() == null
-                || profile.targetIdentityVersion() == null
-                || profile.targetFingerprint() == null) {
-            throw new ApiException(
-                    HttpStatus.CONFLICT,
-                    "CONNECTION_VERSION_EVIDENCE_MISSING",
-                    "Aktif Oracle bağlantı sürümünün test kanıtı eksik.");
-        }
+        ConnectionProbe probe;
         SnapshotCapture capture;
         try (Credentials credentials = credentials(profile)) {
+            probe = probe(profile, credentials);
             capture = gateway.captureSnapshot(
                     profile, credentials,
                     identifier(physicalSchema.schemaReference(), "Fiziksel şema referansı"),
                     tableName);
         }
         return new GovernedSnapshotCapture(
-                projectUuid, connectionUuid, connectionVersionUuid,
-                physicalSchemaUuid, dataObjectUuid, profile.lifecycleStateVersion(),
-                profile.latestSuccessfulTestUuid(), profile.targetIdentityVersion(),
-                profile.targetFingerprint(), capture);
+                projectUuid, connectionUuid, connectionUuid,
+                physicalSchemaUuid, dataObjectUuid, 1L,
+                null, probe.targetIdentityVersion(), probe.targetFingerprint(), capture);
     }
 
-    private void requireActive(ConnectionProfile profile) {
-        if (!"ACTIVE".equals(profile.lifecycleStatus())) {
-            throw new ApiException(
-                    HttpStatus.CONFLICT,
-                    "CONNECTION_VERSION_NOT_ACTIVE",
-                    "Oracle metadata keşfinden önce bağlantı sürümü test edilip aktifleştirilmelidir.");
-        }
-    }
-
-    private PhysicalSchemaProfile physicalSchema(
-            ConnectionProfile profile, UUID physicalSchemaUuid) {
-        PhysicalSchemaProfile physicalSchema = repository.findPhysicalSchema(
-                        profile.projectId(), physicalSchemaUuid)
+    private PhysicalSchemaProfile physicalSchema(ConnectionProfile profile, UUID physicalSchemaUuid) {
+        PhysicalSchemaProfile physicalSchema = repository.findPhysicalSchema(physicalSchemaUuid)
                 .orElseThrow(() -> notFound("Fiziksel şema bulunamadı."));
         if (physicalSchema.connectionId() != profile.connectionId()) {
-            throw validation("Fiziksel şema ve bağlantı sürümü aynı bağlantıya ait olmalıdır.");
+            throw validation("Fiziksel şema bu bağlantıya ait değil.");
         }
         if (!"AKTIF".equals(physicalSchema.status())) {
             throw validation("Fiziksel şema aktif olmalıdır.");
@@ -204,46 +150,46 @@ public class OracleDiscoveryService {
         return physicalSchema;
     }
 
-    private ConnectionProfile profile(
-            UUID projectUuid,
-            UUID connectionUuid,
-            UUID connectionVersionUuid) {
-        ConnectionProfile profile = repository.findConnectionProfile(
-                        projectUuid, connectionUuid, connectionVersionUuid)
-                .orElseThrow(() -> notFound("Oracle bağlantı sürümü bulunamadı."));
+    private ConnectionProfile oracleProfile(UUID connectionUuid) {
+        ConnectionProfile profile = repository.findConnectionProfile(connectionUuid)
+                .orElseThrow(() -> notFound("Bağlantı bulunamadı."));
         if (!"ORACLE".equals(profile.databaseType())) {
             throw validation("Bu işlem yalnız Oracle bağlantılarında kullanılabilir.");
+        }
+        if (!"ACTIVE".equals(profile.lifecycleStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "CONNECTION_DISABLED", "Bağlantı pasif durumda.");
         }
         return validatedProfile(profile);
     }
 
     private ConnectionProfile validatedProfile(ConnectionProfile profile) {
         if ("JNDI".equals(profile.mode())) {
-            if (profile.jndiName() == null || !JNDI_NAME.matcher(profile.jndiName()).matches()
-                    || profile.secretProvider() != null || profile.secretReferencePath() != null) {
-                throw validation("Oracle JNDI bağlantı profili geçersiz.");
+            if (profile.jndiName() == null || !JNDI_NAME.matcher(profile.jndiName()).matches()) {
+                throw validation("JNDI bağlantı profili geçersiz.");
             }
             return profile;
         }
         if (!"JDBC".equals(profile.mode())) {
-            throw validation("Oracle bağlantı modu geçersiz.");
+            throw validation("Bağlantı modu geçersiz.");
         }
-        if (!ORACLE_DRIVER.equals(profile.driverReference())) {
-            throw validation("Oracle JDBC sürücü referansı izin listesinde değil.");
+        if (profile.driverReference() == null || !ALLOWED_DRIVERS.contains(profile.driverReference())) {
+            throw validation("JDBC sürücü referansı izin listesinde değil.");
         }
         if (profile.host() == null || !HOST.matcher(profile.host()).matches()) {
-            throw validation("Oracle sunucu adı geçersiz.");
+            throw validation("Sunucu adı geçersiz.");
         }
         if (profile.port() < 1 || profile.port() > 65535) {
-            throw validation("Oracle portu geçersiz.");
+            throw validation("Port geçersiz.");
         }
-        if (!TLS_MODES.contains(profile.tlsMode())) {
-            throw validation("Oracle TLS modu geçersiz.");
+        if ("ORACLE".equals(profile.databaseType())) {
+            boolean hasService = validDatabaseName(profile.serviceName());
+            boolean hasSid = validDatabaseName(profile.sid());
+            if (hasService == hasSid) {
+                throw validation("Oracle bağlantısında servis adı veya SID alanlarından yalnız biri olmalıdır.");
+            }
         }
-        boolean hasService = validDatabaseName(profile.serviceName());
-        boolean hasSid = validDatabaseName(profile.sid());
-        if (hasService == hasSid) {
-            throw validation("Oracle bağlantısında geçerli serviceName veya SID alanlarından biri olmalıdır.");
+        else if (!validDatabaseName(profile.serviceName())) {
+            throw validation("Veritabanı adı geçersiz.");
         }
         return profile;
     }
@@ -252,6 +198,21 @@ public class OracleDiscoveryService {
         return "JNDI".equals(profile.mode())
                 ? new Credentials("", new char[0])
                 : credentialResolver.resolve(profile);
+    }
+
+    static String driverFor(String databaseType, String explicit) {
+        if (explicit != null && !explicit.isBlank()) return explicit.trim();
+        return switch (databaseType) {
+            case "ORACLE" -> "oracle.jdbc.OracleDriver";
+            case "POSTGRESQL" -> "org.postgresql.Driver";
+            case "MYSQL" -> "com.mysql.cj.jdbc.Driver";
+            case "SQLSERVER" -> "com.microsoft.sqlserver.jdbc.SQLServerDriver";
+            default -> null;
+        };
+    }
+
+    private static String nullSafe(String value) {
+        return value == null ? "" : value;
     }
 
     private boolean validDatabaseName(String value) {
@@ -270,9 +231,7 @@ public class OracleDiscoveryService {
         if (probe.databaseProduct() == null
                 || !probe.databaseProduct().toUpperCase(Locale.ROOT).contains("ORACLE")
                 || probe.databaseMajorVersion() != 19) {
-            throw new ApiException(
-                    HttpStatus.UNPROCESSABLE_CONTENT,
-                    "ORACLE_VERSION_UNSUPPORTED",
+            throw new ApiException(HttpStatus.UNPROCESSABLE_CONTENT, "ORACLE_VERSION_UNSUPPORTED",
                     "Bağlantı Oracle Database 19c ile uyumlu değil.");
         }
     }
@@ -281,9 +240,7 @@ public class OracleDiscoveryService {
         if (probe.targetIdentityVersion() != OracleDatabaseIdentityFingerprintV1.IDENTITY_VERSION
                 || probe.targetFingerprint() == null
                 || !probe.targetFingerprint().matches("[0-9a-f]{64}")) {
-            throw new ApiException(
-                    HttpStatus.BAD_GATEWAY,
-                    "ORACLE_TARGET_IDENTITY_UNAVAILABLE",
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "ORACLE_TARGET_IDENTITY_UNAVAILABLE",
                     "Oracle veritabanı hedef kimliği doğrulanamadı.");
         }
     }

@@ -49,7 +49,7 @@ describe('ProcedureEditor', () => {
     await renderHarness()
     openTasks()
     expect(screen.queryByLabelText('Step ID')).not.toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Step name'), { target: { value: 'Load Hakedis' } })
+    fireEvent.change(screen.getByLabelText('Step Name'), { target: { value: 'Load Hakedis' } })
     await waitFor(() => expect(screen.getByDisplayValue('Load Hakedis')).toBeInTheDocument())
   })
 

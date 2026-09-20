@@ -32,7 +32,7 @@ class OracleKmRuntimeTest {
                 new StagedMappingDefinition.Options(500, 500, 2000, 100000, false),
                 new JdbcWorkQualityChecks.Contract(List.of("ID"), List.of()), 30,new WorkObjectStore.WorkArea(UUID.randomUUID(),1));
         when(tables.create(eq(control), eq(owner), anyString(), eq(work), anyList(), eq(30), any(),any())).thenReturn(created);
-        when(transfer.transfer(eq(source), eq(data), any(), eq(work), anyList(), any(), eq(30), any(), eq(transaction))).thenReturn(seal);
+        when(transfer.transfer(eq(source), eq(data), any(), eq(work), anyList(), any(), eq(30), any(), eq(transaction), any())).thenReturn(seal);
         var statement = mock(PreparedStatement.class);
         var result = mock(ResultSet.class);
         when(data.prepareStatement(anyString())).thenReturn(statement);
@@ -48,7 +48,7 @@ class OracleKmRuntimeTest {
         order.verify(guard).preflight();
         order.verify(tables).create(eq(control), eq(owner), anyString(), eq(work), anyList(), eq(30), any(),any());
         order.verify(store).transition(owner, created.uuid(), State.READY, State.LOADING, null, null);
-        order.verify(transfer).transfer(eq(source), eq(data), any(), eq(work), anyList(), any(), eq(30), any(), eq(transaction));
+        order.verify(transfer).transfer(eq(source), eq(data), any(), eq(work), anyList(), any(), eq(30), any(), eq(transaction), any());
         order.verify(store).transition(owner, created.uuid(), State.LOADING, State.SEALED, null, seal);
         order.verify(checks).verify(eq(data), eq(work), any(), eq(JdbcWorkQualityChecks.Rule.NOT_NULL), eq(30), any());
         order.verify(publisher).publish(created, seal);
@@ -62,7 +62,7 @@ class OracleKmRuntimeTest {
     }
     @Test void transferFailureNeverSealsOrPublishes() throws Exception {
         var runtime = runtime();
-        when(transfer.transfer(eq(source), eq(data), any(), eq(work), anyList(), any(), eq(30), any(), eq(transaction)))
+        when(transfer.transfer(eq(source), eq(data), any(), eq(work), anyList(), any(), eq(30), any(), eq(transaction), any()))
                 .thenThrow(new JdbcStagingTransfer.TransferFailure("quota", false));
         assertThrows(JdbcStagingTransfer.TransferFailure.class, () -> AkisKmInterpreter.execute(modules, runtime));
         verify(store).transition(owner, created.uuid(), State.LOADING, State.REVIEW_REQUIRED, null, null);

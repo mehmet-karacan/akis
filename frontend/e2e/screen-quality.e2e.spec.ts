@@ -57,7 +57,7 @@ test.describe('all-screen quality gates', () => {
 
   test('successful and failed connection requests use visible feedback', async ({ page }) => {
     await login(page)
-    await page.getByRole('tab', { name: /Connections|Bağlantılar/i }).click()
+    await page.getByRole('menuitem', { name: /Connections|Bağlantılar/i }).click()
     await expect(page).toHaveURL(/\/project\/connections$/)
     await expectHealthyScreen(page)
     await page.route('**/api/v2/projects/*/connections/*/versions/*/tests', async (route) => {
@@ -67,10 +67,10 @@ test.describe('all-screen quality gates', () => {
         body: JSON.stringify({ title: 'Bağlantı servisine erişilemiyor', detail: 'Test ağı şu anda kapalı.', status: 503 }),
       })
     })
-    await page.locator('.connection-record-card').first().click()
+    await page.locator('.ui-grid-record').first().getByRole('button', { name: /View:|Görüntüle:/ }).click()
     const dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible()
     await dialog.getByRole('button', { name: /Test Connection|Bağlantıyı Test Et/i }).click()
-    await expect(page.locator('.ui-feedback-toast, [role="alert"]')).toContainText(/erişilemiyor|test ağı|başarısız|failed|cannot reach/i)
+    await expect(page.locator('.ui-feedback-toast')).toContainText(/erişilemiyor|test ağı|başarısız|failed|cannot reach|could not complete/i)
   })
 })

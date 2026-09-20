@@ -133,24 +133,7 @@ class ProjectBundleRepository {
     JsonNode loadPortableTopology(long projectId) {
         String value = jdbc.sql("""
                 select jsonb_build_object(
-                  'connections',coalesce((select jsonb_agg(jsonb_build_object(
-                    'code',b.kod,'name',b.ad,'provider',b.saglayici_turu,'description',b.aciklama,
-                    'versions',coalesce((select jsonb_agg(jsonb_build_object(
-                      'versionNumber',bs.surum_no,'mode',bs.baglanti_modu,'driverClass',bs.surucu_sinifi,
-                      'host',bs.sunucu_adi,'port',bs.port,'serviceName',bs.servis_adi,'sid',bs.sid,
-                      'databaseName',bs.veritabani_adi,'jndiName',bs.jndi_adi,'tlsMode',bs.tls_modu,
-                      'connectTimeoutMs',bs.baglanti_zaman_asimi_ms,'readTimeoutMs',bs.okuma_zaman_asimi_ms,
-                      'networkTimeoutMs',bs.ag_zaman_asimi_ms,'queryTimeoutSeconds',bs.sorgu_zaman_asimi_saniye,
-                      'purpose',bs.kullanim_amaci,'identityBindings',coalesce((select jsonb_agg(jsonb_build_object(
-                        'purpose',bk.kullanim_amaci,'username',bk.kullanici_adi,'provider',bk.gizli_deger_saglayicisi,
-                        'reference',bk.gizli_deger_konumu) order by bk.kullanim_amaci) from akis.baglanti_kimligi bk where bk.baglanti_surumu_id=bs.id),'[]'::jsonb)
-                    ) order by bs.surum_no) from akis.baglanti_surumu bs where bs.baglanti_id=b.id),'[]'::jsonb)
-                  ) order by b.kod) from akis.baglanti b where b.proje_id=:p),'[]'::jsonb),
-                  'physicalSchemas',coalesce((select jsonb_agg(jsonb_build_object('code',f.kod,'name',f.ad,'schemaName',f.sema_adi,'connectionCode',b.kod) order by f.kod) from akis.fiziksel_sema f join akis.baglanti b on b.id=f.baglanti_id where f.proje_id=:p),'[]'::jsonb),
-                  'logicalSchemas',coalesce((select jsonb_agg(jsonb_build_object('code',m.kod,'name',m.ad,'description',m.aciklama) order by m.kod) from akis.mantiksal_sema m where m.proje_id=:p),'[]'::jsonb),
-                  'environments',coalesce((select jsonb_agg(jsonb_build_object('code',o.kod,'name',o.ad,'production',o.uretim_mi,'risk',o.risk,'policySchemaVersion',o.politika_sema_surumu,'policy',o.politika) order by o.kod) from akis.ortam o where o.proje_id=:p),'[]'::jsonb),
-                  'schemaBindings',coalesce((select jsonb_agg(jsonb_build_object('environmentCode',o.kod,'logicalSchemaCode',m.kod,'connectionCode',b.kod,'physicalSchemaCode',f.kod,'connectionVersion',bs.surum_no) order by o.kod,m.kod) from akis.sema_eslemesi e join akis.ortam o on o.id=e.ortam_id join akis.mantiksal_sema m on m.id=e.mantiksal_sema_id join akis.baglanti b on b.id=e.baglanti_id join akis.fiziksel_sema f on f.id=e.fiziksel_sema_id join akis.baglanti_surumu bs on bs.id=e.baglanti_surumu_id where e.proje_id=:p),'[]'::jsonb),
-                  'models',coalesce((select jsonb_agg(jsonb_build_object('code',mo.kod,'name',mo.ad,'description',mo.aciklama,'logicalSchemaCode',m.kod) order by mo.kod) from akis.model mo join akis.mantiksal_sema m on m.id=mo.mantiksal_sema_id where mo.proje_id=:p),'[]'::jsonb),
+                  'models',coalesce((select jsonb_agg(jsonb_build_object('code',mo.kod,'name',mo.ad,'description',mo.aciklama,'logicalSchemaCode',m.kod,'technology',mo.teknoloji_kodu,'reverseEnvironmentCode',o.kod,'reverseMode',mo.tersine_muhendislik_modu,'rkmCode',r.kod,'reverseOptions',mo.tersine_muhendislik_secenekleri) order by mo.kod) from akis.model mo join akis.mantiksal_sema m on m.id=mo.mantiksal_sema_id left join akis.ortam o on o.id=mo.tersine_muhendislik_ortam_id left join akis.tanim r on r.id=mo.rkm_tanim_id where mo.proje_id=:p),'[]'::jsonb),
                   'submodels',coalesce((select jsonb_agg(jsonb_build_object('code',a.kod,'name',a.ad,'description',a.aciklama,'modelCode',mo.kod,'parentCode',u.kod) order by mo.kod,a.id) from akis.alt_model a join akis.model mo on mo.id=a.model_id left join akis.alt_model u on u.id=a.ust_alt_model_id where a.proje_id=:p),'[]'::jsonb),
                   'dataObjects',coalesce((select jsonb_agg(jsonb_build_object('code',v.kod,'name',v.ad,'reference',v.nesne_referansi,'type',v.tur,'modelCode',mo.kod,'submodelCode',a.kod,'querySchemaVersion',v.sorgu_sema_surumu,'queryDefinition',v.sorgu_tanimi) order by mo.kod,v.kod) from akis.veri_nesnesi v join akis.model mo on mo.id=v.model_id left join akis.alt_model a on a.id=v.alt_model_id where v.proje_id=:p),'[]'::jsonb)
                 )::text
@@ -160,23 +143,12 @@ class ProjectBundleRepository {
 
     void importPortableTopology(long projectId, JsonNode topology) {
         if (topology == null || !topology.isObject()) return;
-        Map<String,Long> connections=new HashMap<>(), versions=new HashMap<>(), physical=new HashMap<>(), logical=new HashMap<>(), environments=new HashMap<>(), models=new HashMap<>(), submodels=new HashMap<>();
-        for(JsonNode item: array(topology,"connections")){
-            long id=jdbc.sql("insert into akis.baglanti(proje_id,kod,ad,saglayici_turu,aciklama) values (:p,:c,:n,:s,:d) returning id").param("p",projectId).param("c",text(item,"code")).param("n",text(item,"name")).param("s",text(item,"provider")).param("d",nullable(item,"description"),Types.VARCHAR).query(Long.class).single();connections.put(text(item,"code"),id);
-            for(JsonNode version: array(item,"versions")){
-                long versionId=jdbc.sql("""
-                    insert into akis.baglanti_surumu(proje_id,baglanti_id,surum_no,baglanti_modu,surucu_sinifi,sunucu_adi,port,servis_adi,sid,veritabani_adi,jndi_adi,tls_modu,baglanti_zaman_asimi_ms,okuma_zaman_asimi_ms,ag_zaman_asimi_ms,sorgu_zaman_asimi_saniye,kullanim_amaci,durum)
-                    values(:p,:b,:v,:m,:d,:h,:port,:svc,:sid,:db,:jndi,:tls,:ct,:rt,:nt,:qt,:purpose,'TASLAK') returning id
-                    """).param("p",projectId).param("b",id).param("v",version.get("versionNumber").asInt()).param("m",text(version,"mode")).param("d",nullable(version,"driverClass"),Types.VARCHAR).param("h",nullable(version,"host"),Types.VARCHAR).param("port",integer(version,"port"),Types.INTEGER).param("svc",nullable(version,"serviceName"),Types.VARCHAR).param("sid",nullable(version,"sid"),Types.VARCHAR).param("db",nullable(version,"databaseName"),Types.VARCHAR).param("jndi",nullable(version,"jndiName"),Types.VARCHAR).param("tls",text(version,"tlsMode")).param("ct",version.get("connectTimeoutMs").asInt()).param("rt",version.get("readTimeoutMs").asInt()).param("nt",version.get("networkTimeoutMs").asInt()).param("qt",version.get("queryTimeoutSeconds").asInt()).param("purpose",nullable(version,"purpose"),Types.VARCHAR).query(Long.class).single();
-                versions.put(text(item,"code")+":"+version.get("versionNumber").asInt(),versionId);
-                for(JsonNode identity:array(version,"identityBindings")) jdbc.sql("insert into akis.baglanti_kimligi(proje_id,baglanti_surumu_id,kullanim_amaci,kullanici_adi,gizli_deger_saglayicisi,gizli_deger_konumu) values(:p,:v,:purpose,:u,:provider,:reference)").param("p",projectId).param("v",versionId).param("purpose",text(identity,"purpose")).param("u",nullable(identity,"username"),Types.VARCHAR).param("provider",text(identity,"provider")).param("reference",text(identity,"reference")).update();
-            }
-        }
-        for(JsonNode item:array(topology,"physicalSchemas")){String connectionCode=text(item,"connectionCode");String physicalCode=text(item,"code");long id=jdbc.sql("insert into akis.fiziksel_sema(proje_id,baglanti_id,kod,ad,sema_adi) values(:p,:b,:c,:n,:s) returning id").param("p",projectId).param("b",connections.get(connectionCode)).param("c",physicalCode).param("n",text(item,"name")).param("s",text(item,"schemaName")).query(Long.class).single();physical.put(connectionCode+":"+physicalCode,id);}
-        for(JsonNode item:array(topology,"logicalSchemas")){long id=jdbc.sql("insert into akis.mantiksal_sema(proje_id,kod,ad,aciklama) values(:p,:c,:n,:d) returning id").param("p",projectId).param("c",text(item,"code")).param("n",text(item,"name")).param("d",nullable(item,"description"),Types.VARCHAR).query(Long.class).single();logical.put(text(item,"code"),id);}
-        for(JsonNode item:array(topology,"environments")){long id=jdbc.sql("insert into akis.ortam(proje_id,kod,ad,uretim_mi,risk,politika_sema_surumu,politika) values(:p,:c,:n,:prod,:r,:pv,cast(:policy as jsonb)) returning id").param("p",projectId).param("c",text(item,"code")).param("n",text(item,"name")).param("prod",item.get("production").asBoolean()).param("r",text(item,"risk")).param("pv",item.get("policySchemaVersion").asInt()).param("policy",item.get("policy").toString()).query(Long.class).single();environments.put(text(item,"code"),id);}
-        for(JsonNode item:array(topology,"schemaBindings")) jdbc.sql("insert into akis.sema_eslemesi(proje_id,ortam_id,mantiksal_sema_id,baglanti_id,fiziksel_sema_id,baglanti_surumu_id) values(:p,:o,:m,:b,:f,:v)").param("p",projectId).param("o",environments.get(text(item,"environmentCode"))).param("m",logical.get(text(item,"logicalSchemaCode"))).param("b",connections.get(text(item,"connectionCode"))).param("f",physical.get(text(item,"connectionCode")+":"+text(item,"physicalSchemaCode"))).param("v",versions.get(text(item,"connectionCode")+":"+item.get("connectionVersion").asInt())).update();
-        for(JsonNode item:array(topology,"models")){long id=jdbc.sql("insert into akis.model(proje_id,mantiksal_sema_id,kod,ad,aciklama) values(:p,:m,:c,:n,:d) returning id").param("p",projectId).param("m",logical.get(text(item,"logicalSchemaCode"))).param("c",text(item,"code")).param("n",text(item,"name")).param("d",nullable(item,"description"),Types.VARCHAR).query(Long.class).single();models.put(text(item,"code"),id);}
+        // Topology (connections, schemas, environments) is global and is referenced by code, never imported.
+        Map<String,Long> logical=new HashMap<>(), environments=new HashMap<>(), models=new HashMap<>(), submodels=new HashMap<>();
+        for(var row: jdbc.sql("select id, kod from akis.mantiksal_sema").query((r,n)->Map.entry(r.getString("kod"), r.getLong("id"))).list()) logical.put(row.getKey(), row.getValue());
+        for(var row: jdbc.sql("select id, kod from akis.ortam").query((r,n)->Map.entry(r.getString("kod"), r.getLong("id"))).list()) environments.put(row.getKey(), row.getValue());
+        for(JsonNode item:array(topology,"models")) if(!logical.containsKey(text(item,"logicalSchemaCode"))) throw new IllegalStateException("Mantıksal şema tanımlı değil: "+text(item,"logicalSchemaCode"));
+        for(JsonNode item:array(topology,"models")){String mode=nullable(item,"reverseMode");if(mode==null)mode="STANDARD";String options=item.hasNonNull("reverseOptions")?item.get("reverseOptions").toString():"{}";long id=jdbc.sql("insert into akis.model(proje_id,mantiksal_sema_id,teknoloji_kodu,tersine_muhendislik_ortam_id,tersine_muhendislik_modu,rkm_tanim_id,tersine_muhendislik_secenekleri,kod,ad,aciklama) values(:p,:m,:technology,:environment,:mode,(select id from akis.tanim where kod=:rkm and tur='KNOWLEDGE_MODULE' and (proje_id=:p or proje_id is null) order by proje_id nulls last limit 1),cast(:options as jsonb),:c,:n,:d) returning id").param("p",projectId).param("m",logical.get(text(item,"logicalSchemaCode"))).param("technology",item.hasNonNull("technology")?text(item,"technology"):"ORACLE").param("environment",environments.get(nullable(item,"reverseEnvironmentCode")),Types.BIGINT).param("mode",mode).param("rkm",nullable(item,"rkmCode"),Types.VARCHAR).param("options",options).param("c",text(item,"code")).param("n",text(item,"name")).param("d",nullable(item,"description"),Types.VARCHAR).query(Long.class).single();models.put(text(item,"code"),id);}
         for(JsonNode item:array(topology,"submodels")){Long parent=item.get("parentCode")==null||item.get("parentCode").isNull()?null:submodels.get(text(item,"modelCode")+":"+text(item,"parentCode"));long id=jdbc.sql("insert into akis.alt_model(proje_id,model_id,ust_alt_model_id,kod,ad,aciklama) values(:p,:m,:u,:c,:n,:d) returning id").param("p",projectId).param("m",models.get(text(item,"modelCode"))).param("u",parent,Types.BIGINT).param("c",text(item,"code")).param("n",text(item,"name")).param("d",nullable(item,"description"),Types.VARCHAR).query(Long.class).single();submodels.put(text(item,"modelCode")+":"+text(item,"code"),id);}
         for(JsonNode item:array(topology,"dataObjects")) jdbc.sql("insert into akis.veri_nesnesi(proje_id,model_id,alt_model_id,kod,ad,nesne_referansi,tur,sorgu_sema_surumu,sorgu_tanimi) values(:p,:m,:a,:c,:n,:r,:t,:qv,cast(:q as jsonb))").param("p",projectId).param("m",models.get(text(item,"modelCode"))).param("a",item.get("submodelCode")==null||item.get("submodelCode").isNull()?null:submodels.get(text(item,"modelCode")+":"+text(item,"submodelCode")),Types.BIGINT).param("c",text(item,"code")).param("n",text(item,"name")).param("r",text(item,"reference")).param("t",text(item,"type")).param("qv",integer(item,"querySchemaVersion"),Types.INTEGER).param("q",item.get("queryDefinition")==null||item.get("queryDefinition").isNull()?null:item.get("queryDefinition").toString(),Types.VARCHAR).update();
     }
@@ -295,7 +267,7 @@ class ProjectBundleRepository {
         return switch(type) {
             case MAPPING -> "MAPPING"; case REUSABLE_MAPPING -> "YENIDEN_KULLANILABILIR_MAPPING";
             case PACKAGE -> "PAKET"; case PROCEDURE -> "PROSEDUR"; case VARIABLE -> "DEGISKEN";
-            case SEQUENCE -> "SEQUENCE"; case USER_FUNCTION -> "KULLANICI_FONKSIYONU";
+            case SEQUENCE -> "SEQUENCE";
             case KNOWLEDGE_MODULE -> "KNOWLEDGE_MODULE"; case LOAD_PLAN -> "LOAD_PLAN";
         };
     }
@@ -305,7 +277,7 @@ class ProjectBundleRepository {
             case "MAPPING" -> DefinitionType.MAPPING; case "YENIDEN_KULLANILABILIR_MAPPING" -> DefinitionType.REUSABLE_MAPPING;
             case "PAKET" -> DefinitionType.PACKAGE; case "PROSEDUR" -> DefinitionType.PROCEDURE;
             case "DEGISKEN" -> DefinitionType.VARIABLE; case "SEQUENCE" -> DefinitionType.SEQUENCE;
-            case "KULLANICI_FONKSIYONU" -> DefinitionType.USER_FUNCTION; case "KNOWLEDGE_MODULE" -> DefinitionType.KNOWLEDGE_MODULE;
+            case "KNOWLEDGE_MODULE" -> DefinitionType.KNOWLEDGE_MODULE;
             case "LOAD_PLAN" -> DefinitionType.LOAD_PLAN; default -> throw new IllegalStateException("Unknown definition type: "+type);
         };
     }

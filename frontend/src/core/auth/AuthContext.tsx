@@ -1,5 +1,5 @@
-import { createContext, useContext, useMemo, useState, type PropsWithChildren } from 'react'
-import { apiRequest, setAuthorizationHeader } from '../api/client'
+import { createContext, useContext, useLayoutEffect, useMemo, useState, type PropsWithChildren } from 'react'
+import { apiRequest, setAuthorizationHeader, unauthorizedEvent } from '../api/client'
 
 interface AuthState {
   username: string
@@ -23,6 +23,17 @@ export function AuthProvider({ children }: PropsWithChildren) {
   })()
   if (restored?.authorization) setAuthorizationHeader(restored.authorization)
   const [username, setUsername] = useState(restored?.username ?? '')
+
+  // Register before child page effects can issue their first API request.
+  useLayoutEffect(() => {
+    const expire = () => {
+      setAuthorizationHeader(null)
+      sessionStorage.removeItem(sessionKey)
+      setUsername('')
+    }
+    window.addEventListener(unauthorizedEvent, expire)
+    return () => window.removeEventListener(unauthorizedEvent, expire)
+  }, [])
 
   const value = useMemo<AuthState>(() => ({
     username,

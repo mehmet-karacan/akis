@@ -1,0 +1,67 @@
+/* Pre-run report: standard summary cards + sectioned tables, opened in the shared record dialog and downloadable. */
+.prerun-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.prerun-status { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.prerun-status.is-ready { color: var(--schema-color-success); background: color-mix(in srgb, var(--schema-color-success) 12%, var(--surface)); }
+.prerun-status.is-warning { color: var(--schema-color-warning); background: color-mix(in srgb, var(--schema-color-warning) 12%, var(--surface)); }
+.prerun-title { display: inline-flex; align-items: center; gap: 8px; }
+.prerun-title > svg { color: var(--schema-color-info); }
+.prerun-title small { font-weight: 400; color: var(--ink-soft); }
+body .ant-modal.prerun-dialog { width: min(1280px, calc(100vw - 32px)) !important; max-width: none; }
+.prerun-toolbar { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-bottom: 12px; }
+.prerun-report { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; }
+.prerun-report > * { min-width: 0; }
+.prerun-grid { width: 100%; table-layout: auto; }
+.prerun-grid td, .prerun-grid th { white-space: normal; }
+/* Compact summary: six cards spread across the full dialog width, single-line values. */
+.prerun-report .ui-summary-strip { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+.prerun-report .ui-summary-card { min-width: 0; }
+.prerun-report .ui-summary-card .ant-card-body { display: flex; align-items: center; gap: 8px; padding: 8px 10px !important; min-width: 0; }
+.prerun-report .ui-summary-icon { width: 28px; height: 28px; flex: 0 0 auto; }
+.prerun-report .ui-summary-icon svg { width: 15px; height: 15px; }
+.prerun-report .ui-summary-content { min-width: 0; display: grid; gap: 0; }
+.prerun-report .ui-summary-content small { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+.prerun-report .ui-summary-content strong { font-size: 12.5px; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prerun-report .ui-summary-content strong code { font-size: 11.5px; }
+.prerun-report .ui-summary-content span { font-size: 11px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 1100px) { .prerun-report .ui-summary-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .prerun-report .ui-summary-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+
+/* SQL preview: one block per statement, site-colored left rail, monospace and wrapping. */
+.prerun-section--sql > h4 { flex-wrap: wrap; }
+.prerun-sql-note { margin-left: auto; font-weight: 400; color: var(--ink-soft); }
+.prerun-sql-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.prerun-sql { --sql-color: var(--schema-color-neutral); border: 1px solid var(--line); border-left: 4px solid var(--sql-color); border-radius: 8px; background: color-mix(in srgb, var(--sql-color) 4%, var(--surface)); }
+.prerun-sql--source { --sql-color: var(--schema-color-teal); }
+.prerun-sql--staging { --sql-color: var(--schema-color-neutral); }
+.prerun-sql--target { --sql-color: var(--schema-color-info); }
+.prerun-sql-head { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); font-size: 12px; }
+.prerun-sql-head code { margin-left: auto; color: var(--ink-soft); font-size: 11px; }
+.prerun-sql { min-width: 0; overflow: hidden; }
+.prerun-sql pre { margin: 0; padding: 8px 10px; tab-size: 4; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.45; font-family: var(--font-mono, ui-monospace, monospace); }
+.prerun-sql pre code { white-space: inherit; overflow-wrap: inherit; font: inherit; background: transparent; padding: 0; }
+.prerun-section { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 12px 14px; }
+.prerun-section > h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 13px; }
+.prerun-section > h4 > svg { color: var(--schema-color-info); }
+.prerun-grid th, .prerun-grid td { padding: 6px 10px; }
+.prerun-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin: 0; }
+.prerun-facts > div { display: grid; gap: 2px; padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, var(--ink-soft) 5%, var(--surface)); }
+.prerun-facts dt { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); }
+.prerun-facts dd { margin: 0; font-weight: 600; display: grid; gap: 2px; }
+.prerun-facts dd small { font-weight: 400; color: var(--ink-soft); font-family: var(--font-mono, ui-monospace, monospace); font-size: 11px; }
+.prerun-meta { display: inline-flex; align-items: center; gap: 6px; margin: 0; color: var(--ink-soft); font-size: 12px; }
+
+/* KM option risk alert inside the narrow runtime-options fieldset must span the fieldset, not the field column. */
+body .mapping-km-option-groups .mapping-option-risk { grid-column: 1 / -1; margin-top: 8px; }
+body .mapping-km-option-groups fieldset { min-width: 0; }
+body .mapping-km-option-groups .ant-form-item-control-input-content { min-width: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+body .mapping-km-option-groups .mapping-option-risk { flex: 1 1 100%; }
+
+/* Procedure/package simulation extras. */
+.prerun-sql-flag { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-style: normal; color: var(--schema-color-warning); background: color-mix(in srgb, var(--schema-color-warning) 12%, var(--surface)); }
+.prerun-cell-hint { display: block; color: var(--ink-soft); font-size: 11px; }
+.prerun-grid tr.is-disabled td, .prerun-grid tr.is-disabled th { opacity: .55; }
+.prerun-transitions { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.prerun-transitions li { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+/* Publication header: back link and the primary Run action side by side. */
+.ops-header-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

@@ -9,6 +9,9 @@ import { AuthProvider } from './core/auth/AuthContext'
 import { ThemeProvider } from './core/theme/ThemeContext'
 import { AntDesignProvider } from './core/theme/AntDesignProvider'
 import './core/theme/ant-design.css'
+import './core/theme/icons.css'
+import './core/theme/buttons.css'
+import './app/project-explorer.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

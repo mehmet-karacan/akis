@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import { apiRequest } from './client'
+import { ApiProblem, apiRequest } from './client'
 import { NETWORK_FAILURE_EVENT } from './networkFeedback'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -25,4 +25,21 @@ it('does not notify for an intentional cancellation', async () => {
 it('notifies when the proxy cannot reach the backend', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 502, ok: false }))
   await expect(apiRequest('/api/test')).rejects.toThrow()
+})
+it('preserves an application problem returned with service unavailable', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+    status: 503,
+    ok: false,
+    statusText: 'Service Unavailable',
+    json: vi.fn().mockResolvedValue({
+      status: 503,
+      code: 'ORACLE_CREDENTIAL_UNAVAILABLE',
+      detail: 'Oracle kimlik secret değeri çalışma ortamında bulunamadı.',
+    }),
+  }))
+  await expect(apiRequest('/api/test')).rejects.toEqual(expect.objectContaining({
+    name: ApiProblem.name,
+    code: 'ORACLE_CREDENTIAL_UNAVAILABLE',
+    message: 'Oracle kimlik secret değeri çalışma ortamında bulunamadı.',
+  }))
 })

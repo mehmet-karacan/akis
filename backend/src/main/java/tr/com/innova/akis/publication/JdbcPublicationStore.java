@@ -60,13 +60,13 @@ public class JdbcPublicationStore implements PublicationStore {
                           join akis.tanim_surumu v on v.id = s.tanim_surumu_id
                           join akis.tanim t on t.id = v.tanim_id
                           join akis.proje p on p.id = t.proje_id
-                          join akis.ortam o on o.proje_id = p.id
+                          cross join akis.ortam o
                          where p.uuid = :projectUuid
                            and p.arsivlenme_zamani is null
                            and t.arsivlenme_zamani is null
                            and s.uuid = :scenarioUuid
                            and o.uuid = :environmentUuid
-                           and o.arsivlenme_zamani is null
+                           and o.durum = 'ETKIN'
                          for update of s, o
                         """)
                 .param("projectUuid", projectUuid)
@@ -106,18 +106,16 @@ public class JdbcPublicationStore implements PublicationStore {
                 String mode = parameter.path("historyMode").asText("LATEST");
                 if (!java.util.Set.of("NONE", "LATEST", "ALL").contains(mode)) throw new IllegalArgumentException("Invalid variable history mode");
                 var binding = jdbc.sql("""
-                    select p.uuid as project_uuid, bs.uuid as connection_uuid, fs.uuid as physical_uuid,
+                    select p.uuid as project_uuid, b.uuid as connection_uuid, fs.uuid as physical_uuid,
                            fs.sema_adi, ms.uuid as logical_uuid
                       from akis.proje p
                       join akis.tanim t on t.proje_id=p.id and t.uuid=:definition
-                      join akis.mantiksal_sema ms on ms.proje_id=p.id and ms.uuid=:logical
-                      join akis.sema_eslemesi se on se.proje_id=p.id and se.mantiksal_sema_id=ms.id and se.ortam_id=:environment
-                      join akis.fiziksel_sema fs on fs.proje_id=p.id and fs.id=se.fiziksel_sema_id
-                      join akis.baglanti_surumu bs on bs.proje_id=p.id and bs.id=se.baglanti_surumu_id and bs.baglanti_id=fs.baglanti_id
-                      join akis.baglanti b on b.id=bs.baglanti_id and b.proje_id=p.id
-                     where p.id=:project and t.tur='DEGISKEN' and t.arsivlenme_zamani is null and ms.arsivlenme_zamani is null
-                       and fs.arsivlenme_zamani is null and b.arsivlenme_zamani is null
-                       and bs.durum='ETKIN' and b.saglayici_turu='ORACLE'
+                      join akis.mantiksal_sema ms on ms.uuid=:logical
+                      join akis.sema_eslemesi se on se.mantiksal_sema_id=ms.id and se.ortam_id=:environment
+                      join akis.fiziksel_sema fs on fs.id=se.fiziksel_sema_id
+                      join akis.baglanti b on b.id=fs.baglanti_id
+                     where p.id=:project and t.tur='DEGISKEN' and t.arsivlenme_zamani is null and ms.durum='ETKIN'
+                       and fs.durum='ETKIN' and b.durum='ETKIN' and b.saglayici_turu='ORACLE'
                     """).param("project", context.projectId()).param("environment", context.environmentId())
                     .param("definition", definition).param("logical", logical).query((rs, n) -> {
                         var node = objectMapper.createObjectNode();
@@ -153,17 +151,17 @@ public class JdbcPublicationStore implements PublicationStore {
                                case vn.tur when 'GORUNUM' then 'VIEW' else vn.tur end as data_object_type,
                                case when vn.arsivlenme_zamani is null then 'AKTIF' else 'PASIF' end as data_object_status,
                                case when m.arsivlenme_zamani is null then 'AKTIF' else 'ARSIV' end as model_status,
-                               case when ms.arsivlenme_zamani is null then 'AKTIF' else 'PASIF' end as logical_schema_status,
+                               case when ms.durum = 'ETKIN' then 'AKTIF' else 'PASIF' end as logical_schema_status,
                                ose.id as environment_binding_id,
                                ose.uuid as environment_binding_uuid,
-                               ose.versiyon_no as binding_version,
+                               1::bigint as binding_version,
                                fs.id as physical_schema_id,
                                fs.uuid as physical_schema_uuid,
                                fs.sema_adi as sema_referansi,
-                               bs.id as connection_version_id,
-                               bs.uuid as connection_version_uuid,
+                               b.id as connection_version_id,
+                               b.uuid as connection_version_uuid,
                                b.saglayici_turu as database_type,
-                               case when b.arsivlenme_zamani is null then 'AKTIF' else 'PASIF' end as connection_status,
+                               case when b.durum = 'ETKIN' then 'AKTIF' else 'PASIF' end as connection_status,
                                target_snapshot.id as target_snapshot_id,
                                target_snapshot.uuid as target_snapshot_uuid,
                                target_snapshot.parmak_izi as target_snapshot_fingerprint
@@ -175,30 +173,21 @@ public class JdbcPublicationStore implements PublicationStore {
                             on m.proje_id = vn.proje_id
                             and m.id = vn.model_id
                           join akis.mantiksal_sema ms
-                            on ms.proje_id = m.proje_id
-                           and ms.id = m.mantiksal_sema_id
+                            on ms.id = m.mantiksal_sema_id
                           left join akis.sema_eslemesi ose
-                            on ose.proje_id = tvn.proje_id
-                           and ose.mantiksal_sema_id = m.mantiksal_sema_id
+                            on ose.mantiksal_sema_id = m.mantiksal_sema_id
                            and ose.ortam_id = :environmentId
                           left join akis.fiziksel_sema fs
-                            on fs.proje_id = ose.proje_id
-                           and fs.id = ose.fiziksel_sema_id
-                           and fs.arsivlenme_zamani is null
-                          left join akis.baglanti_surumu bs
-                            on bs.proje_id = ose.proje_id
-                           and bs.id = ose.baglanti_surumu_id
-                           left join akis.baglanti b
-                             on b.proje_id = bs.proje_id
-                            and b.id = bs.baglanti_id
-                            and b.id = fs.baglanti_id
+                            on fs.id = ose.fiziksel_sema_id
+                           and fs.durum = 'ETKIN'
+                          left join akis.baglanti b
+                            on b.id = fs.baglanti_id
                           left join lateral (
                               select sg.id, sg.uuid, sg.parmak_izi
                                 from akis.sema_goruntusu sg
                                where sg.proje_id = tvn.proje_id
                                  and sg.veri_nesnesi_id = tvn.veri_nesnesi_id
                                  and sg.fiziksel_sema_id = ose.fiziksel_sema_id
-                                 and sg.baglanti_surumu_id = ose.baglanti_surumu_id
                                order by sg.kesif_zamani desc, sg.id desc
                                limit 1
                           ) target_snapshot on true
@@ -272,12 +261,10 @@ public class JdbcPublicationStore implements PublicationStore {
             jdbc.sql("""
                             insert into akis.yayin_veri_bagi(
                                 proje_id, yayin_id, tanim_veri_nesnesi_id,
-                                sema_eslemesi_id, fiziksel_sema_id,
-                                baglanti_surumu_id, sema_goruntusu_id,
+                                sema_eslemesi_id, fiziksel_sema_id, sema_goruntusu_id,
                                 fiziksel_kimlik, bag_surumu)
                             values (:projectId, :publicationId, :definitionDataObjectId,
-                                    :environmentBindingId, :physicalSchemaId,
-                                    :connectionVersionId, :targetSnapshotId,
+                                    :environmentBindingId, :physicalSchemaId, :targetSnapshotId,
                                     :physicalIdentity, :bindingVersion)
                             """)
                     .param("projectId", draft.context().projectId())
@@ -285,7 +272,6 @@ public class JdbcPublicationStore implements PublicationStore {
                     .param("definitionDataObjectId", binding.definitionDataObjectId())
                     .param("environmentBindingId", binding.environmentSchemaBindingId())
                     .param("physicalSchemaId", binding.physicalSchemaId())
-                    .param("connectionVersionId", binding.connectionVersionId())
                     .param("targetSnapshotId", binding.targetSnapshotId())
                     .param("physicalIdentity", physicalIdentity(binding))
                     .param("bindingVersion", binding.bindingVersion())
@@ -442,7 +428,7 @@ public class JdbcPublicationStore implements PublicationStore {
                   join akis.tanim_surumu v on v.id = s.tanim_surumu_id
                   join akis.tanim t on t.id = v.tanim_id
                   join akis.ortam o
-                    on o.proje_id = y.proje_id and o.id = y.ortam_id
+                    on o.id = y.ortam_id
                 """;
     }
 

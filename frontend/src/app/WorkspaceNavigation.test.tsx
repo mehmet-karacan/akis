@@ -7,9 +7,9 @@ import { resolveWorkspace, WorkspaceNavigation } from './WorkspaceNavigation'
 describe('WorkspaceNavigation', () => {
   beforeEach(async () => { await i18n.changeLanguage('en') })
 
-  it('always exposes the four primary workspaces', () => {
+  it('always exposes the five primary workspaces', () => {
     render(<MemoryRouter initialEntries={['/project/objects']}><WorkspaceNavigation hasPendingChanges={false} onNavigate={() => undefined} /></MemoryRouter>)
-    expect(screen.getAllByRole('menuitem').map((tab) => tab.textContent)).toEqual(['Project', 'Project Objects', 'Run History', 'Connections'])
+    expect(screen.getAllByRole('menuitem').map((tab) => tab.textContent)).toEqual(['Project', 'Project Objects', 'Run History', 'Connections', 'Schema Metadata'])
   })
 
   it('maps legacy routes into the canonical workspace', () => {
@@ -22,6 +22,6 @@ describe('WorkspaceNavigation', () => {
 
   it('keeps project information as the first tab for every role', () => {
     render(<MemoryRouter><WorkspaceNavigation hasPendingChanges={false} onNavigate={() => undefined} /></MemoryRouter>)
-    expect(screen.getAllByRole('menuitem').map((tab) => tab.textContent)).toEqual(['Project', 'Project Objects', 'Run History', 'Connections'])
+    expect(screen.getAllByRole('menuitem').map((tab) => tab.textContent)).toEqual(['Project', 'Project Objects', 'Run History', 'Connections', 'Schema Metadata'])
   })
 })

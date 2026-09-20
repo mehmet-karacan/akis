@@ -1,0 +1,40 @@
+/* Sign-in screen: story panel with feature cards, access card on the right. Colors come from the shared icon tokens. */
+.login-page .login-brand { display: flex; align-items: center; gap: 10px; }
+.login-page .login-brand strong { font-size: 18px; letter-spacing: .01em; }
+.login-page .login-brand small { margin-left: 6px; padding: 3px 9px; border-radius: 999px; font-size: 11px; letter-spacing: .12em; color: var(--login-ink); background: color-mix(in srgb, var(--login-accent) 22%, transparent); border: 1px solid color-mix(in srgb, var(--login-accent) 40%, transparent); }
+.login-brand-mark { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 11px; background: color-mix(in srgb, var(--login-accent) 24%, transparent); border: 1px solid color-mix(in srgb, var(--login-accent) 45%, transparent); }
+.login-page .login-brand-mark svg { color: var(--login-accent); }
+
+.login-features { display: grid; gap: 12px; margin-top: 34px; }
+.login-feature { display: grid; grid-template-columns: 44px 1fr; align-items: start; gap: 14px; padding: 14px 16px; border-radius: 14px; background: color-mix(in srgb, #ffffff 7%, transparent); border: 1px solid color-mix(in srgb, #ffffff 12%, transparent); backdrop-filter: blur(4px); }
+.login-feature strong { display: block; margin-bottom: 3px; color: var(--login-ink); }
+.login-feature p { margin: 0; line-height: 1.5; color: var(--login-ink-soft); }
+.login-feature-icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; }
+.login-feature.tone-neutral .login-feature-icon { color: var(--schema-color-neutral); background: color-mix(in srgb, var(--schema-color-neutral) 22%, transparent); }
+.login-feature.tone-success .login-feature-icon { color: var(--schema-color-success); background: color-mix(in srgb, var(--schema-color-success) 22%, transparent); }
+.login-feature.tone-pink .login-feature-icon { color: var(--schema-color-pink); background: color-mix(in srgb, var(--schema-color-pink) 22%, transparent); }
+.login-feature.tone-info .login-feature-icon { color: var(--schema-color-info); background: color-mix(in srgb, var(--schema-color-info) 22%, transparent); }
+
+.login-pillars { display: flex; flex-wrap: wrap; gap: 8px; margin: 22px 0 0; padding: 0; list-style: none; }
+.login-pillars li { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; font-size: 12px; color: var(--login-ink); background: color-mix(in srgb, #ffffff 8%, transparent); border: 1px solid color-mix(in srgb, #ffffff 14%, transparent); }
+.login-pillars li.tone-teal svg { color: var(--schema-color-teal); }
+.login-pillars li.tone-warning svg { color: var(--schema-color-warning); }
+.login-pillars li.tone-info svg { color: var(--schema-color-info); }
+
+.login-story-footer { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.login-providers { display: inline-flex; align-items: center; gap: 14px; }
+.login-provider { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--login-ink-soft); }
+.login-page .login-provider .database-provider-icon { width: 22px; height: 22px; }
+.login-page .login-provider .database-provider-icon img { width: 18px; height: 18px; }
+
+.login-card { padding: 30px 30px 26px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 18px 48px -28px rgba(15, 23, 42, .45); }
+.login-page .lock-badge { border-radius: 13px; color: var(--schema-color-info); background: color-mix(in srgb, var(--schema-color-info) 14%, var(--surface)); border: 1px solid color-mix(in srgb, var(--schema-color-info) 30%, var(--line)); }
+.login-page .form-heading .eyebrow { color: var(--schema-color-info); }
+.login-field-icon--user { color: var(--schema-color-success); }
+.login-field-icon--key { color: var(--schema-color-warning); }
+.login-page .local-notice { display: flex; align-items: center; gap: 7px; margin: 0; color: var(--ink-soft); }
+.login-page .local-notice > svg { flex: 0 0 auto; color: var(--schema-color-success); }
+.login-page .login-submit { min-height: 42px; }
+
+@media (max-width: 1100px) { .login-features { gap: 8px; } .login-feature { padding: 11px 13px; } }
+@media (max-width: 900px) { .login-features, .login-pillars, .login-providers { display: none; } .login-card { padding: 24px 20px; } }

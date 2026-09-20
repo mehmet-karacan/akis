@@ -6,7 +6,7 @@ import java.util.UUID;
 
 import tools.jackson.databind.JsonNode;
 
-final class OracleDiscoveryModels {
+public final class OracleDiscoveryModels {
 
     private OracleDiscoveryModels() {
     }
@@ -114,6 +114,14 @@ final class OracleDiscoveryModels {
         }
     }
 
+    /** Draft (unsaved) connection definition used by the pre-save test. */
+    public record DraftConnection(
+            String databaseType, String mode, String driverReference, String host, Integer port,
+            String serviceName, String sid, String databaseName, String jndiName,
+            String username, String password, Integer connectTimeoutMs, Integer readTimeoutMs,
+            Integer queryTimeoutSeconds) {
+    }
+
     record PhysicalSchemaProfile(
             UUID uuid,
             long connectionId,
@@ -136,7 +144,7 @@ final class OracleDiscoveryModels {
         }
     }
 
-    record ConnectionProbe(
+    public record ConnectionProbe(
             String databaseProduct,
             String databaseVersion,
             int databaseMajorVersion,

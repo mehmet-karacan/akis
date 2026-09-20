@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Tree, Dropdown, Button, Spin, Alert, type MenuProps, type TreeDataNode } from 'antd'
-import { Blocks, Folder, FolderPlus, MoreHorizontal, PanelRightOpen, Play, Plus, Workflow, ExternalLink, WandSparkles } from 'lucide-react'
+import { Tree, Dropdown, Button, Input, Spin, Alert, type MenuProps, type TreeDataNode } from 'antd'
+import { Blocks, FolderPlus, MoreHorizontal, PanelRightOpen, Play, Plus, Workflow, WandSparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { DefinitionTypeIcon } from '../features/definitions/DefinitionTypeIcon'
-import { buildFolderTree, type FolderTreeNode } from './ProjectObjectTreeAdapter'
+import { DefinitionTypeIcon, ProjectFolderIcon } from '../features/definitions/DefinitionTypeIcon'
+import { buildFolderTree, folderPath, type FolderTreeNode } from './ProjectObjectTreeAdapter'
 import { definitionTypeKey, useDefinitionsI18n } from '../features/definitions/i18n'
 import type { Definition, Folder as ProjectFolder } from '../features/definitions/types'
 import { definitionsApi } from '../features/definitions/api'
@@ -16,16 +16,19 @@ const FLOW_GROUPS = [
   { type: 'MAPPING', label: 'nav.interfaces' }, { type: 'PROCEDURE', label: 'nav.procedures' },
   { type: 'PACKAGE', label: 'nav.packages' }, { type: 'LOAD_PLAN', label: 'nav.loadPlans' },
 ] as const
-const COMPONENT_TYPES = ['VARIABLE', 'SEQUENCE', 'USER_FUNCTION', 'KNOWLEDGE_MODULE'] as const
+const COMPONENT_TYPES = ['VARIABLE', 'SEQUENCE', 'KNOWLEDGE_MODULE'] as const
 interface Props {
   folders: ProjectFolder[]; definitions: Definition[]; selectedUuid: string | null
   loading: boolean; failed: boolean; onNavigate(path: string): void; onRetry(): void; projectUuid: string
 }
 
-function TreeNodeTitle({ label, icon, onClick, items, count, actionLabel }: { label: string; icon: ReactNode; onClick(): void; items?: MenuProps['items']; count?: number; actionLabel: string }) {
+function TreeNodeTitle({ label, icon, onClick, items, count, actionLabel, variant = 'item', recordAction }: { label: string; icon: ReactNode; onClick(): void; items?: MenuProps['items']; count?: number; actionLabel: string; subtitle?: string; variant?: 'section' | 'folder' | 'group' | 'object' | 'item'; recordAction?: () => void }) {
   const [open, setOpen] = useState(false)
-  const content = <div className="akis-tree-title sidebar-folder-action-row">
-    <Button type="text" onClick={event => { event.stopPropagation(); onClick() }} icon={icon}><span>{label}</span>{count !== undefined && <small>{count}</small>}</Button>
+  const labelContent = <><span className="akis-tree-label"><span>{label}</span></span>{count !== undefined && <span className="akis-tree-count" aria-hidden="true">{count}</span>}</>
+  const content = <div className={`akis-tree-title akis-tree-title--${variant} sidebar-folder-action-row`}>
+    {variant === 'object'
+      ? <div className="akis-tree-static-label" tabIndex={0} aria-label={label} onDoubleClick={event => { event.stopPropagation(); recordAction?.() }} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); recordAction?.() } }}>{icon}{labelContent}</div>
+      : <Button type="text" aria-label={label} onClick={event => { event.stopPropagation(); onClick() }} icon={icon}>{labelContent}</Button>}
     {!!items?.length && <Button type="text" size="small" icon={<MoreHorizontal size={14} />} aria-label={actionLabel} onClick={event => { event.stopPropagation(); setOpen(value => !value) }} />}
   </div>
   return items?.length ? <Dropdown open={open} onOpenChange={setOpen} destroyOnHidden menu={{ items, onClick: () => setOpen(false), onKeyDown: event => event.stopPropagation() }} trigger={['contextMenu']} autoFocus>{content}</Dropdown> : content
@@ -37,6 +40,9 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
   const { can } = useProjectAccess()
   const canWrite = can('TANIM_DUZENLE')
   const [expanded, setExpanded] = useState<React.Key[]>(['flows', 'components'])
+  const [query, setQuery] = useState('')
+  const [selection, setSelection] = useState<string | null>(selectedUuid)
+  useEffect(() => setSelection(selectedUuid), [selectedUuid])
   const [compiling, setCompiling] = useState<string | null>(null)
   const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
   const active = definitions.filter(item => !['PASIF', 'ARSIVLENDI'].includes(item.status) && item.type !== 'REUSABLE_MAPPING')
@@ -44,7 +50,9 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
   useEffect(() => {
     const selected = definitions.find(item => item.uuid === selectedUuid)
     setExpanded(current => [...new Set([...current, ...tree.map(item => item.uuid),
-      ...(selected ? [`${selected.folderUuid ?? 'unfiled'}:${selected.type}`, selected.type, selected.folderUuid ?? 'unfiled'] : [])])])
+      ...(selected ? [FLOW_GROUPS.some(group => group.type === selected.type) ? 'flows' : 'components',
+        `${selected.folderUuid ?? 'unfiled'}:${selected.type}`, selected.type,
+        ...(selected.folderUuid ? folderPath(tree, selected.folderUuid) : ['unfiled'])] : [])])])
   }, [definitions, selectedUuid, tree])
   const navigate = (suffix: string) => onNavigate(projectRoute(suffix))
   const openDefinition = (uuid: string) => navigate(`/objects/definitions/${encodeURIComponent(uuid)}`)
@@ -60,34 +68,51 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
     } catch (error) { setNotice({ tone: 'error', text: error instanceof Error ? error.message : shellT('nav.actionFailed') }) }
     finally { setCompiling(null) }
   }
-  const title = (label: string, icon: ReactNode, click: () => void, items?: MenuProps['items'], count?: number, actionLabel?: string) => {
-    return <TreeNodeTitle label={label} icon={icon} onClick={click} items={items} count={count} actionLabel={actionLabel ?? shellT('nav.objectActions', { name: label })} />
+  const title = (label: string, icon: ReactNode, click: () => void, items?: MenuProps['items'], count?: number, actionLabel?: string, subtitle?: string, variant?: 'section' | 'folder' | 'group' | 'object' | 'item', recordAction?: () => void) => {
+    return <TreeNodeTitle label={label} icon={icon} onClick={click} items={items} count={count} subtitle={subtitle} variant={variant} actionLabel={actionLabel ?? shellT('nav.objectActions', { name: label })} recordAction={recordAction} />
   }
   const objectNode = (definition: Definition): TreeDataNode => {
     const executable = FLOW_GROUPS.some(group => group.type === definition.type)
-    const items: MenuProps['items'] = [{ key: 'open', label: shellT('nav.openObject'), icon: <ExternalLink size={15} />, onClick: () => openDefinition(definition.uuid) }]
+    const items: MenuProps['items'] = []
     if (executable && can('TANIM_DOGRULA')) items.push({ key: 'compile', label: shellT('nav.createScenario'), icon: <WandSparkles size={15} />, disabled: compiling === definition.uuid, onClick: () => void compile(definition) })
     if (executable) items.push({ key: 'run', label: shellT('nav.runObject'), icon: <Play size={15} />, onClick: () => navigate(`/operations?definition=${encodeURIComponent(definition.uuid)}&start=1`) })
-    return { key: definition.uuid, isLeaf: true, title: <span title={`${definition.name} · ${t(definitionTypeKey[definition.type])}`}>{title(definition.name, <DefinitionTypeIcon type={definition.type} />, () => openDefinition(definition.uuid), items)}</span> }
+    return { key: definition.uuid, isLeaf: true, className: 'project-tree-object-node', title: <span title={`${definition.name} · ${t(definitionTypeKey[definition.type])}`}>{title(definition.name, <DefinitionTypeIcon type={definition.type} />, () => undefined, items, undefined, undefined, t(definitionTypeKey[definition.type]), 'object', () => openDefinition(definition.uuid))}</span> }
   }
-  const flowGroups = (folderUuid: string | null): TreeDataNode[] => FLOW_GROUPS.map(group => {
+  const flowGroups = (folderUuid: string | null): TreeDataNode[] => FLOW_GROUPS.flatMap(group => {
     const items = active.filter(item => item.folderUuid === folderUuid && item.type === group.type)
     const key = `${folderUuid ?? 'unfiled'}:${group.type}`
     const label = shellT(group.label)
-    return { key, title: title(label, <DefinitionTypeIcon type={group.type} />, () => toggle(key), canWrite ? [{ key: 'add', label: shellT('nav.addNamed', { name: label }), icon: <Plus size={15} />, onClick: () => create(group.type, folderUuid ?? '') }] : [], items.length), children: items.map(objectNode) }
+    if (items.length === 0) return []
+    return [{ key, className: 'project-tree-type-node', title: title(label, <DefinitionTypeIcon type={group.type} />, () => toggle(key), canWrite ? [{ key: 'add', label: shellT('nav.addNamed', { name: label }), icon: <Plus size={15} />, onClick: () => create(group.type, folderUuid ?? '') }] : [], items.length, undefined, undefined, 'group'), children: items.map(objectNode) }]
   })
-  const folderNode = (folder: FolderTreeNode): TreeDataNode => ({ key: folder.uuid,
-    title: title(folder.name, <Folder className="project-folder-icon" size={16} />, () => toggle(folder.uuid), canWrite ? [{ key: 'folder', label: shellT('nav.createSubfolder'), icon: <FolderPlus size={15} />, onClick: () => navigate(`/objects?createFolder=${encodeURIComponent(folder.uuid)}`) }] : []),
+  const folderCount = (folder: FolderTreeNode): number => active.filter(item => item.folderUuid === folder.uuid && FLOW_GROUPS.some(group => group.type === item.type)).length + folder.children.reduce((sum, child) => sum + folderCount(child), 0)
+  const folderActions = (folderUuid: string): MenuProps['items'] => canWrite ? [
+    { key: 'folder', label: shellT('nav.createSubfolder'), icon: <FolderPlus size={15} />, onClick: () => navigate(`/objects?createFolder=${encodeURIComponent(folderUuid)}`) },
+    { type: 'divider' },
+    ...FLOW_GROUPS.map(group => ({ key: group.type, label: shellT('nav.addNamed', { name: shellT(group.label) }), icon: <DefinitionTypeIcon type={group.type} />, onClick: () => create(group.type, folderUuid) })),
+  ] : []
+  const folderNode = (folder: FolderTreeNode): TreeDataNode => ({ key: folder.uuid, className: 'project-tree-folder-node',
+    title: title(folder.name, <ProjectFolderIcon open={expanded.includes(folder.uuid)} />, () => toggle(folder.uuid), folderActions(folder.uuid), folderCount(folder), undefined, shellT('nav.folderContent'), 'folder'),
     children: [...folder.children.map(folderNode), ...flowGroups(folder.uuid)] })
   const componentActions: MenuProps['items'] = canWrite ? COMPONENT_TYPES.map(type => ({ key: type, label: shellT('nav.addNamed', { name: t(definitionTypeKey[type]) }), icon: <DefinitionTypeIcon type={type} />, onClick: () => navigate(`/objects?createType=${type}`) })) : []
   const nodes: TreeDataNode[] = [
-    { key: 'flows', title: title(shellT('nav.flows'), <Workflow className="project-flow-root-icon" size={16} />, () => toggle('flows'), canWrite ? [{ key: 'root', label: shellT('nav.createRootFolder'), icon: <FolderPlus size={15} />, onClick: () => navigate('/objects?createFolder=') }] : []), children: [...tree.map(folderNode), ...(active.some(item => !item.folderUuid && FLOW_GROUPS.some(group => group.type === item.type)) ? [{ key: 'unfiled', title: title(shellT('nav.unfiled'), <Folder className="project-folder-icon" size={16} />, () => toggle('unfiled')), children: flowGroups(null) }] : [])] },
-    { key: 'components', title: title(shellT('nav.commonComponents'), <Blocks className="project-component-root-icon" size={16} />, () => toggle('components'), componentActions, undefined, shellT('nav.addComponent')), children: COMPONENT_TYPES.map(type => ({ key: type, title: title(t(definitionTypeKey[type]), <DefinitionTypeIcon type={type} />, () => toggle(type), componentActions?.filter(item => item?.key === type)), children: active.filter(item => item.type === type).map(objectNode) })) },
+    { key: 'flows', className: 'project-tree-section-node', title: title(shellT('nav.flows'), <Workflow className="project-flow-root-icon" size={16} />, () => toggle('flows'), canWrite ? [{ key: 'root', label: shellT('nav.createRootFolder'), icon: <FolderPlus size={15} />, onClick: () => navigate('/objects?createFolder=') }, { type: 'divider' }, ...(componentActions ?? [])] : [], tree.reduce((sum, folder) => sum + folderCount(folder), 0), undefined, shellT('nav.flowsHint'), 'section'), children: [...tree.map(folderNode), ...(active.some(item => !item.folderUuid && FLOW_GROUPS.some(group => group.type === item.type)) ? [{ key: 'unfiled', className: 'project-tree-folder-node', title: title(shellT('nav.unfiled'), <ProjectFolderIcon open={expanded.includes('unfiled')} />, () => toggle('unfiled'), undefined, undefined, undefined, shellT('nav.folderContent'), 'folder'), children: flowGroups(null) }] : [])] },
+    { key: 'components', className: 'project-tree-section-node', title: title(shellT('nav.commonComponents'), <Blocks className="project-component-root-icon" size={16} />, () => toggle('components'), componentActions, active.filter(item => COMPONENT_TYPES.includes(item.type as typeof COMPONENT_TYPES[number])).length, shellT('nav.addComponent'), shellT('nav.componentsHint'), 'section'), children: COMPONENT_TYPES.map(type => { const items = active.filter(item => item.type === type); return { key: type, className: 'project-tree-type-node', title: title(t(definitionTypeKey[type]), <DefinitionTypeIcon type={type} />, () => toggle(type), componentActions?.filter(item => item?.key === type), items.length, undefined, undefined, 'group'), children: items.map(objectNode) } }) },
   ]
+  const term = query.trim().toLocaleLowerCase(i18n.language)
+  const matchingKeys = new Set([...active.filter(item => `${item.name} ${item.code}`.toLocaleLowerCase(i18n.language).includes(term)).map(item => item.uuid), ...folders.filter(item => item.name.toLocaleLowerCase(i18n.language).includes(term)).map(item => item.uuid)])
+  const filtered = (items: TreeDataNode[]): TreeDataNode[] => items.flatMap(node => {
+    if (!term || matchingKeys.has(String(node.key))) return [node]
+    const children = filtered(node.children ?? [])
+    return children.length ? [{ ...node, children }] : []
+  })
+  const visibleNodes = filtered(nodes)
+  const allKeys = (items: TreeDataNode[]): React.Key[] => items.flatMap(item => [item.key, ...allKeys(item.children ?? [])])
   return <section className="sidebar-project-tree" aria-label={shellT('nav.objects')}>
     <header><strong>{shellT('nav.objects')}</strong><Button type="text" icon={<PanelRightOpen size={16} />} aria-label={shellT('nav.openObjectWorkspace')} onClick={() => navigate('/objects')} /></header>
     <FeedbackToast message={notice?.text ?? ''} tone={notice?.tone} onClose={() => setNotice(null)} />
-    <div className="sidebar-tree-scroll">{loading ? <Spin /> : failed ? <Alert type="error" title={shellT('common.loadError')} action={<Button onClick={onRetry}>{shellT('common.retry')}</Button>} /> : <Tree blockNode motion={{ motionAppear: false, motionEnter: false, motionLeave: false }} virtual={false} expandedKeys={expanded} onExpand={setExpanded} selectedKeys={selectedUuid ? [selectedUuid] : []} treeData={nodes} />}
+    <Input.Search className="project-explorer-search" allowClear aria-label={i18n.language === 'tr' ? 'Proje nesnelerinde ara' : 'Search project objects'} placeholder={i18n.language === 'tr' ? 'Nesne ara' : 'Search objects'} value={query} onChange={event => setQuery(event.target.value)} />
+    <div className="sidebar-tree-scroll">{loading ? <Spin /> : failed ? <Alert type="error" title={shellT('common.loadError')} action={<Button onClick={onRetry}>{shellT('common.retry')}</Button>} /> : <Tree blockNode motion={{ motionAppear: false, motionEnter: false, motionLeave: false }} virtual={false} expandedKeys={term ? allKeys(visibleNodes) : expanded} onExpand={setExpanded} selectedKeys={selection ? [selection] : []} onSelect={keys => setSelection(keys[0] ? String(keys[0]) : null)} treeData={visibleNodes} />}
       <ProjectModelTree key={projectUuid} projectUuid={projectUuid} onNavigate={onNavigate} />
     </div>
   </section>

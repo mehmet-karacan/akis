@@ -5,7 +5,7 @@ import {
   Background, Controls, MiniMap, ReactFlow, ReactFlowProvider, applyNodeChanges,
   type Connection as FlowConnection, type Node, type NodeChange, type ReactFlowInstance,
 } from '@xyflow/react'
-import { AlignCenter, CirclePlay, Copy, ExternalLink, GitBranch, Plus, Trash2, Undo2, X } from 'lucide-react'
+import { AlertCircle, AlignCenter, CheckCircle2, CirclePlay, Copy, ExternalLink, GitBranch, Plus, Trash2, Undo2, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type DragEvent } from 'react'
 import { definitionsApi } from './api'
 import { DefinitionTypeIcon } from './DefinitionTypeIcon'
@@ -21,6 +21,12 @@ const allowedTypes = new Set(['MAPPING', 'PROCEDURE', 'PACKAGE', 'VARIABLE'])
 const pickerTypes = ['MAPPING', 'PROCEDURE', 'PACKAGE', 'VARIABLE'] as const
 const toStepType = (type: Definition['type']): PackageStepType => type === 'VARIABLE' ? 'VARIABLE_EVALUATE' : type as PackageStepType
 const outcomeKey = { SUCCESS: 'outcomeSUCCESS', FAILURE: 'outcomeFAILURE', TRUE: 'outcomeTRUE', FALSE: 'outcomeFALSE', ALWAYS: 'outcomeALWAYS' } as const
+/** Steps reuse the project-object badge colors: variable steps show the variable mark, others their definition type. */
+const stepDefinitionType = (type: PackageStepType): Definition['type'] => type.startsWith('VARIABLE') ? 'VARIABLE' : type as Definition['type']
+const stepTypeKey = (type: PackageStepType) => stepDefinitionType(type).toLowerCase().replaceAll('_', '-')
+const outcomeStyle = (outcome: TransitionOutcome | undefined) => outcome === 'FAILURE' || outcome === 'FALSE'
+  ? { strokeDasharray: '6 4', stroke: 'var(--schema-color-danger)' }
+  : outcome === 'SUCCESS' || outcome === 'TRUE' ? { stroke: 'var(--schema-color-success)' } : undefined
 type PackagePosition = { x: number; y: number }
 
 interface PackageEditorProps {
@@ -79,7 +85,8 @@ function PackageEditorInner({ projectUuid, definitionUuid, value, onChange, onOp
   const nodes: Node[] = useMemo(() => content.steps.map((step, index) => ({
     id: step.id,
     position: positions[step.id] ?? { x: (index % 3) * 260, y: Math.floor(index / 3) * 150 },
-    data: { label: <div className="package-node-label"><span className={content.firstStepId === step.id ? 'package-start-badge' : ''}>{content.firstStepId === step.id ? <><CirclePlay />{t('firstStep')}</> : definitionCodeLabel(step.type, language)}</span><strong>{step.name || step.id}</strong><small>{definitions.find((item) => item.uuid === step.definitionUuid)?.name ?? t('unlinkedStep')}</small></div> },
+    className: `package-node package-node--${stepTypeKey(step.type)}${content.firstStepId === step.id ? ' is-start' : ''}`,
+    data: { label: <div className="package-node-label"><DefinitionTypeIcon type={stepDefinitionType(step.type)} size={14} /><div className="package-node-text"><span className={content.firstStepId === step.id ? 'package-start-badge' : ''}>{content.firstStepId === step.id ? <><CirclePlay />{t('firstStep')}</> : definitionCodeLabel(step.type, language)}</span><strong>{step.name || step.id}</strong><small>{definitions.find((item) => item.uuid === step.definitionUuid)?.name ?? t('unlinkedStep')}</small></div></div> },
     selected: step.id === selectedStepId,
   })), [content.firstStepId, content.steps, definitions, language, positions, selectedStepId, t])
   useEffect(() => {
@@ -93,7 +100,8 @@ function PackageEditorInner({ projectUuid, definitionUuid, value, onChange, onOp
     target: edge.toStepId,
     label: t(outcomeKey[edge.outcome ?? 'ALWAYS']),
     animated: false,
-    style: edge.outcome === 'FAILURE' ? { strokeDasharray: '6 4', stroke: 'var(--danger)' } : undefined,
+    className: `package-edge package-edge--${(edge.outcome ?? 'ALWAYS').toLowerCase()}`,
+    style: outcomeStyle(edge.outcome),
   })), [content.transitions, t])
 
   const persistPositions = (next: Record<string, PackagePosition>) => {
@@ -168,22 +176,29 @@ function PackageEditorInner({ projectUuid, definitionUuid, value, onChange, onOp
 
   return <div className="package-editor">
     <div className="package-toolbar">
-      <AntActionButton tone="ghost" type="button" onClick={() => openPicker()}><Plus size={15} />{t('addObject')}</AntActionButton>
-      <AntActionButton tone="ghost" type="button" disabled={!undoValue && !undoPositions} onClick={() => { if (undoPositions) { persistPositions(undoPositions); setUndoPositions(null) } else if (undoValue) { onChange(undoValue); setUndoValue(null) } }}><Undo2 size={15} />{t('undo')}</AntActionButton><AntActionButton tone="ghost" type="button" onClick={autoLayout}><AlignCenter size={15} />{t('autoLayout')}</AntActionButton><span>{validation.length ? t('validationErrors', { count: validation.length }) : t('designValid')}</span>
+      <AntActionButton tone="secondary" type="button" disabled={!undoValue && !undoPositions} onClick={() => { if (undoPositions) { persistPositions(undoPositions); setUndoPositions(null) } else if (undoValue) { onChange(undoValue); setUndoValue(null) } }}><Undo2 size={15} />{t('undo')}</AntActionButton>
+      <AntActionButton tone="secondary" type="button" onClick={autoLayout}><AlignCenter size={15} />{t('autoLayout')}</AntActionButton>
+      <AntActionButton tone="primary" type="button" onClick={() => openPicker()}><Plus size={15} />{t('addObject')}</AntActionButton>
+      <span className={`package-validation-chip ${validation.length ? 'is-invalid' : 'is-valid'}`} role="status">{validation.length ? <AlertCircle size={14} aria-hidden="true" /> : <CheckCircle2 size={14} aria-hidden="true" />}{validation.length ? t('validationErrors', { count: validation.length }) : t('designValid')}</span>
     </div>
     <div className="package-workbench">
         <section className="package-canvas" onDragOver={(event) => event.preventDefault()} onDrop={drop}><ReactFlow nodes={nodes} edges={edges} onInit={setInstance} onNodesChange={nodeChanges} onNodeDragStart={() => setUndoPositions(structuredClone(positions))} onNodeClick={(_, node) => { setSelectedStepId(node.id); setInspectorOpen(true); setPickerOpen(false) }} onNodeDoubleClick={(_, node) => openLinkedDefinition(node.id)} onPaneClick={() => { setInspectorOpen(false); setPickerOpen(false) }} onPaneContextMenu={openPickerFromCanvas} onConnect={connect} deleteKeyCode={null} minZoom={.25} maxZoom={2} fitView><MiniMap pannable zoomable /><Controls /><Background /></ReactFlow></section>
         {pickerOpen ? <aside className="package-component-picker" aria-label={t('addObject')}>
-          <header><strong>{t('addObject')}</strong><AntActionButton tone="ghost" type="button" aria-label={t('close')} onClick={() => setPickerOpen(false)}><X size={16} /></AntActionButton></header>
-          <div className="package-picker-list">{pickerTypes.map((type) => { const items = pickerDefinitions.filter((item) => item.type === type); return items.length > 0 ? <section key={type}><h4><DefinitionTypeIcon type={type} />{t(definitionTypeKey[type])}<small>{items.length}</small></h4>{items.map((item) => <AntActionButton tone="ghost" key={item.uuid} type="button" onClick={() => addStep(item.uuid, pickerPosition)}><span>{item.name}</span><small>{item.code}</small></AntActionButton>)}</section> : null })}{pickerDefinitions.length === 0 ? <p>{t('noProjectObjects')}</p> : null}</div>
+          <header><strong className="package-picker-title"><span className="procedure-heading-icon procedure-heading-icon--steps" aria-hidden="true"><Plus size={16} /></span>{t('addObject')}</strong><AntActionButton tone="ghost" className="definition-icon-button" type="button" aria-label={t('close')} onClick={() => setPickerOpen(false)}><X size={16} /></AntActionButton></header>
+          <div className="package-picker-list">{pickerTypes.map((type) => { const items = pickerDefinitions.filter((item) => item.type === type); return items.length > 0 ? <section key={type}><h4><DefinitionTypeIcon type={type} size={13} />{t(definitionTypeKey[type])}<small className="procedure-heading-count">{items.length}</small></h4>{items.map((item) => <AntActionButton tone="ghost" key={item.uuid} type="button" className="package-picker-item" onClick={() => addStep(item.uuid, pickerPosition)}><DefinitionTypeIcon type={type} size={12} /><span>{item.name}</span><small>{item.code}</small></AntActionButton>)}</section> : null })}{pickerDefinitions.length === 0 ? <p>{t('noProjectObjects')}</p> : null}</div>
         </aside> : null}
         {inspectorOpen && selected ? <aside className="package-properties" aria-label={t('details')}>
-          <header className="package-properties-header"><span><small>{definitionCodeLabel(selected.type, language)}</small><strong>{selected.name || selected.id}</strong></span><AntActionButton tone="ghost" type="button" aria-label={t('close')} onClick={() => setInspectorOpen(false)}><X size={16} /></AntActionButton></header>
+          <header className="package-properties-header"><span className="package-properties-identity"><DefinitionTypeIcon type={stepDefinitionType(selected.type)} size={15} /><span><small>{definitionCodeLabel(selected.type, language)}</small><strong>{selected.name || selected.id}</strong></span></span><AntActionButton tone="ghost" className="definition-icon-button" type="button" aria-label={t('close')} onClick={() => setInspectorOpen(false)}><X size={16} /></AntActionButton></header>
           {message ? <p className="definition-notice definition-notice--error" role="alert">{message}</p> : null}
-          {selected.definitionUuid && onOpenDefinition ? <AntActionButton tone="ghost" type="button" onClick={() => openLinkedDefinition(selected.id)}><ExternalLink size={15} />{t('openDefinition')}</AntActionButton> : null}
-          <label><span>{t('stepName')}</span><AntInput value={selected.name ?? ''} onChange={(event) => onChange({ ...content, steps: content.steps.map((step) => step.id === selected.id ? { ...step, name: event.target.value } : step) })} /></label><AntActionButton tone="ghost" type="button" onClick={() => commit({ ...content, firstStepId: selected.id })}>{t('makeStartStep')}</AntActionButton><AntActionButton tone="ghost" type="button" onClick={() => commit(duplicatePackageStep(content, selected.id))}><Copy size={15} />{t('duplicate')}</AntActionButton><AntActionButton tone="ghost" className="danger" type="button" onClick={() => setPendingDelete(true)}><Trash2 size={15} />{t('removeFromPackage')}</AntActionButton>
-          {pendingDelete ? <div className="package-delete-confirm"><p>{t('packageDeleteImpact', { count: transitionCount })}</p><AntActionButton tone="ghost" type="button" onClick={() => { commit(removePackageStep(content, selected.id)); setPendingDelete(false); setInspectorOpen(false) }}>{t('confirmRemove')}</AntActionButton><AntActionButton tone="ghost" type="button" onClick={() => setPendingDelete(false)}>{t('cancel')}</AntActionButton></div> : null}
-          <section><h4>{t('addTransition')}</h4><label><span>{t('outcome')}</span><FormSelect value={transitionOutcome} onChange={(event) => setTransitionOutcome(event.target.value as TransitionOutcome)}>{(selected.type === 'VARIABLE_EVALUATE' ? ['TRUE', 'FALSE'] as const : ['SUCCESS', 'FAILURE'] as const).map((outcome) => <option key={outcome} value={outcome}>{t(outcomeKey[outcome])}</option>)}</FormSelect></label><label><span>{t('targetStep')}</span><FormSelect value={transitionTarget} onChange={(event) => setTransitionTarget(event.target.value)}><option value="">—</option>{content.steps.filter((step) => step.id !== selected.id).map((step) => <option key={step.id} value={step.id}>{step.name || step.id}</option>)}</FormSelect></label><AntActionButton tone="ghost" type="button" disabled={!transitionTarget} onClick={addTransition}><GitBranch size={15} />{t('addTransition')}</AntActionButton></section>
+          <label><span>{t('stepName')}</span><AntInput value={selected.name ?? ''} onChange={(event) => onChange({ ...content, steps: content.steps.map((step) => step.id === selected.id ? { ...step, name: event.target.value } : step) })} /></label>
+          <div className="package-properties-actions">
+            {selected.definitionUuid && onOpenDefinition ? <AntActionButton tone="secondary" type="button" onClick={() => openLinkedDefinition(selected.id)}><ExternalLink size={15} />{t('openDefinition')}</AntActionButton> : null}
+            <AntActionButton tone="secondary" type="button" disabled={content.firstStepId === selected.id} onClick={() => commit({ ...content, firstStepId: selected.id })}><CirclePlay size={15} />{t('makeStartStep')}</AntActionButton>
+            <AntActionButton tone="secondary" type="button" onClick={() => commit(duplicatePackageStep(content, selected.id))}><Copy size={15} />{t('duplicate')}</AntActionButton>
+            <AntActionButton tone="danger" type="button" onClick={() => setPendingDelete(true)}><Trash2 size={15} />{t('removeFromPackage')}</AntActionButton>
+          </div>
+          {pendingDelete ? <div className="package-delete-confirm definition-notice definition-notice--error"><p>{t('packageDeleteImpact', { count: transitionCount })}</p><AntActionButton tone="danger" type="button" onClick={() => { commit(removePackageStep(content, selected.id)); setPendingDelete(false); setInspectorOpen(false) }}>{t('confirmRemove')}</AntActionButton><AntActionButton tone="ghost" type="button" onClick={() => setPendingDelete(false)}>{t('cancel')}</AntActionButton></div> : null}
+          <section><h4><GitBranch size={15} aria-hidden="true" className="package-transition-icon" />{t('addTransition')}</h4><label><span>{t('outcome')}</span><FormSelect value={transitionOutcome} onChange={(event) => setTransitionOutcome(event.target.value as TransitionOutcome)}>{(selected.type === 'VARIABLE_EVALUATE' ? ['TRUE', 'FALSE'] as const : ['SUCCESS', 'FAILURE'] as const).map((outcome) => <option key={outcome} value={outcome}>{t(outcomeKey[outcome])}</option>)}</FormSelect></label><label><span>{t('targetStep')}</span><FormSelect value={transitionTarget} onChange={(event) => setTransitionTarget(event.target.value)}><option value="">{t('notSelected')}</option>{content.steps.filter((step) => step.id !== selected.id).map((step) => <option key={step.id} value={step.id}>{step.name || step.id}</option>)}</FormSelect></label><AntActionButton tone="primary" type="button" disabled={!transitionTarget} onClick={addTransition}><GitBranch size={15} />{t('addTransition')}</AntActionButton></section>
         </aside> : null}
     </div>
   </div>

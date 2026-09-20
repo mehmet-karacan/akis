@@ -66,19 +66,20 @@ test.describe('AKIŞ critical browser journeys', () => {
     await expect(page.locator('.sidebar')).toHaveCount(0)
   })
 
-  test('keeps package authoring focused on the canvas and opens linked objects on double click', async ({ page }) => {
+  test('opens records from the shared action and keeps package authoring focused on the canvas', async ({ page }) => {
     await login(page)
     await page.getByRole('menuitem', { name: 'Project Objects', exact: true }).click()
     await expect(page).toHaveURL(/\/project\/objects$/)
-    const packageToggle = page.getByRole('button', { name: /^Packages\s*\d+$/ }).first()
+    const packageToggle = page.getByRole('button', { name: /^(Packages|Paketler)$/ }).first()
     await packageToggle.click()
-    await page.locator('.sidebar-project-tree span[title$="· Package"] button').first().click()
+    const packageRecord = page.locator('.sidebar-project-tree span[title$="· Package"]').first()
+    await expect(packageRecord.getByRole('button', { name: /^(Edit|Düzenle):/ })).toHaveCount(0)
+    await packageRecord.locator('.akis-tree-static-label').dblclick()
     await expect(page.locator('.package-canvas')).toBeVisible()
     await expect(page.locator('.package-palette')).toHaveCount(0)
     await expect(page.locator('.package-accessible-list')).toHaveCount(0)
     await expect(page.locator('.package-editor-tabs')).toHaveCount(0)
     await expect(page.locator('select[aria-label="Project objects"]')).toHaveCount(0)
-    await expect(page.getByRole('tab', { name: /immutable versions/i })).toHaveCount(0)
     await expect(page.getByRole('button', { name: /move definition|reload draft/i })).toHaveCount(0)
     await expect(page.locator('.package-properties')).toHaveCount(0)
 
@@ -129,7 +130,7 @@ test.describe('AKIŞ critical browser journeys', () => {
     const dimensions = await page.evaluate(() => {
       const panel = document.querySelector('.definition-editor-panel')?.getBoundingClientRect()
       const workbench = document.querySelector('.definition-workbench')?.getBoundingClientRect()
-      const procedure = document.querySelector('.procedure-workbench')?.getBoundingClientRect()
+      const procedure = document.querySelector('.procedure-workbench-split, .procedure-workbench')?.getBoundingClientRect()
       return {
         ratio: panel && workbench ? panel.width / workbench.width : 0,
         scrollHeight: document.documentElement.scrollHeight,
@@ -145,7 +146,7 @@ test.describe('AKIŞ critical browser journeys', () => {
   test('opens a new procedure directly in the full editor instead of a dialog', async ({ page }) => {
     await login(page)
     await page.getByRole('menuitem', { name: 'Project Objects', exact: true }).click()
-    await page.getByRole('button', { name: 'Actions for Procedures', exact: true }).first().click()
+    await page.getByRole('button', { name: /Actions For Procedures/i }).first().click()
     await page.getByRole('menuitem', { name: 'Add Procedures', exact: true }).click()
 
     await expect(page).toHaveURL(/\/project\/objects$/)
@@ -155,15 +156,17 @@ test.describe('AKIŞ critical browser journeys', () => {
     await expect(page.getByRole('table', { name: 'Procedure steps' })).toBeVisible()
     await expect(page.getByRole('region', { name: /^Step editor:/ })).toBeVisible()
     await expect(page.getByRole('tab', { name: 'General', exact: true })).toHaveAttribute('aria-selected', 'true')
-    await expect(page.locator('.procedure-workbench')).toBeVisible()
+    await expect(page.locator('.procedure-workbench-split')).toBeVisible()
   })
 
   test('opens available detail screens and reveals Oracle fields only after provider selection', async ({ page }) => {
     await login(page)
 
-    await navigateInApp(page, '/project/connections/new')
+    await page.getByRole('menuitem', { name: /Connections|Bağlantılar/i }).click()
+    await expect(page).toHaveURL(/\/project\/connections$/)
     await expectHealthyScreen(page)
-    const createForm = page.locator('.topology-connection-form')
+    await page.getByRole('button', { name: /Add connection|Bağlantı Ekle/i }).click()
+    const createForm = page.getByRole('dialog').locator('.topology-connection-form')
     await expect(createForm.locator('input[autocomplete="username"]')).toHaveCount(0)
     await createForm.getByRole('combobox').first().click()
     await page.getByRole('option', { name: 'Oracle', exact: true }).click()
@@ -171,27 +174,28 @@ test.describe('AKIŞ critical browser journeys', () => {
     await expect(createForm.locator('input[type="password"][autocomplete="new-password"]')).toBeVisible()
 
     await navigateInApp(page, '/project/connections')
-    const connectionUuid = await page.locator('.connection-record-card').first().getAttribute('data-connection-uuid')
+    const connectionUuid = await page.locator('.ui-grid-record').first().getAttribute('data-connection-uuid')
     expect(connectionUuid, 'The baseline project must contain a connection').toBeTruthy()
     const connectionHref = `/project/connections/${connectionUuid}`
     await navigateInApp(page, connectionHref!, `/project/connections/${connectionUuid}`)
     await expectHealthyScreen(page)
 
-    await page.getByRole('tab', { name: 'Physical schemas', exact: true }).click()
+    await page.getByRole('tab', { name: /Physical Schemas/i }).click()
     await expect(page.locator('.physical-schema-manager')).toBeVisible()
     await expect(page.locator('.physical-schema-inline-form')).toBeVisible()
 
     await navigateInApp(page, '/project/environments')
-    const environmentHref = await page.locator('.schema-name-link').first().getAttribute('href')
-    expect(environmentHref, 'The baseline project must contain an environment').toBeTruthy()
-    const environmentUuid = environmentHref!.split('/').at(-1)!
-    await navigateInApp(page, environmentHref!, `/project/environments/${environmentUuid}`)
+    const environment = page.locator('.schema-list-table tbody tr.ant-table-row').first()
+    await expect(environment, 'The baseline project must contain an environment').toBeVisible()
+    await environment.getByRole('button', { name: /^(Edit|Düzenle|View|Görüntüle):/ }).click()
+    await expect(page.getByRole('dialog')).toBeVisible()
+    await expect(page).toHaveURL(/\/project\/environments$/)
     await expectHealthyScreen(page)
   })
 
   test('requires an environment and physical schema while creating a logical schema', async ({ page }) => {
     await login(page)
-    await page.getByRole('tab', { name: /connections|bağlantılar/i }).click()
+    await page.getByRole('menuitem', { name: /connections|bağlantılar/i }).click()
     await page.getByRole('link', { name: /logical schemas|mantıksal şemalar/i }).click()
     await page.getByRole('button', { name: /add logical schema|mantıksal şema ekle/i }).click()
 
@@ -215,7 +219,7 @@ test.describe('AKIŞ critical browser journeys', () => {
       })
     })
 
-    await page.getByRole('tab', { name: 'Connections', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'Connections', exact: true }).click()
     await expect(page).toHaveURL(/\/project\/connections$/)
     const failure = page.locator('.ui-async-state.error')
     await expect(failure).toBeVisible()
@@ -234,7 +238,7 @@ test.describe('AKIŞ critical browser journeys', () => {
       })
     })
     await login(page)
-    const workspaceLinks = page.locator('.workspace-navigation [role="tab"]')
+    const workspaceLinks = page.locator('.workspace-navigation [role="menuitem"]')
     await expect(workspaceLinks).toHaveCount(4)
     await expect(workspaceLinks.first()).toHaveText('Project')
     await expect(workspaceLinks.nth(2)).toHaveText('Run History')

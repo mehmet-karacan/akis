@@ -1,4 +1,4 @@
-import { Cable, Plug, CalendarPlus, Clock3, Database, FileText, Fingerprint, GitBranch, Globe2, Hash, ListOrdered, Network, Play, Server, Settings2, ShieldCheck, Type, UserPlus, UserRound, UserRoundPen } from 'lucide-react'
+import { Cable, Plug, CalendarPlus, Clock3, Database, FileText, Fingerprint, GitBranch, Globe2, Hash, ListOrdered, Network, Play, Server, Settings2, ShieldCheck, Type, UserPlus, UserRound, UserRoundPen, Table2, Columns3, KeyRound, ListTree, Share2, ClipboardList, ShieldAlert, Link2, Star, Mail, Folder, ScanSearch, Rocket, Layers3, Timer, CalendarCheck, Cpu } from 'lucide-react'
 import { Children, isValidElement, type ReactNode } from 'react'
 
 export function fieldText(node: ReactNode): string {
@@ -6,9 +6,33 @@ export function fieldText(node: ReactNode): string {
 }
 
 const meanings = [
-  ['createdAt', /olu[sş]tur.*(zaman|tarih)|creat.*(at|time|date)/i, CalendarPlus],
+  ['table', /^table$|^tablo$|table catalog|tablo kataloğu|data store/i, Table2],
+  ['columns', /^columns?$|^column count$|^kolon/i, Columns3],
+  ['constraints', /^constraints?$|^constraint count$|^k[iı]s[iı]t/i, KeyRound],
+  ['indexes', /^indexes?$|^index count$|^[İI]ndeks/i, ListTree],
+  ['relationships', /^relationships?$|^relationship count$|^[İI]li[sş]ki/i, Share2],
+  ['sequences', /sequence|sıra/i, ListOrdered],
+  ['recordInformation', /^record information$|^kayıt bilgileri$/i, ClipboardList],
+  ['createdAt', /olu[sş]tur.*(zaman|tarih)|eklenme|creat.*(at|time|date)|^created$|^oluşturulma$/i, CalendarPlus],
+  ['publishedAt', /yayınlanma|published/i, CalendarCheck],
+  ['risk', /^risk|risk sınıfı|risk class/i, ShieldAlert],
+  ['mapping', /eşleme|mapping|binding/i, Link2],
+  ['default', /varsayılan|default/i, Star],
+  ['email', /e-?posta|e-?mail/i, Mail],
+  ['issuer', /sağlayıcı kimliği|issuer/i, KeyRound],
+  ['subject', /^konu$|^subject$/i, Fingerprint],
+  ['roles', /^rol|^roles?$/i, ShieldCheck],
+  ['folder', /klasör|folder/i, Folder],
+  ['reverse', /reverse|keşif|discovery/i, ScanSearch],
+  ['publication', /yayın|publication|^number$|^numara$/i, Rocket],
+  ['definition', /^tanım$|^definition$|^tanım adı$/i, Layers3],
+  ['duration', /^süre$|^duration$/i, Timer],
+  ['technology', /teknoloji|technology/i, Cpu],
+  ['hash', /özet|hash/i, Hash],
+  ['catalog', /^katalog$|^catalog$/i, Table2],
   ['updatedAt', /g[uü]ncelle.*(zaman|tarih)|updat.*(at|time|date)|last.*update/i, Clock3],
-  ['createdBy', /olu[sş]turan|created by|creator/i, UserPlus],
+  ['testTime', /son test|last test/i, Clock3],
+  ['createdBy', /olu[sş]turan|ekleyen|created by|creator/i, UserPlus],
   ['updatedBy', /g[uü]ncelleyen|updated by|editor/i, UserRoundPen],
   ['user', /kullanıcı|username|user|initiator|ba[sş]latan/i, UserRound],
   ['logicalSchema', /mantıksal|logical/i, GitBranch],
@@ -21,7 +45,7 @@ const meanings = [
   ['database', /[sş]ema|schema|database|servis|service|sid|tablo|table/i, Database],
   ['status', /durum|status|nullable|zorunlu/i, ShieldCheck],
   ['time', /zaman|tarih|time|date|ba[sş]langı[cç]|s[uü]re|duration/i, Clock3],
-  ['action', /i[sş]lem|action/i, Settings2],
+  ['action', /[İI]şlem|action/i, Settings2],
   ['command', /komut|command|sql/i, Play],
   ['count', /saya[cç]|count|satır|rows|sıra|order/i, ListOrdered],
   ['code', /kod|code|^#$|id$/i, Fingerprint],

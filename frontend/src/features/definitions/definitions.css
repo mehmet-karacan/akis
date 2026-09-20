@@ -137,12 +137,18 @@ span.explorer-toggle { pointer-events: none; }
 .mapping-section-heading--wrap { align-items: flex-start; }
 .mapping-section-heading--wrap h3 { margin-bottom: .2rem; }
 .mapping-inline-actions { display: flex; gap: .4rem; }
-.mapping-datasets { display: grid; gap: .45rem; }
-.mapping-dataset { display: grid; grid-template-columns: 5rem minmax(14rem, 1.5fr) minmax(9rem, 1fr) auto 2.35rem; align-items: end; gap: .5rem; padding: .55rem; }
+.mapping-objects { display: grid; gap: .45rem; }
+.mapping-dataset { display: grid; grid-template-columns: 5rem minmax(17rem, 1.7fr) minmax(9rem, .7fr) 2.35rem; align-items: end; gap: .5rem; padding: .55rem; }
 .mapping-dataset > .definition-role { align-self: center; justify-self: start; }
-.mapping-object-drop-target { border: 1px dashed transparent; transition: border-color .16s ease, background-color .16s ease, box-shadow .16s ease; }
-.mapping-object-drop-target:has(select:focus), .mapping-object-drop-target:hover { border-color: var(--ant-color-primary-border); }
-.dataset-stable-id { align-self: center; }
+.mapping-object-drop-target { border: 1px dashed var(--ant-color-border); border-radius: var(--ant-border-radius-lg); background: var(--ant-color-fill-quaternary); transition: border-color .16s ease, background-color .16s ease, box-shadow .16s ease; }
+.mapping-object-drop-target.has-object { border-style: solid; background: var(--ant-color-bg-container); }
+.mapping-object-drop-target:has(input:focus), .mapping-object-drop-target:hover { border-color: var(--ant-color-primary-border); box-shadow: 0 0 0 2px var(--ant-color-primary-bg); }
+.mapping-dataset-object { display: flex; min-width: 0; min-height: 2.65rem; align-items: center; gap: .55rem; padding: .42rem .55rem; border-radius: var(--ant-border-radius); }
+.mapping-dataset-object > svg { flex: 0 0 auto; color: var(--ant-color-primary); }
+.mapping-dataset-object > svg:first-child { color: var(--ant-color-text-tertiary); }
+.mapping-dataset-object > span { display: grid; min-width: 0; gap: .1rem; }
+.mapping-dataset-object strong, .mapping-dataset-object small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mapping-dataset-object small { color: var(--ant-color-text-secondary); }
 .mapping-undo { justify-self: start; margin-top: .55rem; }
 .mapping-expression-button { width: 100%; min-width: 10rem; padding: .42rem .5rem; text-align: left; }
 .expression-builder { display: grid; gap: .7rem; padding: .8rem; }
@@ -198,7 +204,7 @@ span.explorer-toggle { pointer-events: none; }
 .procedure-step-route { display: flex; align-items: center; gap: .3rem; }
 .procedure-task-actions { display: flex; justify-content: center; gap: .05rem; padding-right: .25rem; }
 .procedure-task-actions .definition-icon-button { width: 1.75rem; height: 1.75rem; }
-.procedure-task-editor { display: grid; grid-template-rows: auto auto minmax(0, 1fr); min-width: 0; overflow: hidden; }
+.procedure-task-editor { display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; overflow: hidden; }
 .procedure-task-editor > header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .75rem; }
 .procedure-task-editor > header > div { min-width: 0; display: flex; align-items: center; gap: .45rem; }
 .procedure-task-editor > header > div > b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -310,7 +316,12 @@ span.explorer-toggle { pointer-events: none; }
   .definition-editor-actions { grid-template-columns: 1fr 1fr; }
   .definition-segmented { grid-column: 1 / -1; }
   .mapping-dataset { grid-template-columns: 5rem 1fr 2.35rem; }
-  .mapping-dataset label:nth-of-type(2) { grid-column: 2 / 3; }
+  .mapping-dataset-object { grid-column: 2 / 3; }
+  .mapping-dataset label { grid-column: 2 / 3; }
+  .mapping-inspector-context { grid-template-columns: 1fr; }
+  .mapping-inspector-context dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mapping-inspector-mapping { grid-template-columns: 1fr; }
+  .mapping-inspector-mapping > p, .mapping-inspector-mapping > small { grid-column: 1; }
   .mapping-grid-toolbar, .mapping-strategy { align-items: stretch; flex-direction: column; }
   .procedure-editor-heading, .procedure-flow-options { align-items: stretch; flex-direction: column; }
   .procedure-editor-heading .mapping-inline-actions { flex-wrap: wrap; }
@@ -343,13 +354,23 @@ span.explorer-toggle { pointer-events: none; }
 .mapping-diagram-card header span { padding: .1rem .4rem; border-radius: 999px; color: var(--ant-color-primary); background: var(--ant-color-primary-bg); font-size: var(--ant-font-size-sm); }
 .mapping-diagram-card p { display: grid; gap: .2rem; margin: 0; padding: .8rem; color: var(--ant-color-text-secondary); }
 .mapping-diagram-card p small { color: var(--ant-color-primary); }
-.mapping-diagram-column { position: relative; display: grid; grid-template-columns: 5.8rem minmax(0, 1fr) 3.8rem auto; height: 36px; align-items: center; gap: .45rem; padding: 4px 18px; border-bottom: 1px solid var(--ant-color-border-secondary); transition: background-color .16s ease, color .16s ease; }
+.mapping-diagram-column { position: relative; display: grid; grid-template-columns: 8rem minmax(0, 1fr) 3.8rem 1rem; height: 36px; align-items: center; gap: .45rem; padding: 4px 18px; border-bottom: 1px solid var(--ant-color-border-secondary); transition: background-color .16s ease, color .16s ease; }
 .mapping-diagram-column:last-child { border-bottom: 0; }
 .mapping-diagram-column > .mapping-column-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .mapping-diagram-column > .mapping-column-type, .mapping-diagram-column > .mapping-column-size { overflow: hidden; color: var(--ant-color-text-secondary); font-size: var(--ant-font-size-sm); text-overflow: ellipsis; white-space: nowrap; }
 .mapping-diagram-column > .mapping-column-size { text-align: right; }
-.mapping-diagram-column > small:not(.mapping-column-type):not(.mapping-column-size) { display: grid; width: 1rem; height: 1rem; place-items: center; border-radius: 50%; color: var(--ant-color-success); background: var(--ant-color-success-bg); }
+.mapping-column-type { display: flex; align-items: center; gap: 5px; }
+.mapping-column-type svg { flex: 0 0 14px; }
+.mapping-column-type abbr { text-decoration: none; border-bottom: 0; }
+.mapping-diagram-column > .mapping-column-status { width: 1rem; height: 1rem; border-radius: 50%; }
+.mapping-diagram-column > .mapping-column-status.is-mapped { display: grid; place-items: center; color: var(--ant-color-success); background: var(--ant-color-success-bg); }
+.mapping-diagram-column > .mapping-column-status:not(.is-mapped) { background: var(--ant-color-fill-tertiary); box-shadow: inset 0 0 0 1px var(--ant-color-border); }
 .mapping-diagram-column.is-connected { background: var(--ant-color-primary-bg); }
+.mapping-diagram-column.is-selected { z-index: 1; background: var(--ant-color-primary-bg-hover); box-shadow: inset 3px 0 0 var(--ant-color-primary); }
+.mapping-diagram-card--source .mapping-diagram-column { cursor: grab; touch-action: none; user-select: none; }
+.mapping-diagram-card--source .mapping-diagram-column:active { cursor: grabbing; }
+.mapping-diagram-column.is-drop-target { outline: 2px solid var(--ant-color-primary); outline-offset: -2px; background: var(--ant-color-primary-bg); }
+.mapping-diagram-column.is-keyboard-source { outline: 2px solid var(--ant-color-primary); outline-offset: -2px; }
 .mapping-diagram-column:hover { background: var(--ant-color-fill-secondary); }
 .mapping-diagram-column .react-flow__handle.mapping-diagram-port { width: 14px; height: 14px; border: 3px solid var(--ant-color-bg-container); background: var(--ant-color-primary); box-shadow: 0 0 0 1px var(--ant-color-primary); cursor: crosshair; transition: transform .16s ease, box-shadow .16s ease; }
 .mapping-diagram-column .react-flow__handle.mapping-diagram-port:hover { transform: scale(1.25); box-shadow: 0 0 0 4px var(--ant-color-primary-bg); }
@@ -360,6 +381,38 @@ span.explorer-toggle { pointer-events: none; }
 .mapping-diagram .react-flow__edge.mapping-diagram-edge .react-flow__edge-path { stroke: var(--ant-color-primary); stroke-width: 2.25; }
 .mapping-diagram .react-flow__edge.selected .react-flow__edge-path { stroke: var(--ant-color-error); stroke-width: 3; }
 .mapping-diagram .react-flow__connection-path { stroke: var(--ant-color-primary); stroke-width: 2.25; stroke-dasharray: 5 4; }
+.mapping-design-split { min-height: 0; }
+.mapping-design-split.has-inspector { display: grid; grid-template-rows: minmax(160px, 1fr) 10px min(var(--mapping-inspector-height), calc(100% - 170px)); height: max(360px, calc(100dvh - 300px)); overflow: hidden; }
+.mapping-design-split.has-inspector > section { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.mapping-design-split.has-inspector .mapping-diagram { flex: 1; height: auto; min-height: 0; }
+.mapping-inspector-resizer { display: grid; place-items: center; cursor: row-resize; touch-action: none; }
+.mapping-inspector-resizer span { width: 4rem; height: 3px; border-radius: 999px; background: var(--ant-color-border); }
+.mapping-inspector-resizer:hover span { background: var(--ant-color-primary); }
+.mapping-inspector-dock { min-height: 0; overflow: auto; }
+.mapping-inspector-reopen { margin: .6rem 0; }
+.mapping-design-split.has-inspector.inspector-maximized { grid-template-rows: 0 0 minmax(0, 1fr); }
+.mapping-design-split.inspector-maximized > section, .mapping-design-split.inspector-maximized > .mapping-inspector-resizer { visibility: hidden; overflow: hidden; }
+.mapping-column-inspector { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden; border: 1px solid var(--ant-color-border-secondary); border-radius: var(--ant-border-radius-lg); background: var(--ant-color-bg-container); box-shadow: var(--ant-box-shadow-tertiary); }
+.mapping-column-inspector > header { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: .75rem; padding: .65rem .8rem; border-bottom: 1px solid var(--ant-color-border-secondary); background: var(--ant-color-fill-quaternary); }
+.mapping-column-inspector > header > div { display: flex; align-items: baseline; gap: .65rem; }
+.mapping-column-inspector > header > .mapping-inspector-actions { align-items: center; margin-left: auto; }
+.mapping-column-inspector > header span { color: var(--ant-color-text-secondary); }
+.mapping-inspector-context { display: grid; flex: 1 1 auto; min-height: 0; overflow: auto; grid-template-columns: minmax(0, 1fr); align-items: end; align-content: start; gap: .65rem; padding: .8rem; }
+.mapping-inspector-context dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .55rem; margin: 0; }
+.mapping-inspector-context dl > div { min-width: 0; padding: .5rem .6rem; border: 1px solid var(--ant-color-border-secondary); border-radius: var(--ant-border-radius); background: var(--ant-color-fill-quaternary); }
+.mapping-inspector-context dt { display: flex; align-items: center; gap: .3rem; color: var(--ant-color-text-secondary); font-size: var(--ant-font-size-sm); }
+.mapping-inspector-context dd { display: grid; min-width: 0; gap: .05rem; margin: .18rem 0 0; overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.mapping-inspector-context dd small { overflow: hidden; color: var(--ant-color-text-secondary); font-weight: 400; text-overflow: ellipsis; }
+.mapping-inspector-context label, .mapping-inspector-mapping label { display: grid; min-width: 0; gap: .3rem; }
+.mapping-inspector-alias { width: min(22rem, 100%); }
+.mapping-inspector-mapping { display: grid; flex: 0 0 auto; grid-template-columns: minmax(16rem, 1fr) auto auto; align-items: end; gap: .55rem; padding: .65rem .8rem .8rem; border-top: 1px solid var(--ant-color-border-secondary); background: var(--ant-color-bg-container); }
+.mapping-inspector-mapping > p, .mapping-inspector-mapping > small { grid-column: 1 / -1; margin: 0; color: var(--ant-color-text-secondary); }
+.mapping-inspector-mapping > p { color: var(--ant-color-error); }
+.mapping-expression-field { display: grid; min-width: 0; gap: .3rem; }
+.mapping-expression-input { min-width: 0; overflow: hidden; border: 1px solid var(--ant-color-border); border-radius: var(--ant-border-radius); }
+.mapping-expression-input .cm-editor { background: var(--ant-color-bg-container); }
+.mapping-expression-input .cm-content { font-family: var(--font-mono, monospace); }
+.mapping-inspector-source-hint { margin: 0; padding: 0 .8rem .8rem; color: var(--ant-color-text-secondary); }
 .mapping-execution-flow { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr); align-items: stretch; gap: .65rem; }
 .mapping-execution-flow article { display: flex; min-width: 0; align-items: center; gap: .65rem; padding: .8rem; border: 1px solid var(--ant-color-border-secondary); border-radius: var(--ant-border-radius-lg); background: var(--ant-color-bg-container); }
 .mapping-execution-flow article > svg { flex: 0 0 auto; color: var(--ant-color-primary); }
@@ -369,7 +422,15 @@ span.explorer-toggle { pointer-events: none; }
 .mapping-flow-arrow { align-self: center; color: var(--ant-color-text-tertiary); }
 .mapping-flow-upgrade { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .9rem; border: 1px solid var(--ant-color-primary-border); border-radius: var(--ant-border-radius-lg); background: var(--ant-color-primary-bg); }
 .mapping-flow-upgrade p { margin: .2rem 0 0; color: var(--ant-color-text-secondary); }
-@media (max-width: 900px) { .mapping-execution-flow { grid-template-columns: minmax(0, 1fr); } .mapping-flow-arrow { justify-self: center; transform: rotate(90deg); } .mapping-flow-upgrade { align-items: stretch; flex-direction: column; } }
+.mapping-conditions { display: grid; gap: .8rem; }
+.mapping-condition-group { border: 1px solid var(--ant-color-border-secondary); border-radius: var(--ant-border-radius-lg); background: var(--ant-color-bg-container); }
+.mapping-condition-group > header { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .65rem .8rem; border-bottom: 1px solid var(--ant-color-border-secondary); }
+.mapping-condition-group > p { padding: .75rem .8rem; }
+.mapping-condition-row { display: grid; grid-template-columns: 9rem repeat(4, minmax(8rem, 1fr)) 2.35rem; align-items: center; gap: .5rem; padding: .55rem .8rem; border-top: 1px solid var(--ant-color-border-secondary); }
+.mapping-condition-row:first-of-type { border-top: 0; }
+.mapping-filter-row { display: grid; grid-template-columns: 10rem 12rem minmax(14rem, 1fr) 2.35rem; align-items: center; gap: .5rem; padding: .55rem .8rem; border-top: 1px solid var(--ant-color-border-secondary); }
+.mapping-option-risk { margin-top: .45rem; }
+@media (max-width: 900px) { .mapping-execution-flow { grid-template-columns: minmax(0, 1fr); } .mapping-flow-arrow { justify-self: center; transform: rotate(90deg); } .mapping-flow-upgrade { align-items: stretch; flex-direction: column; } .mapping-condition-row, .mapping-filter-row { grid-template-columns: 1fr; } .mapping-design-split.has-inspector { height: 72dvh; } }
 @media (max-width: 700px) { .km-options fieldset { grid-template-columns: 1fr; } }
 .mapping-editor > [hidden] { display: none; }
 .variable-value-history { margin: 1rem; padding: 1rem; min-width: 0; }
@@ -377,4 +438,65 @@ span.explorer-toggle { pointer-events: none; }
 .variable-draft-form + .variable-value-history { margin-top: 1rem; }
 @media (max-width: 700px) { .variable-draft-form { grid-template-columns: minmax(0, 1fr); } }
 
+/* Knowledge modules expose a versioned, typed option contract. */
+.km-language-editor { min-width: 0; }
+.km-integer-input { display: grid; gap: 4px; min-width: 0; }
+.km-integer-input > small { color: var(--danger); font-size: var(--font-caption); overflow-wrap: anywhere; }
+.km-option-schema, .mapping-km-runtime-options, .mapping-transfer-limits { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.km-option-schema > header, .mapping-km-runtime-options > header, .mapping-transfer-limits > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.km-option-schema > header > span, .mapping-km-runtime-options > header > span { display: grid; gap: 2px; }
+.km-option-schema > header small, .mapping-km-runtime-options > header small { color: var(--ink-soft); font-size: var(--font-caption); }
+.km-option-schema > .ant-alert { margin: 12px 16px; }
+.km-option-schema fieldset { display: grid; grid-template-columns: minmax(130px,.8fr) minmax(170px,1fr) minmax(120px,.7fr) minmax(220px,1.5fr) minmax(130px,.8fr) auto auto; align-items: end; gap: 12px; margin: 0; padding: 12px 16px 16px; border: 0; border-top: 1px solid var(--line); }
+.km-option-schema fieldset label { display: grid; gap: 5px; min-width: 0; }
+.km-option-schema fieldset label > span:first-child { color: var(--ink-soft); font-size: var(--font-caption); font-weight: 650; }
+.km-option-schema legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+.km-option-description { min-width: 220px; }
+.km-option-required { align-self: center; }
+.km-options-empty { padding: 20px 16px; color: var(--ink-soft); text-align: center; }
+.mapping-km-runtime-options > header { justify-content: flex-start; }
+.mapping-km-runtime-options > header > svg { color: var(--accent); }
+.mapping-km-option-groups { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; padding: 16px; }
+.mapping-km-option-groups:empty::after { content: attr(data-empty-text); grid-column: 1/-1; color: var(--ink-soft); text-align: center; }
+.mapping-km-option-groups fieldset { min-width: 0; margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-subtle); }
+.mapping-km-option-groups legend { padding: 0 6px; color: var(--ink); font-weight: 700; }
+.mapping-transfer-limits .ant-form { padding: 12px 16px 16px; }
+@media (max-width: 1100px) { .km-option-schema fieldset { grid-template-columns: repeat(2,minmax(0,1fr)); } .mapping-km-option-groups { grid-template-columns: 1fr; } }
+
 }
+.mapping-diagram-column.is-incompatible-target { background: color-mix(in srgb, var(--danger) 10%, var(--surface)); outline: 2px solid var(--danger); }
+.variable-test-panel { border: 1px solid var(--ant-color-border-secondary); border-radius: 8px; padding: 16px; min-width: 0; }
+.variable-test-panel > header, .variable-test-panel h3 { display: flex; align-items: center; gap: 8px; }
+.variable-test-panel > header { justify-content: space-between; flex-wrap: wrap; }
+.variable-test-toolbar { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px; margin-block: 12px; }
+.variable-test-toolbar > label { display: grid; gap: 6px; min-width: 220px; }
+.variable-test-panel .ant-descriptions { margin-block: 12px; }
+.variable-test-panel .ant-descriptions-item-label { white-space: nowrap; }
+.variable-test-panel .ant-descriptions-item-content { overflow-wrap: anywhere; }
+.mapping-diagram-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-block: 8px; }
+.mapping-diagram-toolbar > span { color: var(--ant-color-text-secondary); font-size: var(--ant-font-size-sm); }
+.mapping-node-title { font: inherit; color: inherit; background: none; border: 0; padding: 0; text-align: left; cursor: pointer; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.mapping-node-title:focus-visible { outline: 2px solid var(--ant-color-primary); outline-offset: 3px; }
+.mapping-inspector-resizer:focus-visible { outline: 2px solid var(--ant-color-primary); outline-offset: -2px; }
+.mapping-sql-filters > header strong { display: inline-flex; align-items: center; gap: .5rem; }
+.mapping-sql-filter-summary { display: flex; align-items: center; gap: .5rem; padding: .75rem; border-top: 1px solid var(--ant-color-border-secondary); }
+.mapping-sql-filter-summary > div { flex: 1; min-width: 0; display: grid; gap: .35rem; }
+.mapping-sql-filter-summary code { white-space: pre-wrap; overflow-wrap: anywhere; }
+.mapping-filter-editor { padding: 1rem; border: 1px solid var(--ant-color-border-secondary); border-radius: .5rem; background: var(--ant-color-bg-container); display: grid; gap: .65rem; }
+.mapping-filter-editor-context { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: .75rem; }
+.mapping-filter-editor-context label { display: grid; gap: .4rem; }
+.mapping-filter-editor footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .5rem; }
+.mapping-component-palette { display: flex; align-items: center; flex-wrap: wrap; gap: .65rem; padding: .5rem; border: 1px solid var(--ant-color-border-secondary); border-radius: var(--ant-border-radius-lg); background: var(--ant-color-bg-container); }
+.mapping-component-palette > span { font-weight: 600; color: var(--ant-color-text); }
+.mapping-component-palette button[draggable] { cursor: grab; }
+.mapping-component-palette button[draggable]:active { cursor: grabbing; }
+.mapping-filter-palette-button[disabled] { cursor: not-allowed; }
+.mapping-operation-node { width: 240px; border: 1px solid var(--ant-color-primary-border); border-radius: var(--ant-border-radius-lg); background: var(--ant-color-bg-container); box-shadow: var(--ant-box-shadow-tertiary); }
+.mapping-operation-node.is-incomplete { border-color: var(--ant-color-warning-border); background: var(--ant-color-warning-bg); }
+.mapping-operation-node > button { display: grid; gap: .6rem; width: 100%; padding: .9rem; border: 0; border-radius: inherit; background: transparent; font: inherit; color: var(--ant-color-text); text-align: left; cursor: pointer; }
+.mapping-operation-node strong { display: flex; align-items: center; gap: .5rem; color: var(--ant-color-primary); }
+.mapping-operation-node.is-incomplete strong { color: var(--ant-color-warning); }
+.mapping-operation-node span { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ant-color-text-secondary); }
+.mapping-flow-handle { top: 23px !important; }
+.mapping-diagram .react-flow__edge.mapping-diagram-edge .react-flow__edge-path { stroke: var(--ant-color-primary); stroke-width: 2; }
+.mapping-diagram .react-flow__edge.mapping-diagram-edge .react-flow__edge-marker { color: var(--ant-color-primary); fill: var(--ant-color-primary); }

@@ -8,8 +8,10 @@ test('mapping compatibility is explicit, versioned and fits narrow screens', asy
   await page.route('**/mapping-design/assess', async route => {
     requests++
     const input = route.request().postDataJSON()
-    expect(input.content.datasets[0].name).toBeUndefined()
-    const supported = input.schemaVersion === 2
+    expect(input.content.datasets).toBeUndefined()
+    expect(input.content.sources[0].dataObjectUuid).toBeTruthy()
+    expect(input.content.target.dataObjectUuid).toBeTruthy()
+    const supported = input.schemaVersion === 4
     await route.fulfill({ json: { shapeSupported: supported, executionVerified: false, capability: supported ? 'ORACLE_TABLE_COPY_V1' : 'DEFINITION_ONLY', reasonCode: supported ? null : 'MAPPING_SCHEMA_VERSION_REQUIRED', maximumSourceRows: 1000, remainingChecks: [] } })
   })
   await page.goto('/e2e/fixtures/mapping-design.html')
@@ -17,11 +19,11 @@ test('mapping compatibility is explicit, versioned and fits narrow screens', asy
   await expect(check).toBeVisible()
   expect(requests).toBe(0)
   await check.click()
-  await expect(page.getByText(/Definition Only — Runtime|Yalnız Tanım — Motor/)).toBeVisible()
-  await page.getByRole('button', { name: /Upgrade Draft to Version 2|Taslağı Sürüm 2’ye Geçir/ }).click()
-  await expect(page.getByText(/Definition Only — Runtime|Yalnız Tanım — Motor/)).toHaveCount(0)
+  await expect(page.getByText(/Definition Only: Runtime|Yalnız Tanım: Motor/)).toBeVisible()
+  await page.getByRole('button', { name: /Upgrade to the New Interface Contract|Yeni Arayüz Sözleşmesine Geçir/ }).click()
+  await expect(page.getByText(/Definition Only: Runtime|Yalnız Tanım: Motor/)).toHaveCount(0)
   await check.click()
-  await expect(page.getByText(/Compatible Shape — Execution Not Verified|Tanım Yapısı Uyumlu/)).toBeVisible()
+  await expect(page.getByText(/Compatible Shape: Execution Not Verified|Tanım Yapısı Uyumlu/)).toBeVisible()
   for (const width of [390, 1366]) {
     await page.setViewportSize({ width, height: 768 })
     await expect(check).toBeVisible()

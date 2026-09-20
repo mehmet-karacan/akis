@@ -10,9 +10,14 @@ import { DEFAULT_MAPPING } from '../../src/features/definitions/defaults'
 
 function Harness() {
   const [schema, setSchema] = useState(1)
+  const directMapping = {
+    ...DEFAULT_MAPPING,
+    sources: DEFAULT_MAPPING.sources.map(source => ({ ...source, dataObjectUuid: '11111111-1111-1111-1111-111111111111' })),
+    target: { ...DEFAULT_MAPPING.target, dataObjectUuid: '22222222-2222-2222-2222-222222222222' },
+  }
   return <main style={{ padding: 16, maxWidth: '100%', boxSizing: 'border-box' }}>
     <h1>Mapping</h1>
-    <MappingDesignAssessment projectUuid="test-project" value={{ ...DEFAULT_MAPPING, writeStrategy: { kind: 'ATOMIC_DELETE_INSERT' } }} schemaVersion={schema} onUpgrade={() => setSchema(2)} />
+    <MappingDesignAssessment projectUuid="test-project" value={directMapping} schemaVersion={schema} onUpgrade={() => setSchema(4)} />
   </main>
 }
 createRoot(document.getElementById('root')!).render(<ThemeProvider><AntDesignProvider><Harness /></AntDesignProvider></ThemeProvider>)

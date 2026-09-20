@@ -5,42 +5,59 @@ import { ProjectAccessProvider } from '../../core/auth/ProjectAccessContext'
 import i18n from '../../core/i18n'
 import { topologyApi } from '../topology/api'
 import { LogicalSchemasPage } from './LogicalSchemasPage'
+import { bindingFixture, connectionFixture, environmentFixture, logicalSchemaFixture, physicalSchemaFixture } from '../topology/testFixtures'
+
+function open(permissions: string[] = ['BAGLANTI_YONET']) {
+  return render(<ProjectAccessProvider value={{ roles: ['GELISTIRICI'], permissions }}><MemoryRouter initialEntries={['/projects/project/logical-schemas']}><Routes><Route path="/projects/:projectUuid/logical-schemas" element={<LogicalSchemasPage />} /></Routes></MemoryRouter></ProjectAccessProvider>)
+}
 
 describe('LogicalSchemasPage', () => {
   beforeEach(async () => {
     vi.restoreAllMocks()
     await i18n.changeLanguage('en')
     vi.spyOn(topologyApi, 'listLogicalSchemas').mockResolvedValue([])
-    vi.spyOn(topologyApi, 'listEnvironments').mockResolvedValue([{ uuid: 'environment', code: 'TEST', name: 'Test', status: 'AKTIF', policyVersion: 1, version: 1 }])
+    vi.spyOn(topologyApi, 'listBindings').mockResolvedValue([])
+    vi.spyOn(topologyApi, 'listEnvironments').mockResolvedValue([environmentFixture({ uuid: 'environment', code: 'TEST', name: 'Test' })])
     vi.spyOn(topologyApi, 'listPhysicalSchemas').mockResolvedValue([
-      { uuid: 'physical-sky', connectionUuid: 'connection-sky', code: 'TTBP', name: 'TTBP', schemaReference: 'TTBP', status: 'AKTIF', version: 1 },
-      { uuid: 'physical-gpu', connectionUuid: 'connection-gpu', code: 'INNOVA_ODI', name: 'INNOVA_ODI', schemaReference: 'INNOVA_ODI', status: 'AKTIF', version: 1 },
+      physicalSchemaFixture({ uuid: 'physical-sky', connectionUuid: 'connection-sky', schemaName: 'TTBP' }),
+      physicalSchemaFixture({ uuid: 'physical-pg', connectionUuid: 'connection-pg', schemaName: 'public', databaseType: 'POSTGRESQL' }),
     ])
     vi.spyOn(topologyApi, 'listConnections').mockResolvedValue([
-      { uuid: 'connection-sky', code: 'SKY', name: 'SKY', databaseType: 'ORACLE', status: 'AKTIF', version: 1 },
-      { uuid: 'connection-gpu', code: 'GPU', name: 'GPU', databaseType: 'ORACLE', status: 'AKTIF', version: 1 },
+      connectionFixture({ uuid: 'connection-sky', code: 'SKY', name: 'SKY' }),
+      connectionFixture({ uuid: 'connection-pg', code: 'PG', name: 'PG', databaseType: 'POSTGRESQL' }),
     ])
   })
 
-  it('creates a logical schema with environment and physical schema, without a revision choice', async () => {
-    const create = vi.spyOn(topologyApi, 'createLogicalSchema').mockResolvedValue({ uuid: 'logical', code: 'LS_SKY', name: 'Sky logical', status: 'AKTIF', version: 1 })
-    render(<ProjectAccessProvider value={{ roles: ['GELISTIRICI'], permissions: ['BAGLANTI_YONET'] }}><MemoryRouter initialEntries={['/projects/project/logical-schemas']}><Routes><Route path="/projects/:projectUuid/logical-schemas" element={<LogicalSchemasPage />} /></Routes></MemoryRouter></ProjectAccessProvider>)
+  it('creates a logical schema for one provider and maps only same-provider physical schemas', async () => {
+    const create = vi.spyOn(topologyApi, 'createLogicalSchema').mockResolvedValue(logicalSchemaFixture({ uuid: 'logical', code: 'LS_SKY', name: 'Sky logical' }))
+    open()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Add logical schema' }))
-    expect(screen.queryByLabelText(/revision/i)).not.toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Sky logical' } })
-    fireEvent.change(screen.getByLabelText('Code'), { target: { value: 'LS_SKY' } })
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Provider *' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Oracle' }))
+    fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Sky logical' } })
+    fireEvent.change(screen.getByLabelText('Code *'), { target: { value: 'LS_SKY' } })
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Environment' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Test · TEST' }))
     fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Physical schema' }))
-    expect(await screen.findByRole('option', { name: 'GPU / INNOVA_ODI' })).toBeInTheDocument()
-    fireEvent.click(await screen.findByRole('option', { name: 'SKY / TTBP' }))
+    expect(await screen.findByRole('option', { name: 'SKY / TTBP' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'PG / public' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('option', { name: 'SKY / TTBP' }))
     fireEvent.click(screen.getByRole('button', { name: 'Create and Map' }))
 
     await waitFor(() => expect(create).toHaveBeenCalledWith('project', {
-      code: 'LS_SKY',
-      name: 'Sky logical',
-      description: undefined,
-      environmentUuid: 'environment',
-      physicalSchemaUuid: 'physical-sky',
+      code: 'LS_SKY', name: 'Sky logical', description: undefined, databaseType: 'ORACLE',
+      environmentUuid: 'environment', physicalSchemaUuid: 'physical-sky',
     }))
+  })
+
+  it('shows the mapping state of every schema in the catalog', async () => {
+    vi.mocked(topologyApi.listLogicalSchemas).mockResolvedValue([logicalSchemaFixture({ uuid: 'orders', code: 'ORDERS', name: 'Orders' })])
+    vi.mocked(topologyApi.listBindings).mockResolvedValue([bindingFixture({ uuid: 'b', logicalSchemaUuid: 'orders', environmentUuid: 'environment', physicalSchemaUuid: 'physical-sky' })])
+    open(['BAGLANTI_GORUNTULE'])
+
+    expect(await screen.findByText('Orders')).toBeInTheDocument()
+    expect(screen.getAllByText('All environments mapped').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: 'Add logical schema' })).not.toBeInTheDocument()
   })
 })

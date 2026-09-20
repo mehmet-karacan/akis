@@ -1,0 +1,55 @@
+/* Project explorer tree: quiet rows, guide lines, hover-only actions, type-colored selection. Layered over ant-design.css. */
+.sidebar-project-tree .ant-tree { padding: 0 6px 8px; }
+.sidebar-project-tree .ant-tree-treenode { padding: 0; }
+.sidebar-project-tree .ant-tree-node-content-wrapper { position: relative; display: flex; align-items: center; min-height: 30px; border-radius: 6px; transition: background .12s ease; }
+.sidebar-project-tree .ant-tree-node-content-wrapper:hover { background: color-mix(in srgb, var(--ink-soft) 8%, transparent); }
+.sidebar-project-tree .akis-tree-title > .ant-btn:first-child, .sidebar-project-tree .akis-tree-static-label { min-height: 30px; padding: 2px 6px 2px 4px; gap: 7px; }
+.sidebar-project-tree .akis-tree-title--object > .ant-btn:first-child { min-height: 30px; }
+.sidebar-project-tree .akis-tree-label > span { font-size: 12.5px; }
+.sidebar-project-tree .akis-tree-title--object .akis-tree-label > span, .sidebar-project-tree .akis-tree-title--item .akis-tree-label > span { font-weight: 500; }
+.sidebar-project-tree .akis-tree-title--folder .akis-tree-label > span { font-weight: 600; }
+.sidebar-project-tree .akis-tree-title--group .akis-tree-label > span { font-size: 11.5px; font-weight: 600; letter-spacing: .01em; }
+
+/* Section rows (Flows · Shared Components · Models) read as headers, not as bordered boxes. */
+.sidebar-project-tree .project-tree-section-node { margin-top: 10px; }
+.sidebar-project-tree .project-tree-section-node:first-child { margin-top: 2px; }
+.sidebar-project-tree .project-tree-section-node > .ant-tree-node-content-wrapper { background: transparent; }
+.sidebar-project-tree .project-tree-section-node > .ant-tree-node-content-wrapper:hover { background: color-mix(in srgb, var(--ink-soft) 8%, transparent); }
+.sidebar-project-tree .akis-tree-title--section .akis-tree-label > span { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); }
+.sidebar-project-tree .akis-tree-title--section .ant-btn-icon svg { width: 15px; height: 15px; }
+.sidebar-project-tree .sidebar-model-link { margin-top: 10px; }
+.sidebar-project-tree .sidebar-model-link .ant-tree { padding-top: 0; }
+
+/* Indent guide lines make depth legible without heavy chevrons. */
+.sidebar-project-tree .ant-tree-indent-unit { position: relative; width: 14px; }
+.sidebar-project-tree .ant-tree-indent-unit::before { content: ''; position: absolute; top: -1px; bottom: -1px; left: 9px; border-left: 1px solid color-mix(in srgb, var(--ink-soft) 22%, transparent); }
+.sidebar-project-tree .ant-tree-switcher { width: 18px; display: inline-flex; align-items: center; justify-content: center; color: var(--ink-soft); opacity: .8; }
+.sidebar-project-tree .ant-tree-switcher .ant-tree-switcher-icon { transition: transform .15s ease; }
+.sidebar-project-tree .ant-tree-switcher_open .ant-tree-switcher-icon { transform: rotate(90deg); }
+.sidebar-project-tree .ant-tree-switcher-noop { width: 14px; }
+
+/* Row actions ("…") only appear on hover or keyboard focus; counts stay as quiet pills. */
+.sidebar-project-tree .sidebar-folder-action-row > .ant-btn:last-child:not(:first-child) { flex: 0 0 auto; width: 24px; min-width: 24px; height: 24px; padding: 0; opacity: 0; color: var(--ink-soft); transition: opacity .12s ease; }
+.sidebar-project-tree .ant-tree-node-content-wrapper:hover .sidebar-folder-action-row > .ant-btn:last-child:not(:first-child),
+.sidebar-project-tree .sidebar-folder-action-row:focus-within > .ant-btn:last-child:not(:first-child),
+.sidebar-project-tree .ant-tree-treenode-selected .sidebar-folder-action-row > .ant-btn:last-child:not(:first-child) { opacity: 1; }
+.sidebar-project-tree .akis-tree-count { min-width: 18px; padding: 0 5px; font-size: 10px; font-weight: 600; line-height: 16px; color: var(--ink-soft); background: color-mix(in srgb, var(--ink-soft) 12%, transparent); }
+.sidebar-project-tree .akis-tree-title--section .akis-tree-count { background: transparent; }
+
+/* Selected object: accent bar takes the object's type color. */
+.sidebar-project-tree .project-tree-object-node.ant-tree-treenode-selected > .ant-tree-node-content-wrapper { --row-accent: var(--accent); background: color-mix(in srgb, var(--row-accent) 10%, transparent); box-shadow: inset 3px 0 0 var(--row-accent); }
+.sidebar-project-tree .project-tree-object-node.ant-tree-treenode-selected > .ant-tree-node-content-wrapper:has(.definition-type-icon--mapping) { --row-accent: var(--schema-color-info); }
+.sidebar-project-tree .project-tree-object-node.ant-tree-treenode-selected > .ant-tree-node-content-wrapper:has(.definition-type-icon--procedure) { --row-accent: var(--schema-color-warning); }
+.sidebar-project-tree .project-tree-object-node.ant-tree-treenode-selected > .ant-tree-node-content-wrapper:has(.definition-type-icon--package) { --row-accent: var(--schema-color-neutral); }
+.sidebar-project-tree .project-tree-object-node.ant-tree-treenode-selected > .ant-tree-node-content-wrapper:has(.definition-type-icon--variable) { --row-accent: var(--schema-color-pink); }
+.sidebar-project-tree .project-tree-object-node.ant-tree-treenode-selected > .ant-tree-node-content-wrapper:has(.definition-type-icon--sequence) { --row-accent: var(--schema-color-success); }
+.sidebar-project-tree .project-tree-object-node.ant-tree-treenode-selected > .ant-tree-node-content-wrapper:has(.definition-type-icon--knowledge-module) { --row-accent: var(--schema-color-brown); }
+.sidebar-project-tree .project-tree-object-node.ant-tree-treenode-selected .akis-tree-label > span { font-weight: 600; }
+.sidebar-project-tree .akis-tree-static-label:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; }
+.sidebar-project-tree .definition-type-icon { width: 22px !important; height: 22px !important; border-radius: 6px; }
+
+/* Explorer header and search sit in one calm block. */
+.sidebar-project-tree > header { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px 0; }
+.sidebar-project-tree > header strong { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); }
+.sidebar-project-tree .project-explorer-search { margin: 6px 8px 8px; width: auto; }
+.sidebar-project-tree .sidebar-tree-scroll { padding-bottom: 12px; }

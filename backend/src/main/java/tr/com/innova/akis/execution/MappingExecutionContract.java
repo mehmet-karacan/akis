@@ -12,5 +12,18 @@ public interface MappingExecutionContract {
     String scenarioPlanHash();
     PilotRuntimePlan.DatasetBinding source();
     PilotRuntimePlan.DatasetBinding target();
-    List<PilotRuntimePlan.DirectColumnMapping> columnMappings();
+    List<? extends ColumnProjection> columnMappings();
+
+    interface ColumnProjection {
+        String targetColumn();
+        /** Null for an expression projection; never a fabricated source column. */
+        String sourceColumn();
+        default tools.jackson.databind.JsonNode expression() { return null; }
+    }
+
+    record ExpressionProjection(tools.jackson.databind.JsonNode expression, String targetColumn) implements ColumnProjection {
+        public ExpressionProjection { expression = expression.deepCopy(); }
+        @Override public tools.jackson.databind.JsonNode expression() { return expression.deepCopy(); }
+        @Override public String sourceColumn() { return null; }
+    }
 }

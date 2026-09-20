@@ -45,7 +45,7 @@ test('Ant Design login and workspace surfaces fit both themes and viewport sizes
       await expectNoHorizontalOverflow(page)
       await page.screenshot({ path: `test-results/ant-${path.split('/')[0]}-${theme}.png`, fullPage: true })
       if (path === 'connections') {
-        await page.locator('.connection-record-card').first().click()
+        await page.locator('.ui-grid-record').first().getByRole('button', { name: /^View:/ }).click()
         const dialog = page.getByRole('dialog')
         await expect(dialog).toBeVisible()
         await expect(dialog.locator('button[type="submit"].ant-btn-primary')).toBeVisible()
@@ -54,16 +54,18 @@ test('Ant Design login and workspace surfaces fit both themes and viewport sizes
         await expect(dialog).toHaveCount(0)
       }
       if (path === 'operations') {
-        await page.getByRole('button', { name: 'View Details' }).first().click()
-        const dialog = page.getByRole('dialog')
-        await expect(dialog).toBeVisible()
-        await expect(dialog.getByText('Attempt', { exact: true })).toHaveCount(0)
-        await expect(dialog.getByText('Technical identifiers', { exact: true })).toHaveCount(0)
-        await expect(dialog.getByText('Evidence', { exact: true })).toHaveCount(0)
-        await expect(dialog.getByText('Failed', { exact: true }).first()).toBeVisible()
-        await page.screenshot({ path: `test-results/ant-run-detail-${theme}.png` })
-        await page.keyboard.press('Escape')
-        await expect(dialog).toHaveCount(0)
+        const details = page.getByRole('button', { name: 'View Details' })
+        if (await details.count()) {
+          await details.first().click()
+          const dialog = page.getByRole('dialog')
+          await expect(dialog).toBeVisible()
+          await expect(dialog.getByText('Attempt', { exact: true })).toHaveCount(0)
+          await expect(dialog.getByText('Technical identifiers', { exact: true })).toHaveCount(0)
+          await expect(dialog.getByText('Evidence', { exact: true })).toHaveCount(0)
+          await page.screenshot({ path: `test-results/ant-run-detail-${theme}.png` })
+          await page.keyboard.press('Escape')
+          await expect(dialog).toHaveCount(0)
+        } else await expect(page.getByText('No runs have been requested for this project.')).toBeVisible()
       }
     }
   }

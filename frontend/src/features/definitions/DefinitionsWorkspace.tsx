@@ -1,4 +1,3 @@
-import { TabBar } from '../../core/ui/TabBar'
 import { Select as FormSelect } from '../../core/ui/Select'
 import { Button as AntActionButton } from '../../core/ui/Button'
 import { Input as AntInput } from 'antd'
@@ -9,7 +8,6 @@ import {
   FileCode2,
   FolderInput,
   GitBranch,
-  Layers3,
   LoaderCircle,
   Plus,
   Save,
@@ -21,25 +19,24 @@ import { ApiProblem } from '../../core/api/client'
 import { usePendingChanges } from '../../core/navigation/PendingChangesContext'
 import { useProjectAccess } from '../../core/auth/ProjectAccessContext'
 import { Dialog } from '../../core/ui/Dialog'
+import { DataGrid } from '../../core/ui/DataGrid'
 import { executionApi } from '../execution/api'
 import type { ProjectCapabilities } from '../execution/types'
 import { operationsApi } from '../operations/api'
 import type { Publication } from '../operations/types'
-import { topologyApi, type Environment } from '../topology/api'
+import { topologyApi, type Environment, type LogicalSchema } from '../topology/api'
 import { definitionsApi } from './api'
-import { bindingNodes, candidateLabel, unboundNodes } from './bindingCatalog'
 import { createDefaultContent, isMappingContent, isProcedureContent } from './defaults'
 import { definitionTypeKey, useDefinitionsI18n } from './i18n'
 import { MappingGrid } from './MappingGrid'
-import { StagedPlanPreview } from './StagedPlanPreview'
-import { editMapping, storeMapping, initialSchemaVersion } from './mappingAuthoring'
+import { PreRunReport } from './PreRunReport'
+import { PackageSimulationReport, ProcedureSimulationReport } from './SimulationReports'
+import { editMapping, migrateLegacyMapping, storeMapping, initialSchemaVersion } from './mappingAuthoring'
 import { PackageEditor } from './PackageEditor'
 import { ProcedureEditor } from './ProcedureEditor'
 import { StructuredDraftEditor } from './StructuredDraftEditor'
 import { VariableHistory } from './VariableHistory'
 import type {
-  DataBinding,
-  BindingCandidate,
   Definition,
   DefinitionType,
   DefinitionTypeDescriptor,
@@ -53,6 +50,12 @@ import type {
   Scenario,
 } from './types'
 import { DEFINITION_TYPES } from './types'
+import { DefinitionCatalog } from './DefinitionCatalog'
+import { DefinitionTypeIcon, ProjectFolderIcon } from './DefinitionTypeIcon'
+import { DefinitionPropertiesPanel } from './DefinitionPropertiesPanel'
+import { DATABASE_TYPES } from '../topology/connectionFormModel'
+import { databaseProviderVisual } from '../topology/DatabaseProviderIcon'
+import { Layers, ListOrdered, SlidersHorizontal, Workflow } from 'lucide-react'
 import './definitions.css'
 
 const notifyProjectTreeChanged = () => window.dispatchEvent(new Event('akis:definitions-changed'))
@@ -62,17 +65,16 @@ interface DefinitionsWorkspaceProps {
   routeDefinitionUuid?: string
 }
 
-type WorkspaceTab = 'draft' | 'versions' | 'bindings'
+type WorkspaceTab = 'definition' | 'draft' | 'versions'
 
 const executableTypes = new Set<DefinitionType>(['MAPPING', 'PACKAGE', 'PROCEDURE', 'LOAD_PLAN'])
-const bindingTypes = new Set<DefinitionType>(['MAPPING', 'REUSABLE_MAPPING', 'PROCEDURE'])
 
 const fallbackTypes: DefinitionTypeDescriptor[] = DEFINITION_TYPES.map((code) => ({
   code,
   label: code,
   category: code === 'LOAD_PLAN' ? 'ORKESTRASYON' : 'TASARIM',
   folderRequired: ['MAPPING', 'REUSABLE_MAPPING', 'PACKAGE', 'PROCEDURE'].includes(code),
-  globalAllowed: ['REUSABLE_MAPPING', 'VARIABLE', 'SEQUENCE', 'USER_FUNCTION', 'KNOWLEDGE_MODULE'].includes(code),
+  globalAllowed: ['REUSABLE_MAPPING', 'VARIABLE', 'SEQUENCE', 'KNOWLEDGE_MODULE'].includes(code),
   requiredContentFields: [],
 }))
 
@@ -126,7 +128,6 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
   const [creatingVersion, setCreatingVersion] = useState(false)
   const [selectedVersionUuid, setSelectedVersionUuid] = useState<string | null>(null)
   const [scenarios, setScenarios] = useState<Scenario[]>([])
-  const [bindings, setBindings] = useState<DataBinding[]>([])
   const [compiling, setCompiling] = useState(false)
   const [status, setStatus] = useState<{ tone: 'success' | 'error' | 'info'; text: string } | null>(null)
 
@@ -155,10 +156,16 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
   const [capabilities, setCapabilities] = useState<ProjectCapabilities | null>(null)
   const [capabilityError, setCapabilityError] = useState(false)
   const [environments, setEnvironments] = useState<Environment[]>([])
+  const [logicalSchemas, setLogicalSchemas] = useState<LogicalSchema[]>([])
   const [environmentLoadError, setEnvironmentLoadError] = useState(false)
   const saveDraftAction = useRef<() => Promise<boolean>>(async () => true)
 
   const selectedDefinition = definitions.find((definition) => definition.uuid === selectedUuid) ?? null
+  const procedureTechnologies = (procedure: { tasks: Array<{ connectionRole: string; logicalSchemaUuid?: string }> }) => {
+    const typeOf = (uuid?: string) => logicalSchemas.find((item) => item.uuid === uuid)?.databaseType ?? undefined
+    const pick = (role: string) => procedure.tasks.filter((task) => task.connectionRole === role).map((task) => typeOf(task.logicalSchemaUuid)).find((value): value is string => Boolean(value))
+    return { source: pick('SOURCE') ?? 'ORACLE', target: pick('TARGET') ?? 'ORACLE' }
+  }
   const selectedVersion = versions.find((version) => version.uuid === selectedVersionUuid) ?? null
 
   const typeLabel = useCallback(
@@ -215,7 +222,8 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
   useEffect(() => {
     let active = true
     setEnvironmentLoadError(false)
-    void topologyApi.listEnvironments(projectUuid).then((items) => { if (active) setEnvironments(items.filter((item) => item.status === 'AKTIF')) }).catch(() => { if (active) { setEnvironments([]); setEnvironmentLoadError(true) } })
+    void topologyApi.listLogicalSchemas(projectUuid).then((items) => { if (active) setLogicalSchemas(items) }).catch(() => undefined)
+    void topologyApi.listEnvironments(projectUuid).then((items) => { if (active) setEnvironments(items.filter((item) => item.status === 'ETKIN' || item.status === 'AKTIF')) }).catch(() => { if (active) { setEnvironments([]); setEnvironmentLoadError(true) } })
     return () => { active = false }
   }, [projectUuid])
 
@@ -226,7 +234,6 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
     setStatus(null)
     setVersions([])
     setScenarios([])
-    setBindings([])
     setSelectedVersionUuid(null)
     try {
       const [nextDraft, nextVersions] = await Promise.all([
@@ -235,9 +242,9 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
       ])
       if (definitionRequest.current !== requestNumber) return
       setDraft(nextDraft)
-      setSchemaVersion(nextDraft?.schemaVersion ?? (selectedDefinition.type === 'MAPPING' || selectedDefinition.type === 'PROCEDURE' ? 2 : 1))
+      setSchemaVersion(selectedDefinition.type === 'MAPPING' ? 4 : nextDraft?.schemaVersion ?? (selectedDefinition.type === 'PROCEDURE' ? 2 : 1))
       const loadedContent = nextDraft?.content ?? createDefaultContent(selectedDefinition.type)
-      setContent(selectedDefinition.type === 'MAPPING' && isMappingContent(loadedContent) ? editMapping(loadedContent) : loadedContent)
+      setContent(selectedDefinition.type === 'MAPPING' ? editMapping(migrateLegacyMapping(loadedContent)) : loadedContent)
       setDirty(false)
       setVersions(nextVersions)
       setSelectedVersionUuid(nextVersions[0]?.uuid ?? null)
@@ -255,7 +262,6 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
   useEffect(() => {
     if (!selectedDefinition || !selectedVersionUuid) {
       setScenarios([])
-      setBindings([])
       return
     }
     let active = true
@@ -263,12 +269,6 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
       .listScenarios(projectUuid, selectedDefinition.uuid, selectedVersionUuid)
       .then((rows) => active && setScenarios(rows))
       .catch(() => active && setScenarios([]))
-    if (bindingTypes.has(selectedDefinition.type)) {
-      void definitionsApi
-        .listBindings(projectUuid, selectedDefinition.uuid, selectedVersionUuid)
-        .then((rows) => active && setBindings(rows))
-        .catch(() => active && setBindings([]))
-    }
     return () => {
       active = false
     }
@@ -283,11 +283,11 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
         projectUuid,
         selectedDefinition.uuid,
         draft?.version ?? 0,
-        selectedDefinition.type === 'KNOWLEDGE_MODULE' && content && typeof content === 'object' && 'language' in content && content.language === 'AKIS_KM/1' ? 2 : schemaVersion,
+        selectedDefinition.type === 'MAPPING' ? 4 : selectedDefinition.type === 'KNOWLEDGE_MODULE' && content && typeof content === 'object' && 'language' in content && ['AKIS_KM/1', 'AKIS_KM/2'].includes(String(content.language)) ? 2 : schemaVersion,
         selectedDefinition.type === 'MAPPING' && isMappingContent(content) ? storeMapping(content) : content,
       )
       setDraft(saved)
-      setContent(selectedDefinition.type === 'MAPPING' && isMappingContent(saved.content) ? editMapping(saved.content) : saved.content)
+      setContent(selectedDefinition.type === 'MAPPING' ? editMapping(migrateLegacyMapping(saved.content)) : saved.content)
       setDirty(false)
       notifyFeedback(t('saved'))
       return true
@@ -409,7 +409,6 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
           )}
           {showCreate && canWrite ? (
             <CreateDefinitionEditor
-              projectUuid={projectUuid}
               folders={folders}
               types={types.filter((type) => type.code !== 'REUSABLE_MAPPING')}
               initialType={createDefinitionType}
@@ -439,22 +438,19 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
               }}
             />
           ) : !selectedDefinition ? (
-            <div className="definition-empty-workbench">
-              <Layers3 aria-hidden="true" />
-              <h2>{t('selectDefinition')}</h2>
-            </div>
+            <DefinitionCatalog definitions={definitions} folders={folders} typeLabel={typeLabel} canWrite={canWrite} onOpen={(uuid) => navigate(`/project/objects/definitions/${encodeURIComponent(uuid)}`)} onCreate={() => { setCreateDefinitionType(null); setCreateDefinitionFolderUuid(null); setShowCreate(true) }} />
           ) : (
             <>
               <header className="definition-document-header">
                 <div className="definition-document-identity">
                   <div className="definition-document-meta">
-                    <span className="definition-type-chip">{typeLabel(selectedDefinition.type)}</span>
+                    <span className="definition-type-chip"><DefinitionTypeIcon type={selectedDefinition.type} size={12} />{typeLabel(selectedDefinition.type)}</span>
                     <span><code>{selectedDefinition.code}</code></span>
                   </div>
                   <h2>{selectedDefinition.name}</h2>
                   {selectedDefinition.description && <p>{selectedDefinition.description}</p>}
                 </div>
-                {tab === 'draft' && !draftLoading && canWrite && (
+                {(tab === 'draft' || tab === 'definition') && !draftLoading && canWrite && (
                   <div className="definition-document-save">
                     {dirty && <span className="definition-unsaved-state">{t('unsaved')}</span>}
                     <AntActionButton tone="primary" type="button" disabled={saving || !dirty} onClick={() => void saveDraft()}>
@@ -465,36 +461,45 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
                 )}
               </header>
 
-              {bindingTypes.has(selectedDefinition.type) && selectedDefinition.type !== 'PROCEDURE' ? <TabBar className="definition-tabs" role="tablist" aria-label={t('details')} onKeyDown={(event) => {
-                if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+              <div className="definition-tab-layout"><div className="definition-tabs definition-tabs--horizontal" role="tablist" aria-label={t('details')} onKeyDown={(event) => {
+                if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
                 const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
                 const current = buttons.indexOf(document.activeElement as HTMLButtonElement)
-                const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (current + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length
+                const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (current + (event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length
                 event.preventDefault(); buttons[next]?.focus(); buttons[next]?.click()
               }}>
-                <AntActionButton tone="ghost" id="definition-tab-draft" type="button" role="tab" tabIndex={tab === 'draft' ? 0 : -1} aria-selected={tab === 'draft'} aria-controls="definition-panel-draft" onClick={() => setTab('draft')}>
-                  <FileCode2 size={16} aria-hidden="true" /> {t('draft')}
+                <AntActionButton tone="ghost" id="definition-tab-definition" type="button" role="tab" className="definition-tab definition-tab--definition" tabIndex={tab === 'definition' ? 0 : -1} aria-selected={tab === 'definition'} aria-controls="definition-panel-definition" onClick={() => setTab('definition')}>
+                  <SlidersHorizontal size={16} aria-hidden="true" /> {t('definitionTab')}
+                </AntActionButton>
+                <AntActionButton tone="ghost" id="definition-tab-draft" type="button" role="tab" className="definition-tab definition-tab--draft" tabIndex={tab === 'draft' ? 0 : -1} aria-selected={tab === 'draft'} aria-controls="definition-panel-draft" onClick={() => setTab('draft')}>
+                  {selectedDefinition.type === 'PROCEDURE' ? <ListOrdered size={16} aria-hidden="true" /> : selectedDefinition.type === 'PACKAGE' ? <Workflow size={16} aria-hidden="true" /> : <FileCode2 size={16} aria-hidden="true" />} {selectedDefinition.type === 'PROCEDURE' ? t('tasksTab') : selectedDefinition.type === 'MAPPING' || selectedDefinition.type === 'REUSABLE_MAPPING' ? t('designTab') : selectedDefinition.type === 'PACKAGE' ? t('diagramTab') : t('contentTab')}
                   {dirty && <span className="definition-dirty-dot" aria-label={t('unsaved')} />}
                 </AntActionButton>
-                <AntActionButton tone="ghost" id="definition-tab-bindings" type="button" role="tab" tabIndex={tab === 'bindings' ? 0 : -1} aria-selected={tab === 'bindings'} aria-controls="definition-panel-bindings" onClick={() => setTab('bindings')}>
-                  <GitBranch size={16} aria-hidden="true" /> {t('binding')} <span className="definition-count">{bindings.length}</span>
+                <AntActionButton tone="ghost" id="definition-tab-versions" type="button" role="tab" className="definition-tab definition-tab--versions" tabIndex={tab === 'versions' ? 0 : -1} aria-selected={tab === 'versions'} aria-controls="definition-panel-versions" onClick={() => setTab('versions')}>
+                  <GitBranch size={16} aria-hidden="true" /> {t('versions')} <span className="definition-count">{versions.length}</span>
                 </AntActionButton>
-              </TabBar> : null}
-
-              {draftLoading ? (
+              </div>
+              <div className="definition-tab-content">
+              {tab === 'definition' ? (
+                <section id="definition-panel-definition" className="definition-editor-panel" role="tabpanel" aria-labelledby="definition-tab-definition">
+                  <DefinitionPropertiesPanel key={`${selectedDefinition.uuid}:${selectedDefinition.version}`} projectUuid={projectUuid} definition={selectedDefinition} canWrite={canWrite}
+                    technology={selectedDefinition.type === 'PROCEDURE' && isProcedureContent(content) ? (content.technology ?? procedureTechnologies(content)) : undefined}
+                    onTechnologyChange={selectedDefinition.type === 'PROCEDURE' && isProcedureContent(content) ? (technology) => updateContent({ ...content, technology }) : undefined}
+                    onUpdated={(updated) => { setDefinitions((current) => current.map((definition) => definition.uuid === updated.uuid ? updated : definition)); window.dispatchEvent(new Event('akis:definitions-changed')); notifyProjectTreeChanged() }} />
+                </section>
+              ) : draftLoading ? (
                 <div className="definition-state"><LoaderCircle className="spin" aria-hidden="true" /> {t('loading')}</div>
               ) : tab === 'draft' ? (
                 <section id="definition-panel-draft" className="definition-editor-panel" role="tabpanel" aria-labelledby="definition-tab-draft">
                   <fieldset className="definition-readonly-gate" disabled={!canWrite}>{selectedDefinition.type === 'MAPPING' && isMappingContent(content) ? (
                     <MappingGrid projectUuid={projectUuid} value={content} onChange={updateContent} schemaVersion={schemaVersion}
-                      onEnableKm={() => { setSchemaVersion(3); updateContent({ ...content, staging: { logicalSchemaUuid: '' }, modules: {}, options: { batchRows: 500, fetchRows: 500, maxRows: 100000, maxBytes: 268435456, allowEmptySource: false }, writeStrategy: { kind: 'ATOMIC_DELETE_INSERT' } }) }}
-                      onUpgrade={() => { setSchemaVersion(2); setDirty(true); notifyFeedback(language === 'tr' ? 'Taslak sürüm 2 olarak hazırlanıyor. Kaydedin ve yeni bir tanım sürümü oluşturun; mevcut yayınlar değişmez.' : 'Draft prepared for schema 2. Save and create a new definition version; existing publications remain unchanged.') }} />
+                      onUpgrade={() => { setSchemaVersion(4); setDirty(true); notifyFeedback(language === 'tr' ? 'Taslak yeni arayüz sözleşmesine dönüştürüldü. Mevcut yayınlar değişmez.' : 'Draft converted to the new interface contract. Existing publications remain unchanged.') }} />
                   ) : selectedDefinition.type === 'PROCEDURE' && isProcedureContent(content) ? (
                     <ProcedureEditor projectUuid={projectUuid} definition={selectedDefinition} value={content} onChange={updateContent} limits={capabilities?.procedure} />
                   ) : selectedDefinition.type === 'PACKAGE' ? (
                     <PackageEditor projectUuid={projectUuid} definitionUuid={selectedDefinition.uuid} value={content} onChange={updateContent} onOpenDefinition={(uuid) => navigateFromExplorer(`/project/objects/definitions/${encodeURIComponent(uuid)}`)} />
                   ) : !['MAPPING', 'PROCEDURE', 'REUSABLE_MAPPING'].includes(selectedDefinition.type) ? (
-                    <StructuredDraftEditor projectUuid={projectUuid} type={selectedDefinition.type} value={content} onChange={updateContent} />
+                    <StructuredDraftEditor projectUuid={projectUuid} definitionUuid={selectedDefinition.uuid} type={selectedDefinition.type} value={content} onChange={updateContent} />
                   ) : (
                     <div className="definition-state definition-state--error"><AlertCircle aria-hidden="true" /><p>{t('unsupportedDraftShape')}</p>{canWrite && <AntActionButton tone="secondary" type="button" onClick={() => updateContent(createDefaultContent(selectedDefinition.type))}>{t('resetStructuredDraft')}</AntActionButton>}</div>
                   )}</fieldset>
@@ -503,6 +508,8 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
               ) : tab === 'versions' ? (
                 <VersionsPanel
                   projectUuid={projectUuid}
+                  definitionName={selectedDefinition.name}
+                  definitionType={selectedDefinition.type}
                   versions={versions}
                   selectedVersionUuid={selectedVersionUuid}
                   setSelectedVersionUuid={setSelectedVersionUuid}
@@ -522,19 +529,8 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
                   canValidate={canValidate}
                   canPublish={canPublish}
                 />
-              ) : (
-                <BindingsPanel
-                  projectUuid={projectUuid}
-                  definition={selectedDefinition}
-                  selectedVersion={selectedVersion}
-                  versions={versions}
-                  selectVersion={setSelectedVersionUuid}
-                  bindings={bindings}
-                  onCreated={(binding) => setBindings((current) => [binding, ...current])}
-                  onError={(text) => setStatus({ tone: 'error', text })}
-                  canWrite={canWrite}
-                />
-              )}
+              ) : null}
+              </div></div>
             </>
           )}
         </section>
@@ -715,6 +711,8 @@ function MoveFolderDialog({ folder, folders, moving, close, onMove }: MoveFolder
 
 interface VersionsPanelProps {
   projectUuid: string
+  definitionName: string
+  definitionType: DefinitionType
   versions: DefinitionVersion[]
   selectedVersionUuid: string | null
   setSelectedVersionUuid: (uuid: string) => void
@@ -739,13 +737,15 @@ function VersionsPanel(props: VersionsPanelProps) {
   const { language, t } = useDefinitionsI18n()
   const formatter = useMemo(() => new Intl.DateTimeFormat(language, { dateStyle: 'medium', timeStyle: 'short' }), [language])
   const selected = props.versions.find((version) => version.uuid === props.selectedVersionUuid)
-  const [environmentUuid, setEnvironmentUuid] = useState('')
+  // Runnable versions target the project's default environment (ODI: the context of the object); no per-scenario choice.
+  const environment = props.environments.find((item) => item.defaultEnvironment) ?? props.environments[0]
+  const environmentUuid = environment?.uuid ?? ''
   const [preparingScenarioUuid, setPreparingScenarioUuid] = useState('')
   const [prepared, setPrepared] = useState<Record<string, Publication>>({})
   const [kmPreviews, setKmPreviews] = useState<Record<string, string>>({})
-  useEffect(() => {
-    if (!props.environments.some((item) => item.uuid === environmentUuid)) setEnvironmentUuid(props.environments[0]?.uuid ?? '')
-  }, [environmentUuid, props.environments])
+  const [simulated, setSimulated] = useState<Record<string, boolean>>({})
+  const stagedMapping = props.definitionType === 'MAPPING' && selected != null && [3, 4].includes(selected.schemaVersion)
+  const simulationRequired = stagedMapping || props.definitionType === 'PROCEDURE' || props.definitionType === 'PACKAGE'
   async function prepare(scenario: Scenario) {
     if (!environmentUuid) return
     setPreparingScenarioUuid(scenario.uuid)
@@ -755,179 +755,70 @@ function VersionsPanel(props: VersionsPanelProps) {
     } catch (error) { props.onError(errorMessage(error, t('requestError'))) }
     finally { setPreparingScenarioUuid('') }
   }
+  const environmentChip = <span className="definition-runnable-environment" title={t('environmentOfObject')}><Layers size={14} aria-hidden="true" />{environment ? <><strong>{environment.name}</strong><code>{environment.code}</code></> : <em>{t('noDefaultEnvironment')}</em>}</span>
+  const key = (scenario: Scenario) => `${scenario.uuid}:${environmentUuid}`
   return (
-    <section id="definition-panel-versions" className="definition-version-layout" role="tabpanel" aria-labelledby="definition-tab-versions">
-      <div className="definition-version-column">
-        {props.canWrite && <form className="definition-version-form" onSubmit={props.createVersion}>
-          <label>
-            <span>{t('versionDescription')}</span>
+    <section id="definition-panel-versions" className="definition-version-layout definition-version-layout--stacked" role="tabpanel" aria-labelledby="definition-tab-versions">
+      <div className="definition-version-toolbar">
+        {props.canWrite ? <form className="definition-version-form" onSubmit={props.createVersion}>
+          <label className="definition-version-note">
+            <span className="sr-only">{t('versionDescription')}</span>
             <AntInput value={props.versionDescription} placeholder={t('versionDescriptionPlaceholder')} onChange={(event) => props.setVersionDescription(event.target.value)} />
           </label>
-          <AntActionButton tone="primary" type="submit" disabled={!props.draft || props.dirty || props.creatingVersion}>
+          <AntActionButton tone="primary" type="submit" disabled={!props.draft || props.dirty || props.creatingVersion} title={props.dirty ? t('unsaved') : undefined}>
             {props.creatingVersion ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}
             {props.creatingVersion ? t('creatingVersion') : t('createVersion')}
           </AntActionButton>
-        </form>}
-        <div className="definition-version-list">
-          {props.versions.length === 0 ? <p className="definition-state">{t('noVersions')}</p> : props.versions.map((version) => (
-            <AntActionButton tone="ghost" key={version.uuid} type="button" className={version.uuid === props.selectedVersionUuid ? 'is-selected' : ''} onClick={() => props.setSelectedVersionUuid(version.uuid)}>
-              <span className="definition-version-number">v{version.versionNumber}</span>
-              <span><strong>{version.description || `${t('version')} ${version.versionNumber}`}</strong><small>{formatter.format(new Date(version.createdAt))}</small></span>
-              <ChevronRight size={16} aria-hidden="true" />
-            </AntActionButton>
-          ))}
-        </div>
+        </form> : <span />}
+        {environmentChip}
       </div>
-      <div className="definition-scenario-column">
+      {props.versions.length === 0 ? <p className="definition-state">{t('noVersions')}</p> : (
+        <DataGrid viewControls={false} className="definition-version-table">
+          <thead><tr><th scope="col">{t('version')}</th><th scope="col">{t('versionDescription')}</th><th scope="col">{t('createdAt')}</th><th scope="col">{t('contentHash')}</th><th scope="col"><span className="sr-only">{t('details')}</span></th></tr></thead>
+          <tbody>{props.versions.map((version) => {
+            const isSelected = version.uuid === props.selectedVersionUuid
+            return <tr key={version.uuid} className={`definition-version-row${isSelected ? ' is-selected' : ''}`} aria-selected={isSelected} onClick={() => props.setSelectedVersionUuid(version.uuid)}>
+              <th scope="row"><span className="definition-version-number">v{version.versionNumber}</span></th>
+              <td><strong>{version.description || `${t('version')} ${version.versionNumber}`}</strong></td>
+              <td><time dateTime={version.createdAt}>{formatter.format(new Date(version.createdAt))}</time></td>
+              <td><code>{version.contentHash.slice(0, 12)}</code></td>
+              <td className="definition-version-chevron"><ChevronRight size={16} aria-hidden="true" /></td>
+            </tr>
+          })}</tbody>
+        </DataGrid>
+      )}
+      {selected && <div className="definition-version-detail">
         <div className="definition-panel-heading">
-          <div><h3>{t('scenarios')}</h3>{selected && <p>{t('version')} {selected.versionNumber} · <code>{selected.contentHash.slice(0, 12)}</code></p>}</div>
-          {props.canValidate && props.executable && selected && (
-            <AntActionButton tone="primary" type="button" disabled={props.compiling} onClick={props.compileScenario}>
+          <div><h3><span className="procedure-heading-icon procedure-heading-icon--scenarios" aria-hidden="true"><Workflow size={16} /></span>{t('scenarios')} · v{selected.versionNumber}<span className="procedure-heading-count">{props.scenarios.length}</span></h3><p>{!props.executable ? t('notExecutable') : props.scenarios.length === 0 ? t('noScenarios') : `${t('version')} ${selected.versionNumber} · ${selected.contentHash.slice(0, 12)}`}</p></div>
+          {props.canValidate && props.executable && (
+            <AntActionButton tone={props.scenarios.length === 0 ? 'primary' : 'secondary'} type="button" disabled={props.compiling} onClick={props.compileScenario}>
               {props.compiling ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <GitBranch size={16} aria-hidden="true" />}
               {props.compiling ? t('compiling') : t('compile')}
             </AntActionButton>
           )}
         </div>
-        {!selected ? <p className="definition-state">{t('selectVersion')}</p> : !props.executable ? <p className="definition-state">{t('notExecutable')}</p> : props.scenarios.length === 0 ? <p className="definition-state">{t('noScenarios')}</p> : (
-          <div className="definition-scenario-list">
-            {props.scenarios.map((scenario) => (
-              <article key={scenario.uuid}>
-                <div><strong>{t('scenarioVersion', { version: scenario.scenarioVersion })}</strong><span>{t('planVersion', { version: scenario.planVersion })}</span></div>
-                <code>{scenario.planHash}</code>
-                <time dateTime={scenario.createdAt}>{formatter.format(new Date(scenario.createdAt))}</time>
-                {props.canPublish && <div className="definition-runnable-actions">
-                  <label><span>{t('environment')}</span><FormSelect value={environmentUuid} onChange={(event) => setEnvironmentUuid(event.target.value)} disabled={props.environments.length === 0}>{props.environments.map((environment) => <option key={environment.uuid} value={environment.uuid}>{environment.name} · {environment.code}</option>)}</FormSelect></label>
-                  {selected?.schemaVersion === 3 && <StagedPlanPreview projectUuid={props.projectUuid} scenarioUuid={scenario.uuid} environmentUuid={environmentUuid} tr={language === 'tr'} onReady={hash => setKmPreviews(current => ({ ...current, [`${scenario.uuid}:${environmentUuid}`]: hash }))} />}
-                  {prepared[scenario.uuid] ? <Link className="definition-button definition-button--quiet" to={`/project/publications/${prepared[scenario.uuid]!.uuid}`}>{t('reviewRunnableVersion')}</Link> : <AntActionButton tone="primary" type="button" disabled={!environmentUuid || preparingScenarioUuid === scenario.uuid || (selected?.schemaVersion === 3 && !kmPreviews[`${scenario.uuid}:${environmentUuid}`])} onClick={() => void prepare(scenario)}>{preparingScenarioUuid === scenario.uuid ? t('preparingRunnableVersion') : t('prepareRunnableVersion')}</AntActionButton>}
+        {props.executable && props.scenarios.length > 0 && <div className="definition-scenario-list">
+          {props.scenarios.map((scenario) => (
+            <article key={scenario.uuid}>
+              <header className="definition-scenario-head">
+                <span className="definition-version-number definition-version-number--scenario">S{scenario.scenarioVersion}</span>
+                <div className="definition-scenario-title"><strong>{t('scenarioVersion', { version: scenario.scenarioVersion })}</strong><small>{t('planVersion', { version: scenario.planVersion })} · <time dateTime={scenario.createdAt}>{formatter.format(new Date(scenario.createdAt))}</time> · <code>{scenario.planHash.slice(0, 12)}</code></small></div>
+                {props.canPublish && <div className="definition-runnable-buttons">
+                  {stagedMapping && <PreRunReport projectUuid={props.projectUuid} scenarioUuid={scenario.uuid} environmentUuid={environmentUuid} environmentName={environment?.name ?? ''} definitionName={props.definitionName} tr={language === 'tr'} onReady={hash => setKmPreviews(current => ({ ...current, [key(scenario)]: hash }))} />}
+                  {props.definitionType === 'PROCEDURE' && isProcedureContent(selected.content) && environmentUuid && <ProcedureSimulationReport projectUuid={props.projectUuid} content={selected.content} environmentUuid={environmentUuid} definitionName={props.definitionName} onReady={() => setSimulated((current) => ({ ...current, [key(scenario)]: true }))} />}
+                  {props.definitionType === 'PACKAGE' && environmentUuid && <PackageSimulationReport projectUuid={props.projectUuid} content={selected.content} environmentUuid={environmentUuid} definitionName={props.definitionName} onReady={() => setSimulated((current) => ({ ...current, [key(scenario)]: true }))} />}
+                  {prepared[scenario.uuid] ? <Link className="definition-button definition-button--quiet" to={`/project/publications/${prepared[scenario.uuid]!.uuid}`}>{t('reviewRunnableVersion')}</Link> : <AntActionButton tone="primary" type="button" title={simulationRequired && !kmPreviews[key(scenario)] && !simulated[key(scenario)] ? (language === 'tr' ? 'Önce simüle edin' : 'Simulate first') : undefined} disabled={!environmentUuid || preparingScenarioUuid === scenario.uuid || (stagedMapping && !kmPreviews[key(scenario)]) || ((props.definitionType === 'PROCEDURE' || props.definitionType === 'PACKAGE') && !simulated[key(scenario)])} onClick={() => void prepare(scenario)}>{preparingScenarioUuid === scenario.uuid ? t('preparingRunnableVersion') : t('prepareRunnableVersion')}</AntActionButton>}
                 </div>}
-              </article>
-            ))}
-          </div>
-        )}
-      </div>
-    </section>
-  )
-}
-
-interface BindingsPanelProps {
-  projectUuid: string
-  definition: Definition
-  selectedVersion: DefinitionVersion | null
-  versions: DefinitionVersion[]
-  selectVersion: (uuid: string) => void
-  bindings: DataBinding[]
-  onCreated: (binding: DataBinding) => void
-  onError: (message: string) => void
-  canWrite: boolean
-}
-
-function BindingsPanel(props: BindingsPanelProps) {
-  const { t } = useDefinitionsI18n()
-  const [input, setInput] = useState<{
-    nodeCode: string
-    role: 'KAYNAK' | 'HEDEF'
-    dataObjectUuid: string
-    schemaSnapshotUuid: string
-  }>({ nodeCode: '', role: 'KAYNAK', dataObjectUuid: '', schemaSnapshotUuid: '' })
-  const [saving, setSaving] = useState(false)
-  const [candidates, setCandidates] = useState<BindingCandidate[]>([])
-  const [loadingCandidates, setLoadingCandidates] = useState(false)
-  const [candidateError, setCandidateError] = useState('')
-  const nodes = useMemo(
-    () => bindingNodes(props.definition.type, props.selectedVersion?.content),
-    [props.definition.type, props.selectedVersion?.content],
-  )
-  const availableNodes = useMemo(
-    () => unboundNodes(nodes, props.bindings),
-    [nodes, props.bindings],
-  )
-  const selectedCandidate = candidates.find((candidate) => candidate.schemaSnapshotUuid === input.schemaSnapshotUuid)
-
-  useEffect(() => {
-    setInput({ nodeCode: '', role: 'KAYNAK', dataObjectUuid: '', schemaSnapshotUuid: '' })
-    setCandidates([])
-    setCandidateError('')
-    if (!props.selectedVersion) return
-    let active = true
-    setLoadingCandidates(true)
-    void definitionsApi.listBindingCandidates(
-      props.projectUuid, props.definition.uuid, props.selectedVersion.uuid,
-    ).then((items) => {
-      if (active) setCandidates(items)
-    }).catch((error) => {
-      if (active) setCandidateError(errorMessage(error, t('bindingCandidatesError')))
-    }).finally(() => {
-      if (active) setLoadingCandidates(false)
-    })
-    return () => { active = false }
-  }, [props.definition.uuid, props.projectUuid, props.selectedVersion, t])
-
-  useEffect(() => {
-    if (nodes.length === 0 || availableNodes.length === 0) return
-    if (availableNodes.some((node) => node.code === input.nodeCode)) return
-    const node = availableNodes[0]!
-    setInput((current) => ({ ...current, nodeCode: node.code, role: node.role }))
-  }, [availableNodes, input.nodeCode, nodes.length])
-
-  function selectNode(nodeCode: string) {
-    const node = availableNodes.find((candidate) => candidate.code === nodeCode)
-    if (!node) return
-    setInput({ ...input, nodeCode: node.code, role: node.role })
-  }
-
-  function selectCandidate(snapshotUuid: string) {
-    const candidate = candidates.find((item) => item.schemaSnapshotUuid === snapshotUuid)
-    setInput({
-      ...input,
-      schemaSnapshotUuid: candidate?.schemaSnapshotUuid ?? '',
-      dataObjectUuid: candidate?.dataObjectUuid ?? '',
-    })
-  }
-  async function submit(event: FormEvent) {
-    event.preventDefault()
-    if (!props.selectedVersion) return
-    setSaving(true)
-    try {
-      const created = await definitionsApi.createBinding(props.projectUuid, props.definition.uuid, props.selectedVersion.uuid, input)
-      props.onCreated(created)
-      setInput((current) => ({ ...current, nodeCode: '', dataObjectUuid: '', schemaSnapshotUuid: '' }))
-    } catch (error) {
-      props.onError(errorMessage(error, t('requestError')))
-    } finally {
-      setSaving(false)
-    }
-  }
-  return (
-    <section id="definition-panel-bindings" className="definition-bindings-panel" role="tabpanel" aria-labelledby="definition-tab-bindings">
-      <div className="definition-panel-heading">
-        <h3>{t('binding')}</h3>
-        <label><span>{t('version')}</span><FormSelect value={props.selectedVersion?.uuid ?? ''} onChange={(event) => props.selectVersion(event.target.value)}><option value="">—</option>{props.versions.map((version) => <option key={version.uuid} value={version.uuid}>v{version.versionNumber}</option>)}</FormSelect></label>
-      </div>
-      {props.canWrite && <form className="definition-binding-form" onSubmit={submit}>
-        {nodes.length > 0 ? <>
-          <label><span>{t('stepOrDataset')}</span><FormSelect required value={input.nodeCode} onChange={(event) => selectNode(event.target.value)}><option value="">—</option>{availableNodes.map((node) => <option key={node.code} value={node.code}>{node.name} · {node.code} · {node.role === 'KAYNAK' ? t('source') : t('target')}</option>)}</FormSelect></label>
-          <label><span>{t('catalogSnapshot')}</span><FormSelect required value={input.schemaSnapshotUuid} onChange={(event) => selectCandidate(event.target.value)} disabled={loadingCandidates || candidates.length === 0}><option value="">—</option>{candidates.map((candidate) => <option key={candidate.schemaSnapshotUuid} value={candidate.schemaSnapshotUuid}>{candidateLabel(candidate)}</option>)}</FormSelect></label>
-          <label><span>{t('role')}</span><AntInput readOnly value={input.role === 'KAYNAK' ? t('source') : t('target')} /></label>
-          <label><span>{t('environments')}</span><AntInput readOnly value={selectedCandidate?.environmentCodes.join(', ') ?? '—'} /></label>
-        </> : <p className="definition-state">{t('structuredBindingUnavailable')}</p>}
-        <AntActionButton tone="primary" type="submit" disabled={!props.selectedVersion || saving || nodes.length === 0 || !input.nodeCode || !selectedCandidate}>{saving ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}{t('saveBinding')}</AntActionButton>
-      </form>}
-      {loadingCandidates && <p className="definition-state"><LoaderCircle className="spin" aria-hidden="true" /> {t('loadingBindingCandidates')}</p>}
-      {candidateError && <p className="definition-state definition-state--error" role="alert"><AlertCircle aria-hidden="true" /> {candidateError}</p>}
-      {!loadingCandidates && !candidateError && nodes.length > 0 && candidates.length === 0 && <p className="definition-state">{t('noTrustedSnapshots')}</p>}
-      {!loadingCandidates && nodes.length > 0 && availableNodes.length === 0 && <p className="definition-state">{t('allNodesBound')}</p>}
-      {props.bindings.length === 0 ? <p className="definition-state">{t('noBindings')}</p> : (
-        <div className="definition-binding-list">{props.bindings.map((binding) => {
-          const candidate = candidates.find((item) => item.schemaSnapshotUuid === binding.schemaSnapshotUuid)
-          return <article key={binding.uuid}><span className={`definition-role definition-role--${binding.role === 'KAYNAK' ? 'source' : 'target'}`}>{binding.role === 'KAYNAK' ? t('source') : t('target')}</span><strong>{binding.nodeCode}</strong><dl>{candidate ? <><div><dt>{t('catalogObject')}</dt><dd>{candidate.connectionCode} · {candidate.physicalSchemaReference}.{candidate.objectReference}</dd></div><div><dt>{t('snapshotFingerprint')}</dt><dd><code title={candidate.snapshotFingerprint}>{candidate.snapshotFingerprint.slice(0, 12)}…{candidate.snapshotFingerprint.slice(-8)}</code></dd></div></> : <div><dt>{t('catalogObject')}</dt><dd>{t('legacyBindingUnavailable')}</dd></div>}</dl></article>
-        })}</div>
-      )}
+              </header>
+            </article>
+          ))}
+        </div>}
+      </div>}
     </section>
   )
 }
 
 interface CreateDefinitionEditorProps {
-  projectUuid: string
   folders: Folder[]
   types: DefinitionTypeDescriptor[]
   initialType: DefinitionType | null
@@ -937,12 +828,18 @@ interface CreateDefinitionEditorProps {
   onCreate: (input: NewDefinitionInput, content: unknown) => Promise<void>
 }
 
-function CreateDefinitionEditor({ projectUuid, folders, types, initialType, initialFolderUuid, creating, close, onCreate }: CreateDefinitionEditorProps) {
+/** Procedures carry their technologies from the first save so the Tasks tab filters logical schemas immediately. */
+const withDefaultTechnology = (content: unknown) => isProcedureContent(content) ? { ...content, technology: { source: 'ORACLE', target: 'ORACLE', multiConnection: true, ...content.technology } } : content
+
+function CreateDefinitionEditor({ folders, types, initialType, initialFolderUuid, creating, close, onCreate }: CreateDefinitionEditorProps) {
   const { t } = useDefinitionsI18n()
   const [input, setInput] = useState<NewDefinitionInput>({ folderUuid: initialFolderUuid, type: initialType ?? 'MAPPING', code: '', name: '', description: '' })
-  const [initialContent, setInitialContent] = useState<unknown>(() => createDefaultContent(initialType ?? 'MAPPING'))
+  const [initialContent, setInitialContent] = useState<unknown>(() => withDefaultTechnology(createDefaultContent(initialType ?? 'MAPPING')))
   const descriptor = types.find((type) => type.code === input.type)
   const fixedComponentType = initialType !== null && !descriptor?.folderRequired
+  // Opened from a folder in the explorer: the object is created right there, so the folder is shown, not chosen.
+  const contextFolder = initialFolderUuid ? folders.find((folder) => folder.uuid === initialFolderUuid) ?? null : null
+  const folderPath = (folder: Folder | null): string => folder ? [folderPath(folders.find((item) => item.uuid === folder.parentUuid) ?? null), folder.name].filter(Boolean).join(' / ') : ''
   async function submit(event: FormEvent) {
     event.preventDefault()
     if (descriptor?.folderRequired && !input.folderUuid) return
@@ -951,22 +848,21 @@ function CreateDefinitionEditor({ projectUuid, folders, types, initialType, init
   return (
     <section className="definition-new-editor" aria-label={initialType ? t('newDefinitionNamed', { name: t(definitionTypeKey[initialType]) }) : t('newDefinition')}>
       <form onSubmit={submit}>
-        <header className="definition-document-header definition-new-editor-header"><div><div className="definition-document-meta"><span className="definition-type-chip">{t(definitionTypeKey[input.type])}</span><span>{t('newDefinition')}</span></div><h2>{input.name || t('newDefinitionNamed', { name: t(definitionTypeKey[input.type]) })}</h2></div><div className="definition-editor-actions"><AntActionButton tone="secondary" type="button" onClick={close}>{t('cancel')}</AntActionButton><AntActionButton tone="primary" type="submit" disabled={creating || !input.code || !input.name || Boolean(descriptor?.folderRequired && !input.folderUuid)}>{creating ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Save size={16} aria-hidden="true" />}{creating ? t('creating') : t('saveDraft')}</AntActionButton></div></header>
+        <header className="definition-document-header definition-new-editor-header"><div><div className="definition-document-meta"><span className="definition-type-chip"><DefinitionTypeIcon type={input.type} size={12} />{t(definitionTypeKey[input.type])}</span>{contextFolder && <span className="definition-context-folder"><ProjectFolderIcon size={13} />{folderPath(contextFolder)}</span>}<span>{t('newDefinition')}</span></div><h2>{input.name || t('newDefinitionNamed', { name: t(definitionTypeKey[input.type]) })}</h2></div><div className="definition-editor-actions"><AntActionButton tone="secondary" type="button" onClick={close}>{t('cancel')}</AntActionButton><AntActionButton tone="primary" type="submit" disabled={creating || !input.code || !input.name || Boolean(descriptor?.folderRequired && !input.folderUuid)}>{creating ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Save size={16} aria-hidden="true" />}{creating ? t('creating') : t('saveDraft')}</AntActionButton></div></header>
         <fieldset disabled={creating} className="definition-new-editor-fields">
           <div className="definition-form-grid">
-            {!initialType && <label><span>{t('type')}</span><FormSelect value={input.type} onChange={(event) => { const type = event.target.value as DefinitionType; setInput({ ...input, type, folderUuid: null }); setInitialContent(createDefaultContent(type)) }}>{types.map((type) => <option key={type.code} value={type.code}>{t(definitionTypeKey[type.code])}</option>)}</FormSelect></label>}
-            {!fixedComponentType && <label><span>{t('folder')}</span><FormSelect required={descriptor?.folderRequired} value={input.folderUuid ?? ''} onChange={(event) => setInput({ ...input, folderUuid: event.target.value || null })}><option value="">{t('noFolder')}</option>{folders.filter((folder) => folder.status === 'AKTIF').map((folder) => <option key={folder.uuid} value={folder.uuid}>{folder.name} · {folder.code}</option>)}</FormSelect>{descriptor?.folderRequired && !input.folderUuid && <small>{t('folderRequired')}</small>}</label>}
+            {!initialType && <label><span>{t('type')}</span><FormSelect value={input.type} onChange={(event) => { const type = event.target.value as DefinitionType; setInput({ ...input, type, folderUuid: null }); setInitialContent(withDefaultTechnology(createDefaultContent(type))) }}>{types.map((type) => <option key={type.code} value={type.code}>{t(definitionTypeKey[type.code])}</option>)}</FormSelect></label>}
+            {!fixedComponentType && !contextFolder && <label><span>{t('folder')}</span><FormSelect required={descriptor?.folderRequired} value={input.folderUuid ?? ''} onChange={(event) => setInput({ ...input, folderUuid: event.target.value || null })}><option value="">{t('noFolder')}</option>{folders.filter((folder) => folder.status === 'AKTIF').map((folder) => <option key={folder.uuid} value={folder.uuid}>{folder.name} · {folder.code}</option>)}</FormSelect>{descriptor?.folderRequired && !input.folderUuid && <small>{t('folderRequired')}</small>}</label>}
             <label><span>{t('code')}</span><AntInput autoFocus required pattern="[A-Z][A-Z0-9_]{0,99}" placeholder="CUSTOMER_LOAD" value={input.code} onChange={(event) => setInput({ ...input, code: event.target.value.toLocaleUpperCase('en-US').replace(/[^A-Z0-9_]/g, '') })} /></label>
             <label><span>{t('name')}</span><AntInput required value={input.name} onChange={(event) => setInput({ ...input, name: event.target.value })} /></label>
+            {input.type === 'PROCEDURE' && isProcedureContent(initialContent) && <>
+              <label><span>{t('sourceTechnology')}</span><FormSelect value={initialContent.technology?.source ?? 'ORACLE'} onChange={(event) => setInitialContent({ ...initialContent, technology: { ...initialContent.technology, source: event.target.value } })}>{DATABASE_TYPES.map((type) => <option key={type} value={type}>{databaseProviderVisual(type).label}</option>)}</FormSelect></label>
+              <label><span>{t('targetTechnology')}</span><FormSelect value={initialContent.technology?.target ?? 'ORACLE'} onChange={(event) => setInitialContent({ ...initialContent, technology: { ...initialContent.technology, target: event.target.value } })}>{DATABASE_TYPES.map((type) => <option key={type} value={type}>{databaseProviderVisual(type).label}</option>)}</FormSelect></label>
+            </>}
             <label className="definition-form-grid--wide"><span>{t('description')}</span><AntInput.TextArea rows={3} value={input.description} onChange={(event) => setInput({ ...input, description: event.target.value })} /></label>
           </div>
         </fieldset>
-        <fieldset disabled={creating} className="definition-readonly-gate definition-new-editor-content">
-          {input.type === 'MAPPING' && isMappingContent(initialContent) ? <MappingGrid projectUuid={projectUuid} value={initialContent} onChange={setInitialContent} />
-            : input.type === 'PROCEDURE' && isProcedureContent(initialContent) ? <ProcedureEditor projectUuid={projectUuid} definition={{ code: input.code, name: input.name, description: input.description }} value={initialContent} onChange={setInitialContent} />
-              : input.type === 'PACKAGE' ? <PackageEditor projectUuid={projectUuid} definitionUuid="__new__" value={initialContent} onChange={setInitialContent} />
-                : <StructuredDraftEditor projectUuid={projectUuid} type={input.type} value={initialContent} onChange={setInitialContent} />}
-        </fieldset>
+        <p className="definition-new-editor-hint"><AlertCircle size={15} aria-hidden="true" />{t('createThenDesign')}</p>
       </form>
     </section>
   )

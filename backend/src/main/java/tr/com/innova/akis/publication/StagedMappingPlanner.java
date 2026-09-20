@@ -8,19 +8,17 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tr.com.innova.akis.knowledge.*;
 import tr.com.innova.akis.metadata.ApiException;
-import tr.com.innova.akis.topology.WorkPrefixService;
 import static tr.com.innova.akis.publication.PublicationModels.*;
 
 /** Metadata-only physical plan preparation; never opens a business database connection. */
 @Component
 final class StagedMappingPlanner {
     private final KnowledgeModuleRegistry modules;
-    private final WorkPrefixService prefixes;
     private final JdbcClient jdbc;
     private final ObjectMapper mapper;
     private final WorkAreaPolicyService workAreas;
-    StagedMappingPlanner(KnowledgeModuleRegistry modules, WorkPrefixService prefixes, JdbcClient jdbc, ObjectMapper mapper,WorkAreaPolicyService workAreas) {
-        this.modules=modules; this.prefixes=prefixes; this.jdbc=jdbc; this.mapper=mapper; this.workAreas=workAreas;
+    StagedMappingPlanner(KnowledgeModuleRegistry modules, JdbcClient jdbc, ObjectMapper mapper,WorkAreaPolicyService workAreas) {
+        this.modules=modules; this.jdbc=jdbc; this.mapper=mapper; this.workAreas=workAreas;
     }
     JsonNode compile(PublicationContext context, List<ResolvedBinding> bindings) {
         JsonNode content = context.scenarioPlan().path("executable").path("definition");
@@ -30,46 +28,54 @@ final class StagedMappingPlanner {
         try { definition = StagedMappingDefinition.parse(content); }
         catch (IllegalArgumentException invalid) { throw rejected(invalid.getMessage()); }
         var bundle = modules.resolve(context.projectId(), definition);
-        if (bindings.size()!=2 || bindings.stream().anyMatch(b -> !"ORACLE".equals(b.databaseType()) || !Set.of("TABLE", "TABLO").contains(b.dataObjectType())))
-            throw rejected("Tek Oracle kaynak/hedef tablo bağı gerekir.");
+        int expectedBindingCount = definition.sources().isEmpty() ? 2 : definition.sources().size() + 1;
+        if (bindings.size()!=expectedBindingCount || bindings.stream().anyMatch(b -> !"ORACLE".equals(b.databaseType()) || !Set.of("TABLE", "TABLO").contains(b.dataObjectType())))
+            throw rejected("Tüm kaynak ve hedeflerin Oracle tablo çözümlemesi gerekir.");
         Set<String> expected = new HashSet<>();
-        content.path("datasets").forEach(d -> expected.add(d.path("id").asText()));
-        if (!expected.equals(new HashSet<>(bindings.stream().map(ResolvedBinding::nodeCode).toList()))) throw rejected("Mapping veri bağları uyuşmuyor.");
-        for (var dataset : content.path("datasets")) {
+        if (content.has("sources")) { content.path("sources").forEach(d -> expected.add(d.path("id").asText())); expected.add(content.path("target").path("id").asText()); }
+        else content.path("datasets").forEach(d -> expected.add(d.path("id").asText()));
+        if (!expected.equals(new HashSet<>(bindings.stream().map(ResolvedBinding::nodeCode).toList()))) throw rejected("Kaynak ve hedef referansları uyuşmuyor.");
+        if (content.has("sources")) {
+            for(var source:content.path("sources")) if(bindings.stream().noneMatch(b->b.nodeCode().equals(source.path("id").asText())&&"KAYNAK".equals(b.role()))) throw rejected("Kaynak rolü uyuşmuyor.");
+            if(bindings.stream().noneMatch(b->b.nodeCode().equals(content.path("target").path("id").asText())&&"HEDEF".equals(b.role()))) throw rejected("Hedef rolü uyuşmuyor.");
+        } else for (var dataset : content.path("datasets")) {
             var binding = bindings.stream().filter(b -> b.nodeCode().equals(dataset.path("id").asText())).findFirst().orElseThrow();
             String expectedRole = "SOURCE".equals(dataset.path("role").asText()) ? "KAYNAK" : "HEDEF";
             if (!binding.role().equals(expectedRole)) throw rejected("Kaynak/hedef rolü uyuşmuyor.");
         }
+        var target=bindings.stream().filter(b->"HEDEF".equals(b.role())).findFirst().orElseThrow();
         var staging = jdbc.sql("""
-            select p.uuid project_uuid,fs.uuid physical_uuid,fs.sema_adi,bs.uuid connection_uuid,se.uuid binding_uuid,se.versiyon_no
+            select p.uuid project_uuid,fs.uuid physical_uuid,fs.calisma_sema_adi,b.uuid connection_uuid,
+                   se.uuid binding_uuid,ms.uuid logical_uuid,
+                   fs.yukleme_prefix,fs.entegrasyon_prefix,fs.hata_prefix
             from akis.proje p
-            join akis.mantiksal_sema ms on ms.proje_id=p.id and ms.uuid=:logical
-            join akis.sema_eslemesi se on se.proje_id=p.id and se.mantiksal_sema_id=ms.id and se.ortam_id=:environment
-            join akis.fiziksel_sema fs on fs.proje_id=p.id and fs.id=se.fiziksel_sema_id
-            join akis.baglanti_surumu bs on bs.proje_id=p.id and bs.id=se.baglanti_surumu_id and bs.baglanti_id=fs.baglanti_id
-            join akis.baglanti b on b.proje_id=p.id and b.id=bs.baglanti_id
-            where p.id=:project and ms.arsivlenme_zamani is null and fs.arsivlenme_zamani is null
-              and b.arsivlenme_zamani is null and bs.durum='ETKIN' and b.saglayici_turu='ORACLE'
-            """).param("project",context.projectId()).param("logical",definition.logicalSchemaUuid())
-            .param("environment",context.environmentId()).query((rs,n) -> {
+            join akis.sema_eslemesi se on se.uuid=:binding
+            join akis.mantiksal_sema ms on ms.id=se.mantiksal_sema_id
+            join akis.fiziksel_sema fs on fs.id=se.fiziksel_sema_id and fs.uuid=:physical
+            join akis.baglanti b on b.id=fs.baglanti_id and b.uuid=:connection
+            where p.id=:project and fs.durum='ETKIN' and b.durum='ETKIN' and b.saglayici_turu='ORACLE'
+            """).param("project",context.projectId()).param("binding",target.environmentSchemaBindingUuid())
+            .param("physical",target.physicalSchemaUuid()).param("connection",target.connectionVersionUuid()).query((rs,n) -> {
                 var node=mapper.createObjectNode();
                 node.put("projectUuid",rs.getString("project_uuid"));
                 node.put("physicalSchemaUuid",rs.getString("physical_uuid"));
-                node.put("owner",StagedMappingDefinition.identifier(rs.getString("sema_adi")));
+                node.put("owner",StagedMappingDefinition.identifier(rs.getString("calisma_sema_adi")));
+                node.put("connectionUuid",rs.getString("connection_uuid"));
                 node.put("connectionVersionUuid",rs.getString("connection_uuid"));
-                node.put("bindingUuid",rs.getString("binding_uuid")); node.put("bindingVersion",rs.getLong("versiyon_no"));
+                node.put("bindingUuid",rs.getString("binding_uuid")); node.put("bindingVersion",1L);
+                node.put("logicalSchemaUuid",rs.getString("logical_uuid"));
+                var prefix=mapper.createObjectNode();
+                prefix.put("loading",rs.getString("yukleme_prefix")); prefix.put("integration",rs.getString("entegrasyon_prefix")); prefix.put("error",rs.getString("hata_prefix"));
+                node.set("prefixes",prefix); node.put("prefixOrigin","PHYSICAL_SCHEMA"); node.put("prefixVersion",1L);
                 return node;
-            }).optional().orElseThrow(() -> rejected("Çalışma mantıksal şeması için etkin Oracle ortam eşlemesi gerekir."));
-        var prefix = prefixes.get(UUID.fromString(staging.path("projectUuid").asText()), null,
-                UUID.fromString(staging.path("physicalSchemaUuid").asText()));
-        staging.set("prefixes",mapper.valueToTree(prefix.prefixes()));
-        staging.put("prefixOrigin",prefix.origin()); staging.put("prefixVersion",prefix.version());
-        staging.put("logicalSchemaUuid",definition.logicalSchemaUuid().toString());
+            }).optional().orElseThrow(() -> rejected("Hedef fiziksel şeması etkin bir Oracle bağlantısına bağlı olmalıdır."));
         var workPolicy=workAreas.get(UUID.fromString(staging.path("projectUuid").asText()),UUID.fromString(staging.path("physicalSchemaUuid").asText()));
-        var target=bindings.stream().filter(b->"HEDEF".equals(b.role())).findFirst().orElseThrow();
         // Same-name owners on different DBs are conservatively treated alike; live preflight proves actual DB/PDB.
         WorkAreaPolicyService.requireAllowed(workPolicy,definition.options(),staging.path("owner").asText().equals(target.physicalSchemaReference()));
         staging.set("workAreaPolicy",mapper.valueToTree(workPolicy));
+        var integrationOptions = bundle.modules().get("integration").options();
+        staging.put("nonReversibleDdl", "TRUNCATE_LOAD".equals(integrationOptions.get("WRITE_MODE"))
+                && Boolean.TRUE.equals(integrationOptions.get("TRUNCATE_TARGET")));
         var plan=mapper.createObjectNode();
         plan.put("planVersion",1); plan.put("language",AkisKmLanguage.VERSION);
         plan.put("scenarioPlanHash",context.planHash()); plan.put("definitionVersionUuid",context.definitionVersionUuid().toString());
@@ -79,7 +85,10 @@ final class StagedMappingPlanner {
         var pins=mapper.createObjectNode();
         bundle.modules().forEach((role,module) -> {
             var pin=mapper.createObjectNode(); pin.put("versionUuid",module.versionUuid().toString());
-            pin.put("contentHash",module.contentHash()); pin.put("source",module.source()); pin.put("kind",module.kind()); pins.set(role,pin);
+            pin.put("contentHash",module.contentHash()); pin.put("source",module.source()); pin.put("kind",module.kind());
+            pin.set("options", mapper.valueToTree(module.options()));
+            pin.set("optionSchema", module.optionSchema());
+            pins.set(role,pin);
         });
         plan.set("modules",pins); plan.set("steps",mapper.valueToTree(bundle.plan().steps()));
         var resolved=mapper.createArrayNode();
@@ -95,6 +104,14 @@ final class StagedMappingPlanner {
         plan.set("bindings",resolved);
         plan.put("physicalPlanHash",KmCanonical.hash(mapper,plan));
         return KmCanonical.normalize(mapper,plan);
+    }
+    /** Statement preview for the pre-run report; derived from the compiled plan, never executed. */
+    JsonNode sqlPreview(PublicationContext context, JsonNode plan) {
+        JsonNode content = context.scenarioPlan().path("executable").path("definition");
+        StagedMappingDefinition definition;
+        try { definition = StagedMappingDefinition.parse(content); }
+        catch (IllegalArgumentException invalid) { throw rejected(invalid.getMessage()); }
+        return StagedSqlPreview.render(mapper, jdbc, definition, plan);
     }
     private static ApiException rejected(String message) { return new ApiException(HttpStatus.UNPROCESSABLE_CONTENT,"STAGED_PLAN_REJECTED",message); }
 }

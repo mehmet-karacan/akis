@@ -91,7 +91,6 @@
         "PROCEDURE",
         "VARIABLE",
         "SEQUENCE",
-        "USER_FUNCTION",
         "KNOWLEDGE_MODULE",
         "LOAD_PLAN"
       ]

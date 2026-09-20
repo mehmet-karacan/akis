@@ -2,6 +2,16 @@ import type { Folder } from '../features/definitions/types'
 
 export interface FolderTreeNode extends Folder { children: FolderTreeNode[] }
 
+/** Follow the rendered hierarchy, including orphan/cycle recovery, rather than raw parent links. */
+export function folderPath(tree: FolderTreeNode[], uuid: string): string[] {
+  for (const folder of tree) {
+    if (folder.uuid === uuid) return [folder.uuid]
+    const descendants = folderPath(folder.children, uuid)
+    if (descendants.length) return [folder.uuid, ...descendants]
+  }
+  return []
+}
+
 export function buildFolderTree(folders: Folder[], locale = 'en'): FolderTreeNode[] {
   const sorted = [...folders].sort((left, right) => left.name.localeCompare(right.name, locale))
   const byParent = new Map<string | null, Folder[]>()

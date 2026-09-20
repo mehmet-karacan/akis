@@ -71,7 +71,7 @@ public final class DefinitionContentValidator {
     }
 
     public void validate(DefinitionType type, int schemaVersion, JsonNode content) {
-        if (schemaVersion != 1 && schemaVersion != 2 && !(schemaVersion == 3 && type == DefinitionType.MAPPING)) {
+        if (schemaVersion != 1 && schemaVersion != 2 && !((schemaVersion == 3 || schemaVersion == 4) && type == DefinitionType.MAPPING)) {
             fail("Desteklenmeyen tanım şema sürümü: " + schemaVersion);
         }
         if (schemaVersion == 2
@@ -81,7 +81,10 @@ public final class DefinitionContentValidator {
             fail("Tanım şema sürümü 2 yalnız MAPPING, PROCEDURE ve KNOWLEDGE_MODULE için desteklenir.");
         }
         requireObject(content, "Tanım içeriği");
-        List<String> missing = type.requiredContentFields().stream()
+        List<String> requiredFields = type == DefinitionType.MAPPING && schemaVersion < 4
+                ? List.of("datasets", "columnMappings", "writeStrategy")
+                : type.requiredContentFields();
+        List<String> missing = requiredFields.stream()
                 .filter(field -> content.get(field) == null || content.get(field).isNull())
                 .toList();
         if (!missing.isEmpty()) {
@@ -100,27 +103,55 @@ public final class DefinitionContentValidator {
                 requireArray(content, "outputs");
                 requireArray(content, "nodes");
             }
-            case USER_FUNCTION -> {
-                requireText(content, "returnType");
-                requireArray(content, "parameters");
-                requireArray(content, "implementations");
-            }
             case KNOWLEDGE_MODULE -> {
-                if (schemaVersion == 2 && !"AKIS_KM/1".equals(content.path("language").asText())) fail("KM sürüm 2 için AKIS_KM/1 dili zorunludur.");
+                if (schemaVersion == 2 && !Set.of("AKIS_KM/1", "AKIS_KM/2").contains(content.path("language").asText())) fail("KM sürüm 2 için desteklenen AKIS_KM dili zorunludur.");
                 requireAllowed(content, "kmType", Set.of(
                         "RKM", "CKM", "LKM", "IKM", "XKM", "JKM", "SKM"));
                 requireArray(content, "tasks");
                 requireArray(content, "options");
                 if (content.has("language")) {
-                    if (!"AKIS_KM/1".equals(content.path("language").asText())) fail("Desteklenmeyen KM dili.");
+                    if (!Set.of("AKIS_KM/1", "AKIS_KM/2").contains(content.path("language").asText())) fail("Desteklenmeyen KM dili.");
                     try {
                         var program = tr.com.innova.akis.knowledge.AkisKmLanguage.parse(requireText(content, "source"));
                         if (!program.kind().name().equals(content.path("kmType").asText())) fail("KM türü ile MODUL bildirimi uyuşmuyor.");
-                        if (!content.path("tasks").isEmpty() || !content.path("options").isEmpty()) fail("AKIS_KM/1 görevleri dil kaynağından alınır; eski görev/seçenek listelerini ayrı sürümde koruyun.");
+                        if (!content.path("tasks").isEmpty() || !content.path("options").isEmpty()) fail("AKIS_KM görevleri ve seçenekleri dil kaynağından alınır.");
+                        if ("AKIS_KM/2".equals(program.language()) && content.has("optionSchema") && !content.path("optionSchema").isEmpty()) fail("AKIS_KM/2 seçeneklerinin tek kaynağı SECENEK bildirimleridir.");
+                        if ("AKIS_KM/1".equals(program.language())) validateKnowledgeOptionSchema(content.path("optionSchema"));
                     } catch (IllegalArgumentException invalid) { fail(invalid.getMessage()); }
                 }
             }
             case LOAD_PLAN -> validateLoadPlan(content);
+        }
+    }
+
+    private void validateKnowledgeOptionSchema(JsonNode schema) {
+        if (schema.isMissingNode()) return;
+        if (!schema.isArray() || schema.size() > 32) fail("KM optionSchema en fazla 32 seçenek içeren bir dizi olmalıdır.");
+        Set<String> keys = new HashSet<>();
+        Set<String> types = Set.of("BOOLEAN", "INTEGER", "STRING", "ENUM", "SQL_HINT", "IDENTIFIER", "COLUMN_LIST");
+        for (int index = 0; index < schema.size(); index++) {
+            JsonNode option = schema.get(index);
+            requireObject(option, "optionSchema[" + index + "]");
+            String key = requireText(option, "key", "optionSchema[" + index + "]");
+            if (!key.matches("[A-Z][A-Z0-9_]{0,63}") || !keys.add(key)) fail("KM seçenek anahtarları benzersiz standart kimlik olmalıdır.");
+            requireText(option, "label", "optionSchema[" + index + "]");
+            String type = requireAllowed(option, "type", types, "optionSchema[" + index + "]");
+            if (option.has("required") && !option.path("required").isBoolean()) fail("KM required alanı boolean olmalıdır.");
+            JsonNode defaultValue = option.get("defaultValue");
+            if (defaultValue != null && !defaultValue.isNull()) {
+                boolean valid = switch (type) {
+                    case "BOOLEAN" -> defaultValue.isBoolean();
+                    case "INTEGER" -> (defaultValue.isIntegralNumber() && defaultValue.canConvertToLong())
+                            || (defaultValue.isTextual() && tr.com.innova.akis.knowledge.KmIntegerValue.valid(defaultValue.asText()));
+                    default -> defaultValue.isTextual() && defaultValue.asText().length() <= 1024;
+                };
+                if (!valid) fail("KM varsayılan değeri seçenek tipiyle uyuşmuyor: " + key);
+            }
+            if ("ENUM".equals(type)) {
+                JsonNode values = requireArray(option, "values", "optionSchema[" + index + "]");
+                if (values.isEmpty() || values.size() > 64) fail("ENUM en az bir, en fazla 64 değer içermelidir.");
+                for (JsonNode value : values) if (!value.isTextual() || value.asText().isBlank()) fail("ENUM değerleri boş olmayan metin olmalıdır.");
+            }
         }
     }
 
@@ -305,6 +336,10 @@ public final class DefinitionContentValidator {
         if (onError != null && !onError.isNull()) {
             requireAllowed(task, "onError", PROCEDURE_ERROR_POLICIES, path);
         }
+        JsonNode enabled = task.get("enabled");
+        if (enabled != null && !enabled.isNull() && !enabled.isBoolean()) {
+            fail(path + ".enabled boolean olmalıdır.");
+        }
         validateOptionalInteger(task, "timeoutSeconds", path, 1, 3_600);
 
         JsonNode output = task.get("output");
@@ -479,6 +514,10 @@ public final class DefinitionContentValidator {
     }
 
     private void validateMapping(JsonNode content, int schemaVersion) {
+        if (schemaVersion == 4) {
+            validateDirectMapping(content);
+            return;
+        }
         if (schemaVersion == 3) {
             try { tr.com.innova.akis.knowledge.StagedMappingDefinition.parse(content); }
             catch (IllegalArgumentException invalid) { fail(invalid.getMessage()); }
@@ -569,6 +608,86 @@ public final class DefinitionContentValidator {
         }
     }
 
+    private void validateDirectMapping(JsonNode content) {
+        JsonNode sources = requireArray(content, "sources");
+        JsonNode target = content.path("target");
+        requireObject(target, "target");
+        JsonNode joins = requireArray(content, "joins");
+        JsonNode filters = requireArray(content, "filters");
+        JsonNode mappings = requireArray(content, "columnMappings");
+        if (sources.isEmpty()) fail("Arayüz en az bir kaynak içermelidir.");
+        Map<String, String> roles = new HashMap<>();
+        for (int index = 0; index < sources.size(); index++) {
+            validateObjectReference(sources.get(index), "sources[" + index + "]", "SOURCE", roles);
+        }
+        validateObjectReference(target, "target", "TARGET", roles);
+        if (mappings.isEmpty()) fail("Arayüz en az bir kolon eşlemesi içermelidir.");
+        Set<String> mappedTargets = new HashSet<>();
+        for (int index = 0; index < mappings.size(); index++) {
+            JsonNode mapping = mappings.get(index);
+            String path = "columnMappings[" + index + "]";
+            requireObject(mapping, path);
+            JsonNode targetRef = mapping.path("target");
+            String targetObject = directColumnReference(targetRef, path + ".target", roles, "TARGET");
+            String targetColumn = requireText(targetRef, "column", path + ".target");
+            if (!mappedTargets.add(targetObject + "\u0000" + targetColumn.toUpperCase(Locale.ROOT))) fail("Aynı hedef kolon birden fazla kez yazılamaz.");
+            JsonNode source = mapping.get("source");
+            JsonNode expression = mapping.get("expression");
+            boolean hasSource = source != null && !source.isNull();
+            boolean hasExpression = expression != null && !expression.isNull();
+            if (hasSource == hasExpression) fail(path + " tam olarak bir kaynak veya ifade içermelidir.");
+            if (hasSource) directColumnReference(source, path + ".source", roles, "SOURCE");
+            // Schema-4 expressions share the bounded SQL contract used by the
+            // staged planner/runtime; StagedMappingDefinition below validates it.
+        }
+        Set<String> joinIds = new HashSet<>();
+        for (int index = 0; index < joins.size(); index++) {
+            JsonNode join = joins.get(index); String path = "joins[" + index + "]"; requireObject(join, path);
+            String id = requireText(join, "id", path); if (!joinIds.add(id)) fail("Join kimliği benzersiz olmalıdır.");
+            requireAllowed(join, "type", Set.of("INNER", "LEFT", "RIGHT", "FULL"), path);
+            String left = directColumnReference(join.path("left"), path + ".left", roles, "SOURCE");
+            String right = directColumnReference(join.path("right"), path + ".right", roles, "SOURCE");
+            if (left.equals(right)) fail("Join iki farklı kaynak arasında olmalıdır.");
+        }
+        Set<String> filterIds = new HashSet<>();
+        for (int index = 0; index < filters.size(); index++) {
+            JsonNode filter = filters.get(index); String path = "filters[" + index + "]"; requireObject(filter, path);
+            String id = requireText(filter, "id", path); if (!filterIds.add(id)) fail("Filtre kimliği benzersiz olmalıdır.");
+            String scope = requireAllowed(filter, "scope", Set.of("SOURCE", "GLOBAL"), path);
+            if ("SOURCE".equals(scope)) {
+                String object = requireText(filter, "object", path);
+                if (!"SOURCE".equals(roles.get(object))) fail(path + " etkin bir kaynağa referans vermelidir.");
+            }
+            String object = requireText(filter, "object", path);
+            if (!"SOURCE".equals(roles.get(object))) fail(path + " etkin bir kaynağa referans vermelidir.");
+            // Free predicates are validated against their scope by the shared
+            // staged SQL contract below, including rejection of mixed fields.
+            if (filter.has("predicate")) continue;
+            requireText(filter, "column", path);
+            String operator = requireAllowed(filter, "operator", Set.of("EQUALS", "NOT_EQUALS", "GREATER_THAN", "LESS_THAN", "LIKE", "IS_NULL", "IS_NOT_NULL"), path);
+            if (!Set.of("IS_NULL", "IS_NOT_NULL").contains(operator)) requireText(filter, "value", path);
+        }
+        try { tr.com.innova.akis.knowledge.StagedMappingDefinition.parse(content); }
+        catch (IllegalArgumentException invalid) { fail(invalid.getMessage()); }
+    }
+
+    private void validateObjectReference(JsonNode node, String path, String role, Map<String, String> roles) {
+        requireObject(node, path);
+        String id = requireText(node, "id", path);
+        requireText(node, "alias", path);
+        requireText(node, "dataObjectUuid", path);
+        requireText(node, "schemaSnapshotUuid", path);
+        if (roles.putIfAbsent(id, role) != null) fail("Kaynak ve hedef kimlikleri benzersiz olmalıdır: " + id);
+    }
+
+    private String directColumnReference(JsonNode node, String path, Map<String, String> roles, String expectedRole) {
+        requireObject(node, path);
+        String object = requireText(node, "object", path);
+        requireText(node, "column", path);
+        if (!expectedRole.equals(roles.get(object))) fail(path + " " + expectedRole + " rolündeki bir nesneye referans vermelidir.");
+        return object;
+    }
+
     private void validateLoadPlan(JsonNode content) {
         JsonNode steps = requireArray(content, "steps");
         requireAllowed(content, "restartPolicy", RESTART_POLICIES);
@@ -631,13 +750,8 @@ public final class DefinitionContentValidator {
         if ("REFRESH_QUERY".equals(valueSource)) {
             try { java.util.UUID.fromString(content.path("logicalSchemaUuid").asText()); }
             catch (IllegalArgumentException invalid) { fail("Sorguyla yenilenen değişken için Mantıksal Şema seçilmelidir."); }
-            if (!Set.of("DATE", "TIMESTAMP").contains(content.path("dataType").asText())) {
-                fail("SYSDATE yenileme sorgusu yalnız DATE veya TIMESTAMP değişkeninde kullanılabilir.");
-            }
-            String query = requireText(content, "query").strip();
-            if (!query.matches("(?i)^SELECT\\s+SYSDATE\\s*-\\s*1\\s+FROM\\s+DUAL$")) {
-                fail("Değişken yenileme sorgusu desteklenen güvenli SELECT sözleşmesine uymalıdır.");
-            }
+            if ("JSON".equals(content.path("dataType").asText())) fail("JSON query variables are not supported.");
+            VariableQueryPolicy.validate(requireText(content, "query"), content.path("dataType").asText());
         }
     }
 

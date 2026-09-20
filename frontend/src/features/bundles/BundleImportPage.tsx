@@ -5,8 +5,12 @@ import {
   AlertTriangle,
   CheckCircle2,
   FileJson,
+  Folder,
   FolderInput,
+  GitCommitVertical,
+  Layers3,
   LoaderCircle,
+  NotebookPen,
   RotateCcw,
   ShieldCheck,
 } from 'lucide-react'
@@ -14,6 +18,9 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiProblem } from '../../core/api/client'
 import { Dialog } from '../../core/ui/Dialog'
+import { PageHeader, SummaryStrip } from '../../core/ui'
+import '../connections/connections.css'
+import '../connections/catalog-layout.css'
 import { bundleApi } from './api'
 import { useBundleI18n, type BundleMessageKey } from './i18n'
 import type {
@@ -165,26 +172,27 @@ export function BundleImportPage() {
   const counts = validation?.counts ?? dryRunResult?.counts ?? emptyCounts
 
   return (
-    <section className="bundle-page">
-      <header className="bundle-page-header">
-        <div>
-          <span className="bundle-eyebrow">{t('eyebrow')}</span>
-          <h1>{t('importTitle')}</h1>
-          <p>{t('importDescription')}</p>
-        </div>
-        {selected || importResult ? (
+    <section className="page-stack connections-page bundle-page">
+      <section className="connection-management-panel">
+        <PageHeader icon={<FolderInput />} eyebrow={t('eyebrow')} title={t('importTitle')} description={t('importDescription')} actions={selected || importResult ? (
           <AntActionButton tone="secondary" type="button" onClick={reset} disabled={working !== null}>
             <RotateCcw aria-hidden="true" /> {t('reset')}
           </AntActionButton>
-        ) : null}
-      </header>
+        ) : undefined} />
+        <div className="bundle-security-note">
+          <ShieldCheck aria-hidden="true" />
+          <span>{t('securityNotice')}</span>
+        </div>
+      </section>
 
-      <div className="bundle-security-note">
-        <ShieldCheck aria-hidden="true" />
-        <span>{t('securityNotice')}</span>
-      </div>
+      <SummaryStrip ariaLabel={t('bundleProject')} items={[
+        { label: t('folders'), value: validation?.valid ? new Intl.NumberFormat(locale).format(counts.folders) : '—', icon: <Folder />, tone: 'neutral' },
+        { label: t('definitions'), value: validation?.valid ? new Intl.NumberFormat(locale).format(counts.definitions) : '—', icon: <Layers3 />, tone: 'info' },
+        { label: t('drafts'), value: validation?.valid ? new Intl.NumberFormat(locale).format(counts.drafts) : '—', icon: <NotebookPen />, tone: 'warning' },
+        { label: t('versions'), value: validation?.valid ? new Intl.NumberFormat(locale).format(counts.versions) : '—', icon: <GitCommitVertical />, tone: 'success' },
+      ]} />
 
-      <section className="bundle-panel" aria-labelledby="bundle-file-heading">
+      <section className="connection-detail-section bundle-panel" aria-labelledby="bundle-file-heading">
         <div className="bundle-section-heading">
           <div className="bundle-step">1</div>
           <div><h2 id="bundle-file-heading">{t('chooseFile')}</h2><p>{t('fileHelp')}</p></div>
@@ -220,7 +228,7 @@ export function BundleImportPage() {
       </section>
 
       {selected && validation?.valid ? (
-        <section className="bundle-panel" aria-labelledby="bundle-policy-heading">
+        <section className="connection-detail-section bundle-panel" aria-labelledby="bundle-policy-heading">
           <div className="bundle-section-heading">
             <div className="bundle-step">2</div>
             <div><h2 id="bundle-policy-heading">{t('conflictPolicy')}</h2><p>{t('dryRunRequired')}</p></div>
@@ -254,7 +262,7 @@ export function BundleImportPage() {
       {error ? <div className="bundle-alert bundle-alert-error" role="alert"><AlertTriangle aria-hidden="true" /><span>{error}</span></div> : null}
 
       {importResult ? (
-        <section ref={completionPanel} className="bundle-panel bundle-complete" aria-labelledby="bundle-complete-heading" role="status" aria-live="polite" tabIndex={-1}>
+        <section ref={completionPanel} className="connection-detail-section bundle-panel bundle-complete" aria-labelledby="bundle-complete-heading" role="status" aria-live="polite" tabIndex={-1}>
           <CheckCircle2 aria-hidden="true" />
           <div>
             <h2 id="bundle-complete-heading">{t('importComplete')}</h2>
@@ -268,7 +276,6 @@ export function BundleImportPage() {
         </section>
       ) : null}
 
-      {validation?.valid ? <BundleCountsView counts={counts} /> : null}
       <Dialog open={confirmOpen} title={t('confirmImportTitle')} eyebrow={t('confirmImportEyebrow')} closeLabel={t('close')} busy={working === 'import'} onClose={() => setConfirmOpen(false)} className="bundle-confirm-dialog">
         <p>{t('confirmImportDescription').replace('{{project}}', selected?.document.project.name ?? '')}</p>
         <dl className="bundle-file-summary">
@@ -300,17 +307,3 @@ function ValidationSummary({ report }: { report: ValidationReport }) {
   )
 }
 
-function BundleCountsView({ counts }: { counts: ImportResult['counts'] }) {
-  const { t, locale } = useBundleI18n()
-  const items = [
-    ['folders', counts.folders],
-    ['definitions', counts.definitions],
-    ['drafts', counts.drafts],
-    ['versions', counts.versions],
-  ] as const
-  return (
-    <section className="bundle-counts" aria-label={t('bundleProject')}>
-      {items.map(([key, value]) => <div key={key}><strong>{new Intl.NumberFormat(locale).format(value)}</strong><span>{t(key)}</span></div>)}
-    </section>
-  )
-}

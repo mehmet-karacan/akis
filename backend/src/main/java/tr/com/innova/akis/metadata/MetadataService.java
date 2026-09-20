@@ -203,6 +203,25 @@ public class MetadataService {
                 project.id(), definition.id(), folderId, expectedVersion);
     }
 
+    /** Renames a definition in place; the code stays immutable because versions and scenarios reference it. */
+    @Transactional
+    DefinitionRow updateDefinition(
+            UUID projectUuid,
+            UUID definitionUuid,
+            String name,
+            String description,
+            Long expectedVersion) {
+        requireExpectedVersion(expectedVersion);
+        ProjectRow project = project(projectUuid);
+        DefinitionRow definition = repository.findDefinition(project.id(), definitionUuid)
+                .orElseThrow(() -> notFound("Tanım bulunamadı."));
+        if (definition.version() != expectedVersion) {
+            throw staleVersion("Tanım sürümü istekle uyuşmuyor.");
+        }
+        return repository.updateDefinition(
+                project.id(), definition.id(), normalizeName(name), trimToNull(description), expectedVersion);
+    }
+
     DefinitionRow definition(UUID projectUuid, UUID definitionUuid) {
         ProjectRow project = project(projectUuid);
         return repository.findDefinition(project.id(), definitionUuid)
@@ -347,7 +366,7 @@ public class MetadataService {
         }
         contentValidator.validate(definition.type(), draft.schemaVersion(), draft.content());
         tr.com.innova.akis.knowledge.KnowledgeModuleRegistry.Bundle modules = null;
-        if (definition.type() == DefinitionType.MAPPING && draft.schemaVersion() == 3) {
+        if (definition.type() == DefinitionType.MAPPING && (draft.schemaVersion() == 3 || draft.schemaVersion() == 4)) {
             if (knowledgeModules == null || definition.projectId() == null) throw validation("KM kayıt servisi/proje kapsamı gerekli.");
             modules = knowledgeModules.resolve(definition.projectId(), tr.com.innova.akis.knowledge.StagedMappingDefinition.parse(draft.content()));
         }
@@ -359,6 +378,9 @@ public class MetadataService {
                 sha256(canonical.toString()),
                 canonical,
                 trimToNull(description));
+        if (definition.type() == DefinitionType.MAPPING && draft.schemaVersion() == 4) {
+            repository.createDirectObjectReferences(definition.id(), version.uuid(), canonical);
+        }
         repository.activateDraftDefinition(definition.id());
         if (modules != null) knowledgeModules.link(definition.projectId(), version.uuid(), modules);
         return version;

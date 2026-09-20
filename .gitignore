@@ -31,5 +31,13 @@ logs/
 .data/
 .tmp/
 
-# CI/CD is intentionally disabled for the bootstrap phase.
+# CI/CD remains disabled for the current live-only acceptance phase.
 .github/workflows/
+scripts/*.class
+
+# Local Claude Code launch config holds dev credentials; never commit it.
+.claude/
+
+# Ad-hoc local probes and Playwright artifacts stay local.
+.runtime/
+test-results/

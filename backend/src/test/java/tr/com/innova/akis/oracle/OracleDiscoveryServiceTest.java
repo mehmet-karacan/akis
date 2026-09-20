@@ -21,40 +21,50 @@ import tr.com.innova.akis.oracle.OracleDiscoveryModels.ConnectionProfile;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.Credentials;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.DataObjectCaptureProfile;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.DiscoveryResult;
+import tr.com.innova.akis.oracle.OracleDiscoveryModels.DraftConnection;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.GovernedSnapshotCapture;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.PhysicalSchemaProfile;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.SnapshotCapture;
+import tr.com.innova.akis.security.ConnectionCredentialCipher;
 
 class OracleDiscoveryServiceTest {
 
     private static final String ENVIRONMENT_NAME = "AKIS_ORACLE_TEST_CREDENTIAL";
     private static final String PASSWORD = "only-in-process-environment";
+    private static final ConnectionCredentialCipher CIPHER = new ConnectionCredentialCipher("test-key");
 
     @Test
     void connectionTestAccepts19cAndWipesTheResolvedPassword() {
         StubRepository repository = repository(7L);
         CapturingGateway gateway = new CapturingGateway();
         gateway.probe = oracle19c();
-        OracleDiscoveryService service = service(repository, gateway);
 
-        ConnectionProbe result = service.testConnection(
-                OracleDiscoveryTestFixtures.PROJECT_UUID,
-                OracleDiscoveryTestFixtures.CONNECTION_UUID,
-                OracleDiscoveryTestFixtures.VERSION_UUID);
+        ConnectionProbe result = service(repository, gateway).testConnection(OracleDiscoveryTestFixtures.CONNECTION_UUID);
 
         assertEquals(19, result.databaseMajorVersion());
         assertArrayEquals(new char[PASSWORD.length()], gateway.passwordReference);
     }
 
     @Test
-    void schemaListUsesTheTestedConnectionAndWipesTheResolvedPassword() {
+    void connectionTestDecryptsTheTableStoredCredential() {
+        String encrypted = CIPHER.encrypt("{\"username\":\"reader\",\"password\":\"" + PASSWORD + "\"}");
+        StubRepository repository = new StubRepository(
+                OracleDiscoveryTestFixtures.profile(7L, "TABLO", encrypted, "AKTIF"), physical(7L));
+        CapturingGateway gateway = new CapturingGateway();
+        gateway.probe = oracle19c();
+
+        service(repository, gateway).testConnection(OracleDiscoveryTestFixtures.CONNECTION_UUID);
+
+        assertEquals("reader", gateway.username);
+        assertArrayEquals(new char[PASSWORD.length()], gateway.passwordReference);
+    }
+
+    @Test
+    void schemaListUsesTheStoredConnectionAndWipesTheResolvedPassword() {
         StubRepository repository = repository(7L);
         CapturingGateway gateway = new CapturingGateway();
 
-        List<String> result = service(repository, gateway).listSchemas(
-                OracleDiscoveryTestFixtures.PROJECT_UUID,
-                OracleDiscoveryTestFixtures.CONNECTION_UUID,
-                OracleDiscoveryTestFixtures.VERSION_UUID);
+        List<String> result = service(repository, gateway).listSchemas(OracleDiscoveryTestFixtures.CONNECTION_UUID);
 
         assertEquals(List.of("APP_OWNER", "TTBP"), result);
         assertEquals(1, gateway.schemaListCalls);
@@ -66,50 +76,38 @@ class OracleDiscoveryServiceTest {
         StubRepository repository = repository(7L);
         CapturingGateway gateway = new CapturingGateway();
         gateway.probe = oracle19c();
-        var policy = new ObjectMapper().createObjectNode()
-                .put("connectTimeoutMs", 10000)
-                .put("readTimeoutMs", 30000)
-                .put("networkTimeoutMs", 30000)
-                .put("queryTimeoutSeconds", 300);
 
-        ConnectionProbe result = service(repository, gateway).testDraftConnection(
-                "JDBC", null, "10.0.0.1", "ORCL", null, 1521,
-                policy, ENVIRONMENT_NAME);
+        ConnectionProbe result = service(repository, gateway).testDraftConnection(new DraftConnection(
+                "ORACLE", "JDBC", null, "10.0.0.1", 1521, "ORCL", null, null, null,
+                "reader", PASSWORD, 10000, 30000, 300));
 
         assertEquals(19, result.databaseMajorVersion());
+        assertEquals("reader", gateway.username);
         assertArrayEquals(new char[PASSWORD.length()], gateway.passwordReference);
     }
 
     @Test
-    void draftConnectionTestAcceptsFormCredentialsAndWipesPassword() {
+    void draftConnectionTestSkipsOracleVersionRuleForOtherProviders() {
         StubRepository repository = repository(7L);
         CapturingGateway gateway = new CapturingGateway();
-        gateway.probe = oracle19c();
-        char[] password = PASSWORD.toCharArray();
+        gateway.probe = new ConnectionProbe("PostgreSQL", "16.2", 16, 2, "PostgreSQL JDBC", "42");
 
-        ConnectionProbe result = service(repository, gateway).testDraftConnection(
-                "JDBC", null, "10.0.0.1", "ORCL", null, 1521,
-                new ObjectMapper().createObjectNode(), "reader", password);
+        ConnectionProbe result = service(repository, gateway).testDraftConnection(new DraftConnection(
+                "POSTGRESQL", "JDBC", null, "127.0.0.1", 5432, null, null, "akis", null,
+                "akis_app", PASSWORD, null, null, null));
 
-        assertEquals(19, result.databaseMajorVersion());
-        assertArrayEquals(new char[PASSWORD.length()], password);
-        assertArrayEquals(new char[PASSWORD.length()], gateway.passwordReference);
+        assertEquals(16, result.databaseMajorVersion());
     }
 
     @Test
     void connectionTestRejectsOtherDatabaseVersionsWithoutLeakingTheCredential() {
         StubRepository repository = repository(7L);
         CapturingGateway gateway = new CapturingGateway();
-        gateway.probe = new ConnectionProbe(
-                "Oracle", "Oracle Database 21c", 21, 0, "Oracle JDBC", "23");
+        gateway.probe = new ConnectionProbe("Oracle", "Oracle Database 21c", 21, 0, "Oracle JDBC", "23");
         OracleDiscoveryService service = service(repository, gateway);
 
-        ApiException error = assertThrows(
-                ApiException.class,
-                () -> service.testConnection(
-                        OracleDiscoveryTestFixtures.PROJECT_UUID,
-                        OracleDiscoveryTestFixtures.CONNECTION_UUID,
-                        OracleDiscoveryTestFixtures.VERSION_UUID));
+        ApiException error = assertThrows(ApiException.class,
+                () -> service.testConnection(OracleDiscoveryTestFixtures.CONNECTION_UUID));
 
         assertEquals("ORACLE_VERSION_UNSUPPORTED", error.code());
         assertTrue(!error.getMessage().contains(PASSWORD));
@@ -120,22 +118,15 @@ class OracleDiscoveryServiceTest {
     void jndiConnectionTestDoesNotResolveApplicationCredentials() {
         ConnectionProfile profile = new ConnectionProfile(
                 11L, 7L, OracleDiscoveryTestFixtures.CONNECTION_UUID,
-                OracleDiscoveryTestFixtures.VERSION_UUID, "ORACLE", "JNDI",
+                OracleDiscoveryTestFixtures.CONNECTION_UUID, "ORACLE", "JNDI",
                 "java:comp/env/jdbc/OracleMain", null, null, null, null,
                 "DISABLED", 0, new ObjectMapper().createObjectNode(),
-                null, null, null);
-        StubRepository repository = new StubRepository(
-                profile,
-                new PhysicalSchemaProfile(
-                        OracleDiscoveryTestFixtures.PHYSICAL_SCHEMA_UUID,
-                        7L, "APP_OWNER", "AKTIF"));
+                null, null, null, "ACTIVE", 1L, null, null, null);
+        StubRepository repository = new StubRepository(profile, physical(7L));
         CapturingGateway gateway = new CapturingGateway();
         gateway.probe = oracle19c();
 
-        ConnectionProbe result = service(repository, gateway).testConnection(
-                OracleDiscoveryTestFixtures.PROJECT_UUID,
-                OracleDiscoveryTestFixtures.CONNECTION_UUID,
-                OracleDiscoveryTestFixtures.VERSION_UUID);
+        ConnectionProbe result = service(repository, gateway).testConnection(OracleDiscoveryTestFixtures.CONNECTION_UUID);
 
         assertEquals(19, result.databaseMajorVersion());
         assertArrayEquals(new char[0], gateway.passwordReference);
@@ -147,50 +138,23 @@ class OracleDiscoveryServiceTest {
         CapturingGateway gateway = new CapturingGateway();
         OracleDiscoveryService service = service(repository, gateway);
 
-        ApiException error = assertThrows(
-                ApiException.class,
-                () -> service.discover(
-                        OracleDiscoveryTestFixtures.PROJECT_UUID,
-                        OracleDiscoveryTestFixtures.CONNECTION_UUID,
-                        OracleDiscoveryTestFixtures.VERSION_UUID,
-                        OracleDiscoveryTestFixtures.PHYSICAL_SCHEMA_UUID,
-                        null,
-                        100));
+        ApiException error = assertThrows(ApiException.class, () -> service.discover(
+                OracleDiscoveryTestFixtures.CONNECTION_UUID, OracleDiscoveryTestFixtures.PHYSICAL_SCHEMA_UUID, null, 100));
 
         assertEquals("VALIDATION_FAILED", error.code());
         assertEquals(0, gateway.discoveryCalls);
     }
 
     @Test
-    void discoveryRequiresAnActiveConnectionVersion() {
-        ConnectionProfile active = OracleDiscoveryTestFixtures.profile(
-                7L, "ENV", ENVIRONMENT_NAME, "AKTIF");
-        ConnectionProfile tested = new ConnectionProfile(
-                active.projectId(), active.connectionId(), active.connectionUuid(),
-                active.connectionVersionUuid(), active.databaseType(), active.mode(),
-                active.jndiName(), active.driverReference(), active.host(),
-                active.serviceName(), active.sid(), active.tlsMode(), active.port(),
-                active.policy(), active.secretProvider(), active.secretReferencePath(),
-                active.secretStatus(), "TESTED", active.targetIdentityVersion(),
-                active.targetFingerprint());
+    void discoveryRequiresAnActiveConnection() {
         StubRepository repository = new StubRepository(
-                tested,
-                new PhysicalSchemaProfile(
-                        OracleDiscoveryTestFixtures.PHYSICAL_SCHEMA_UUID,
-                        7L, "APP_OWNER", "AKTIF"));
+                OracleDiscoveryTestFixtures.profile(7L, "ENV", ENVIRONMENT_NAME, "AKTIF", "DISABLED"), physical(7L));
         CapturingGateway gateway = new CapturingGateway();
 
-        ApiException error = assertThrows(
-                ApiException.class,
-                () -> service(repository, gateway).discover(
-                        OracleDiscoveryTestFixtures.PROJECT_UUID,
-                        OracleDiscoveryTestFixtures.CONNECTION_UUID,
-                        OracleDiscoveryTestFixtures.VERSION_UUID,
-                        OracleDiscoveryTestFixtures.PHYSICAL_SCHEMA_UUID,
-                        null,
-                        100));
+        ApiException error = assertThrows(ApiException.class, () -> service(repository, gateway).discover(
+                OracleDiscoveryTestFixtures.CONNECTION_UUID, OracleDiscoveryTestFixtures.PHYSICAL_SCHEMA_UUID, null, 100));
 
-        assertEquals("CONNECTION_VERSION_NOT_ACTIVE", error.code());
+        assertEquals("CONNECTION_DISABLED", error.code());
         assertEquals(0, gateway.discoveryCalls);
     }
 
@@ -198,17 +162,10 @@ class OracleDiscoveryServiceTest {
     void discoveryNormalizesOracleIdentifiersAndUsesOnlyMetadataGateway() {
         StubRepository repository = repository(7L);
         CapturingGateway gateway = new CapturingGateway();
-        gateway.discovery = new DiscoveryResult(
-                "APP_OWNER", OffsetDateTime.now(ZoneOffset.UTC), false, List.of());
-        OracleDiscoveryService service = service(repository, gateway);
+        gateway.discovery = new DiscoveryResult("APP_OWNER", OffsetDateTime.now(ZoneOffset.UTC), false, List.of());
 
-        DiscoveryResult result = service.discover(
-                OracleDiscoveryTestFixtures.PROJECT_UUID,
-                OracleDiscoveryTestFixtures.CONNECTION_UUID,
-                OracleDiscoveryTestFixtures.VERSION_UUID,
-                OracleDiscoveryTestFixtures.PHYSICAL_SCHEMA_UUID,
-                "hakedis_tipi",
-                50);
+        DiscoveryResult result = service(repository, gateway).discover(
+                OracleDiscoveryTestFixtures.CONNECTION_UUID, OracleDiscoveryTestFixtures.PHYSICAL_SCHEMA_UUID, "hakedis_tipi", 50);
 
         assertEquals("APP_OWNER", result.owner());
         assertEquals("APP_OWNER", gateway.owner);
@@ -221,18 +178,15 @@ class OracleDiscoveryServiceTest {
     void governedSnapshotCaptureDerivesTheTableFromTheBoundCatalogObject() {
         StubRepository repository = repository(7L);
         CapturingGateway gateway = new CapturingGateway();
+        gateway.probe = oracle19c();
         gateway.capture = new SnapshotCapture(
                 OffsetDateTime.now(ZoneOffset.UTC),
                 new OracleSchemaSnapshotCodecV1.SnapshotDefinition(
-                        "ORACLE_19C", 1, new ObjectMapper().createObjectNode(),
-                        List.of(), List.of()));
+                        "ORACLE_19C", 1, new ObjectMapper().createObjectNode(), List.of(), List.of()));
 
         GovernedSnapshotCapture result = service(repository, gateway).captureSchemaSnapshot(
-                OracleDiscoveryTestFixtures.PROJECT_UUID,
-                OracleDiscoveryTestFixtures.CONNECTION_UUID,
-                OracleDiscoveryTestFixtures.VERSION_UUID,
-                OracleDiscoveryTestFixtures.PHYSICAL_SCHEMA_UUID,
-                UUID.randomUUID());
+                OracleDiscoveryTestFixtures.PROJECT_UUID, OracleDiscoveryTestFixtures.CONNECTION_UUID,
+                OracleDiscoveryTestFixtures.PHYSICAL_SCHEMA_UUID, UUID.randomUUID());
 
         assertEquals("APP_OWNER", gateway.owner);
         assertEquals("HAKEDIS_TIPI", gateway.tableName);
@@ -241,33 +195,27 @@ class OracleDiscoveryServiceTest {
         assertArrayEquals(new char[PASSWORD.length()], gateway.passwordReference);
     }
 
-    private OracleDiscoveryService service(
-            StubRepository repository,
-            CapturingGateway gateway) {
+    private OracleDiscoveryService service(StubRepository repository, CapturingGateway gateway) {
         ObjectMapper objectMapper = new ObjectMapper();
         EnvironmentCredentialResolver resolver = new EnvironmentCredentialResolver(
                 objectMapper,
-                Map.of(
-                        ENVIRONMENT_NAME,
-                        "{\"username\":\"reader\",\"password\":\"" + PASSWORD + "\"}")::get);
-        return new OracleDiscoveryService(repository, resolver, gateway);
+                Map.of(ENVIRONMENT_NAME, "{\"username\":\"reader\",\"password\":\"" + PASSWORD + "\"}")::get,
+                CIPHER);
+        return new OracleDiscoveryService(repository, resolver, gateway, objectMapper);
     }
 
     private StubRepository repository(long physicalConnectionId) {
-        ConnectionProfile profile = OracleDiscoveryTestFixtures.profile(
-                7L, "ENV", ENVIRONMENT_NAME, "AKTIF");
-        PhysicalSchemaProfile physical = new PhysicalSchemaProfile(
-                OracleDiscoveryTestFixtures.PHYSICAL_SCHEMA_UUID,
-                physicalConnectionId,
-                "app_owner",
-                "AKTIF");
-        return new StubRepository(profile, physical);
+        return new StubRepository(
+                OracleDiscoveryTestFixtures.profile(7L, "ENV", ENVIRONMENT_NAME, "AKTIF"),
+                physical(physicalConnectionId));
+    }
+
+    private static PhysicalSchemaProfile physical(long connectionId) {
+        return new PhysicalSchemaProfile(OracleDiscoveryTestFixtures.PHYSICAL_SCHEMA_UUID, connectionId, "app_owner", "AKTIF");
     }
 
     private ConnectionProbe oracle19c() {
-        return new ConnectionProbe(
-                "Oracle", "Oracle Database 19c", 19, 0, "Oracle JDBC", "23",
-                1, "a".repeat(64));
+        return new ConnectionProbe("Oracle", "Oracle Database 19c", 19, 0, "Oracle JDBC", "23", 1, "a".repeat(64));
     }
 
     private static final class StubRepository extends OracleDiscoveryRepository {
@@ -275,37 +223,30 @@ class OracleDiscoveryServiceTest {
         private final PhysicalSchemaProfile physicalSchema;
         private final DataObjectCaptureProfile dataObject;
 
-        private StubRepository(
-                ConnectionProfile profile,
-                PhysicalSchemaProfile physicalSchema) {
+        private StubRepository(ConnectionProfile profile, PhysicalSchemaProfile physicalSchema) {
             super(null, null);
             this.profile = profile;
             this.physicalSchema = physicalSchema;
-            this.dataObject = new DataObjectCaptureProfile(
-                    UUID.randomUUID(), "hakedis_tipi", "TABLO", "AKTIF");
+            this.dataObject = new DataObjectCaptureProfile(UUID.randomUUID(), "hakedis_tipi", "TABLO", "AKTIF");
         }
 
         @Override
-        Optional<ConnectionProfile> findConnectionProfile(
-                UUID projectUuid,
-                UUID connectionUuid,
-                UUID connectionVersionUuid) {
+        Optional<ConnectionProfile> findConnectionProfile(UUID connectionUuid) {
             return Optional.of(profile);
         }
 
         @Override
-        Optional<PhysicalSchemaProfile> findPhysicalSchema(
-                long projectId,
-                UUID physicalSchemaUuid) {
+        Optional<PhysicalSchemaProfile> findPhysicalSchema(UUID physicalSchemaUuid) {
             return Optional.of(physicalSchema);
         }
 
         @Override
-        Optional<DataObjectCaptureProfile> findDataObjectCaptureProfile(
-                long projectId,
-                UUID dataObjectUuid,
-                UUID physicalSchemaUuid,
-                UUID connectionVersionUuid) {
+        Optional<Long> findProjectId(UUID projectUuid) {
+            return Optional.of(11L);
+        }
+
+        @Override
+        Optional<DataObjectCaptureProfile> findDataObjectCaptureProfile(long projectId, UUID dataObjectUuid, UUID physicalSchemaUuid) {
             return Optional.of(dataObject);
         }
     }
@@ -314,6 +255,7 @@ class OracleDiscoveryServiceTest {
         private ConnectionProbe probe;
         private DiscoveryResult discovery;
         private char[] passwordReference;
+        private String username;
         private int discoveryCalls;
         private String owner;
         private String tableName;
@@ -322,28 +264,28 @@ class OracleDiscoveryServiceTest {
         private int schemaListCalls;
         private SnapshotCapture capture;
 
+        private void remember(Credentials credentials) {
+            passwordReference = credentials.password();
+            username = credentials.username();
+        }
+
         @Override
         public ConnectionProbe test(ConnectionProfile profile, Credentials credentials) {
-            passwordReference = credentials.password();
+            remember(credentials);
             return probe;
         }
 
         @Override
         public List<String> listSchemas(ConnectionProfile profile, Credentials credentials) {
             schemaListCalls++;
-            passwordReference = credentials.password();
+            remember(credentials);
             return List.of("APP_OWNER", "TTBP");
         }
 
         @Override
-        public DiscoveryResult discover(
-                ConnectionProfile profile,
-                Credentials credentials,
-                String owner,
-                String tableName,
-                int limit) {
+        public DiscoveryResult discover(ConnectionProfile profile, Credentials credentials, String owner, String tableName, int limit) {
             discoveryCalls++;
-            passwordReference = credentials.password();
+            remember(credentials);
             this.owner = owner;
             this.tableName = tableName;
             this.limit = limit;
@@ -351,13 +293,9 @@ class OracleDiscoveryServiceTest {
         }
 
         @Override
-        public SnapshotCapture captureSnapshot(
-                ConnectionProfile profile,
-                Credentials credentials,
-                String owner,
-                String tableName) {
+        public SnapshotCapture captureSnapshot(ConnectionProfile profile, Credentials credentials, String owner, String tableName) {
             captureCalls++;
-            passwordReference = credentials.password();
+            remember(credentials);
             this.owner = owner;
             this.tableName = tableName;
             return capture;

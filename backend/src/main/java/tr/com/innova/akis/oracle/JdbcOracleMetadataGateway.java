@@ -2,6 +2,7 @@ package tr.com.innova.akis.oracle;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.DriverManager;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.HexFormat;
 
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
@@ -73,6 +75,9 @@ final class JdbcOracleMetadataGateway implements OracleMetadataGateway {
                 throw connectionFailed();
             }
             DatabaseMetaData metadata = connection.getMetaData();
+            if ("POSTGRESQL".equals(profile.databaseType())) {
+                return postgresProbe(connection, metadata);
+            }
             OracleDatabaseIdentityFingerprintV1.CanonicalDatabaseIdentity identity =
                     readDatabaseIdentity(connection);
             return new ConnectionProbe(
@@ -88,6 +93,25 @@ final class JdbcOracleMetadataGateway implements OracleMetadataGateway {
         catch (SQLException exception) {
             throw connectionFailed();
         }
+    }
+
+    private ConnectionProbe postgresProbe(Connection connection, DatabaseMetaData metadata)
+            throws SQLException {
+        String database = connection.getCatalog();
+        String schema = connection.getSchema();
+        String user = metadata.getUserName();
+        String identity = "POSTGRESQL|" + nullToEmpty(database) + "|"
+                + nullToEmpty(schema) + "|" + nullToEmpty(user);
+        String fingerprint = sha256(identity);
+        return new ConnectionProbe(
+                metadata.getDatabaseProductName(),
+                metadata.getDatabaseProductVersion(),
+                metadata.getDatabaseMajorVersion(),
+                metadata.getDatabaseMinorVersion(),
+                metadata.getDriverName(),
+                metadata.getDriverVersion(),
+                OracleDatabaseIdentityFingerprintV1.IDENTITY_VERSION,
+                fingerprint);
     }
 
     @Override
@@ -236,14 +260,22 @@ final class JdbcOracleMetadataGateway implements OracleMetadataGateway {
         Properties properties = new Properties();
         properties.setProperty("user", credentials.username());
         properties.setProperty("password", new String(credentials.password()));
-        properties.setProperty(
-                "oracle.net.CONNECT_TIMEOUT",
-                Integer.toString(policyInteger(
-                        profile, "connectTimeoutMs", DEFAULT_CONNECT_TIMEOUT_MS, 1_000, 120_000)));
-        properties.setProperty(
-                "oracle.jdbc.ReadTimeout",
-                Integer.toString(policyInteger(
-                        profile, "readTimeoutMs", DEFAULT_READ_TIMEOUT_MS, 1_000, 300_000)));
+        if ("POSTGRESQL".equals(profile.databaseType())) {
+            properties.setProperty("loginTimeout", Integer.toString(Math.max(
+                    1, policyInteger(profile, "connectTimeoutMs", DEFAULT_CONNECT_TIMEOUT_MS, 1_000, 120_000) / 1000)));
+            properties.setProperty("socketTimeout", Integer.toString(
+                    policyInteger(profile, "readTimeoutMs", DEFAULT_READ_TIMEOUT_MS, 1_000, 300_000)));
+        }
+        else {
+            properties.setProperty(
+                    "oracle.net.CONNECT_TIMEOUT",
+                    Integer.toString(policyInteger(
+                            profile, "connectTimeoutMs", DEFAULT_CONNECT_TIMEOUT_MS, 1_000, 120_000)));
+            properties.setProperty(
+                    "oracle.jdbc.ReadTimeout",
+                    Integer.toString(policyInteger(
+                            profile, "readTimeoutMs", DEFAULT_READ_TIMEOUT_MS, 1_000, 300_000)));
+        }
         Connection connection;
         try {
             connection = DriverManager.getConnection(jdbcUrl(profile), properties);
@@ -312,11 +344,16 @@ final class JdbcOracleMetadataGateway implements OracleMetadataGateway {
             throw new ApiException(
                     HttpStatus.SERVICE_UNAVAILABLE,
                     "ORACLE_DRIVER_UNAVAILABLE",
-                    "Oracle JDBC sürücüsü çalışma zamanında bulunamadı.");
+                    "JDBC sürücüsü çalışma zamanında bulunamadı.");
         }
     }
 
     private String jdbcUrl(ConnectionProfile profile) {
+        if ("POSTGRESQL".equals(profile.databaseType())) {
+            String sslMode = "REQUIRED".equals(profile.tlsMode()) ? "require" : "disable";
+            return "jdbc:postgresql://" + profile.host() + ":" + profile.port()
+                    + "/" + profile.serviceName() + "?sslmode=" + sslMode;
+        }
         String protocol = "DISABLED".equals(profile.tlsMode()) ? "tcp" : "tcps";
         if (profile.serviceName() != null) {
             return "jdbc:oracle:thin:@(DESCRIPTION=(ADDRESS=(PROTOCOL=" + protocol
@@ -445,7 +482,22 @@ final class JdbcOracleMetadataGateway implements OracleMetadataGateway {
         return new ApiException(
                 HttpStatus.BAD_GATEWAY,
                 "ORACLE_CONNECTION_FAILED",
-                "Oracle bağlantısı kurulamadı veya doğrulanamadı.");
+                "Bağlantı kurulamadı veya doğrulanamadı.");
+    }
+
+    private String nullToEmpty(String value) {
+        return value == null ? "" : value;
+    }
+
+    private String sha256(String value) {
+        try {
+            return HexFormat.of().formatHex(
+                    MessageDigest.getInstance("SHA-256")
+                            .digest(value.getBytes(StandardCharsets.UTF_8)));
+        }
+        catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 algorithm is unavailable.", exception);
+        }
     }
 
     private ApiException discoveryFailed() {

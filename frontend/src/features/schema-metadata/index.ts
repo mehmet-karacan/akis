@@ -1,0 +1,1 @@
+export { SchemaMetadataPage } from './SchemaMetadataPage'

@@ -14,6 +14,7 @@ import tools.jackson.databind.ObjectMapper;
 import tr.com.innova.akis.metadata.ApiException;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.ConnectionProfile;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.Credentials;
+import tr.com.innova.akis.security.ConnectionCredentialCipher;
 
 @Component
 final class EnvironmentCredentialResolver {
@@ -23,34 +24,43 @@ final class EnvironmentCredentialResolver {
 
     private final ObjectMapper objectMapper;
     private final Function<String, String> environment;
+    private final ConnectionCredentialCipher cipher;
 
     @Autowired
-    EnvironmentCredentialResolver(ObjectMapper objectMapper, OracleLocalCredentialStore localStore) {
-        this(objectMapper, name -> {
-            String environmentValue = System.getenv(name);
-            return environmentValue != null ? environmentValue : localStore.lookup(name);
-        });
+    EnvironmentCredentialResolver(ObjectMapper objectMapper, ConnectionCredentialCipher cipher) {
+        this(objectMapper, System::getenv, cipher);
     }
 
     EnvironmentCredentialResolver(
             ObjectMapper objectMapper,
-            Function<String, String> environment) {
+            Function<String, String> environment,
+            ConnectionCredentialCipher cipher) {
         this.objectMapper = objectMapper;
         this.environment = environment;
+        this.cipher = cipher;
     }
 
     Credentials resolve(ConnectionProfile profile) {
-        if (!"ENV".equals(profile.secretProvider())) {
-            throw unavailable("Oracle kimliği için yalnız ENV secret sağlayıcısı destekleniyor.");
+        if (!Set.of("ENV", "TABLO").contains(profile.secretProvider())) {
+            throw unavailable("Bağlantı kimliği için yalnız ENV veya TABLO secret sağlayıcısı destekleniyor.");
         }
         if (!"AKTIF".equals(profile.secretStatus())) {
-            throw unavailable("Oracle kimlik secret referansı aktif değil.");
+            throw unavailable("Bağlantı kimlik secret referansı aktif değil.");
         }
         String reference = profile.secretReferencePath();
-        if (reference == null || !ENVIRONMENT_NAME.matcher(reference).matches()) {
-            throw unavailable("Oracle kimlik secret referansı geçersiz.");
+        String rawCredential;
+        if ("TABLO".equals(profile.secretProvider())) {
+            if (reference == null || reference.isBlank()) {
+                throw unavailable("Bağlantı kimlik değeri tabloda bulunamadı.");
+            }
+            rawCredential = cipher.decrypt(reference);
         }
-        String rawCredential = environment.apply(reference);
+        else {
+            if (reference == null || !ENVIRONMENT_NAME.matcher(reference).matches()) {
+                throw unavailable("Oracle kimlik secret referansı geçersiz.");
+            }
+            rawCredential = environment.apply(reference);
+        }
         if (rawCredential == null || rawCredential.isBlank()) {
             throw unavailable("Oracle kimlik secret değeri çalışma ortamında bulunamadı.");
         }

@@ -84,7 +84,7 @@ public class JdbcExecutionStore implements ExecutionStore {
                           from akis.yayin y
                           join akis.proje p on p.id = y.proje_id
                           join akis.ortam o
-                            on o.proje_id = y.proje_id and o.id = y.ortam_id
+                            on o.id = y.ortam_id
                           join akis.senaryo s on s.id = y.senaryo_id
                          where p.uuid = :projectUuid
                            and p.arsivlenme_zamani is null
@@ -322,7 +322,7 @@ public class JdbcExecutionStore implements ExecutionStore {
                                t.ad as definition_name, t.tur as definition_type,
                                o.uuid as environment_uuid, o.kod as environment_code,
                                o.ad as environment_name, o.risk as environment_risk,
-                               coalesce(k.gorunen_ad, '—') as initiator_name,
+                               coalesce(k.gorunen_ad, 'Kaydedilmemiş') as initiator_name,
                                (select sum(ad.satir_sayisi)::bigint
                                   from akis.calistirma_adimi ca
                                   join akis.prosedur_adim_kaniti ak on ak.calistirma_adimi_id = ca.id

@@ -45,6 +45,7 @@ label { color: var(--ink); }
 .ui-summary-content strong { font-variant-numeric: tabular-nums; }
 .view-mode-icon { display: inline-flex; align-items: center; justify-content: center; min-height: 28px; }
 .ui-grid-toolbar { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.ui-grid-toolbar-end { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
 .ui-grid-records { display: grid; gap: 12px; }
 .ui-grid-records--card { grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
 .ui-grid-record dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 0; }
@@ -56,7 +57,11 @@ label { color: var(--ink); }
 body .connection-management-panel { padding: 0; }
 body .shell-content { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
 body .topbar { flex: 0 0 auto; position: relative; top: auto; }
-body .shell-body { display: grid; grid-template-columns: 264px minmax(0, 1fr); flex: 1; min-height: 0; }
+body .shell-body { display: grid; grid-template-columns: var(--explorer-width, 264px) minmax(0, 1fr); flex: 1; min-height: 0; }
+body .shell-navigation-pane { position: relative; min-width: 0; min-height: 0; }
+body .shell-navigation-pane > .shell-navigation { height: 100%; }
+body .explorer-resize-handle { position: absolute; right: -3px; top: 0; bottom: 0; width: 6px; z-index: 5; cursor: col-resize; touch-action: none; }
+body .explorer-resize-handle:hover, body .explorer-resize-handle:focus-visible { background: var(--accent); outline: 0; }
 body .shell-navigation { min-width: 0; min-height: 0; overflow: auto; background: var(--surface); border-right: 1px solid var(--line); }
 body .shell-navigation .workspace-navigation { border-inline-end: 0; position: static; padding: 8px; margin: 0; width: 100%; }
 body .shell-navigation .workspace-subnavigation { display: grid; padding: 12px; gap: 4px; border-top: 1px solid var(--line); }
@@ -66,7 +71,7 @@ body .shell-project-explorer { border-top: 1px solid var(--line); padding: 8px; 
 body .shell-body > .main-content { min-width: 0; min-height: 0; overflow: auto; }
 body .shell-body .design-workspace { grid-template-columns: minmax(0, 1fr); height: 100%; min-height: 0; }
 body .shell-body.is-compact { grid-template-columns: minmax(0, 1fr); position: relative; }
-body .shell-body.is-compact > .shell-navigation { position: absolute; top: 0; left: 0; bottom: 0; width: min(300px, 90vw); z-index: 30; box-shadow: 8px 0 24px #0003; }
+body .shell-body.is-compact > .shell-navigation-pane { position: absolute; top: 0; left: 0; bottom: 0; width: min(300px, 90vw); z-index: 30; box-shadow: 8px 0 24px #0003; }
 .ui-summary-card .ant-card-body > div { display: grid; min-width: 0; gap: 2px; }
 .ui-summary-card { overflow: hidden; }
 .ui-summary-card strong { display: block; min-width: 0; max-width: 100%; font-size: 20px; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
@@ -103,29 +108,51 @@ body .shell-body.is-compact > .shell-navigation { position: absolute; top: 0; le
 .compact-select { display: inline-flex; align-items: center; gap: 6px; min-width: 110px; padding: 0; border: 0; }
 .design-sidebar { background: var(--surface); border-right: 1px solid var(--line); }
 .sidebar-project-tree { color: var(--ink); }
-.sidebar-project-tree .ant-tree { background: transparent; }
+.sidebar-project-tree .ant-tree { background: transparent; padding: 0 8px; }
 .sidebar-project-tree .ant-tree-node-content-wrapper { min-width: 0; padding-inline: 0; }
 .akis-tree-title { display: flex; width: 100%; min-width: 0; align-items: center; }
-.akis-tree-title > .ant-btn:first-child { min-width: 0; flex: 1; justify-content: flex-start; padding-inline: 4px; }
+.akis-tree-title > .ant-btn:first-child { min-width: 0; height: auto; min-height: 32px; flex: 1; justify-content: flex-start; padding: 4px 6px; }
 .akis-tree-title > .ant-btn:first-child > span:not(.ant-btn-icon) { overflow: hidden; text-overflow: ellipsis; }
-.akis-tree-title small { margin-left: 6px; color: var(--ink-soft); }
-.project-folder-icon { color: #d89b24; fill: color-mix(in srgb, #f4c45e 28%, transparent); }
-.project-flow-root-icon { color: var(--ant-color-primary); }
-.project-component-root-icon { color: #7c5bd6; }
-.sidebar-project-tree [data-definition-type="MAPPING"] { color: #1677ff; }
-.sidebar-project-tree [data-definition-type="PROCEDURE"] { color: #d46b08; }
-.sidebar-project-tree [data-definition-type="PACKAGE"] { color: #7c5bd6; }
-.sidebar-project-tree [data-definition-type="LOAD_PLAN"] { color: #08979c; }
-.sidebar-project-tree [data-definition-type="VARIABLE"] { color: #c41d7f; }
-.sidebar-project-tree [data-definition-type="SEQUENCE"] { color: #389e0d; }
-.sidebar-project-tree [data-definition-type="USER_FUNCTION"] { color: #531dab; }
-.sidebar-project-tree [data-definition-type="KNOWLEDGE_MODULE"] { color: #ad6800; }
-.model-tree-model-icon { color: var(--ant-color-primary); }
+.akis-tree-static-label { display: flex; align-items: center; min-width: 0; min-height: 32px; flex: 1; gap: 8px; padding: 4px 6px; cursor: default; }
+.akis-tree-static-label > svg { flex: 0 0 auto; }
+.akis-tree-static-label .akis-tree-label { min-width: 0; }
+.akis-tree-label { display: grid; min-width: 0; flex: 1; gap: 1px; text-align: left; line-height: 1.15; }
+.akis-tree-label > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.akis-tree-label small { margin: 0; overflow: hidden; color: var(--ink-soft); font-size: 10px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.akis-tree-count { min-width: 21px; margin-left: 6px; padding: 1px 6px; border-radius: 10px; color: var(--ink-soft); background: var(--surface-subtle); font-size: 10px; font-weight: 700; text-align: center; }
+.sidebar-project-tree .project-tree-section-node { margin-top: 7px; }
+.sidebar-project-tree .project-tree-section-node > .ant-tree-node-content-wrapper { border: 0; border-radius: 4px; background: var(--surface-subtle); box-shadow: none; }
+.akis-tree-title--section > .ant-btn:first-child { min-height: 32px; }
+.sidebar-project-tree .akis-tree-title > .ant-btn:first-child > span:not(.ant-btn-icon) { display: flex; align-items: center; flex: 1; min-width: 0; }
+.sidebar-project-tree .akis-tree-count { flex: 0 0 auto; margin-left: auto; }
+.project-explorer-search { margin: 8px 0 12px; }
+.sidebar-project-tree .ant-tree-title { display: block; min-width: 0; }
+.akis-tree-title--section .akis-tree-label > span { font-weight: 750; }
+.sidebar-project-tree .project-tree-folder-node > .ant-tree-node-content-wrapper { border-radius: 6px; }
+.akis-tree-title--folder .akis-tree-label > span { font-weight: 650; }
+.akis-tree-title--group .akis-tree-label > span { color: var(--ink-soft); font-size: 12px; font-weight: 700; }
+.akis-tree-title--object > .ant-btn:first-child { min-height: 36px; }
+.akis-tree-title--object .akis-tree-label > span { font-weight: 650; }
+.sidebar-project-tree .ant-tree-indent-unit { width: 13px; }
+.sidebar-project-tree .ant-tree-switcher { width: 20px; color: var(--ink-soft); }
+.sidebar-project-tree .project-tree-object-node.ant-tree-treenode-selected > .ant-tree-node-content-wrapper { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.project-flow-root-icon { color: var(--schema-color-info); }
+.project-component-root-icon { color: var(--schema-color-neutral); }
+.model-tree-model-icon { color: var(--schema-color-info); }
+.model-tree-table-icon { color: var(--schema-color-teal); }
+.model-tree-view-icon { color: var(--schema-color-neutral); }
+.project-folder-icon { color: var(--schema-color-warning); fill: color-mix(in srgb, var(--schema-color-warning) 18%, transparent); }
+.model-tree-object-row { align-items: center; display: flex; gap: 2px; min-width: 0; width: 100%; }
+.model-tree-object-row > .model-object-drag { flex: 1; min-width: 0; }
+.model-tree-object-row > .ant-btn { flex: none; height: 26px; min-width: 26px; padding: 0; opacity: .72; }
+.model-tree-object-row:hover > .ant-btn, .model-tree-object-row:focus-within > .ant-btn { opacity: 1; }
+.model-tree-title { border-radius: var(--ant-border-radius-sm); }
+.model-tree-title:hover { background: var(--ant-color-fill-tertiary); }
 .model-tree-label { display: grid; min-width: 0; gap: 1px; text-align: left; line-height: 1.15; }
 .model-tree-label > span { overflow: hidden; text-overflow: ellipsis; }
 .model-tree-label small { margin: 0; color: var(--ant-color-text-tertiary); font-size: 10px; font-weight: 500; }
-.model-tree-table-icon { color: #08979c; }
-.model-tree-view-icon { color: #7c5bd6; }
+.model-tree-table-icon { color: var(--schema-color-teal); }
+.model-tree-view-icon { color: var(--schema-color-neutral); }
 .model-object-drag { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 5px; min-width: 0; cursor: grab; }
 .model-object-drag:active { cursor: grabbing; }
 .model-object-drag > svg { color: var(--ant-color-text-quaternary); }
@@ -167,6 +194,8 @@ body .shell-body.is-compact > .shell-navigation { position: absolute; top: 0; le
 .ui-record-fields { margin: 0; }
 .ui-collection--list .ui-record-fields { display: grid; grid-template-columns: repeat(auto-fit,minmax(140px,1fr)); }
 .database-provider-icon { display: grid; place-items: center; color: var(--danger); width: 32px; height: 32px; }
+.database-provider-icon--oracle { color: #d64545; }
+.database-provider-icon--postgresql { color: #336791; }
 .database-provider-icon svg { width: 24px; height: 24px; }
 .definition-fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 fieldset { border: 0; margin-inline: 0; min-width: 0; }
@@ -253,7 +282,7 @@ body .ant-input-affix-wrapper .ant-input-suffix { margin-inline-start: 8px; }
 body .topbar, body .workspace-navigation { background: var(--surface); }
 body .workspace-tab { color: var(--ink-soft); }
 body .workspace-tab.active { color: var(--accent); }
-body .connections-page .ui-collection--card .ui-record-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+body .connections-page .ui-collection--card .ui-record-fields { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 body .ui-page-header { background: transparent; border: 0; box-shadow: none; padding: 0 0 8px; }
 body .workspace-section { border-radius: 8px; }
 body .ui-summary-card { border-radius: 8px; box-shadow: none; }
@@ -311,6 +340,12 @@ body .connection-record-card .ui-record-field dt, body .connection-record-card .
 body .connection-record-card .ui-record-field-icon { float: none; margin: 0; }
 body .connection-record-card .ui-record-audit { margin: 0; padding-top: 12px; gap: 10px 12px; }
 body .connection-record-card .ant-card-body > footer { padding-top: 12px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+body .connections-page .ui-collection--card .connection-record-card .ant-card-body { gap: 6px; padding: 10px 12px; }
+body .connections-page .ui-collection--card .ui-record-field { min-height: 48px; padding: 5px 6px; }
+body .connections-page .ui-collection--card .ui-record-audit { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px 10px; padding-top: 4px; }
+body .connections-page .ui-collection--card .connection-card-audit { margin-top: 2px; padding-top: 6px; }
+body .connections-page .ui-collection--card .connection-card-audit h3 { margin-bottom: 2px; }
+body .connections-page .ui-collection--card .connection-record-card .ant-card-body > footer { margin-top: 0; padding-top: 6px; }
 body .ui-grid-record header { display: flex; align-items: center; gap: 10px; padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--line); font-weight: 600; }
 body .ui-grid-record footer { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--line); }
 body .ui-audit-disclosure { border-block: 1px solid var(--line); padding: 10px 0; }
@@ -392,6 +427,8 @@ body .metadata-evidence { background: var(--surface-subtle); border-radius: 6px;
 }
 body .ui-grid-surface { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
 body .ui-grid-toolbar h2 { margin: 0 auto 0 0; font-size: var(--font-section); }
+.ui-grid-toolbar h2, .ui-grid-collection-icon, .ui-grid-view-label, .ui-query-label { display: inline-flex; align-items: center; gap: 7px; }
+.ui-grid-collection-icon, .ui-grid-view-label > svg, .ui-query-label > svg { flex: 0 0 auto; color: var(--accent); }
 .ui-grid-view-control { display: flex; gap: 8px; align-items: center; }
 @media (max-width: 760px) { body .ui-grid-surface { padding: 12px; } }
 body .run-table-wrap, body .model-table-wrap, body .ops-table-wrap { overflow: visible; min-width: 0; }
@@ -410,6 +447,7 @@ body .metadata-context, body .metadata-discovery-controls, body .bundle-panel { 
 /* Procedure is a bounded desktop workbench, not a vertically growing document. */
 .ui-sql-editor .cm-project-variable, .ui-sql-editor .cm-project-variable span { color: var(--accent) !important; font-weight: 600; text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 4px; }
 .procedure-sql-inline { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 6px; }
+.procedure-sql-caption { display: inline-flex; align-items: center; gap: 6px; }
 .procedure-sql-inline > header, .procedure-sql-inline > footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; flex-shrink: 0; }
 .procedure-sql-inline > .sql-variable-hint { margin: 0; font-size: var(--font-caption); color: var(--ink-soft); }
 .procedure-sql-inline > .ui-sql-editor { display: flex; flex-direction: column; flex: 1; min-height: 130px; }
@@ -452,7 +490,7 @@ body .procedure-task-table .ant-table-thead > tr > th { background: var(--surfac
   body .procedure-editor-heading { align-items: center; }
   body .procedure-editor-heading p { display: none; }
   body .design-content .procedure-workbench { flex: 1; min-height: 0; gap: 12px; overflow: hidden; }
-  body .procedure-list-column { flex: 0 0 auto; max-height: 180px; overflow: auto; }
+  body .procedure-list-column { flex: 1; min-height: 0; max-height: none; overflow: auto; }
   body .procedure-task-table .ant-table-tbody > tr > td, body .procedure-task-table .ant-table-thead > tr > th { padding-block: 4px; }
   body .procedure-task-table .ant-btn { min-height: 26px; height: 26px; padding-block: 0; }
   body .design-content .procedure-task-editor { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
@@ -471,3 +509,23 @@ body .procedure-task-table .ant-table-thead > tr > th { background: var(--surfac
   body .procedure-command-detail .cm-scroller { min-height: 0; overflow: auto; }
   body .procedure-command .ui-sql-errors { max-height: 70px; overflow: auto; flex-shrink: 0; }
 }
+@media (max-width: 600px) {
+  body .connections-page .ui-collection--card .ui-record-fields,
+  body .connections-page .ui-collection--card .ui-record-audit { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+body .procedure-workbench-split { flex: 1 1 auto; height: max(360px, calc(100dvh - 260px)); min-height: 0; }
+body .procedure-workbench-split .ant-splitter-panel { min-width: 0; overflow: hidden; }
+body .procedure-workbench-split > .ant-splitter-panel:first-child { padding-bottom: 12px; box-sizing: border-box; }
+body .procedure-workbench-split .procedure-steps-panel { display: flex; flex-direction: column; height: 100%; min-height: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); overflow: hidden; }
+body .procedure-workbench-split .procedure-editor-heading { margin: 0; padding: 10px 12px; background: var(--surface-strong); border-bottom: 1px solid var(--line); }
+body .procedure-workbench-split .procedure-list-column { flex: 1; min-height: 0; max-height: none; overflow: auto; }
+body .procedure-workbench-split .procedure-task-table thead { position: sticky; top: 0; z-index: 1; }
+body .procedure-workbench-split .procedure-task-editor { display: flex; flex-direction: column; height: 100%; min-height: 0; box-sizing: border-box; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
+body .procedure-workbench-split .procedure-command-detail { flex: 1; min-height: 0; overflow: auto; }
+body .procedure-workbench-split .procedure-side { height: auto; flex: 1; min-height: min-content; grid-template-columns: minmax(0, 1fr); overflow: visible; }
+body .procedure-workbench-split .procedure-sql-inline { min-width: 0; }
+body .procedure-workbench-split .procedure-sql-inline > .ui-sql-editor { min-height: 100px; }
+body .procedure-workbench-split .ant-splitter-bar { flex-shrink: 0; }
+body .procedure-workbench-split .ant-splitter-bar-dragger::before { background: transparent; }
+body .procedure-workbench-split .ant-splitter-bar-dragger::after { border-radius: 4px; background: var(--ink-soft); }
+body .model-folder-navigation { display: flex; flex-wrap: wrap; gap: 8px; }

@@ -7,7 +7,29 @@
 .models-search { display: grid; gap: 5px; padding: 12px 14px; }
 .model-table-wrap { overflow: auto; padding: 10px; }
 .model-name-link { text-decoration: none; }
+.model-name-cell { display: flex; align-items: center; gap: 10px; min-width: 180px; }
+.model-name-cell > svg { color: var(--ant-color-primary); flex: none; }
+.model-name-cell > span { display: grid; gap: 2px; min-width: 0; }
+.model-name-cell small { color: var(--ant-color-text-secondary); }
+.model-row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; white-space: nowrap; }
+.model-row-actions .button { width: 34px; min-width: 34px; height: 34px; padding: 0; display: inline-grid; place-items: center; }
+.model-editor-form { min-width: min(720px, 78vw); }
+.model-editor-form > footer { display: flex; justify-content: flex-end; gap: 8px; padding-top: 16px; border-top: 1px solid var(--ant-color-border-secondary); }
+.model-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 4px 2px 20px; }
+.model-form-grid > label { display: grid; gap: 6px; font-weight: 600; color: var(--ant-color-text); }
+.model-form-wide, .model-reverse-note { grid-column: 1 / -1; }
+.model-reverse-note { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border: 1px solid var(--ant-color-info-border); border-radius: var(--ant-border-radius-lg); background: var(--ant-color-info-bg); color: var(--ant-color-text); }
+.model-reverse-note > svg { color: var(--ant-color-info); flex: none; margin-top: 2px; }
+.model-reverse-note p { margin: 0; line-height: 1.55; }
 .model-detail-layout { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); min-height: 520px; overflow: hidden; }
+.model-datastore-catalog { overflow: hidden; }
+.model-datastore-catalog > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 16px 18px 10px; }
+.model-datastore-catalog > header h2 { margin: 0; font-size: var(--ant-font-size-heading-4); }
+.model-datastore-catalog > header p { margin: 4px 0 0; color: var(--ant-color-text-secondary); }
+.model-datastore-catalog .ui-data-grid { margin: 0 10px 10px; width: calc(100% - 20px); }
+.model-datastore-catalog tr.is-selected > td { background: var(--ant-color-primary-bg); }
+.model-object-kind { display: inline-flex; align-items: center; gap: 7px; color: var(--ant-color-text-secondary); }
+.model-object-kind > svg { color: var(--ant-color-primary); }
 .model-object-tree > header { display: flex; align-items: center; gap: 8px; padding: 14px; }
 .model-object-tree > header span { margin-left: auto; }
 .model-object-tree ul { list-style: none; padding: 6px; margin: 0; }
@@ -35,6 +57,18 @@
 .metadata-diff-empty, .metadata-impact-warning { margin: 12px; }
 .metadata-impact-warning { padding: 9px; }
 .metadata-import-actions { position: sticky; bottom: 12px; display: flex; align-items: center; justify-content: flex-end; gap: 14px; padding: 12px; }
-@media (max-width: 900px) { .model-detail-layout, .metadata-results-layout, .metadata-context { grid-template-columns: 1fr; } .model-object-tree { max-height: 260px; overflow: auto; } .metadata-context dl { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 900px) { .model-detail-layout, .metadata-results-layout, .metadata-context, .model-form-grid { grid-template-columns: 1fr; } .model-form-wide, .model-reverse-note { grid-column: auto; } .model-object-tree { max-height: 260px; overflow: auto; } .metadata-context dl { grid-template-columns: repeat(2, 1fr); } }
 
 }
+.model-editor-form > fieldset { border: 0; margin: 0; min-width: 0; padding: 0; }
+.data-object-folder-editor { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin: 0 0 18px; padding: 14px; border: 1px solid var(--ant-color-border-secondary); border-radius: var(--ant-border-radius-lg); background: var(--ant-color-fill-quaternary); }
+.data-object-folder-editor > label { display: grid; gap: 6px; flex: 1 1 220px; min-width: 0; }
+.data-object-folder-editor .ant-select { width: 100%; min-width: 0; }
+.data-object-folder-editor > small { flex-basis: 100%; color: var(--ant-color-text-secondary); }
+/* Metadata import in the catalog layout. */
+.metadata-discovery-form { margin-top: 4px; }
+.metadata-context-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px 16px; margin: 0; }
+.metadata-context-summary > div { display: grid; gap: 2px; }
+.metadata-context-summary dt { color: var(--ant-color-text-secondary); font-size: var(--font-caption); }
+.metadata-context-summary dd { margin: 0; }
+.metadata-folder-choice { display: inline-flex; align-items: center; gap: 8px; }

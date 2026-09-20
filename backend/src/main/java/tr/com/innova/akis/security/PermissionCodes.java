@@ -29,6 +29,8 @@ public final class PermissionCodes {
     public static final String PRODUCTION_RUN = "CALISTIRMA_BASLAT";
     public static final String IDENTITY_USER_PROVISION = "KULLANICI_YONET";
     public static final String PROJECT_MEMBERSHIP_MANAGE = "UYE_YONET";
+    public static final String SCHEMA_METADATA_READ = "SEMA_METADATA_GORUNTULE";
+    public static final String SCHEMA_METADATA_WRITE = "SEMA_METADATA_YONET";
 
     private PermissionCodes() {
     }

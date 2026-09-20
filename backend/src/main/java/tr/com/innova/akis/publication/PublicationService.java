@@ -58,11 +58,13 @@ public class PublicationService {
     @Transactional
     public JsonNode previewStaged(UUID projectUuid, UUID scenarioUuid, UUID environmentUuid) {
         var context = store.lockContext(projectUuid, scenarioUuid, environmentUuid).orElseThrow(() -> notFound("Senaryo/ortam bulunamadı."));
-        if (context.definitionSchemaVersion() != 3 || stagedPlanner == null) throw validation("KM plan önizlemesi için Mapping sürüm 3 gerekir.");
+        if (!Set.of(3,4).contains(context.definitionSchemaVersion()) || stagedPlanner == null) throw validation("KM plan önizlemesi için yürütme modüllü bir arayüz gerekir.");
         var bindings = store.resolveBindings(context);
         validateResolvedBindings(bindings);
         var result = objectMapper.createObjectNode();
-        result.set("plan", stagedPlanner.compile(context,bindings));
+        var plan = stagedPlanner.compile(context,bindings);
+        result.set("plan", plan);
+        result.set("sqlPreview", stagedPlanner.sqlPreview(context, plan));
         result.put("executionVerified",false);
         result.put("message","Plan üretildi. Canlı DB/PDB, şema, yetki ve çalışma alanı kontrolleri yürütmede ayrıca gerekir.");
         return result;
@@ -114,7 +116,7 @@ public class PublicationService {
                         .requiresApprovalForPublication(context.scenarioPlan());
             }
             catch (ProcedureRuntimePlanException exception) {
-                throw procedurePlanRejected();
+                throw procedurePlanRejected(exception);
             }
         }
         boolean stagedExecutable=stagedRuntimeEnabled && context.definitionSchemaVersion()==3;
@@ -127,7 +129,7 @@ public class PublicationService {
                 context.environmentRisk(), taskApprovalRequired);
         ObjectNode unsignedManifest = unsignedManifest(
                 context, bindings, runtimeCapability, approvalRequired);
-        if (context.definitionSchemaVersion() == 3 && !java.util.Objects.equals(expectedPhysicalPlanHash,
+        if (Set.of(3,4).contains(context.definitionSchemaVersion()) && !java.util.Objects.equals(expectedPhysicalPlanHash,
                 unsignedManifest.path("stagedPlan").path("physicalPlanHash").asText())) {
             throw conflict("PHYSICAL_PLAN_CHANGED", "Çalışma planı değişmiş veya önizleme yapılmamış; yeniden önizleyin.");
         }
@@ -152,7 +154,7 @@ public class PublicationService {
                 unsignedManifest.put("runtimePlanHash", runtimePlanHash);
             }
             catch (ProcedureRuntimePlanException exception) {
-                throw procedurePlanRejected();
+                throw procedurePlanRejected(exception);
             }
         }
         String releaseHash = sha256(canonicalize(unsignedManifest).toString());
@@ -341,7 +343,7 @@ public class PublicationService {
             manifest.set("policyVersions", tr.com.innova.akis.execution.ProcedurePolicyVersions.current(objectMapper));
         }
         manifest.set("scenario", scenario);
-        if (context.definitionSchemaVersion() == 3) {
+        if (Set.of(3,4).contains(context.definitionSchemaVersion())) {
             if (stagedPlanner == null) throw validation("KM plan servisi hazır değil.");
             manifest.set("stagedPlan", stagedPlanner.compile(context, bindings));
         }
@@ -354,11 +356,11 @@ public class PublicationService {
                 marker != null && marker.isBoolean() && marker.booleanValue());
     }
 
-    private ApiException procedurePlanRejected() {
+    private ApiException procedurePlanRejected(ProcedureRuntimePlanException exception) {
         return new ApiException(
                 HttpStatus.UNPROCESSABLE_CONTENT,
                 "PROCEDURE_RUNTIME_PLAN_REJECTED",
-                "Yayın, Oracle Procedure çalışma sözleşmesine uymuyor.");
+                "Yayın, Procedure çalışma sözleşmesine uymuyor: " + exception.getMessage());
     }
 
     JsonNode canonicalize(JsonNode node) {

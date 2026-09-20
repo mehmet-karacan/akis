@@ -1,0 +1,693 @@
+SET search_path TO akis, public;
+
+-- =============================================================================
+-- Topoloji ODI modeline geçiş.
+--   * baglanti / fiziksel_sema / mantiksal_sema / ortam / sema_eslemesi global (proje_id yok)
+--   * baglanti_surumu + baglanti_kimligi kaldırıldı; adres ve şifre doğrudan baglanti'da
+--   * çalışma şeması + prefixler fiziksel_sema'da (SNP_PSCHEMA)
+--   * versiyon_no / arsivlenme_zamani yok
+-- Eski veriler yedek_* tablolarında tutulur; doğrulama sonrası ayrı migration ile düşürülür.
+-- =============================================================================
+
+-- 1. Yedekler -----------------------------------------------------------------
+CREATE TABLE yedek_baglanti                      AS TABLE baglanti;
+CREATE TABLE yedek_baglanti_surumu               AS TABLE baglanti_surumu;
+CREATE TABLE yedek_baglanti_kimligi              AS TABLE baglanti_kimligi;
+CREATE TABLE yedek_baglanti_testi                AS TABLE baglanti_testi;
+CREATE TABLE yedek_fiziksel_sema                 AS TABLE fiziksel_sema;
+CREATE TABLE yedek_mantiksal_sema                AS TABLE mantiksal_sema;
+CREATE TABLE yedek_ortam                         AS TABLE ortam;
+CREATE TABLE yedek_sema_eslemesi                 AS TABLE sema_eslemesi;
+CREATE TABLE yedek_calisma_nesnesi_prefix        AS TABLE calisma_nesnesi_prefix;
+CREATE TABLE yedek_calisma_prefix_migration_kaydi AS TABLE calisma_prefix_migration_kaydi;
+
+-- 2. Dış tabloların topolojiye bakan FK'lerini kaldır ---------------------------
+ALTER TABLE model                        DROP CONSTRAINT fk_model_mantiksal_sema,
+                                         DROP CONSTRAINT fk_model_reverse_ortam;
+ALTER TABLE sema_goruntusu               DROP CONSTRAINT fk_sema_goruntusu_fiziksel,
+                                         DROP CONSTRAINT fk_sema_goruntusu_surum;
+ALTER TABLE sema_goruntusu_oracle_kaniti DROP CONSTRAINT fk_oracle_kaniti_baglanti,
+                                         DROP CONSTRAINT fk_oracle_kaniti_surum,
+                                         DROP CONSTRAINT fk_oracle_kaniti_test;
+ALTER TABLE dogrulama                    DROP CONSTRAINT fk_dogrulama_ortam;
+ALTER TABLE yayin                        DROP CONSTRAINT fk_yayin_ortam;
+ALTER TABLE yayin_veri_bagi              DROP CONSTRAINT fk_yayin_veri_bagi_esleme,
+                                         DROP CONSTRAINT fk_yayin_veri_bagi_fiziksel,
+                                         DROP CONSTRAINT fk_yayin_veri_bagi_surum;
+ALTER TABLE degisken_deger_gecmisi       DROP CONSTRAINT degisken_deger_gecmisi_baglanti_surumu_uuid_fkey,
+                                         DROP CONSTRAINT degisken_deger_gecmisi_mantiksal_sema_uuid_fkey,
+                                         DROP CONSTRAINT degisken_deger_gecmisi_ortam_uuid_fkey;
+ALTER TABLE degisken_test_gecmisi        DROP CONSTRAINT degisken_test_gecmisi_baglanti_surumu_uuid_fkey,
+                                         DROP CONSTRAINT degisken_test_gecmisi_mantiksal_sema_uuid_fkey,
+                                         DROP CONSTRAINT degisken_test_gecmisi_ortam_uuid_fkey;
+ALTER TABLE km_work_area_policy          DROP CONSTRAINT km_work_area_policy_proje_id_fiziksel_sema_id_fkey;
+
+-- Sürüm kavramı kalktı: tarihsel kayıtlardaki sürüm kolonları veri olarak kalır, zorunluluk kalkar.
+ALTER TABLE sema_goruntusu               ALTER COLUMN baglanti_surumu_id DROP NOT NULL;
+ALTER TABLE sema_goruntusu_oracle_kaniti ALTER COLUMN baglanti_surumu_id DROP NOT NULL,
+                                         ALTER COLUMN basarili_baglanti_testi_uuid DROP NOT NULL;
+ALTER TABLE yayin_veri_bagi              ALTER COLUMN baglanti_surumu_id DROP NOT NULL;
+ALTER TABLE degisken_deger_gecmisi       ALTER COLUMN baglanti_surumu_uuid DROP NOT NULL;
+ALTER TABLE degisken_test_gecmisi        ALTER COLUMN baglanti_surumu_uuid DROP NOT NULL;
+ALTER TABLE islem_grubu_kaniti           ALTER COLUMN baglanti_surumu_uuid DROP NOT NULL;
+ALTER TABLE prosedur_adim_kaniti         ALTER COLUMN baglanti_surumu_uuid DROP NOT NULL;
+
+-- Şema görüntüsü artık (veri nesnesi, fiziksel şema, parmak izi) ile tekildir; sürüm ayrımı yok.
+ALTER TABLE sema_goruntusu DROP CONSTRAINT uq_sema_goruntusu_icerik;
+ALTER TABLE sema_goruntusu ADD CONSTRAINT uq_sema_goruntusu_icerik UNIQUE (veri_nesnesi_id, fiziksel_sema_id, parmak_izi);
+
+-- 3. Eski topoloji tablolarını düşür --------------------------------------------
+DROP TABLE calisma_prefix_migration_kaydi;
+DROP TABLE calisma_nesnesi_prefix;
+DROP TABLE sema_eslemesi;
+DROP TABLE baglanti_kimligi;
+DROP TABLE baglanti_surumu CASCADE;   -- fk_baglanti_surumu_son_test -> baglanti_testi
+DROP TABLE baglanti_testi;
+ALTER TABLE baglanti DROP CONSTRAINT fk_baglanti_calisma_semasi;
+DROP TABLE fiziksel_sema;
+DROP TABLE mantiksal_sema;
+DROP TABLE ortam;
+DROP TABLE baglanti;
+
+-- 4. Yeni tablolar ---------------------------------------------------------------
+CREATE TABLE baglanti (
+    id                       BIGINT GENERATED BY DEFAULT AS IDENTITY,
+    kod                      VARCHAR(100) NOT NULL,
+    ad                       VARCHAR(200) NOT NULL,
+    aciklama                 VARCHAR(2000),
+    saglayici_turu           VARCHAR(30) NOT NULL,
+    baglanti_modu            VARCHAR(20) NOT NULL DEFAULT 'JDBC',
+    surucu_sinifi            VARCHAR(400),
+    sunucu_adi               VARCHAR(500),
+    port                     INTEGER,
+    servis_adi               VARCHAR(500),
+    sid                      VARCHAR(500),
+    veritabani_adi           VARCHAR(500),
+    jdbc_url_ek              VARCHAR(1000),
+    jndi_adi                 VARCHAR(400),
+    kullanici_adi            VARCHAR(400),
+    sifre                    VARCHAR(1000),
+    getirme_boyutu           INTEGER NOT NULL DEFAULT 30,
+    toplu_guncelleme_boyutu  INTEGER NOT NULL DEFAULT 30,
+    baglanti_zaman_asimi_ms  INTEGER NOT NULL DEFAULT 10000,
+    okuma_zaman_asimi_ms     INTEGER NOT NULL DEFAULT 60000,
+    sorgu_zaman_asimi_saniye INTEGER NOT NULL DEFAULT 60,
+    baglanti_sonrasi_sql     TEXT,
+    kapanis_oncesi_sql       TEXT,
+    son_test_zamani          TIMESTAMPTZ,
+    son_test_basarili_mi     BOOLEAN,
+    durum                    VARCHAR(20) NOT NULL DEFAULT 'ETKIN',
+    uuid                     UUID NOT NULL DEFAULT gen_random_uuid(),
+    olusturulma_zamani       TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    olusturan_kullanici_id   BIGINT REFERENCES kullanici(id),
+    guncellenme_zamani       TIMESTAMPTZ,
+    guncelleyen_kullanici_id BIGINT REFERENCES kullanici(id),
+    CONSTRAINT pk_baglanti            PRIMARY KEY (id),
+    CONSTRAINT uq_baglanti_uuid       UNIQUE (uuid),
+    CONSTRAINT uq_baglanti_kod        UNIQUE (kod),
+    CONSTRAINT uq_baglanti_id_tur     UNIQUE (id, saglayici_turu),
+    CONSTRAINT ck_baglanti_kod        CHECK (kod ~ '^[A-Z][A-Z0-9_]{0,99}$'),
+    CONSTRAINT ck_baglanti_ad         CHECK (btrim(ad) <> ''),
+    CONSTRAINT ck_baglanti_saglayici  CHECK (saglayici_turu IN ('ORACLE','POSTGRESQL','MYSQL','SQLSERVER')),
+    CONSTRAINT ck_baglanti_mod        CHECK (baglanti_modu IN ('JDBC','JNDI')),
+    CONSTRAINT ck_baglanti_durum      CHECK (durum IN ('ETKIN','PASIF')),
+    CONSTRAINT ck_baglanti_konum CHECK (
+        (baglanti_modu = 'JNDI'
+            AND jndi_adi IS NOT NULL AND btrim(jndi_adi) <> ''
+            AND sunucu_adi IS NULL AND port IS NULL
+            AND kullanici_adi IS NULL AND sifre IS NULL)
+     OR (baglanti_modu = 'JDBC'
+            AND surucu_sinifi IS NOT NULL AND btrim(surucu_sinifi) <> ''
+            AND sunucu_adi IS NOT NULL AND btrim(sunucu_adi) <> ''
+            AND port BETWEEN 1 AND 65535
+            AND num_nonnulls(servis_adi, sid, veritabani_adi) >= 1
+            AND jndi_adi IS NULL)
+    ),
+    CONSTRAINT ck_baglanti_boyutlar CHECK (
+        getirme_boyutu BETWEEN 1 AND 10000 AND toplu_guncelleme_boyutu BETWEEN 1 AND 10000),
+    CONSTRAINT ck_baglanti_zaman_asimlari CHECK (
+        baglanti_zaman_asimi_ms BETWEEN 1000 AND 120000
+        AND okuma_zaman_asimi_ms BETWEEN 1000 AND 300000
+        AND sorgu_zaman_asimi_saniye BETWEEN 1 AND 3600),
+    CONSTRAINT ck_baglanti_son_test CHECK ((son_test_zamani IS NULL) = (son_test_basarili_mi IS NULL)),
+    CONSTRAINT ck_baglanti_audit CHECK (
+        guncellenme_zamani IS NULL OR guncellenme_zamani >= olusturulma_zamani)
+);
+
+CREATE TABLE fiziksel_sema (
+    id                       BIGINT GENERATED BY DEFAULT AS IDENTITY,
+    baglanti_id              BIGINT NOT NULL,
+    kod                      VARCHAR(100) NOT NULL,
+    ad                       VARCHAR(200) NOT NULL,
+    aciklama                 VARCHAR(2000),
+    saglayici_turu           VARCHAR(30) NOT NULL,
+    katalog_adi              VARCHAR(128),
+    sema_adi                 VARCHAR(128) NOT NULL,
+    calisma_katalog_adi      VARCHAR(128),
+    calisma_sema_adi         VARCHAR(128) NOT NULL,
+    varsayilan_mi            BOOLEAN NOT NULL DEFAULT FALSE,
+    yukleme_prefix           VARCHAR(35) NOT NULL DEFAULT 'C$_',
+    entegrasyon_prefix       VARCHAR(35) NOT NULL DEFAULT 'I$_',
+    hata_prefix              VARCHAR(35) NOT NULL DEFAULT 'E$_',
+    gecici_prefix            VARCHAR(35) NOT NULL DEFAULT 'T$_',
+    nesne_deseni             VARCHAR(100) NOT NULL DEFAULT '%SCHEMA.%OBJECT',
+    uzak_nesne_deseni        VARCHAR(100) NOT NULL DEFAULT '%SCHEMA.%OBJECT@%DSERVER',
+    sira_deseni              VARCHAR(100) NOT NULL DEFAULT '%SCHEMA.%OBJECT.nextval',
+    durum                    VARCHAR(20) NOT NULL DEFAULT 'ETKIN',
+    uuid                     UUID NOT NULL DEFAULT gen_random_uuid(),
+    olusturulma_zamani       TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    olusturan_kullanici_id   BIGINT REFERENCES kullanici(id),
+    guncellenme_zamani       TIMESTAMPTZ,
+    guncelleyen_kullanici_id BIGINT REFERENCES kullanici(id),
+    CONSTRAINT pk_fiziksel_sema               PRIMARY KEY (id),
+    CONSTRAINT uq_fiziksel_sema_uuid          UNIQUE (uuid),
+    CONSTRAINT uq_fiziksel_sema_kod           UNIQUE (kod),
+    CONSTRAINT uq_fiziksel_sema_id_tur        UNIQUE (id, saglayici_turu),
+    CONSTRAINT uq_fiziksel_sema_baglanti_sema UNIQUE (baglanti_id, katalog_adi, sema_adi),
+    CONSTRAINT fk_fiziksel_sema_baglanti FOREIGN KEY (baglanti_id, saglayici_turu)
+        REFERENCES baglanti(id, saglayici_turu),
+    CONSTRAINT ck_fiziksel_sema_kod    CHECK (kod ~ '^[A-Z][A-Z0-9_]{0,99}$'),
+    CONSTRAINT ck_fiziksel_sema_ad     CHECK (btrim(ad) <> ''),
+    CONSTRAINT ck_fiziksel_sema_sema   CHECK (btrim(sema_adi) <> '' AND btrim(calisma_sema_adi) <> ''),
+    CONSTRAINT ck_fiziksel_sema_durum  CHECK (durum IN ('ETKIN','PASIF')),
+    CONSTRAINT ck_fiziksel_sema_prefix CHECK (
+        yukleme_prefix     ~ '^[A-Z][A-Z0-9_$]{0,34}$'
+        AND entegrasyon_prefix ~ '^[A-Z][A-Z0-9_$]{0,34}$'
+        AND hata_prefix    ~ '^[A-Z][A-Z0-9_$]{0,34}$'
+        AND gecici_prefix  ~ '^[A-Z][A-Z0-9_$]{0,34}$'
+        AND yukleme_prefix <> entegrasyon_prefix AND yukleme_prefix <> hata_prefix
+        AND entegrasyon_prefix <> hata_prefix
+        AND gecici_prefix NOT IN (yukleme_prefix, entegrasyon_prefix, hata_prefix)),
+    CONSTRAINT ck_fiziksel_sema_audit CHECK (
+        guncellenme_zamani IS NULL OR guncellenme_zamani >= olusturulma_zamani)
+);
+CREATE INDEX ix_fiziksel_sema_baglanti ON fiziksel_sema(baglanti_id);
+CREATE UNIQUE INDEX uq_fiziksel_sema_varsayilan ON fiziksel_sema(baglanti_id) WHERE varsayilan_mi;
+
+CREATE TABLE mantiksal_sema (
+    id                       BIGINT GENERATED BY DEFAULT AS IDENTITY,
+    kod                      VARCHAR(100) NOT NULL,
+    ad                       VARCHAR(200) NOT NULL,
+    aciklama                 VARCHAR(2000),
+    saglayici_turu           VARCHAR(30) NOT NULL,
+    durum                    VARCHAR(20) NOT NULL DEFAULT 'ETKIN',
+    uuid                     UUID NOT NULL DEFAULT gen_random_uuid(),
+    olusturulma_zamani       TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    olusturan_kullanici_id   BIGINT REFERENCES kullanici(id),
+    guncellenme_zamani       TIMESTAMPTZ,
+    guncelleyen_kullanici_id BIGINT REFERENCES kullanici(id),
+    CONSTRAINT pk_mantiksal_sema           PRIMARY KEY (id),
+    CONSTRAINT uq_mantiksal_sema_uuid      UNIQUE (uuid),
+    CONSTRAINT uq_mantiksal_sema_kod       UNIQUE (kod),
+    CONSTRAINT uq_mantiksal_sema_id_tur    UNIQUE (id, saglayici_turu),
+    CONSTRAINT ck_mantiksal_sema_kod       CHECK (kod ~ '^[A-Z][A-Z0-9_]{0,99}$'),
+    CONSTRAINT ck_mantiksal_sema_ad        CHECK (btrim(ad) <> ''),
+    CONSTRAINT ck_mantiksal_sema_saglayici CHECK (saglayici_turu IN ('ORACLE','POSTGRESQL','MYSQL','SQLSERVER')),
+    CONSTRAINT ck_mantiksal_sema_durum     CHECK (durum IN ('ETKIN','PASIF')),
+    CONSTRAINT ck_mantiksal_sema_audit CHECK (
+        guncellenme_zamani IS NULL OR guncellenme_zamani >= olusturulma_zamani)
+);
+
+CREATE TABLE ortam (
+    id                       BIGINT GENERATED BY DEFAULT AS IDENTITY,
+    kod                      VARCHAR(100) NOT NULL,
+    ad                       VARCHAR(200) NOT NULL,
+    aciklama                 VARCHAR(2000),
+    uretim_mi                BOOLEAN NOT NULL DEFAULT FALSE,
+    risk                     VARCHAR(20) NOT NULL DEFAULT 'DUSUK',
+    politika_sema_surumu     INTEGER NOT NULL DEFAULT 1,
+    politika                 JSONB NOT NULL DEFAULT '{}'::jsonb,
+    varsayilan_mi            BOOLEAN NOT NULL DEFAULT FALSE,
+    durum                    VARCHAR(20) NOT NULL DEFAULT 'ETKIN',
+    uuid                     UUID NOT NULL DEFAULT gen_random_uuid(),
+    olusturulma_zamani       TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    olusturan_kullanici_id   BIGINT REFERENCES kullanici(id),
+    guncellenme_zamani       TIMESTAMPTZ,
+    guncelleyen_kullanici_id BIGINT REFERENCES kullanici(id),
+    CONSTRAINT pk_ortam        PRIMARY KEY (id),
+    CONSTRAINT uq_ortam_uuid   UNIQUE (uuid),
+    CONSTRAINT uq_ortam_kod    UNIQUE (kod),
+    CONSTRAINT ck_ortam_kod    CHECK (kod ~ '^[A-Z][A-Z0-9_]{0,99}$'),
+    CONSTRAINT ck_ortam_ad     CHECK (btrim(ad) <> ''),
+    CONSTRAINT ck_ortam_risk   CHECK (risk IN ('DUSUK','ORTA','YUKSEK','URETIM')),
+    CONSTRAINT ck_ortam_uretim CHECK ((risk = 'URETIM') = uretim_mi),
+    CONSTRAINT ck_ortam_durum  CHECK (durum IN ('ETKIN','PASIF')),
+    CONSTRAINT ck_ortam_politika CHECK (politika_sema_surumu > 0 AND jsonb_typeof(politika) = 'object'),
+    CONSTRAINT ck_ortam_audit CHECK (
+        guncellenme_zamani IS NULL OR guncellenme_zamani >= olusturulma_zamani)
+);
+CREATE UNIQUE INDEX uq_ortam_varsayilan ON ortam((varsayilan_mi)) WHERE varsayilan_mi;
+
+CREATE TABLE sema_eslemesi (
+    id                       BIGINT GENERATED BY DEFAULT AS IDENTITY,
+    ortam_id                 BIGINT NOT NULL,
+    mantiksal_sema_id        BIGINT NOT NULL,
+    fiziksel_sema_id         BIGINT NOT NULL,
+    saglayici_turu           VARCHAR(30) NOT NULL,
+    uuid                     UUID NOT NULL DEFAULT gen_random_uuid(),
+    olusturulma_zamani       TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    olusturan_kullanici_id   BIGINT REFERENCES kullanici(id),
+    guncellenme_zamani       TIMESTAMPTZ,
+    guncelleyen_kullanici_id BIGINT REFERENCES kullanici(id),
+    CONSTRAINT pk_sema_eslemesi           PRIMARY KEY (id),
+    CONSTRAINT uq_sema_eslemesi_uuid      UNIQUE (uuid),
+    CONSTRAINT uq_sema_eslemesi_ortam_mantiksal UNIQUE (ortam_id, mantiksal_sema_id),
+    CONSTRAINT fk_sema_eslemesi_ortam     FOREIGN KEY (ortam_id) REFERENCES ortam(id),
+    CONSTRAINT fk_sema_eslemesi_mantiksal FOREIGN KEY (mantiksal_sema_id, saglayici_turu)
+        REFERENCES mantiksal_sema(id, saglayici_turu),
+    CONSTRAINT fk_sema_eslemesi_fiziksel  FOREIGN KEY (fiziksel_sema_id, saglayici_turu)
+        REFERENCES fiziksel_sema(id, saglayici_turu),
+    CONSTRAINT ck_sema_eslemesi_audit CHECK (
+        guncellenme_zamani IS NULL OR guncellenme_zamani >= olusturulma_zamani)
+);
+CREATE INDEX ix_sema_eslemesi_fiziksel ON sema_eslemesi(fiziksel_sema_id);
+
+CREATE TABLE baglanti_testi (
+    id                       BIGINT GENERATED BY DEFAULT AS IDENTITY,
+    baglanti_id              BIGINT NOT NULL,
+    deneme_no                INTEGER NOT NULL,
+    sonuc                    VARCHAR(20) NOT NULL,
+    hata_kodu                VARCHAR(100),
+    urun_adi                 VARCHAR(500),
+    urun_surumu              VARCHAR(500),
+    surucu_adi               VARCHAR(500),
+    surucu_surumu            VARCHAR(500),
+    veritabani_ana_surumu    INTEGER,
+    veritabani_alt_surumu    INTEGER,
+    hedef_kimlik_surumu      INTEGER,
+    hedef_parmak_izi         VARCHAR(128),
+    baslama_zamani           TIMESTAMPTZ NOT NULL,
+    tamamlanma_zamani        TIMESTAMPTZ NOT NULL,
+    sure_milisaniye          BIGINT NOT NULL,
+    uuid                     UUID NOT NULL DEFAULT gen_random_uuid(),
+    olusturulma_zamani       TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    olusturan_kullanici_id   BIGINT REFERENCES kullanici(id),
+    guncellenme_zamani       TIMESTAMPTZ,
+    guncelleyen_kullanici_id BIGINT REFERENCES kullanici(id),
+    CONSTRAINT pk_baglanti_testi         PRIMARY KEY (id),
+    CONSTRAINT uq_baglanti_testi_uuid    UNIQUE (uuid),
+    CONSTRAINT uq_baglanti_testi_deneme  UNIQUE (baglanti_id, deneme_no),
+    CONSTRAINT fk_baglanti_testi_baglanti FOREIGN KEY (baglanti_id) REFERENCES baglanti(id) ON DELETE CASCADE,
+    CONSTRAINT ck_baglanti_testi_deneme  CHECK (deneme_no > 0),
+    CONSTRAINT ck_baglanti_testi_sonuc   CHECK (sonuc IN ('BASARILI','BASARISIZ')),
+    CONSTRAINT ck_baglanti_testi_sure    CHECK (sure_milisaniye >= 0 AND tamamlanma_zamani >= baslama_zamani),
+    CONSTRAINT ck_baglanti_testi_icerik  CHECK (
+        (sonuc = 'BASARILI' AND hata_kodu IS NULL AND urun_adi IS NOT NULL AND urun_surumu IS NOT NULL)
+     OR (sonuc = 'BASARISIZ' AND hata_kodu IS NOT NULL)),
+    CONSTRAINT ck_baglanti_testi_hedef   CHECK (
+        (hedef_kimlik_surumu IS NULL) = (hedef_parmak_izi IS NULL)),
+    CONSTRAINT ck_baglanti_testi_audit CHECK (
+        guncellenme_zamani IS NULL OR guncellenme_zamani >= olusturulma_zamani)
+);
+CREATE INDEX ix_baglanti_testi_baglanti ON baglanti_testi(baglanti_id, deneme_no DESC);
+
+-- 5. Veri taşıma (id ve uuid değerleri korunur) -------------------------------------
+-- Her bağlantı için gösterilecek sürüm: ETKIN varsa o, yoksa en yüksek surum_no.
+CREATE TEMP TABLE tmp_secili_surum AS
+SELECT DISTINCT ON (s.baglanti_id) s.*
+FROM yedek_baglanti_surumu s
+ORDER BY s.baglanti_id, (s.durum = 'ETKIN') DESC, s.surum_no DESC;
+
+INSERT INTO baglanti (
+    id, kod, ad, aciklama, saglayici_turu, baglanti_modu, surucu_sinifi,
+    sunucu_adi, port, servis_adi, sid, veritabani_adi, jndi_adi,
+    kullanici_adi, sifre,
+    baglanti_zaman_asimi_ms, okuma_zaman_asimi_ms, sorgu_zaman_asimi_saniye,
+    son_test_zamani, son_test_basarili_mi, durum,
+    uuid, olusturulma_zamani, olusturan_kullanici_id, guncellenme_zamani, guncelleyen_kullanici_id)
+OVERRIDING SYSTEM VALUE
+SELECT b.id, b.kod, b.ad, b.aciklama, b.saglayici_turu,
+       COALESCE(s.baglanti_modu, 'JDBC'),
+       COALESCE(s.surucu_sinifi, CASE b.saglayici_turu WHEN 'ORACLE' THEN 'oracle.jdbc.OracleDriver'
+                                                       WHEN 'POSTGRESQL' THEN 'org.postgresql.Driver'
+                                                       WHEN 'MYSQL' THEN 'com.mysql.cj.jdbc.Driver' END),
+       s.sunucu_adi, s.port, s.servis_adi, s.sid, s.veritabani_adi, s.jndi_adi,
+       k.kullanici_adi,
+       CASE WHEN k.gizli_deger_saglayicisi = 'TABLO' THEN k.gizli_deger_konumu END,
+       COALESCE(s.baglanti_zaman_asimi_ms, 10000),
+       COALESCE(s.okuma_zaman_asimi_ms, 60000),
+       COALESCE(s.sorgu_zaman_asimi_saniye, 60),
+       s.test_edilme_zamani,
+       CASE WHEN s.test_edilme_zamani IS NOT NULL THEN TRUE END,
+       'ETKIN',
+       b.uuid, b.olusturulma_zamani, b.olusturan_kullanici_id, b.guncellenme_zamani, b.guncelleyen_kullanici_id
+FROM yedek_baglanti b
+LEFT JOIN tmp_secili_surum s ON s.baglanti_id = b.id
+LEFT JOIN yedek_baglanti_kimligi k ON k.baglanti_surumu_id = s.id AND k.kullanim_amaci = 'VERITABANI'
+WHERE b.arsivlenme_zamani IS NULL
+  AND (s.id IS NULL OR s.baglanti_modu = 'JNDI' OR (s.sunucu_adi IS NOT NULL AND s.port IS NOT NULL));
+
+INSERT INTO fiziksel_sema (
+    id, baglanti_id, kod, ad, saglayici_turu, sema_adi, calisma_sema_adi, varsayilan_mi,
+    yukleme_prefix, entegrasyon_prefix, hata_prefix,
+    uuid, olusturulma_zamani, olusturan_kullanici_id, guncellenme_zamani, guncelleyen_kullanici_id)
+OVERRIDING SYSTEM VALUE
+SELECT f.id, f.baglanti_id, f.kod, f.ad, b.saglayici_turu, f.sema_adi, f.sema_adi,
+       COALESCE(yb.calisma_fiziksel_sema_id = f.id, FALSE),
+       COALESCE(p.loading_prefix, 'C$_'), COALESCE(p.integration_prefix, 'I$_'), COALESCE(p.error_prefix, 'E$_'),
+       f.uuid, f.olusturulma_zamani, f.olusturan_kullanici_id, f.guncellenme_zamani, f.guncelleyen_kullanici_id
+FROM yedek_fiziksel_sema f
+JOIN baglanti b ON b.id = f.baglanti_id
+JOIN yedek_baglanti yb ON yb.id = f.baglanti_id
+LEFT JOIN yedek_calisma_nesnesi_prefix p ON p.baglanti_id = f.baglanti_id AND p.fiziksel_sema_id IS NULL
+WHERE f.arsivlenme_zamani IS NULL;
+
+INSERT INTO ortam (
+    id, kod, ad, uretim_mi, risk, politika_sema_surumu, politika,
+    uuid, olusturulma_zamani, olusturan_kullanici_id, guncellenme_zamani, guncelleyen_kullanici_id)
+OVERRIDING SYSTEM VALUE
+SELECT o.id, o.kod, o.ad, o.uretim_mi, o.risk, o.politika_sema_surumu, o.politika,
+       o.uuid, o.olusturulma_zamani, o.olusturan_kullanici_id, o.guncellenme_zamani, o.guncelleyen_kullanici_id
+FROM yedek_ortam o
+WHERE o.arsivlenme_zamani IS NULL;
+
+-- Mantıksal şemanın teknolojisi: bağlı olduğu fiziksel şemadan; hiç eşleme yoksa ORACLE.
+INSERT INTO mantiksal_sema (
+    id, kod, ad, aciklama, saglayici_turu,
+    uuid, olusturulma_zamani, olusturan_kullanici_id, guncellenme_zamani, guncelleyen_kullanici_id)
+OVERRIDING SYSTEM VALUE
+SELECT m.id, m.kod, m.ad, m.aciklama,
+       COALESCE((SELECT f.saglayici_turu
+                   FROM yedek_sema_eslemesi e JOIN fiziksel_sema f ON f.id = e.fiziksel_sema_id
+                  WHERE e.mantiksal_sema_id = m.id
+                  ORDER BY e.id LIMIT 1), 'ORACLE'),
+       m.uuid, m.olusturulma_zamani, m.olusturan_kullanici_id, m.guncellenme_zamani, m.guncelleyen_kullanici_id
+FROM yedek_mantiksal_sema m
+WHERE m.arsivlenme_zamani IS NULL;
+
+INSERT INTO sema_eslemesi (
+    id, ortam_id, mantiksal_sema_id, fiziksel_sema_id, saglayici_turu,
+    uuid, olusturulma_zamani, olusturan_kullanici_id, guncellenme_zamani, guncelleyen_kullanici_id)
+OVERRIDING SYSTEM VALUE
+SELECT e.id, e.ortam_id, e.mantiksal_sema_id, e.fiziksel_sema_id, f.saglayici_turu,
+       e.uuid, e.olusturulma_zamani, e.olusturan_kullanici_id, e.guncellenme_zamani, e.guncelleyen_kullanici_id
+FROM yedek_sema_eslemesi e
+JOIN fiziksel_sema f ON f.id = e.fiziksel_sema_id
+JOIN mantiksal_sema m ON m.id = e.mantiksal_sema_id AND m.saglayici_turu = f.saglayici_turu
+JOIN ortam o ON o.id = e.ortam_id;
+
+INSERT INTO baglanti_testi (
+    id, baglanti_id, deneme_no, sonuc, hata_kodu, urun_adi, urun_surumu, surucu_adi, surucu_surumu,
+    veritabani_ana_surumu, veritabani_alt_surumu, hedef_kimlik_surumu, hedef_parmak_izi,
+    baslama_zamani, tamamlanma_zamani, sure_milisaniye,
+    uuid, olusturulma_zamani, olusturan_kullanici_id, guncellenme_zamani, guncelleyen_kullanici_id)
+OVERRIDING SYSTEM VALUE
+SELECT t.id, s.baglanti_id,
+       row_number() OVER (PARTITION BY s.baglanti_id ORDER BY t.baslama_zamani, t.id),
+       t.sonuc, t.hata_kodu, t.urun_adi, t.urun_surumu, t.surucu_adi, t.surucu_surumu,
+       t.veritabani_ana_surumu, t.veritabani_alt_surumu, t.hedef_kimlik_surumu, t.hedef_parmak_izi,
+       t.baslama_zamani, t.tamamlanma_zamani, t.sure_milisaniye,
+       t.uuid, t.olusturulma_zamani, t.olusturan_kullanici_id, t.guncellenme_zamani, t.guncelleyen_kullanici_id
+FROM yedek_baglanti_testi t
+JOIN yedek_baglanti_surumu s ON s.id = t.baglanti_surumu_id
+JOIN baglanti b ON b.id = s.baglanti_id;
+
+SELECT setval(pg_get_serial_sequence('baglanti','id'),       COALESCE(max(id),1)) FROM baglanti;
+SELECT setval(pg_get_serial_sequence('fiziksel_sema','id'),  COALESCE(max(id),1)) FROM fiziksel_sema;
+SELECT setval(pg_get_serial_sequence('mantiksal_sema','id'), COALESCE(max(id),1)) FROM mantiksal_sema;
+SELECT setval(pg_get_serial_sequence('ortam','id'),          COALESCE(max(id),1)) FROM ortam;
+SELECT setval(pg_get_serial_sequence('sema_eslemesi','id'),  COALESCE(max(id),1)) FROM sema_eslemesi;
+SELECT setval(pg_get_serial_sequence('baglanti_testi','id'), COALESCE(max(id),1)) FROM baglanti_testi;
+
+DROP TABLE tmp_secili_surum;
+
+-- 6. Dış tabloların FK'lerini yeni modele bağla --------------------------------------
+ALTER TABLE model
+    ADD CONSTRAINT fk_model_mantiksal_sema FOREIGN KEY (mantiksal_sema_id) REFERENCES mantiksal_sema(id),
+    ADD CONSTRAINT fk_model_reverse_ortam  FOREIGN KEY (tersine_muhendislik_ortam_id) REFERENCES ortam(id);
+ALTER TABLE sema_goruntusu
+    ADD CONSTRAINT fk_sema_goruntusu_fiziksel FOREIGN KEY (fiziksel_sema_id) REFERENCES fiziksel_sema(id);
+ALTER TABLE sema_goruntusu_oracle_kaniti
+    ADD CONSTRAINT fk_oracle_kaniti_baglanti FOREIGN KEY (baglanti_id) REFERENCES baglanti(id),
+    ADD CONSTRAINT fk_oracle_kaniti_test FOREIGN KEY (basarili_baglanti_testi_uuid) REFERENCES baglanti_testi(uuid);
+ALTER TABLE dogrulama
+    ADD CONSTRAINT fk_dogrulama_ortam FOREIGN KEY (ortam_id) REFERENCES ortam(id);
+ALTER TABLE yayin
+    ADD CONSTRAINT fk_yayin_ortam FOREIGN KEY (ortam_id) REFERENCES ortam(id);
+ALTER TABLE yayin_veri_bagi
+    ADD CONSTRAINT fk_yayin_veri_bagi_esleme   FOREIGN KEY (sema_eslemesi_id) REFERENCES sema_eslemesi(id),
+    ADD CONSTRAINT fk_yayin_veri_bagi_fiziksel FOREIGN KEY (fiziksel_sema_id) REFERENCES fiziksel_sema(id);
+ALTER TABLE degisken_deger_gecmisi
+    ADD CONSTRAINT fk_degisken_deger_gecmisi_mantiksal FOREIGN KEY (mantiksal_sema_uuid) REFERENCES mantiksal_sema(uuid),
+    ADD CONSTRAINT fk_degisken_deger_gecmisi_ortam     FOREIGN KEY (ortam_uuid) REFERENCES ortam(uuid);
+ALTER TABLE degisken_test_gecmisi
+    ADD CONSTRAINT fk_degisken_test_gecmisi_mantiksal FOREIGN KEY (mantiksal_sema_uuid) REFERENCES mantiksal_sema(uuid),
+    ADD CONSTRAINT fk_degisken_test_gecmisi_ortam     FOREIGN KEY (ortam_uuid) REFERENCES ortam(uuid);
+ALTER TABLE km_work_area_policy
+    ADD CONSTRAINT fk_km_work_area_policy_fiziksel FOREIGN KEY (fiziksel_sema_id) REFERENCES fiziksel_sema(id);
+
+-- 7. Sözlük kayıtları (V030 standardı) ---------------------------------------------------
+DELETE FROM iliski_kolon_tanimlari WHERE iliski_tanimi_id IN (
+    SELECT i.id FROM iliski_tanimlari i JOIN kisit_tanimlari k ON k.id = i.kaynak_kisit_tanimi_id
+    JOIN tablo_tanimlari t ON t.id = k.tablo_tanimi_id
+    WHERE t.ad IN ('baglanti','baglanti_surumu','baglanti_kimligi','baglanti_testi','fiziksel_sema','mantiksal_sema','ortam','sema_eslemesi','calisma_nesnesi_prefix','calisma_prefix_migration_kaydi'));
+DELETE FROM iliski_tanimlari WHERE kaynak_kisit_tanimi_id IN (
+    SELECT k.id FROM kisit_tanimlari k JOIN tablo_tanimlari t ON t.id = k.tablo_tanimi_id
+    WHERE t.ad IN ('baglanti','baglanti_surumu','baglanti_kimligi','baglanti_testi','fiziksel_sema','mantiksal_sema','ortam','sema_eslemesi','calisma_nesnesi_prefix','calisma_prefix_migration_kaydi'))
+   OR hedef_tablo_tanimi_id IN (SELECT id FROM tablo_tanimlari
+    WHERE ad IN ('baglanti','baglanti_surumu','baglanti_kimligi','baglanti_testi','fiziksel_sema','mantiksal_sema','ortam','sema_eslemesi','calisma_nesnesi_prefix','calisma_prefix_migration_kaydi'));
+DELETE FROM kisit_kolon_tanimlari  WHERE kisit_tanimi_id  IN (SELECT k.id FROM kisit_tanimlari k JOIN tablo_tanimlari t ON t.id = k.tablo_tanimi_id
+    WHERE t.ad IN ('baglanti','baglanti_surumu','baglanti_kimligi','baglanti_testi','fiziksel_sema','mantiksal_sema','ortam','sema_eslemesi','calisma_nesnesi_prefix','calisma_prefix_migration_kaydi'));
+DELETE FROM indeks_kolon_tanimlari WHERE indeks_tanimi_id IN (SELECT i.id FROM indeks_tanimlari i JOIN tablo_tanimlari t ON t.id = i.tablo_tanimi_id
+    WHERE t.ad IN ('baglanti','baglanti_surumu','baglanti_kimligi','baglanti_testi','fiziksel_sema','mantiksal_sema','ortam','sema_eslemesi','calisma_nesnesi_prefix','calisma_prefix_migration_kaydi'));
+DELETE FROM kisit_tanimlari  WHERE tablo_tanimi_id IN (SELECT id FROM tablo_tanimlari WHERE ad IN ('baglanti','baglanti_surumu','baglanti_kimligi','baglanti_testi','fiziksel_sema','mantiksal_sema','ortam','sema_eslemesi','calisma_nesnesi_prefix','calisma_prefix_migration_kaydi'));
+DELETE FROM indeks_tanimlari WHERE tablo_tanimi_id IN (SELECT id FROM tablo_tanimlari WHERE ad IN ('baglanti','baglanti_surumu','baglanti_kimligi','baglanti_testi','fiziksel_sema','mantiksal_sema','ortam','sema_eslemesi','calisma_nesnesi_prefix','calisma_prefix_migration_kaydi'));
+DELETE FROM kolon_tanimlari  WHERE tablo_tanimi_id IN (SELECT id FROM tablo_tanimlari WHERE ad IN ('baglanti','baglanti_surumu','baglanti_kimligi','baglanti_testi','fiziksel_sema','mantiksal_sema','ortam','sema_eslemesi','calisma_nesnesi_prefix','calisma_prefix_migration_kaydi'));
+DELETE FROM tablo_tanimlari  WHERE ad IN ('baglanti','baglanti_surumu','baglanti_kimligi','baglanti_testi','fiziksel_sema','mantiksal_sema','ortam','sema_eslemesi','calisma_nesnesi_prefix','calisma_prefix_migration_kaydi');
+
+INSERT INTO tablo_tanimlari (sema_tanimi_id, ad, aciklama)
+SELECT s.id, v.ad, v.aciklama FROM sema_tanimlari s CROSS JOIN (VALUES
+    ('baglanti',       'Veri sunucusu (ODI SNP_CONNECT). JDBC/JNDI adresi ve şifreli kimlik bilgisi doğrudan bu kayıtta tutulur; global, projeye bağlı değildir.'),
+    ('fiziksel_sema',  'Fiziksel şema (ODI SNP_PSCHEMA). Bir bağlantıdaki veri şeması, çalışma şeması ve LKM/IKM/CKM çalışma tablosu prefixleri.'),
+    ('mantiksal_sema', 'Mantıksal şema (ODI SNP_LSCHEMA). Teknolojiye bağlı soyut şema adı; modeller buna referans verir.'),
+    ('ortam',          'Ortam / bağlam (ODI SNP_CONTEXT). Mantıksal şemayı fiziksel şemaya çözen yürütme bağlamı.'),
+    ('sema_eslemesi',  'Ortam × mantıksal şema → fiziksel şema eşlemesi (ODI SNP_PSCHEMA_CONT).'),
+    ('baglanti_testi', 'Bağlantı test denemeleri; ürün/sürücü sürümü ve sonuç geçmişi.')
+) AS v(ad, aciklama) WHERE s.ad = 'akis';
+
+-- Kolonlar
+INSERT INTO kolon_tanimlari (tablo_tanimi_id, ad, aciklama, veri_tipi, uzunluk, zorunlu_mu, varsayilan_deger, sira_no)
+SELECT t.id, v.ad, v.aciklama, v.veri_tipi, v.uzunluk, v.zorunlu_mu, v.varsayilan_deger, v.sira_no
+FROM tablo_tanimlari t CROSS JOIN (VALUES
+    ('id','Yüzeysel birincil anahtar.','bigint',NULL::BIGINT,TRUE,'identity',1),
+    ('kod','Bağlantı kodu (ODI CON_NAME). Global benzersiz.','character varying',100,TRUE,NULL,2),
+    ('ad','Görünen ad.','character varying',200,TRUE,NULL,3),
+    ('aciklama','Açıklama.','character varying',2000,FALSE,NULL,4),
+    ('saglayici_turu','Teknoloji (ODI I_TECHNO): ORACLE/POSTGRESQL/MYSQL/SQLSERVER.','character varying',30,TRUE,NULL,5),
+    ('baglanti_modu','JDBC veya JNDI (ODI IND_JNDI).','character varying',20,TRUE,'''JDBC''',6),
+    ('surucu_sinifi','JDBC sürücü sınıfı (ODI JAVA_DRIVER).','character varying',400,FALSE,NULL,7),
+    ('sunucu_adi','Sunucu adı/IP.','character varying',500,FALSE,NULL,8),
+    ('port','TCP portu.','integer',NULL,FALSE,NULL,9),
+    ('servis_adi','Oracle servis adı.','character varying',500,FALSE,NULL,10),
+    ('sid','Oracle SID.','character varying',500,FALSE,NULL,11),
+    ('veritabani_adi','PostgreSQL/MySQL/SQL Server veritabanı adı.','character varying',500,FALSE,NULL,12),
+    ('jdbc_url_ek','JDBC URL''e eklenecek ek parametreler.','character varying',1000,FALSE,NULL,13),
+    ('jndi_adi','JNDI kaynak adı (ODI JNDI_RESSOURCE).','character varying',400,FALSE,NULL,14),
+    ('kullanici_adi','Veritabanı kullanıcı adı (ODI USER_NAME).','character varying',400,FALSE,NULL,15),
+    ('sifre','AES-GCM ile şifrelenmiş parola (ODI PASS).','character varying',1000,FALSE,NULL,16),
+    ('getirme_boyutu','Fetch size (ODI FETCH_ARRAY_SERV).','integer',NULL,TRUE,'30',17),
+    ('toplu_guncelleme_boyutu','Batch update size (ODI BATCH_UPDATE_SIZE).','integer',NULL,TRUE,'30',18),
+    ('baglanti_zaman_asimi_ms','Bağlantı kurma zaman aşımı (ms).','integer',NULL,TRUE,'10000',19),
+    ('okuma_zaman_asimi_ms','Okuma zaman aşımı (ms).','integer',NULL,TRUE,'60000',20),
+    ('sorgu_zaman_asimi_saniye','Sorgu zaman aşımı (saniye).','integer',NULL,TRUE,'60',21),
+    ('baglanti_sonrasi_sql','Oturum açılınca çalıştırılacak SQL (ODI ON_CON_CMD).','text',NULL,FALSE,NULL,22),
+    ('kapanis_oncesi_sql','Oturum kapanmadan önce çalıştırılacak SQL (ODI ON_DCN_CMD).','text',NULL,FALSE,NULL,23),
+    ('son_test_zamani','Son bağlantı testinin zamanı.','timestamptz',NULL,FALSE,NULL,24),
+    ('son_test_basarili_mi','Son bağlantı testi başarılı mı.','boolean',NULL,FALSE,NULL,25),
+    ('durum','ETKIN / PASIF.','character varying',20,TRUE,'''ETKIN''',26),
+    ('uuid','Kararlı dış kimlik (ODI GLOBAL_ID).','uuid',NULL,TRUE,'gen_random_uuid()',27),
+    ('olusturulma_zamani','Oluşturulma zamanı.','timestamptz',NULL,TRUE,'CURRENT_TIMESTAMP',28),
+    ('olusturan_kullanici_id','Oluşturan kullanıcı.','bigint',NULL,FALSE,NULL,29),
+    ('guncellenme_zamani','Son güncellenme zamanı.','timestamptz',NULL,FALSE,NULL,30),
+    ('guncelleyen_kullanici_id','Son güncelleyen kullanıcı.','bigint',NULL,FALSE,NULL,31)
+) AS v(ad, aciklama, veri_tipi, uzunluk, zorunlu_mu, varsayilan_deger, sira_no) WHERE t.ad = 'baglanti';
+
+INSERT INTO kolon_tanimlari (tablo_tanimi_id, ad, aciklama, veri_tipi, uzunluk, zorunlu_mu, varsayilan_deger, sira_no)
+SELECT t.id, v.ad, v.aciklama, v.veri_tipi, v.uzunluk, v.zorunlu_mu, v.varsayilan_deger, v.sira_no
+FROM tablo_tanimlari t CROSS JOIN (VALUES
+    ('id','Yüzeysel birincil anahtar.','bigint',NULL::BIGINT,TRUE,'identity',1),
+    ('baglanti_id','Bağlı olduğu veri sunucusu (ODI I_CONNECT).','bigint',NULL,TRUE,NULL,2),
+    ('kod','Fiziksel şema kodu. Global benzersiz.','character varying',100,TRUE,NULL,3),
+    ('ad','Görünen ad (ODI EXT_NAME, ör. GPU.INNOVA_ODI).','character varying',200,TRUE,NULL,4),
+    ('aciklama','Açıklama.','character varying',2000,FALSE,NULL,5),
+    ('saglayici_turu','Bağlantı ile aynı teknoloji; bileşik FK ile zorlanır.','character varying',30,TRUE,NULL,6),
+    ('katalog_adi','Katalog/veritabanı adı (SQL Server; ODI CATALOG_NAME).','character varying',128,FALSE,NULL,7),
+    ('sema_adi','Veri şeması (ODI SCHEMA_NAME).','character varying',128,TRUE,NULL,8),
+    ('calisma_katalog_adi','Çalışma kataloğu (ODI WCATALOG_NAME).','character varying',128,FALSE,NULL,9),
+    ('calisma_sema_adi','Çalışma şeması; C$/I$/E$ tabloları burada oluşur (ODI WSCHEMA_NAME).','character varying',128,TRUE,NULL,10),
+    ('varsayilan_mi','Bağlantının varsayılan fiziksel şeması mı (ODI DEF_CON_PSCHEMA). Bağlantı başına tek.','boolean',NULL,TRUE,'false',11),
+    ('yukleme_prefix','LKM yükleme tablosu prefixi (ODI COL_PRF_TAB).','character varying',35,TRUE,'''C$_''',12),
+    ('entegrasyon_prefix','IKM entegrasyon tablosu prefixi (ODI INT_PRF_TAB).','character varying',35,TRUE,'''I$_''',13),
+    ('hata_prefix','CKM hata tablosu prefixi (ODI ERR_PRF_TAB).','character varying',35,TRUE,'''E$_''',14),
+    ('gecici_prefix','Geçici/ara tablo prefixi.','character varying',35,TRUE,'''T$_''',15),
+    ('nesne_deseni','Yerel nesne adlandırma deseni (ODI LOC_OBJ_PATTERN).','character varying',100,TRUE,'''%SCHEMA.%OBJECT''',16),
+    ('uzak_nesne_deseni','Uzak nesne (dblink) deseni (ODI REM_OBJ_PATTERN).','character varying',100,TRUE,'''%SCHEMA.%OBJECT@%DSERVER''',17),
+    ('sira_deseni','Sequence deseni (ODI LOC_SEQ_PATTERN).','character varying',100,TRUE,'''%SCHEMA.%OBJECT.nextval''',18),
+    ('durum','ETKIN / PASIF.','character varying',20,TRUE,'''ETKIN''',19),
+    ('uuid','Kararlı dış kimlik.','uuid',NULL,TRUE,'gen_random_uuid()',20),
+    ('olusturulma_zamani','Oluşturulma zamanı.','timestamptz',NULL,TRUE,'CURRENT_TIMESTAMP',21),
+    ('olusturan_kullanici_id','Oluşturan kullanıcı.','bigint',NULL,FALSE,NULL,22),
+    ('guncellenme_zamani','Son güncellenme zamanı.','timestamptz',NULL,FALSE,NULL,23),
+    ('guncelleyen_kullanici_id','Son güncelleyen kullanıcı.','bigint',NULL,FALSE,NULL,24)
+) AS v(ad, aciklama, veri_tipi, uzunluk, zorunlu_mu, varsayilan_deger, sira_no) WHERE t.ad = 'fiziksel_sema';
+
+INSERT INTO kolon_tanimlari (tablo_tanimi_id, ad, aciklama, veri_tipi, uzunluk, zorunlu_mu, varsayilan_deger, sira_no)
+SELECT t.id, v.ad, v.aciklama, v.veri_tipi, v.uzunluk, v.zorunlu_mu, v.varsayilan_deger, v.sira_no
+FROM tablo_tanimlari t CROSS JOIN (VALUES
+    ('id','Yüzeysel birincil anahtar.','bigint',NULL::BIGINT,TRUE,'identity',1),
+    ('kod','Mantıksal şema kodu (ODI LSCHEMA_NAME). Global benzersiz.','character varying',100,TRUE,NULL,2),
+    ('ad','Görünen ad.','character varying',200,TRUE,NULL,3),
+    ('aciklama','Açıklama.','character varying',2000,FALSE,NULL,4),
+    ('saglayici_turu','Teknoloji (ODI I_TECHNO); eşlemede fiziksel şema ile aynı olmak zorunda.','character varying',30,TRUE,NULL,5),
+    ('durum','ETKIN / PASIF.','character varying',20,TRUE,'''ETKIN''',6),
+    ('uuid','Kararlı dış kimlik.','uuid',NULL,TRUE,'gen_random_uuid()',7),
+    ('olusturulma_zamani','Oluşturulma zamanı.','timestamptz',NULL,TRUE,'CURRENT_TIMESTAMP',8),
+    ('olusturan_kullanici_id','Oluşturan kullanıcı.','bigint',NULL,FALSE,NULL,9),
+    ('guncellenme_zamani','Son güncellenme zamanı.','timestamptz',NULL,FALSE,NULL,10),
+    ('guncelleyen_kullanici_id','Son güncelleyen kullanıcı.','bigint',NULL,FALSE,NULL,11)
+) AS v(ad, aciklama, veri_tipi, uzunluk, zorunlu_mu, varsayilan_deger, sira_no) WHERE t.ad = 'mantiksal_sema';
+
+INSERT INTO kolon_tanimlari (tablo_tanimi_id, ad, aciklama, veri_tipi, uzunluk, zorunlu_mu, varsayilan_deger, sira_no)
+SELECT t.id, v.ad, v.aciklama, v.veri_tipi, v.uzunluk, v.zorunlu_mu, v.varsayilan_deger, v.sira_no
+FROM tablo_tanimlari t CROSS JOIN (VALUES
+    ('id','Yüzeysel birincil anahtar.','bigint',NULL::BIGINT,TRUE,'identity',1),
+    ('kod','Ortam kodu (ODI CONTEXT_CODE).','character varying',100,TRUE,NULL,2),
+    ('ad','Ortam adı (ODI CONTEXT_NAME).','character varying',200,TRUE,NULL,3),
+    ('aciklama','Açıklama.','character varying',2000,FALSE,NULL,4),
+    ('uretim_mi','Üretim ortamı mı.','boolean',NULL,TRUE,'false',5),
+    ('risk','DUSUK/ORTA/YUKSEK/URETIM.','character varying',20,TRUE,'''DUSUK''',6),
+    ('politika_sema_surumu','Politika JSON şema sürümü.','integer',NULL,TRUE,'1',7),
+    ('politika','Ortam politikası (JSON nesne).','jsonb',NULL,TRUE,'''{}''',8),
+    ('varsayilan_mi','Varsayılan ortam mı (ODI DEF_CONT). Tek olabilir.','boolean',NULL,TRUE,'false',9),
+    ('durum','ETKIN / PASIF.','character varying',20,TRUE,'''ETKIN''',10),
+    ('uuid','Kararlı dış kimlik.','uuid',NULL,TRUE,'gen_random_uuid()',11),
+    ('olusturulma_zamani','Oluşturulma zamanı.','timestamptz',NULL,TRUE,'CURRENT_TIMESTAMP',12),
+    ('olusturan_kullanici_id','Oluşturan kullanıcı.','bigint',NULL,FALSE,NULL,13),
+    ('guncellenme_zamani','Son güncellenme zamanı.','timestamptz',NULL,FALSE,NULL,14),
+    ('guncelleyen_kullanici_id','Son güncelleyen kullanıcı.','bigint',NULL,FALSE,NULL,15)
+) AS v(ad, aciklama, veri_tipi, uzunluk, zorunlu_mu, varsayilan_deger, sira_no) WHERE t.ad = 'ortam';
+
+INSERT INTO kolon_tanimlari (tablo_tanimi_id, ad, aciklama, veri_tipi, uzunluk, zorunlu_mu, varsayilan_deger, sira_no)
+SELECT t.id, v.ad, v.aciklama, v.veri_tipi, v.uzunluk, v.zorunlu_mu, v.varsayilan_deger, v.sira_no
+FROM tablo_tanimlari t CROSS JOIN (VALUES
+    ('id','Yüzeysel birincil anahtar.','bigint',NULL::BIGINT,TRUE,'identity',1),
+    ('ortam_id','Ortam (ODI I_CONTEXT).','bigint',NULL,TRUE,NULL,2),
+    ('mantiksal_sema_id','Mantıksal şema (ODI I_LSCHEMA).','bigint',NULL,TRUE,NULL,3),
+    ('fiziksel_sema_id','Çözülen fiziksel şema (ODI I_PSCHEMA).','bigint',NULL,TRUE,NULL,4),
+    ('saglayici_turu','Her iki tarafın teknolojisi; bileşik FK ile eşitlik zorlanır.','character varying',30,TRUE,NULL,5),
+    ('uuid','Kararlı dış kimlik.','uuid',NULL,TRUE,'gen_random_uuid()',6),
+    ('olusturulma_zamani','Oluşturulma zamanı.','timestamptz',NULL,TRUE,'CURRENT_TIMESTAMP',7),
+    ('olusturan_kullanici_id','Oluşturan kullanıcı.','bigint',NULL,FALSE,NULL,8),
+    ('guncellenme_zamani','Son güncellenme zamanı.','timestamptz',NULL,FALSE,NULL,9),
+    ('guncelleyen_kullanici_id','Son güncelleyen kullanıcı.','bigint',NULL,FALSE,NULL,10)
+) AS v(ad, aciklama, veri_tipi, uzunluk, zorunlu_mu, varsayilan_deger, sira_no) WHERE t.ad = 'sema_eslemesi';
+
+INSERT INTO kolon_tanimlari (tablo_tanimi_id, ad, aciklama, veri_tipi, uzunluk, zorunlu_mu, varsayilan_deger, sira_no)
+SELECT t.id, v.ad, v.aciklama, v.veri_tipi, v.uzunluk, v.zorunlu_mu, v.varsayilan_deger, v.sira_no
+FROM tablo_tanimlari t CROSS JOIN (VALUES
+    ('id','Yüzeysel birincil anahtar.','bigint',NULL::BIGINT,TRUE,'identity',1),
+    ('baglanti_id','Test edilen bağlantı.','bigint',NULL,TRUE,NULL,2),
+    ('deneme_no','Bağlantı içindeki deneme sırası.','integer',NULL,TRUE,NULL,3),
+    ('sonuc','BASARILI / BASARISIZ.','character varying',20,TRUE,NULL,4),
+    ('hata_kodu','Başarısız denemede hata kodu.','character varying',100,FALSE,NULL,5),
+    ('urun_adi','Veritabanı ürün adı.','character varying',500,FALSE,NULL,6),
+    ('urun_surumu','Veritabanı ürün sürümü.','character varying',500,FALSE,NULL,7),
+    ('surucu_adi','JDBC sürücü adı.','character varying',500,FALSE,NULL,8),
+    ('surucu_surumu','JDBC sürücü sürümü.','character varying',500,FALSE,NULL,9),
+    ('veritabani_ana_surumu','Ana sürüm numarası.','integer',NULL,FALSE,NULL,10),
+    ('veritabani_alt_surumu','Alt sürüm numarası.','integer',NULL,FALSE,NULL,11),
+    ('hedef_kimlik_surumu','Hedef veritabanı kimlik parmak izi sürümü.','integer',NULL,FALSE,NULL,12),
+    ('hedef_parmak_izi','Hedef veritabanı kimlik parmak izi (SHA-256).','character varying',128,FALSE,NULL,13),
+    ('baslama_zamani','Test başlangıcı.','timestamptz',NULL,TRUE,NULL,14),
+    ('tamamlanma_zamani','Test bitişi.','timestamptz',NULL,TRUE,NULL,15),
+    ('sure_milisaniye','Süre (ms).','bigint',NULL,TRUE,NULL,16),
+    ('uuid','Kararlı dış kimlik.','uuid',NULL,TRUE,'gen_random_uuid()',17),
+    ('olusturulma_zamani','Oluşturulma zamanı.','timestamptz',NULL,TRUE,'CURRENT_TIMESTAMP',18),
+    ('olusturan_kullanici_id','Oluşturan kullanıcı.','bigint',NULL,FALSE,NULL,19),
+    ('guncellenme_zamani','Son güncellenme zamanı.','timestamptz',NULL,FALSE,NULL,20),
+    ('guncelleyen_kullanici_id','Son güncelleyen kullanıcı.','bigint',NULL,FALSE,NULL,21)
+) AS v(ad, aciklama, veri_tipi, uzunluk, zorunlu_mu, varsayilan_deger, sira_no) WHERE t.ad = 'baglanti_testi';
+
+-- Kısıtlar, ilişkiler ve indeksler katalogdan türetilir (adlar standarda uygun olduğu için).
+INSERT INTO kisit_tanimlari (tablo_tanimi_id, ad, aciklama, tur, check_ifadesi)
+SELECT t.id, c.conname,
+       CASE c.contype WHEN 'p' THEN 'Birincil anahtar.' WHEN 'u' THEN 'Benzersizlik kısıtı.'
+                      WHEN 'f' THEN 'Yabancı anahtar.' ELSE 'Kontrol kısıtı.' END,
+       CASE c.contype WHEN 'p' THEN 'PRIMARY_KEY' WHEN 'u' THEN 'UNIQUE' WHEN 'f' THEN 'FOREIGN_KEY' ELSE 'CHECK' END,
+       CASE WHEN c.contype = 'c' THEN regexp_replace(pg_get_constraintdef(c.oid), '^CHECK \((.*)\)$', '\1') END
+FROM pg_constraint c
+JOIN pg_class r ON r.oid = c.conrelid JOIN pg_namespace n ON n.oid = r.relnamespace
+JOIN tablo_tanimlari t ON t.ad = r.relname
+WHERE n.nspname = 'akis' AND c.contype IN ('p','u','f','c')
+  AND r.relname IN ('baglanti','fiziksel_sema','mantiksal_sema','ortam','sema_eslemesi','baglanti_testi');
+
+INSERT INTO kisit_kolon_tanimlari (kisit_tanimi_id, kolon_tanimi_id, sira_no)
+SELECT k.id, kol.id, a.ord
+FROM pg_constraint c
+JOIN pg_class r ON r.oid = c.conrelid JOIN pg_namespace n ON n.oid = r.relnamespace
+JOIN tablo_tanimlari t ON t.ad = r.relname
+JOIN kisit_tanimlari k ON k.tablo_tanimi_id = t.id AND k.ad = c.conname
+CROSS JOIN LATERAL unnest(c.conkey) WITH ORDINALITY AS a(attnum, ord)
+JOIN pg_attribute att ON att.attrelid = r.oid AND att.attnum = a.attnum
+JOIN kolon_tanimlari kol ON kol.tablo_tanimi_id = t.id AND kol.ad = att.attname
+WHERE n.nspname = 'akis' AND c.contype IN ('p','u','f')
+  AND r.relname IN ('baglanti','fiziksel_sema','mantiksal_sema','ortam','sema_eslemesi','baglanti_testi');
+
+INSERT INTO iliski_tanimlari (kaynak_kisit_tanimi_id, hedef_tablo_tanimi_id, hedef_kisit_tanimi_id, silme_kurali, guncelleme_kurali)
+SELECT k.id, ht.id, hk.id,
+       CASE c.confdeltype WHEN 'c' THEN 'CASCADE' WHEN 'r' THEN 'RESTRICT' WHEN 'n' THEN 'SET_NULL' WHEN 'd' THEN 'SET_DEFAULT' ELSE 'NO_ACTION' END,
+       CASE c.confupdtype WHEN 'c' THEN 'CASCADE' WHEN 'r' THEN 'RESTRICT' WHEN 'n' THEN 'SET_NULL' WHEN 'd' THEN 'SET_DEFAULT' ELSE 'NO_ACTION' END
+FROM pg_constraint c
+JOIN pg_class r ON r.oid = c.conrelid JOIN pg_namespace n ON n.oid = r.relnamespace
+JOIN pg_class hr ON hr.oid = c.confrelid
+JOIN tablo_tanimlari t ON t.ad = r.relname
+JOIN tablo_tanimlari ht ON ht.ad = hr.relname
+JOIN kisit_tanimlari k ON k.tablo_tanimi_id = t.id AND k.ad = c.conname
+JOIN pg_constraint hc ON hc.conrelid = c.confrelid AND hc.contype IN ('p','u') AND hc.conkey = c.confkey
+JOIN kisit_tanimlari hk ON hk.tablo_tanimi_id = ht.id AND hk.ad = hc.conname
+WHERE n.nspname = 'akis' AND c.contype = 'f'
+  AND r.relname IN ('baglanti','fiziksel_sema','mantiksal_sema','ortam','sema_eslemesi','baglanti_testi');
+
+INSERT INTO iliski_kolon_tanimlari (iliski_tanimi_id, kaynak_kolon_tanimi_id, hedef_kolon_tanimi_id, sira_no)
+SELECT i.id, skol.id, hkol.id, a.ord
+FROM pg_constraint c
+JOIN pg_class r ON r.oid = c.conrelid JOIN pg_namespace n ON n.oid = r.relnamespace
+JOIN pg_class hr ON hr.oid = c.confrelid
+JOIN tablo_tanimlari t ON t.ad = r.relname
+JOIN tablo_tanimlari ht ON ht.ad = hr.relname
+JOIN kisit_tanimlari k ON k.tablo_tanimi_id = t.id AND k.ad = c.conname
+JOIN iliski_tanimlari i ON i.kaynak_kisit_tanimi_id = k.id
+CROSS JOIN LATERAL unnest(c.conkey, c.confkey) WITH ORDINALITY AS a(sattnum, hattnum, ord)
+JOIN pg_attribute satt ON satt.attrelid = r.oid AND satt.attnum = a.sattnum
+JOIN pg_attribute hatt ON hatt.attrelid = hr.oid AND hatt.attnum = a.hattnum
+JOIN kolon_tanimlari skol ON skol.tablo_tanimi_id = t.id AND skol.ad = satt.attname
+JOIN kolon_tanimlari hkol ON hkol.tablo_tanimi_id = ht.id AND hkol.ad = hatt.attname
+WHERE n.nspname = 'akis' AND c.contype = 'f'
+  AND r.relname IN ('baglanti','fiziksel_sema','mantiksal_sema','ortam','sema_eslemesi','baglanti_testi');
+
+INSERT INTO indeks_tanimlari (tablo_tanimi_id, ad, aciklama, tur, benzersiz_mi)
+SELECT t.id, ic.relname,
+       CASE WHEN ix.indisunique THEN 'Benzersiz indeks.' ELSE 'Sorgu indeksi.' END,
+       upper(am.amname), ix.indisunique
+FROM pg_index ix
+JOIN pg_class ic ON ic.oid = ix.indexrelid
+JOIN pg_class r ON r.oid = ix.indrelid JOIN pg_namespace n ON n.oid = r.relnamespace
+JOIN pg_am am ON am.oid = ic.relam
+JOIN tablo_tanimlari t ON t.ad = r.relname
+WHERE n.nspname = 'akis' AND NOT ix.indisprimary
+  AND NOT EXISTS (SELECT 1 FROM pg_constraint c WHERE c.conindid = ix.indexrelid)
+  AND r.relname IN ('baglanti','fiziksel_sema','mantiksal_sema','ortam','sema_eslemesi','baglanti_testi');
+
+INSERT INTO indeks_kolon_tanimlari (indeks_tanimi_id, kolon_tanimi_id, sira_no, siralama)
+SELECT it.id, kol.id, a.ord,
+       CASE WHEN (ix.indoption[a.ord - 1] & 1) = 1 THEN 'DESC' ELSE 'ASC' END
+FROM pg_index ix
+JOIN pg_class ic ON ic.oid = ix.indexrelid
+JOIN pg_class r ON r.oid = ix.indrelid JOIN pg_namespace n ON n.oid = r.relnamespace
+JOIN tablo_tanimlari t ON t.ad = r.relname
+JOIN indeks_tanimlari it ON it.tablo_tanimi_id = t.id AND it.ad = ic.relname
+CROSS JOIN LATERAL unnest(ix.indkey::int[]) WITH ORDINALITY AS a(attnum, ord)
+JOIN pg_attribute att ON att.attrelid = r.oid AND att.attnum = a.attnum
+JOIN kolon_tanimlari kol ON kol.tablo_tanimi_id = t.id AND kol.ad = att.attname
+WHERE n.nspname = 'akis' AND a.attnum > 0
+  AND r.relname IN ('baglanti','fiziksel_sema','mantiksal_sema','ortam','sema_eslemesi','baglanti_testi');

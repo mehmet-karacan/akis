@@ -116,6 +116,7 @@ final class JdbcOracleSchemaPreflight {
                 || targetConnection == null || targetSnapshot == null) {
             throw failure(OracleSchemaPreflightFailure.INVALID_CONTRACT);
         }
+        rejectMultiSourceOnLegacyPath(plan);
         VerifiedBinding source = verifyBinding(
                 plan.source(), DatasetRole.SOURCE, sourceConnection, sourceSnapshot);
         VerifiedBinding target = verifyBinding(
@@ -123,6 +124,67 @@ final class JdbcOracleSchemaPreflight {
         validateMappings(plan, source.expectedColumns(), target);
         verifyTargetWriteSafety(targetConnection, plan.target(), target);
         return new PreflightResult(source.result(), target.result());
+    }
+
+    /** Every staged source is attested on the exact shared source session. */
+    void verifyStaged(StagedRuntimePlan plan, Connection sourceConnection,
+            PinnedSchemaSnapshotPort.PinnedSnapshots snapshots, Connection targetConnection) {
+        requireStagedSnapshots(plan, snapshots);
+        if (sourceConnection == null || targetConnection == null)
+            throw failure(OracleSchemaPreflightFailure.INVALID_CONTRACT);
+        Map<String, List<Column>> columns = new LinkedHashMap<>();
+        for (DatasetBinding binding : plan.sources()) {
+            var snapshot = snapshots.sources().get(binding.datasetId());
+            var verified = verifyBinding(binding, DatasetRole.SOURCE, sourceConnection,
+                    new ExpectedSnapshot(snapshot.schemaSnapshotUuid(), snapshot.body()));
+            columns.put(binding.datasetId(), verified.expectedColumns());
+        }
+        var targetSnapshot = snapshots.target();
+        var target = verifyBinding(plan.target(), DatasetRole.TARGET, targetConnection,
+                new ExpectedSnapshot(targetSnapshot.schemaSnapshotUuid(), targetSnapshot.body()));
+        validateStagedMappings(plan, columns, target);
+        verifyTargetWriteSafety(targetConnection, plan.target(), target);
+    }
+
+    BindingResult verifyLockedStagedTarget(StagedRuntimePlan plan, Connection targetConnection,
+            PinnedSchemaSnapshotPort.PinnedSnapshots snapshots) {
+        requireStagedSnapshots(plan, snapshots);
+        if (targetConnection == null) throw failure(OracleSchemaPreflightFailure.INVALID_CONTRACT);
+        Map<String, List<Column>> columns = new LinkedHashMap<>();
+        for (DatasetBinding binding : plan.sources()) {
+            var snapshot = snapshots.sources().get(binding.datasetId());
+            var pinned = verifyPinnedSnapshot(binding, DatasetRole.SOURCE,
+                    new ExpectedSnapshot(snapshot.schemaSnapshotUuid(), snapshot.body()));
+            columns.put(binding.datasetId(), pinned.expectedColumns());
+        }
+        verifyLockedConnectionState(targetConnection);
+        var targetSnapshot = snapshots.target();
+        var target = verifyBinding(plan.target(), DatasetRole.TARGET, targetConnection,
+                new ExpectedSnapshot(targetSnapshot.schemaSnapshotUuid(), targetSnapshot.body()));
+        validateStagedMappings(plan, columns, target);
+        verifyTargetWriteSafety(targetConnection, plan.target(), target);
+        return target.result();
+    }
+
+    private void requireStagedSnapshots(StagedRuntimePlan plan, PinnedSchemaSnapshotPort.PinnedSnapshots snapshots) {
+        if (plan == null || snapshots == null || snapshots.target() == null || plan.sources().isEmpty()
+                || !plan.sources().getFirst().equals(plan.source())
+                || !plan.projectUuid().equals(snapshots.projectUuid())
+                || plan.columnSourceObjects().size() != plan.columnMappings().size())
+            throw failure(OracleSchemaPreflightFailure.INVALID_CONTRACT);
+        Set<String> ids = new java.util.HashSet<>();
+        for (DatasetBinding binding : plan.sources()) {
+            if (binding.role() != DatasetRole.SOURCE || !ids.add(binding.datasetId())
+                    || !binding.connectionVersionUuid().equals(plan.source().connectionVersionUuid()))
+                throw failure(OracleSchemaPreflightFailure.INVALID_CONTRACT);
+        }
+        if (!ids.equals(snapshots.sources().keySet()))
+            throw failure(OracleSchemaPreflightFailure.INVALID_CONTRACT);
+    }
+
+    private void rejectMultiSourceOnLegacyPath(MappingExecutionContract plan) {
+        if (plan instanceof StagedRuntimePlan staged && staged.sources().size() != 1)
+            throw failure(OracleSchemaPreflightFailure.INVALID_CONTRACT);
     }
 
     /** Re-attests the source immediately before a bounded read on the same session. */
@@ -133,6 +195,7 @@ final class JdbcOracleSchemaPreflight {
         if (plan == null || sourceConnection == null || sourceSnapshot == null) {
             throw failure(OracleSchemaPreflightFailure.INVALID_CONTRACT);
         }
+        rejectMultiSourceOnLegacyPath(plan);
         return verifyBinding(
                 plan.source(), DatasetRole.SOURCE, sourceConnection, sourceSnapshot).result();
     }
@@ -166,6 +229,7 @@ final class JdbcOracleSchemaPreflight {
                 || sourceSnapshot == null || targetSnapshot == null) {
             throw failure(OracleSchemaPreflightFailure.INVALID_CONTRACT);
         }
+        rejectMultiSourceOnLegacyPath(plan);
         PinnedBinding source = verifyPinnedSnapshot(
                 plan.source(), DatasetRole.SOURCE, sourceSnapshot);
         verifyLockedConnectionState(lockedTargetConnection);
@@ -417,8 +481,8 @@ final class JdbcOracleSchemaPreflight {
         Map<String, Column> targetColumns = byReference(target.expectedColumns());
         Set<String> mappedTargets = new java.util.HashSet<>();
         Set<String> mappedSources = new java.util.HashSet<>();
-        for (PilotRuntimePlan.DirectColumnMapping mapping : plan.columnMappings()) {
-            if (mapping == null || !mappedSources.add(mapping.sourceColumn())
+        for (var mapping : plan.columnMappings()) {
+            if (mapping == null || mapping.expression()!=null || !mappedSources.add(mapping.sourceColumn())
                     || !mappedTargets.add(mapping.targetColumn())) {
                 throw failure(OracleSchemaPreflightFailure.INVALID_CONTRACT);
             }
@@ -432,7 +496,76 @@ final class JdbcOracleSchemaPreflight {
         if (mappedTargets.isEmpty()) {
             throw failure(OracleSchemaPreflightFailure.INVALID_CONTRACT);
         }
+        validateUnmappedTargets(mappedTargets, target);
+    }
 
+    private void validateStagedMappings(StagedRuntimePlan plan, Map<String, List<Column>> sources, VerifiedBinding target) {
+        Map<String, Map<String, Column>> sourceColumns = new LinkedHashMap<>();
+        sources.forEach((id, columns) -> sourceColumns.put(id, byReference(columns)));
+        Map<String, Column> targetColumns = byReference(target.expectedColumns());
+        Set<String> mappedTargets = new java.util.HashSet<>();
+        Set<String> nullableSources = nullableJoinedSources(plan);
+        var expressionCatalog=plan.sources().stream().map(binding->{
+            String alias=plan.definition().sources().stream().filter(ref->ref.id().equals(binding.datasetId())).map(tr.com.innova.akis.knowledge.StagedMappingDefinition.ObjectRef::alias).findFirst().orElse(binding.datasetId());
+            return new tr.com.innova.akis.knowledge.MappingSql.Source(binding.datasetId(),alias,sourceColumns.get(binding.datasetId()).keySet());
+        }).toList();
+        for (int index=0; index<plan.columnMappings().size(); index++) {
+            var mapping = plan.columnMappings().get(index);
+            String sourceId = plan.columnSourceObjects().get(index);
+            if (mapping == null || !mappedTargets.add(mapping.targetColumn()))
+                throw failure(OracleSchemaPreflightFailure.INVALID_CONTRACT);
+            Column destination = targetColumns.get(mapping.targetColumn());
+            if(mapping.expression()!=null) {
+                if(destination==null) throw failure(OracleSchemaPreflightFailure.LIVE_SCHEMA_DRIFT);
+                try { tr.com.innova.akis.knowledge.MappingSql.render(mapping.expression(),expressionCatalog,false); }
+                catch(IllegalArgumentException invalid) { throw failure(OracleSchemaPreflightFailure.INVALID_CONTRACT); }
+                // JDBC result metadata and typed stage columns attest the actual
+                // expression result before the final target can be modified.
+                continue;
+            }
+            if(!sourceColumns.containsKey(sourceId)) throw failure(OracleSchemaPreflightFailure.INVALID_CONTRACT);
+            Column source = sourceColumns.get(sourceId).get(mapping.sourceColumn());
+            if (source == null || destination == null)
+                throw failure(OracleSchemaPreflightFailure.LIVE_SCHEMA_DRIFT);
+            requireCompatible(source, destination);
+            if (nullableSources.contains(sourceId) && !destination.nullable())
+                throw failure(OracleSchemaPreflightFailure.UNSUPPORTED_SCHEMA);
+        }
+        if (mappedTargets.isEmpty()) throw failure(OracleSchemaPreflightFailure.INVALID_CONTRACT);
+        for (var join : plan.definition().joins()) {
+            requireSourceColumn(sourceColumns, join.left().object(), join.left().column());
+            requireSourceColumn(sourceColumns, join.right().object(), join.right().column());
+        }
+        for (var filter : plan.definition().filters()) {
+            if(filter.predicate()!=null) {
+                var catalog=expressionCatalog.stream().filter(source->"GLOBAL".equals(filter.scope()) || source.object().equals(filter.object())).toList();
+                try { tr.com.innova.akis.knowledge.MappingSql.render(filter.predicate(),catalog,true); }
+                catch(IllegalArgumentException invalid) { throw failure(OracleSchemaPreflightFailure.INVALID_CONTRACT); }
+            } else requireSourceColumn(sourceColumns, filter.object(), filter.column());
+        }
+        validateUnmappedTargets(mappedTargets, target);
+    }
+
+    private void requireSourceColumn(Map<String, Map<String, Column>> sources, String object, String column) {
+        if (!sources.containsKey(object) || !sources.get(object).containsKey(column))
+            throw failure(OracleSchemaPreflightFailure.LIVE_SCHEMA_DRIFT);
+    }
+
+    private Set<String> nullableJoinedSources(StagedRuntimePlan plan) {
+        if (plan.definition().sources().isEmpty()) return Set.of();
+        var graph = tr.com.innova.akis.knowledge.StagedQueryGraph.compile(
+                plan.sources().stream().map(DatasetBinding::datasetId).toList(), plan.definition().joins());
+        Set<String> nullable = new java.util.HashSet<>(), visited = new java.util.HashSet<>();
+        visited.add(graph.firstSource());
+        for (var step : graph.steps()) {
+            if (Set.of("RIGHT", "FULL").contains(step.type())) nullable.addAll(visited);
+            if (Set.of("LEFT", "FULL").contains(step.type())) nullable.add(step.source());
+            visited.add(step.source());
+        }
+        return nullable;
+    }
+
+    private void validateUnmappedTargets(Set<String> mappedTargets, VerifiedBinding target) {
         Map<String, LiveColumn> liveTargets = liveByName(target.liveColumns());
         for (Column targetColumn : target.expectedColumns()) {
             if (mappedTargets.contains(targetColumn.reference())) {

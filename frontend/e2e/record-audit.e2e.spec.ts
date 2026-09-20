@@ -28,7 +28,7 @@ test('record icons and attribution remain visible in cards list table and mobile
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
   await expect(page.getByText('Audit Creator', { exact: true }).first()).toBeVisible()
   await page.screenshot({ path: 'test-results/audit-dark.png', fullPage: true })
-  await page.locator('.connection-record-card').first().screenshot({ path: 'test-results/audit-dark-card.png' })
+  await page.locator('.ui-grid-record').first().screenshot({ path: 'test-results/audit-dark-card.png' })
   await page.setViewportSize({ width: 390, height: 844 })
   await expectNoHorizontalOverflow(page)
   await page.getByText('Audit Editor', { exact: true }).first().scrollIntoViewIfNeeded()

@@ -52,9 +52,7 @@ final class StagedWorkerOrchestrator {
             String databaseIdentity;
             OracleTargetIdentityV1.CanonicalTargetIdentity identity;
             try(var target=connections.openTargetIdentityRead(plan.target())) {
-                new JdbcOracleSchemaPreflight(mapper).verify(plan,source.connection(),
-                        new JdbcOracleSchemaPreflight.ExpectedSnapshot(pinned.source().schemaSnapshotUuid(),pinned.source().body()),
-                        target.connection(),new JdbcOracleSchemaPreflight.ExpectedSnapshot(pinned.target().schemaSnapshotUuid(),pinned.target().body()));
+                new JdbcOracleSchemaPreflight(mapper).verifyStaged(plan,source.connection(),pinned,target.connection());
                 databaseIdentity=OracleWorkTableManager.databaseIdentity(target.connection());
                 identity=new JdbcOracleTargetIdentityReader().read(target.connection(),plan.target().owner(),"TABLE",plan.target().objectName());
             }
@@ -88,9 +86,17 @@ final class StagedWorkerOrchestrator {
                 }
             };
             var created=new AtomicReference<OracleWorkTableManager.Created>();
+            List<JdbcStagingTransfer.QuerySource> querySources;
+            if(plan.definition().sources().isEmpty()) querySources=List.of(new JdbcStagingTransfer.QuerySource(plan.source().datasetId(),plan.source().datasetId(),new JdbcStagingTransfer.Table(plan.source().owner(),plan.source().objectName())));
+            else querySources=plan.definition().sources().stream().map(reference->{
+                var binding=plan.sources().stream().filter(candidate->candidate.datasetId().equals(reference.id())).findFirst().orElseThrow();
+                var columns=pinned.sources().get(reference.id()).body().columns().stream().map(tr.com.innova.akis.discovery.SchemaFingerprintInput.Column::reference).collect(java.util.stream.Collectors.toSet());
+                return new JdbcStagingTransfer.QuerySource(reference.id(),reference.alias(),new JdbcStagingTransfer.Table(binding.owner(),binding.objectName()),columns);
+            }).toList();
             var contract=new OracleKmRuntime.Contract(owner,plan.program(),databaseIdentity,plan.target().owner(),
                     new JdbcStagingTransfer.Table(plan.source().owner(),plan.source().objectName()),table,layout.work(),layout.transfer(),
-                    plan.definition().options(),layout.quality(),30,workArea);
+                    plan.definition().options(),layout.quality(),30,workArea,
+                    new JdbcStagingTransfer.QueryOptions(plan.definition().booleanOption("loading","DISTINCT"),plan.definition().stringOption("loading","ORACLE_HINT"),querySources,plan.definition().joins(),plan.definition().filters()));
             var runtime=new OracleKmRuntime(contract,source.connection(),control.connection(),data.connection(),StagedWorkSessionFactory.transaction(data),
                     manager,objects,new JdbcStagingTransfer(),new JdbcWorkQualityChecks(),guard,(object,seal)->{
                         created.set(object);

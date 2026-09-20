@@ -34,6 +34,9 @@ import tr.com.innova.akis.execution.PilotRuntimePlan.DatasetBinding;
 import tr.com.innova.akis.execution.PilotRuntimePlan.DatasetRole;
 import tr.com.innova.akis.execution.PilotRuntimePlan.DirectColumnMapping;
 import tr.com.innova.akis.execution.PilotRuntimePlan.WriteStrategy;
+import tr.com.innova.akis.knowledge.StagedMappingDefinition;
+import tr.com.innova.akis.execution.PinnedSchemaSnapshotPort.PinnedSnapshot;
+import tr.com.innova.akis.execution.PinnedSchemaSnapshotPort.PinnedSnapshots;
 
 class JdbcOracleSchemaPreflightTest {
 
@@ -483,6 +486,118 @@ class JdbcOracleSchemaPreflightTest {
         assertNull(error.getCause());
     }
 
+    @Test
+    void stagedPreflightAttestsAllSourcesAndResolvesDuplicateColumnNamesByObject() {
+        var inputs=stagedInputs("INNER");
+        preflight.verifyStaged(inputs.plan(),inputs.source().connection(),inputs.snapshots(),inputs.target().connection());
+        assertEquals(List.of(OWNER,"FIRST_SOURCE",OWNER,"SECOND_SOURCE"),inputs.source().boundValues);
+        assertEquals(2,inputs.source().sql.size());
+        assertTrue(inputs.source().connectionMethods.stream().noneMatch(this::isStateChangingMethod));
+        preflight.verifyLockedStagedTarget(inputs.plan(),inputs.target().connection(),inputs.snapshots());
+    }
+
+    @Test
+    void stagedPreflightDetectsDriftOnSecondSourceNotOnlyTheFirst() {
+        var inputs=stagedInputs("INNER");
+        inputs.source().tableColumns.put("SECOND_SOURCE",columnRows(List.of(numberColumn("ID",1))));
+        var error=assertThrows(OracleSchemaPreflightException.class,()->preflight.verifyStaged(
+                inputs.plan(),inputs.source().connection(),inputs.snapshots(),inputs.target().connection()));
+        assertEquals(OracleSchemaPreflightFailure.LIVE_SCHEMA_DRIFT,error.failure());
+        assertTrue(inputs.target().sql.isEmpty());
+    }
+
+    @Test
+    void stagedPreflightRejectsMissingSnapshotAndLegacyMultiSourceBypass() {
+        var inputs=stagedInputs("INNER");
+        var pinned=inputs.snapshots();
+        var missing=new PinnedSnapshots(pinned.projectUuid(),pinned.publicationUuid(),pinned.source(),pinned.target(),Map.of("S1",pinned.source()));
+        var error=assertThrows(OracleSchemaPreflightException.class,()->preflight.verifyStaged(
+                inputs.plan(),inputs.source().connection(),missing,inputs.target().connection()));
+        assertEquals(OracleSchemaPreflightFailure.INVALID_CONTRACT,error.failure());
+        assertTrue(inputs.source().connectionMethods.isEmpty());
+        assertThrows(OracleSchemaPreflightException.class,()->preflight.verify(inputs.plan(),inputs.source().connection(),
+                new ExpectedSnapshot(pinned.source().schemaSnapshotUuid(),pinned.source().body()),inputs.target().connection(),
+                new ExpectedSnapshot(pinned.target().schemaSnapshotUuid(),pinned.target().body())));
+        assertTrue(inputs.target().connectionMethods.isEmpty());
+    }
+
+    @Test
+    void lockedStagedTargetVerifiesEveryPinnedSourceBeforeAnyTargetRead() {
+        var inputs=stagedInputs("INNER");
+        var pinned=inputs.snapshots();
+        var second=pinned.sources().get("S2");
+        var altered=new PinnedSnapshot(second.schemaSnapshotUuid(),second.verifiedFingerprint(),
+                snapshotInput(List.of(stringColumn("ID",1)),List.of()));
+        var tampered=new PinnedSnapshots(pinned.projectUuid(),pinned.publicationUuid(),pinned.source(),pinned.target(),
+                Map.of("S1",pinned.source(),"S2",altered));
+        var error=assertThrows(OracleSchemaPreflightException.class,()->preflight.verifyLockedStagedTarget(
+                inputs.plan(),inputs.target().connection(),tampered));
+        assertEquals(OracleSchemaPreflightFailure.SNAPSHOT_FINGERPRINT_MISMATCH,error.failure());
+        assertTrue(inputs.target().connectionMethods.isEmpty());
+    }
+
+    @Test
+    void stagedOuterJoinAccountsForNullExtendedColumns() {
+        var left=stagedInputs("LEFT");
+        preflight.verifyStaged(left.plan(),left.source().connection(),left.snapshots(),left.target().connection());
+        var right=stagedInputs("RIGHT");
+        var error=assertThrows(OracleSchemaPreflightException.class,()->preflight.verifyStaged(
+                right.plan(),right.source().connection(),right.snapshots(),right.target().connection()));
+        assertEquals(OracleSchemaPreflightFailure.UNSUPPORTED_SCHEMA,error.failure());
+    }
+
+    @Test
+    void stagedPreflightVerifiesJoinAndFilterColumnsEvenIfNotProjected() {
+        for (boolean filter:List.of(false,true)) {
+            var inputs=stagedInputs("INNER");
+            var plan=inputs.plan(); var definition=plan.definition();
+            var changed=new StagedMappingDefinition(null,Map.of(),Map.of(),definition.options(),definition.sources(),definition.target(),
+                    filter?definition.joins():List.of(new StagedMappingDefinition.Join("INNER",
+                            new StagedMappingDefinition.ColumnRef("S1","ID"),new StagedMappingDefinition.ColumnRef("S2","MISSING"))),
+                    filter?List.of(new StagedMappingDefinition.Filter("SOURCE","S2","MISSING","IS_NULL",null)):List.of());
+            var invalid=new StagedRuntimePlan(plan.projectUuid(),plan.definitionUuid(),plan.definitionVersionUuid(),plan.releaseHash(),plan.runtimePlanHash(),plan.scenarioPlanHash(),
+                    plan.source(),plan.sources(),plan.target(),plan.columnMappings(),plan.columnSourceObjects(),changed,null,null,plan.staging());
+            var error=assertThrows(OracleSchemaPreflightException.class,()->preflight.verifyStaged(
+                    invalid,inputs.source().connection(),inputs.snapshots(),inputs.target().connection()));
+            assertEquals(OracleSchemaPreflightFailure.LIVE_SCHEMA_DRIFT,error.failure());
+        }
+    }
+
+    private StagedInputs stagedInputs(String joinType) {
+        UUID project=UUID.randomUUID(),connection=UUID.randomUUID();
+        var first=snapshotInput(List.of(numberColumn("ID",1)),List.of());
+        var second=snapshotInput(List.of(numberColumn("ID",1),stringColumn("NAME",2)),List.of());
+        var targetBody=snapshotInput(List.of(numberColumn("ID",1),
+                new Column("SECOND_ID","NUMBER(19)","INTEGER",2,19,0,null,null,true,null,"SECOND_ID"),
+                numberColumn("COPY_ID",3),stringColumn("NAME",4)),List.of());
+        var firstBinding=stagedBinding("S1","FIRST_SOURCE",DatasetRole.SOURCE,connection,first);
+        var secondBinding=stagedBinding("S2","SECOND_SOURCE",DatasetRole.SOURCE,connection,second);
+        var targetBinding=stagedBinding("T","TARGET",DatasetRole.TARGET,UUID.randomUUID(),targetBody);
+        var definition=new StagedMappingDefinition(null,Map.of(),Map.of(),new StagedMappingDefinition.Options(500,500,100,10000,false),
+                List.of(new StagedMappingDefinition.ObjectRef("S1","A",firstBinding.dataObjectUuid(),firstBinding.schemaSnapshotUuid()),
+                        new StagedMappingDefinition.ObjectRef("S2","B",secondBinding.dataObjectUuid(),secondBinding.schemaSnapshotUuid())),
+                new StagedMappingDefinition.ObjectRef("T","T",targetBinding.dataObjectUuid(),targetBinding.schemaSnapshotUuid()),
+                List.of(new StagedMappingDefinition.Join(joinType,new StagedMappingDefinition.ColumnRef("S1","ID"),new StagedMappingDefinition.ColumnRef("S2","ID"))),List.of());
+        var plan=new StagedRuntimePlan(project,UUID.randomUUID(),UUID.randomUUID(),"a".repeat(64),"b".repeat(64),"c".repeat(64),
+                firstBinding,List.of(firstBinding,secondBinding),targetBinding,
+                List.of(new DirectColumnMapping("ID","ID"),new DirectColumnMapping("ID","SECOND_ID"),new DirectColumnMapping("ID","COPY_ID"),new DirectColumnMapping("NAME","NAME")),
+                List.of("S1","S2","S1","S2"),definition,null,null,objectMapper.createObjectNode());
+        var firstPinned=new PinnedSnapshot(firstBinding.schemaSnapshotUuid(),fingerprint.calculate(first),first);
+        var secondPinned=new PinnedSnapshot(secondBinding.schemaSnapshotUuid(),fingerprint.calculate(second),second);
+        var snapshots=new PinnedSnapshots(project,UUID.randomUUID(),firstPinned,
+                new PinnedSnapshot(targetBinding.schemaSnapshotUuid(),fingerprint.calculate(targetBody),targetBody),Map.of("S1",firstPinned,"S2",secondPinned));
+        var source=new FakeOracle(List.of(),List.of());
+        source.tableColumns.put("FIRST_SOURCE",columnRows(first.columns()));
+        source.tableColumns.put("SECOND_SOURCE",columnRows(second.columns()));
+        return new StagedInputs(plan,snapshots,source,new FakeOracle(columnRows(targetBody.columns()),List.of()));
+    }
+
+    private DatasetBinding stagedBinding(String id,String table,DatasetRole role,UUID connection,SchemaFingerprintInput body) {
+        return new DatasetBinding(id,role,DatabaseType.ORACLE,DataObjectType.TABLE,UUID.randomUUID(),UUID.randomUUID(),UUID.randomUUID(),UUID.randomUUID(),
+                connection,UUID.randomUUID(),1,fingerprint.calculate(body),OWNER+"."+table,OWNER,table);
+    }
+    private record StagedInputs(StagedRuntimePlan plan,PinnedSnapshots snapshots,FakeOracle source,FakeOracle target) { }
+
     private Inputs inputs(
             SchemaFingerprintInput sourceInput, SchemaFingerprintInput targetInput) {
         UUID sourceSnapshotUuid = UUID.randomUUID();
@@ -603,6 +718,7 @@ class JdbcOracleSchemaPreflightTest {
         private final List<String> sql = new ArrayList<>();
         private final List<String> boundValues = new ArrayList<>();
         private final List<String> connectionMethods = new ArrayList<>();
+        private final Map<String,List<Map<String,Object>>> tableColumns = new HashMap<>();
 
         private FakeOracle(
                 List<Map<String, Object>> columns,
@@ -649,7 +765,7 @@ class JdbcOracleSchemaPreflightTest {
                     List<Map<String, Object>> rows = statementSql.contains("all_tab_cols")
                             ? columns
                             : statementSql.contains("all_triggers") ? triggers : constraints;
-                    return statement(rows);
+                    return statement(rows, statementSql.contains("all_tab_cols"));
                 }
                 return defaultValue(method.getReturnType());
             });
@@ -667,14 +783,16 @@ class JdbcOracleSchemaPreflightTest {
             });
         }
 
-        private PreparedStatement statement(List<Map<String, Object>> rows) {
+        private PreparedStatement statement(List<Map<String, Object>> rows, boolean columnQuery) {
+            Map<Integer,String> parameters=new HashMap<>();
             return proxy(PreparedStatement.class, (proxy, method, arguments) -> {
                 if (method.getName().equals("setString")) {
                     boundValues.add((String) arguments[1]);
+                    parameters.put((Integer)arguments[0],(String)arguments[1]);
                     return null;
                 }
                 if (method.getName().equals("executeQuery")) {
-                    return resultSet(rows);
+                    return resultSet(columnQuery?tableColumns.getOrDefault(parameters.get(2),rows):rows);
                 }
                 return defaultValue(method.getReturnType());
             });

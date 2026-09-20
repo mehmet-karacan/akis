@@ -19,7 +19,7 @@ import tr.com.innova.akis.security.AuthorizationService;
 import static tr.com.innova.akis.security.PermissionCodes.DISCOVERY_WRITE;
 
 @RestController
-@RequestMapping("/api/v2/projects/{projectUuid}/connections/{connectionUuid}/versions/{connectionVersionUuid}")
+@RequestMapping("/api/v1/projects/{projectUuid}/connections/{connectionUuid}")
 final class OracleSchemaSnapshotCaptureController {
 
     private final OracleSchemaSnapshotCaptureService service;
@@ -36,13 +36,11 @@ final class OracleSchemaSnapshotCaptureController {
     ResponseEntity<SnapshotView> capture(
             @PathVariable UUID projectUuid,
             @PathVariable UUID connectionUuid,
-            @PathVariable UUID connectionVersionUuid,
             @PathVariable UUID physicalSchemaUuid,
             @PathVariable UUID dataObjectUuid) {
         authorization.requireProjectPermission(projectUuid, DISCOVERY_WRITE);
         PersistResult result = service.capture(
-                projectUuid, connectionUuid, connectionVersionUuid,
-                physicalSchemaUuid, dataObjectUuid);
+                projectUuid, connectionUuid, physicalSchemaUuid, dataObjectUuid);
         HttpStatus status = result.reused() ? HttpStatus.OK : HttpStatus.CREATED;
         return ResponseEntity.status(status).body(
                 SnapshotView.from(result.snapshot(), result.reused()));

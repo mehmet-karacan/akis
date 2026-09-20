@@ -5,6 +5,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import tools.jackson.databind.node.JsonNodeFactory;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -36,6 +37,11 @@ public class CatalogService {
     ModelRow createModel(
             UUID projectUuid,
             UUID logicalSchemaUuid,
+            String technologyCode,
+            UUID reverseEnvironmentUuid,
+            String reverseMode,
+            UUID rkmDefinitionUuid,
+            JsonNode reverseOptions,
             String code,
             String name,
             String description) {
@@ -43,9 +49,39 @@ public class CatalogService {
         LogicalSchemaRef logicalSchema = repository.findLogicalSchema(
                         project.id(), logicalSchemaUuid)
                 .orElseThrow(() -> notFound("Mantıksal şema bulunamadı."));
+        String technology = validateTechnology(project.id(), logicalSchema.id(), defaultValue(technologyCode, "ORACLE"));
+        String mode = allowed(defaultValue(reverseMode, "STANDARD"), Set.of("STANDARD", "CUSTOM_RKM"), "reverse engineering modu");
+        Long environmentId = environmentId(project.id(), reverseEnvironmentUuid);
+        Long rkmId = rkmId(project.id(), mode, rkmDefinitionUuid);
         return repository.createModel(
-                project.id(), logicalSchema.id(), UUID.randomUUID(), normalizeCode(code),
+                project.id(), logicalSchema.id(), UUID.randomUUID(), technology,
+                environmentId, mode, rkmId, options(reverseOptions), normalizeCode(code),
                 normalizeName(name), trimToNull(description));
+    }
+
+    @Transactional
+    ModelRow updateModel(
+            UUID projectUuid, UUID modelUuid, UUID logicalSchemaUuid, String technologyCode,
+            UUID reverseEnvironmentUuid, String reverseMode, UUID rkmDefinitionUuid,
+            JsonNode reverseOptions, String name, String description, long expectedVersion) {
+        ProjectRef project = project(projectUuid);
+        model(project, modelUuid);
+        LogicalSchemaRef logical = repository.findLogicalSchema(project.id(), logicalSchemaUuid)
+                .orElseThrow(() -> notFound("Mantıksal şema bulunamadı."));
+        String technology = validateTechnology(project.id(), logical.id(), defaultValue(technologyCode, "ORACLE"));
+        String mode = allowed(defaultValue(reverseMode, "STANDARD"), Set.of("STANDARD", "CUSTOM_RKM"), "reverse engineering modu");
+        try {
+            return repository.updateModel(project.id(), modelUuid, logical.id(), technology,
+                    environmentId(project.id(), reverseEnvironmentUuid), mode,
+                    rkmId(project.id(), mode, rkmDefinitionUuid), options(reverseOptions),
+                    normalizeName(name), trimToNull(description), expectedVersion);
+        }
+        catch (IllegalStateException conflict) {
+            if ("MODEL_VERSION_CONFLICT".equals(conflict.getMessage())) {
+                throw new ApiException(HttpStatus.CONFLICT, "VERSION_CONFLICT", "Model başka bir kullanıcı tarafından güncellendi.");
+            }
+            throw conflict;
+        }
     }
 
     List<ModelRow> listModels(UUID projectUuid) {
@@ -56,6 +92,20 @@ public class CatalogService {
     ModelRow model(UUID projectUuid, UUID modelUuid) {
         ProjectRef project = project(projectUuid);
         return model(project, modelUuid);
+    }
+
+    @Transactional
+    void deleteModel(UUID projectUuid, UUID modelUuid, long expectedVersion) {
+        ProjectRef project = project(projectUuid);
+        ModelRow model = model(project, modelUuid);
+        if (model.dataObjectCount() > 0 || repository.modelHasSubmodels(model.id())) {
+            throw new ApiException(HttpStatus.CONFLICT, "MODEL_IN_USE",
+                    "Veri nesnesi veya klasörü bulunan model silinemez.");
+        }
+        if (!repository.archiveModel(project.id(), modelUuid, expectedVersion)) {
+            throw new ApiException(HttpStatus.CONFLICT, "VERSION_CONFLICT",
+                    "Model başka bir kullanıcı tarafından güncellendi.");
+        }
     }
 
     @Transactional
@@ -118,6 +168,28 @@ public class CatalogService {
                 querySchemaVersion, queryDefinition, normalizeName(name));
     }
 
+    @Transactional
+    DataObjectRow moveDataObject(UUID projectUuid, UUID modelUuid, UUID objectUuid, UUID folderUuid, long expectedVersion) {
+        if (expectedVersion < 1) throw validation("Geçerli kayıt sürümü zorunludur.");
+        ProjectRef project = project(projectUuid);
+        ModelRow model = model(project, modelUuid);
+        DataObjectRow object = repository.findDataObject(project.id(), objectUuid)
+                .filter(row -> row.modelId() == model.id())
+                .orElseThrow(() -> notFound("Data Store bu modelde bulunamadı."));
+        if (!"AKTIF".equals(model.status()) || !"AKTIF".equals(object.status()))
+            throw validation("Arşivlenmiş model veya Data Store taşınamaz.");
+        Long folderId = null;
+        if (folderUuid != null) {
+            SubmodelRow folder = repository.findSubmodel(project.id(), folderUuid)
+                    .orElseThrow(() -> notFound("Model klasörü bulunamadı."));
+            if (folder.modelId() != model.id()) throw validation("Klasör aynı modele ait olmalıdır.");
+            folderId = folder.id();
+        }
+        return repository.moveDataObject(project.id(), model.id(), object.uuid(), folderId, expectedVersion)
+                .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "VERSION_CONFLICT",
+                        "Data Store veya model değişti. Kaydı yenileyip tekrar deneyin."));
+    }
+
     List<DataObjectRow> listDataObjects(UUID projectUuid, UUID modelUuid) {
         ProjectRef project = project(projectUuid);
         ModelRow model = model(project, modelUuid);
@@ -170,6 +242,34 @@ public class CatalogService {
         return normalized;
     }
 
+    private String validateTechnology(long projectId, long logicalSchemaId, String value) {
+        String technology = allowed(value, Set.of("ORACLE"), "teknoloji");
+        if (repository.logicalSchemaProviders(projectId, logicalSchemaId).stream()
+                .anyMatch(provider -> !technology.equals(provider))) {
+            throw validation("Mantıksal şema farklı bir teknoloji sağlayıcısına bağlı.");
+        }
+        return technology;
+    }
+
+    private Long environmentId(long projectId, UUID uuid) {
+        if (uuid == null) return null;
+        return repository.findEnvironmentId(projectId, uuid)
+                .orElseThrow(() -> notFound("Reverse engineering ortamı bulunamadı."));
+    }
+
+    private Long rkmId(long projectId, String mode, UUID uuid) {
+        if ("STANDARD".equals(mode)) return null;
+        if (uuid == null) throw validation("Özel reverse engineering için RKM seçilmelidir.");
+        return repository.findRkmDefinitionId(projectId, uuid)
+                .orElseThrow(() -> notFound("RKM yürütme modülü bulunamadı."));
+    }
+
+    private JsonNode options(JsonNode value) {
+        if (value == null || value.isNull()) return JsonNodeFactory.instance.objectNode();
+        if (!value.isObject()) throw validation("Reverse engineering seçenekleri JSON nesnesi olmalıdır.");
+        return value;
+    }
+
     private String normalizeName(String name) {
         return required(name, "Ad", 200);
     }
@@ -192,6 +292,10 @@ public class CatalogService {
 
     private String trimToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private String defaultValue(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
     }
 
     private ApiException notFound(String message) {

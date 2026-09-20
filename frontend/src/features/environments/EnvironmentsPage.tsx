@@ -1,26 +1,98 @@
-import { DataGrid } from '../../core/ui/DataGrid'
-import { Input as AntInput } from 'antd'
-import { Database, GitBranch, Plus, Workflow } from 'lucide-react'
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { Tag } from 'antd'
+import { CheckCircle2, CircleAlert, Database, GitBranch, Link2, Plus, ShieldAlert, Star, Workflow } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ContextRecordDialog } from '../schemas/ContextRecordDialog'
+import { useSearchParams } from 'react-router-dom'
 import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
-import { AsyncState, Button, Dialog, PageHeader, SummaryStrip } from '../../core/ui'
-import { useProjectAccess } from '../../core/auth/ProjectAccessContext'
-import { topologyApi, type Environment, type LogicalSchema, type SchemaBinding } from '../topology/api'
-import { FeedbackToast } from '../../core/ui/FeedbackToast'
+import { AsyncState, Button, Dialog, PageHeader, RecordActionButton, SummaryStrip } from '../../core/ui'
+import { DataGrid } from '../../core/ui/DataGrid'
+import { ProgressiveRecords } from '../../core/ui/ProgressiveRecords'
 import { QueryFilter } from '../../core/ui/QueryFilter'
+import { useCollectionView } from '../../core/ui/ViewToggle'
+import { useProjectAccess } from '../../core/auth/ProjectAccessContext'
+import { topologyApi, type Connection, type LogicalSchema, type PhysicalSchema } from '../topology/api'
+import { connectionStatusTagStyles } from '../connections/presentation'
+import { buildEnvironmentCatalog, riskLabel, riskTone, type EnvironmentCatalogItem } from './environmentCatalog'
+import { EnvironmentForm } from './EnvironmentForm'
+import { EnvironmentDetailDialog } from './EnvironmentDetailDialog'
+import '../connections/connections.css'
+import '../connections/catalog-layout.css'
 import '../schemas/schemas.css'
 
+/** Same catalog layout as the connections screen: header + filter, summary strip, card/list/table records. */
 export function EnvironmentsPage() {
-  const [notice, setNotice] = useState('')
-  const [selected, setSelected] = useState<Environment | null>(null)
-  const closeNotice = useCallback(() => setNotice(''), [])
-  const projectUuid = useCurrentProjectUuid(); const { t } = useTranslation(); const { can } = useProjectAccess(); const canManage = can('BAGLANTI_YONET')
-  const [items, setItems] = useState<Environment[]>([]); const [logicalSchemas, setLogicalSchemas] = useState<LogicalSchema[]>([]); const [bindings, setBindings] = useState<SchemaBinding[]>([]); const [query, setQuery] = useState(''); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [open, setOpen] = useState(false); const [busy, setBusy] = useState(false)
-  const load = useCallback(async () => { setLoading(true); setError(''); try { const [nextItems, nextLogical, nextBindings] = await Promise.all([topologyApi.listEnvironments(projectUuid), topologyApi.listLogicalSchemas(projectUuid), topologyApi.listBindings(projectUuid)]); setItems(nextItems); setLogicalSchemas(nextLogical); setBindings(nextBindings) } catch { setError(t('common.loadError')) } finally { setLoading(false) } }, [projectUuid, t])
+  const projectUuid = useCurrentProjectUuid()
+  const [view, setView] = useCollectionView('akis:environments:view')
+  const { t, i18n } = useTranslation()
+  const tr = i18n.language.startsWith('tr')
+  const [params, setParams] = useSearchParams()
+  const { can } = useProjectAccess()
+  const canManage = can('BAGLANTI_YONET')
+  const [catalog, setCatalog] = useState<EnvironmentCatalogItem[]>([])
+  const [logicalSchemas, setLogicalSchemas] = useState<LogicalSchema[]>([])
+  const [physicalSchemas, setPhysicalSchemas] = useState<PhysicalSchema[]>([])
+  const [connections, setConnections] = useState<Connection[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [selectedUuid, setSelectedUuid] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true); setError('')
+    try {
+      const [environments, nextLogical, nextPhysical, nextConnections, bindings] = await Promise.all([
+        topologyApi.listEnvironments(projectUuid),
+        topologyApi.listLogicalSchemas(projectUuid),
+        topologyApi.listPhysicalSchemas(projectUuid),
+        topologyApi.listConnections(projectUuid),
+        topologyApi.listBindings(projectUuid),
+      ])
+      setLogicalSchemas(nextLogical); setPhysicalSchemas(nextPhysical); setConnections(nextConnections)
+      setCatalog(buildEnvironmentCatalog(environments, nextLogical, nextPhysical, nextConnections, bindings))
+    } catch { setError(t('common.loadError')) }
+    finally { setLoading(false) }
+  }, [projectUuid, t])
+
   useEffect(() => { void load() }, [load])
-  async function create(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const data = new FormData(event.currentTarget); setBusy(true); setError(''); try { await topologyApi.createEnvironment(projectUuid, { code: String(data.get('code')).trim().toUpperCase(), name: String(data.get('name')).trim() }); setOpen(false); setNotice(t('common.savedSuccessfully')); await load() } catch (reason) { setError(reason instanceof Error ? reason.message : t('common.saveError')) } finally { setBusy(false) } }
-  const filteredItems = items.filter((item) => `${item.name} ${item.code}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
-  return <section className="page-stack schema-page"><FeedbackToast message={notice} onClose={closeNotice} /><PageHeader eyebrow={t('schemas.eyebrow')} title={t('schemas.environmentsTitle')} description={t('schemas.environmentsDescription')} actions={canManage ? <Button tone="primary" icon={<Plus size={16} />} onClick={() => setOpen(true)}>{t('schemas.addEnvironment')}</Button> : undefined} />{error ? <div className="error-banner" role="alert">{error}</div> : null}<QueryFilter onApply={setQuery} placeholder={`${t('schemas.name')} · ${t('schemas.code')}`} /><SummaryStrip ariaLabel={t('schemas.environmentsTitle')} items={[{ label: t('schemas.environmentsTitle'), value: items.length, icon: <Workflow />, tone: 'info' }, { label: t('schemas.logicalTitle'), value: logicalSchemas.length, icon: <GitBranch />, tone: 'neutral' }, { label: t('schemas.initialMapping'), value: bindings.length, icon: <Database />, tone: 'success' }]} />{loading ? <AsyncState state="loading" title={t('common.loading')} /> : filteredItems.length === 0 ? <AsyncState state="empty" title={t('schemas.noEnvironments')} /> : <div className="schema-list-table"><DataGrid auditKind="environments"><thead><tr><th>{t('schemas.name')}</th><th>{t('schemas.code')}</th></tr></thead><tbody>{filteredItems.map((item) => <tr key={item.uuid} onClick={() => setSelected(item)}><td><Button tone="ghost" onClick={() => setSelected(item)}>{item.name}</Button></td><td><code>{item.code}</code></td></tr>)}</tbody></DataGrid></div>}{selected && <ContextRecordDialog key={selected.uuid} item={selected} kind="environment" onClose={() => setSelected(null)} onSaved={(deleted) => { setNotice(t(deleted ? 'common.deletedSuccessfully' : 'common.savedSuccessfully')); void load() }} />}<Dialog open={canManage && open} title={t('schemas.addEnvironment')} closeLabel={t('common.close')} busy={busy} onClose={() => setOpen(false)}><form onSubmit={(event) => void create(event)}><label>{t('schemas.name')}<AntInput name="name" required /></label><label>{t('schemas.code')}<AntInput name="code" pattern="[A-Za-z][A-Za-z0-9_]{0,99}" required /></label><p className="form-note">{t('schemas.environmentSimpleHint')}</p><footer><Button type="button" onClick={() => setOpen(false)}>{t('common.cancel')}</Button><Button type="submit" tone="primary" busy={busy}>{t('schemas.create')}</Button></footer></form></Dialog></section>
+  const query = params.get('q') ?? ''
+  const applyQuery = (next: string) => setParams(next ? { q: next } : {})
+
+  const filtered = useMemo(() => catalog
+    .filter((item) => `${item.environment.name} ${item.environment.code} ${riskLabel(item.environment.risk, tr)} ${item.environment.description ?? ''}`.toLocaleLowerCase(i18n.language).includes(query.trim().toLocaleLowerCase(i18n.language)))
+    .sort((a, b) => a.environment.name.localeCompare(b.environment.name, i18n.language)), [catalog, i18n.language, query, tr])
+  const selected = catalog.find((item) => item.environment.uuid === selectedUuid) ?? null
+  const notMapped = t('schemas.notMapped')
+  const addButton = canManage ? <Button tone="primary" icon={<Plus size={16} />} onClick={() => setCreating(true)}>{t('schemas.addEnvironment')}</Button> : undefined
+
+  return <section className="page-stack connections-page environments-page">
+    <section className="connection-management-panel"><PageHeader icon={<Workflow />} eyebrow={t('schemas.eyebrow')} title={t('schemas.environmentsTitle')} description={t('schemas.environmentsDescription')} />
+    <QueryFilter onApply={applyQuery} placeholder={tr ? 'Ad, kod veya risk sınıfına göre ara' : 'Search by name, code or risk class'} /></section>
+    <SummaryStrip ariaLabel={t('schemas.environmentsTitle')} items={[
+      { label: tr ? 'Toplam Ortam' : 'Total Environments', value: catalog.length, icon: <Workflow />, tone: 'info' },
+      { label: tr ? 'Üretim Ortamı' : 'Production Environments', value: catalog.filter((item) => item.environment.risk === 'URETIM').length, icon: <ShieldAlert />, tone: 'warning' },
+      { label: tr ? 'Tam Eşlenmiş' : 'Fully Mapped', value: catalog.filter((item) => item.mappings.length > 0 && item.mappedCount === item.mappings.length).length, icon: <Link2 />, tone: 'success' },
+      { label: t('schemas.logicalTitle'), value: logicalSchemas.length, icon: <GitBranch />, tone: 'neutral' },
+      { label: t('schemas.physicalTitle'), value: physicalSchemas.length, icon: <Database />, tone: 'teal' },
+    ]} />
+    <section className="connections-records">
+    {loading ? <AsyncState state="loading" title={t('common.loading')} /> : error ? <AsyncState state="error" title={error} retryLabel={t('common.retry')} onRetry={() => void load()} /> : filtered.length === 0 ? <AsyncState state="empty" title={t('schemas.noEnvironments')} action={addButton} /> : <ProgressiveRecords key={query} items={filtered}>{(visible) => <DataGrid auditKind="environments" auditInFooter collectionTitle={tr ? 'Ortam Kataloğu' : 'Environment Catalog'} collectionIcon={<Workflow />} toolbarActions={addButton} cardHeaderLeadingField="risk" cardHeaderField="mapping" cardHiddenFields={['risk', 'mapping']} headerFieldsInList view={view} onViewChange={setView}>
+      <thead><tr>
+        <th data-field-key="risk">{tr ? 'Risk' : 'Risk'}</th><th data-field-key="name">{t('schemas.environment')}</th><th data-field-key="description">{t('schemas.description')}</th>{logicalSchemas.map((schema) => <th key={schema.uuid} data-field-key={`ls-${schema.code}`}>{schema.name}</th>)}<th data-field-key="mapping">{tr ? 'Eşleme Durumu' : 'Mapping Status'}</th><th data-field-key="default">{tr ? 'Varsayılan' : 'Default'}</th><th data-field-key="status">{t('connections.status')}</th><th data-field-key="actions" className="ui-grid-actions-column"><span className="sr-only">{tr ? 'İşlemler' : 'Actions'}</span></th>
+      </tr></thead><tbody>{visible.map((item) => { const complete = item.mappings.length > 0 && item.mappedCount === item.mappings.length; const tone = complete ? 'success' : 'warning'; const risk = riskTone(item.environment.risk); return <tr key={item.environment.uuid} data-connection-uuid={item.environment.uuid}>
+        <td><Tag className={`connection-status-tag connection-status-tag--${risk}`} style={connectionStatusTagStyles[risk]} icon={<ShieldAlert size={12} />}><span className="connection-status-tag-label">{riskLabel(item.environment.risk, tr)}</span></Tag></td>
+        <td><span className="connection-record-identity"><strong>{item.environment.name}</strong><small>{item.environment.code}</small></span></td>
+        <td>{item.environment.description || t('common.noDescription')}</td>
+        {item.mappings.map((mapping) => <td key={mapping.logicalSchema.uuid}>{mapping.binding ? `${mapping.connection?.code ?? '?'} / ${mapping.physicalSchema?.schemaName ?? '?'}` : notMapped}</td>)}
+        <td><Tag className={`connection-status-tag connection-status-tag--${tone}`} style={connectionStatusTagStyles[tone]} icon={complete ? <CheckCircle2 size={12} /> : <CircleAlert size={12} />}><span className="connection-status-tag-label">{complete ? (tr ? 'Tüm Şemalar Eşlendi' : 'All schemas mapped') : item.mappedCount > 0 ? (tr ? 'Eksik Eşleme' : 'Partially mapped') : notMapped}</span></Tag></td>
+        <td>{item.environment.defaultEnvironment ? <span className="physical-schema-default"><Star size={14} />{tr ? 'Varsayılan' : 'Default'}</span> : null}</td>
+        <td>{item.environment.status === 'ETKIN' ? (tr ? 'Etkin' : 'Active') : (tr ? 'Pasif' : 'Inactive')}</td>
+        <td className="row-actions"><div className="connection-row-actions"><RecordActionButton name={item.environment.name} editable={canManage} onClick={() => setSelectedUuid(item.environment.uuid)} /></div></td>
+      </tr> })}</tbody>
+    </DataGrid>}</ProgressiveRecords>}
+    </section>
+    {selected && <EnvironmentDetailDialog key={`${selected.environment.uuid}:${selected.mappedCount}:${selected.environment.name}:${selected.environment.risk}:${selected.environment.defaultEnvironment}`} item={selected} physicalSchemas={physicalSchemas} connections={connections} onClose={() => setSelectedUuid(null)} onChanged={async (deleted) => { if (deleted) setSelectedUuid(null); await load() }} />}
+    <Dialog open={canManage && creating} title={t('schemas.addEnvironment')} closeLabel={t('common.close')} onClose={() => setCreating(false)} className="connection-catalog-dialog">
+      <EnvironmentForm projectUuid={projectUuid} onClose={() => setCreating(false)} onCreated={async (created) => { setCreating(false); await load(); setSelectedUuid(created.uuid) }} />
+    </Dialog>
+  </section>
 }

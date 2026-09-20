@@ -1,139 +1,99 @@
-import { DataGrid } from '../../core/ui/DataGrid'
-import { Select as FormSelect } from '../../core/ui/Select'
-import { Input as AntInput } from 'antd'
-import { Cable, Database, GitBranch, Plus, Workflow } from 'lucide-react'
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { Tag } from 'antd'
+import { Cable, CheckCircle2, CircleAlert, Database, GitBranch, Link2, Plus, Workflow } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ContextRecordDialog } from './ContextRecordDialog'
+import { useSearchParams } from 'react-router-dom'
 import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
-import { AsyncState, Button, Dialog, PageHeader, SummaryStrip } from '../../core/ui'
-import { FeedbackToast } from '../../core/ui/FeedbackToast'
+import { AsyncState, Button, Dialog, PageHeader, RecordActionButton, SummaryStrip } from '../../core/ui'
+import { DataGrid } from '../../core/ui/DataGrid'
+import { ProgressiveRecords } from '../../core/ui/ProgressiveRecords'
 import { QueryFilter } from '../../core/ui/QueryFilter'
+import { useCollectionView } from '../../core/ui/ViewToggle'
 import { useProjectAccess } from '../../core/auth/ProjectAccessContext'
-import {
-  topologyApi,
-  type Connection,
-  type Environment,
-  type LogicalSchema,
-  type PhysicalSchema,
-} from '../topology/api'
+import { topologyApi, type Connection, type Environment, type PhysicalSchema } from '../topology/api'
+import { DatabaseProviderIcon, databaseProviderVisual } from '../topology/DatabaseProviderIcon'
+import { connectionStatusTagStyles } from '../connections/presentation'
+import { buildLogicalSchemaCatalog, mappingLabel, mappingState, type LogicalSchemaCatalogItem } from './logicalCatalog'
+import { LogicalSchemaForm } from './LogicalSchemaForm'
+import { LogicalSchemaDetailDialog } from './LogicalSchemaDetailDialog'
+import '../connections/connections.css'
+import '../connections/catalog-layout.css'
 import './schemas.css'
 
+/** Same catalog layout as the connections screen: header + filter, summary strip, card/list/table records. */
 export function LogicalSchemasPage() {
-  const [notice, setNotice] = useState('')
-  const closeNotice = useCallback(() => setNotice(''), [])
   const projectUuid = useCurrentProjectUuid()
-  const { t } = useTranslation()
+  const [view, setView] = useCollectionView('akis:logical-schemas:view')
+  const { t, i18n } = useTranslation()
+  const tr = i18n.language.startsWith('tr')
+  const [params, setParams] = useSearchParams()
   const { can } = useProjectAccess()
   const canManage = can('BAGLANTI_YONET')
-  const [items, setItems] = useState<LogicalSchema[]>([])
+  const [catalog, setCatalog] = useState<LogicalSchemaCatalogItem[]>([])
   const [environments, setEnvironments] = useState<Environment[]>([])
   const [physicalSchemas, setPhysicalSchemas] = useState<PhysicalSchema[]>([])
   const [connections, setConnections] = useState<Connection[]>([])
-  const [environmentUuid, setEnvironmentUuid] = useState('')
-  const [physicalSchemaUuid, setPhysicalSchemaUuid] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [open, setOpen] = useState(false)
-  const [selected, setSelected] = useState<LogicalSchema | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [query, setQuery] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [selectedUuid, setSelectedUuid] = useState<string | null>(null)
 
   const load = useCallback(async () => {
-    setLoading(true)
-    setError('')
+    setLoading(true); setError('')
     try {
-      const [nextItems, nextEnvironments, nextPhysical, nextConnections] = await Promise.all([
+      const [schemas, nextEnvironments, nextPhysical, nextConnections, bindings] = await Promise.all([
         topologyApi.listLogicalSchemas(projectUuid),
         topologyApi.listEnvironments(projectUuid),
         topologyApi.listPhysicalSchemas(projectUuid),
         topologyApi.listConnections(projectUuid),
+        topologyApi.listBindings(projectUuid),
       ])
-      setItems(nextItems)
-      setEnvironments(nextEnvironments)
-      setPhysicalSchemas(nextPhysical)
-      setConnections(nextConnections)
-    } catch {
-      setError(t('common.loadError'))
-    } finally {
-      setLoading(false)
-    }
+      setEnvironments(nextEnvironments); setPhysicalSchemas(nextPhysical); setConnections(nextConnections)
+      setCatalog(buildLogicalSchemaCatalog(schemas, nextEnvironments, nextPhysical, nextConnections, bindings))
+    } catch { setError(t('common.loadError')) }
+    finally { setLoading(false) }
   }, [projectUuid, t])
 
   useEffect(() => { void load() }, [load])
+  const query = params.get('q') ?? ''
+  const applyQuery = (next: string) => setParams(next ? { q: next } : {})
 
-  const prerequisitesReady = environments.length > 0 && physicalSchemas.length > 0
-  const filteredItems = items.filter((item) => `${item.name} ${item.code} ${item.description ?? ''}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
+  const filtered = useMemo(() => catalog
+    .filter((item) => `${item.schema.name} ${item.schema.code} ${item.schema.databaseType ?? ''} ${item.schema.description ?? ''}`.toLocaleLowerCase(i18n.language).includes(query.trim().toLocaleLowerCase(i18n.language)))
+    .sort((a, b) => a.schema.name.localeCompare(b.schema.name, i18n.language)), [catalog, i18n.language, query])
+  const selected = catalog.find((item) => item.schema.uuid === selectedUuid) ?? null
+  const notMapped = t('schemas.notMapped')
+  const stateText = { complete: tr ? 'Tüm Ortamlar Eşlendi' : 'All environments mapped', partial: tr ? 'Eksik Eşleme' : 'Partially mapped', none: notMapped }
+  const addButton = canManage ? <Button tone="primary" icon={<Plus size={16} />} onClick={() => setCreating(true)}>{t('schemas.addLogical')}</Button> : undefined
 
-  function openCreate() {
-    setEnvironmentUuid(environments[0]?.uuid ?? '')
-    setPhysicalSchemaUuid('')
-    setOpen(true)
-  }
-
-  async function create(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const data = new FormData(event.currentTarget)
-    setBusy(true)
-    setError('')
-    try {
-      await topologyApi.createLogicalSchema(projectUuid, {
-        code: String(data.get('code')).trim().toUpperCase(),
-        name: String(data.get('name')).trim(),
-        description: String(data.get('description')).trim() || undefined,
-        environmentUuid,
-        physicalSchemaUuid,
-      })
-      setOpen(false)
-      setNotice(t('common.savedSuccessfully'))
-      await load()
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t('common.saveError'))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const physicalLabel = (physical: PhysicalSchema) => {
-    const connection = connections.find((item) => item.uuid === physical.connectionUuid)
-    return `${connection?.code ?? '—'} / ${physical.schemaReference}`
-  }
-
-  return <section className="page-stack schema-page"><FeedbackToast message={notice} onClose={closeNotice} />
-    <PageHeader
-      eyebrow={t('schemas.eyebrow')}
-      title={t('schemas.logicalTitle')}
-      description={t('schemas.logicalDescription')}
-      actions={canManage ? <Button tone="primary" icon={<Plus size={16} />} onClick={openCreate}>{t('schemas.addLogical')}</Button> : undefined}
-    />
-    <QueryFilter onApply={setQuery} placeholder={`${t('schemas.name')} · ${t('schemas.code')}`} />
+  return <section className="page-stack connections-page logical-schemas-page">
+    <section className="connection-management-panel"><PageHeader icon={<GitBranch />} eyebrow={t('schemas.eyebrow')} title={t('schemas.logicalTitle')} description={t('schemas.logicalDescription')} />
+    <QueryFilter onApply={applyQuery} placeholder={tr ? 'Ad, kod veya sağlayıcıya göre ara' : 'Search by name, code or provider'} /></section>
     <SummaryStrip ariaLabel={t('schemas.logicalTitle')} items={[
-      { label: t('schemas.logicalTitle'), value: items.length, icon: <GitBranch />, tone: 'info' },
+      { label: tr ? 'Toplam Mantıksal Şema' : 'Total Logical Schemas', value: catalog.length, icon: <GitBranch />, tone: 'info' },
+      { label: tr ? 'Tam Eşlenmiş' : 'Fully Mapped', value: catalog.filter((item) => mappingState(item) === 'complete').length, icon: <Link2 />, tone: 'success' },
       { label: t('schemas.environmentsTitle'), value: environments.length, icon: <Workflow />, tone: 'neutral' },
-      { label: t('schemas.physicalSchema'), value: physicalSchemas.length, icon: <Database />, tone: 'success' },
+      { label: t('schemas.physicalTitle'), value: physicalSchemas.length, icon: <Database />, tone: 'teal' },
       { label: t('connections.title'), value: connections.length, icon: <Cable />, tone: 'neutral' },
     ]} />
-    {error ? <div className="error-banner" role="alert">{error}</div> : null}
-    {loading ? <AsyncState state="loading" title={t('common.loading')} /> : filteredItems.length === 0 ? <AsyncState state="empty" title={t('schemas.noLogical')} /> : <div className="schema-list-table"><DataGrid auditKind="logical-schemas"><thead><tr><th>{t('schemas.name')}</th><th>{t('schemas.code')}</th><th>{t('schemas.description')}</th></tr></thead><tbody>{filteredItems.map((item) => <tr key={item.uuid} onClick={() => setSelected(item)}><td><Button tone="ghost" onClick={() => setSelected(item)}>{item.name}</Button></td><td><code>{item.code}</code></td><td>{item.description ?? t('common.noDescription')}</td></tr>)}</tbody></DataGrid></div>}
-    {selected && <ContextRecordDialog key={selected.uuid} item={selected} kind="logical" onClose={() => setSelected(null)} onSaved={(deleted) => { setNotice(t(deleted ? 'common.deletedSuccessfully' : 'common.savedSuccessfully')); void load() }} />}
-    <Dialog open={canManage && open} title={t('schemas.addLogical')} closeLabel={t('common.close')} busy={busy} onClose={() => setOpen(false)}>
-      <form onSubmit={(event) => void create(event)}>
-        <label>{t('schemas.name')}<AntInput name="name" required /></label>
-        <label>{t('schemas.code')}<AntInput name="code" pattern="[A-Za-z][A-Za-z0-9_]{0,99}" required /></label>
-        <label>{t('schemas.description')}<AntInput.TextArea name="description" rows={3} /></label>
-        <fieldset className="logical-schema-binding-fields">
-          <legend>{t('schemas.initialMapping')}</legend>
-          <p>{t('schemas.initialMappingHint')}</p>
-          {!prerequisitesReady ? <div className="logical-schema-prerequisite" role="alert">
-            <strong>{t('schemas.mappingPrerequisiteMissing')}</strong>
-            <span>{t('schemas.mappingPrerequisiteMissingHint')}</span>
-          </div> : <>
-            <label>{t('schemas.environment')}<FormSelect required value={environmentUuid} onChange={(event) => setEnvironmentUuid(event.target.value)}>{environments.map((environment) => <option key={environment.uuid} value={environment.uuid}>{environment.name} · {environment.code}</option>)}</FormSelect></label>
-            <label>{t('schemas.physicalSchema')}<FormSelect required value={physicalSchemaUuid} onChange={(event) => setPhysicalSchemaUuid(event.target.value)}><option value="">{t('schemas.choosePhysicalSchema')}</option>{physicalSchemas.map((physical) => <option key={physical.uuid} value={physical.uuid}>{physicalLabel(physical)}</option>)}</FormSelect></label>
-          </>}
-        </fieldset>
-        <footer><Button type="button" onClick={() => setOpen(false)}>{t('common.cancel')}</Button><Button type="submit" tone="primary" busy={busy} disabled={!prerequisitesReady || !environmentUuid || !physicalSchemaUuid}>{t('schemas.createAndMap')}</Button></footer>
-      </form>
+    <section className="connections-records">
+    {loading ? <AsyncState state="loading" title={t('common.loading')} /> : error ? <AsyncState state="error" title={error} retryLabel={t('common.retry')} onRetry={() => void load()} /> : filtered.length === 0 ? <AsyncState state="empty" title={t('schemas.noLogical')} action={addButton} /> : <ProgressiveRecords key={query} items={filtered}>{(visible) => <DataGrid auditKind="logical-schemas" auditInFooter collectionTitle={tr ? 'Mantıksal Şema Kataloğu' : 'Logical Schema Catalog'} collectionIcon={<GitBranch />} toolbarActions={addButton} cardHeaderLeadingField="provider" cardHeaderField="mapping" cardHiddenFields={['provider', 'mapping']} headerFieldsInList view={view} onViewChange={setView}>
+      <thead><tr>
+        <th data-field-key="provider">{t('connections.provider')}</th><th data-field-key="name">{t('schemas.logicalSchema')}</th><th data-field-key="description">{t('schemas.description')}</th>{environments.map((environment) => <th key={environment.uuid} data-field-key={`env-${environment.code}`}>{environment.name}</th>)}<th data-field-key="mapping">{tr ? 'Eşleme Durumu' : 'Mapping Status'}</th><th data-field-key="status">{t('connections.status')}</th><th data-field-key="actions" className="ui-grid-actions-column"><span className="sr-only">{tr ? 'İşlemler' : 'Actions'}</span></th>
+      </tr></thead><tbody>{visible.map((item) => { const state = mappingState(item); const tone = state === 'complete' ? 'success' : 'warning'; return <tr key={item.schema.uuid} data-connection-uuid={item.schema.uuid}>
+        <td><span className="provider-cell"><DatabaseProviderIcon databaseType={item.schema.databaseType ?? ''} /><span>{databaseProviderVisual(item.schema.databaseType ?? '').label}</span></span></td>
+        <td><span className="connection-record-identity"><strong>{item.schema.name}</strong><small>{item.schema.code}</small></span></td>
+        <td>{item.schema.description || t('common.noDescription')}</td>
+        {item.mappings.map((mapping) => <td key={mapping.environment.uuid}>{mapping.binding ? mappingLabel(mapping, notMapped).split(' → ')[1] : notMapped}</td>)}
+        <td><Tag className={`connection-status-tag connection-status-tag--${tone}`} style={connectionStatusTagStyles[tone]} icon={state === 'complete' ? <CheckCircle2 size={12} /> : <CircleAlert size={12} />}><span className="connection-status-tag-label">{stateText[state]}</span></Tag></td>
+        <td>{item.schema.status === 'ETKIN' ? (tr ? 'Etkin' : 'Active') : (tr ? 'Pasif' : 'Inactive')}</td>
+        <td className="row-actions"><div className="connection-row-actions"><RecordActionButton name={item.schema.name} editable={canManage} onClick={() => setSelectedUuid(item.schema.uuid)} /></div></td>
+      </tr> })}</tbody>
+    </DataGrid>}</ProgressiveRecords>}
+    </section>
+    {selected && <LogicalSchemaDetailDialog key={`${selected.schema.uuid}:${selected.mappedCount}:${selected.schema.name}`} item={selected} physicalSchemas={physicalSchemas} connections={connections} onClose={() => setSelectedUuid(null)} onChanged={async (deleted) => { if (deleted) setSelectedUuid(null); await load() }} />}
+    <Dialog open={canManage && creating} title={t('schemas.addLogical')} closeLabel={t('common.close')} onClose={() => setCreating(false)} className="connection-catalog-dialog">
+      <LogicalSchemaForm projectUuid={projectUuid} environments={environments} physicalSchemas={physicalSchemas} connections={connections} onClose={() => setCreating(false)} onCreated={async (created) => { setCreating(false); await load(); setSelectedUuid(created.uuid) }} />
     </Dialog>
   </section>
 }

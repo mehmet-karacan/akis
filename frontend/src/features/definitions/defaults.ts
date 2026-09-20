@@ -1,17 +1,20 @@
 import type { DefinitionType, MappingContent, ProcedureContent } from './types'
+import { createKnowledgeModule } from './knowledgeModuleTemplates'
 
 export const DEFAULT_MAPPING: MappingContent = {
-  datasets: [
-    { id: 'SOURCE_1', role: 'SOURCE', name: 'Source' },
-    { id: 'TARGET_1', role: 'TARGET', name: 'Target' },
-  ],
+  sources: [{ id: 'SOURCE_1', alias: 'SRC_1' }],
+  target: { id: 'TARGET', alias: 'TGT' },
+  joins: [],
+  filters: [],
+  modules: {},
+  moduleOptions: {},
+  options: { batchRows: 500, fetchRows: 500, maxRows: 100000, maxBytes: 268435456, allowEmptySource: false },
   columnMappings: [
     {
-      source: { dataset: 'SOURCE_1', column: 'ID' },
-      target: { dataset: 'TARGET_1', column: 'ID' },
+      source: { object: 'SOURCE_1', column: 'ID' },
+      target: { object: 'TARGET', column: 'ID' },
     },
   ],
-  writeStrategy: { kind: 'APPEND' },
 }
 
 export const DEFAULT_PROCEDURE: ProcedureContent = {
@@ -60,8 +63,7 @@ const defaults: Record<DefinitionType, unknown> = {
     query: 'SELECT SYSDATE - 1 FROM DUAL',
   },
   SEQUENCE: { implementation: 'REPOSITORY', start: 1, increment: 1, cycle: false },
-  USER_FUNCTION: { returnType: 'STRING', parameters: [], implementations: [] },
-  KNOWLEDGE_MODULE: { kmType: 'IKM', tasks: [], options: [] },
+  KNOWLEDGE_MODULE: createKnowledgeModule(),
   LOAD_PLAN: {
     restartPolicy: 'FAILED_STEP',
     steps: [
@@ -86,10 +88,12 @@ export function isMappingContent(value: unknown): value is MappingContent {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const candidate = value as Partial<MappingContent>
   return (
-    Array.isArray(candidate.datasets) &&
-    Array.isArray(candidate.columnMappings) &&
-    !!candidate.writeStrategy &&
-    typeof candidate.writeStrategy === 'object'
+    Array.isArray(candidate.sources) &&
+    !!candidate.target &&
+    typeof candidate.target === 'object' &&
+    Array.isArray(candidate.joins) &&
+    Array.isArray(candidate.filters) &&
+    Array.isArray(candidate.columnMappings)
   )
 }
 

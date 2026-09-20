@@ -1,9 +1,10 @@
-import { Select as FormSelect } from '../core/ui/Select'
 import { Button as AntActionButton } from '../core/ui/Button'
+import { LanguageSwitcher } from '../core/ui/LanguageSwitcher'
+import { ThemeSwitcher } from '../core/ui/ThemeSwitcher'
 import {
-  CircleUserRound, DatabaseZap, Languages, LogOut, Moon, Sun, PanelLeft,
+  CircleUserRound, DatabaseZap, LogOut, PanelLeft,
 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type CSSProperties } from 'react'
 import { Grid } from 'antd'
 import { useTranslation } from 'react-i18next'
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
@@ -11,7 +12,6 @@ import { apiRequest } from '../core/api/client'
 import { useAuth } from '../core/auth/AuthContext'
 import { ProjectAccessProvider, type ProjectAccess } from '../core/auth/ProjectAccessContext'
 import { PendingChangesContext, type PendingChanges } from '../core/navigation/PendingChangesContext'
-import { useTheme, type ThemeMode } from '../core/theme/ThemeContext'
 import { Dialog } from '../core/ui/Dialog'
 import type { Project } from '../features/projects/projectsApi'
 import { CurrentProjectProvider } from '../features/projects/CurrentProjectContext'
@@ -20,16 +20,25 @@ import { ProjectSwitcher } from './ProjectSwitcher'
 import { ConnectionsSubnavigation } from './ConnectionsSubnavigation'
 import { resolveWorkspace, WorkspaceNavigation } from './WorkspaceNavigation'
 import { DesignWorkspace } from './DesignWorkspace'
+import { clampExplorerWidth, ExplorerResizeHandle } from './ExplorerResizeHandle'
 
 export function AppShell() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const { username, logout } = useAuth()
-  const { mode, setMode } = useTheme()
   const navigate = useNavigate()
   const location = useLocation()
   const screens = Grid.useBreakpoint()
   const compact = screens.lg === false
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false)
+  const [explorerWidth, setExplorerWidth] = useState(() => {
+    try { return clampExplorerWidth(Number(localStorage.getItem('akis.explorer.width')) || 264, window.innerWidth) } catch { return 264 }
+  })
+  useEffect(() => { try { localStorage.setItem('akis.explorer.width', String(explorerWidth)) } catch { /* Storage is optional. */ } }, [explorerWidth])
+  useEffect(() => {
+    const resize = () => setExplorerWidth(width => clampExplorerWidth(width, window.innerWidth))
+    window.addEventListener('resize', resize)
+    return () => window.removeEventListener('resize', resize)
+  }, [])
   const [projectUuid, setProjectUuid] = useState(() => getRememberedProject() ?? '')
   const [project, setProject] = useState<Project | null>(null)
   const [projectAccess, setProjectAccess] = useState<ProjectAccess | null>(null)
@@ -78,9 +87,6 @@ export function AppShell() {
     window.scrollTo({ top: 0, left: 0 })
   }, [location.pathname])
 
-  const changeLanguage = (language: string) => void i18n.changeLanguage(language === 'tr' ? 'tr' : 'en')
-  const themeIcon = mode === 'dark' ? <Moon size={16} /> : <Sun size={16} />
-
   useEffect(() => {
     if (!pendingChanges) return
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
@@ -97,33 +103,20 @@ export function AppShell() {
         <header className="topbar">
           <div className="topbar-identity">{compact && <AntActionButton aria-label={t('nav.workspaces')} aria-expanded={mobileNavigationOpen} onClick={() => setMobileNavigationOpen(value => !value)} icon={<PanelLeft size={18} />} />}<span className="compact-brand" aria-label="AKIŞ"><DatabaseZap /><strong>AKIŞ</strong></span><ProjectSwitcher currentProject={project} projectUuid={projectUuid} onNavigate={requestNavigation} /></div>
           <div className="topbar-actions">
-            <label className="compact-select">
-              <Languages size={16} />
-              <span className="sr-only">{t('header.language')}</span>
-              <FormSelect value={i18n.language === 'tr' ? 'tr' : 'en'} onChange={(event) => changeLanguage(event.target.value)}>
-                <option value="en">English</option><option value="tr">Türkçe</option>
-              </FormSelect>
-            </label>
-            <label className="compact-select">
-              {themeIcon}<span className="sr-only">{t('header.theme')}</span>
-              <FormSelect value={mode} onChange={(event) => setMode(event.target.value as ThemeMode)}>
-                <option value="light">{t('theme.light')}</option>
-                <option value="dark">{t('theme.dark')}</option>
-                <option value="system">{t('theme.system')}</option>
-              </FormSelect>
-            </label>
+            <LanguageSwitcher className="compact-select" />
+            <ThemeSwitcher className="compact-select" />
             <div className="user-menu">
-              <CircleUserRound size={18} /><span>{username}</span>
+              <span className="user-avatar"><CircleUserRound size={14} /></span><span>{username}</span>
               <AntActionButton type="button" tone="ghost" aria-label={t('nav.signOut')} title={t('nav.signOut')} onClick={() => requestNavigation('/login')}><LogOut size={16} /></AntActionButton>
             </div>
           </div>
         </header>
-        <div className={`shell-body ${compact ? 'is-compact' : ''}`}>
-          {(!compact || mobileNavigationOpen) && <aside className="shell-navigation" aria-label={t('nav.workspaces')}>
+        <div className={`shell-body ${compact ? 'is-compact' : ''}`} style={{ '--explorer-width': `${explorerWidth}px` } as CSSProperties}>
+          {(!compact || mobileNavigationOpen) && <div className="shell-navigation-pane"><aside className="shell-navigation" aria-label={t('nav.workspaces')}>
             <WorkspaceNavigation hasPendingChanges={Boolean(pendingChanges)} onNavigate={requestNavigation} />
             {activeWorkspace === 'connections' && <ConnectionsSubnavigation hasPendingChanges={Boolean(pendingChanges)} onNavigate={requestNavigation} />}
             {activeWorkspace === 'development' && <DesignWorkspace key={projectUuid} projectUuid={projectUuid} onNavigate={requestNavigation} explorerOnly />}
-          </aside>}
+          </aside>{!compact && <ExplorerResizeHandle width={explorerWidth} onChange={setExplorerWidth} />}</div>}
           <main id="main-content" className="main-content" tabIndex={-1}>{activeWorkspace === 'development' ? <div className="design-workspace definitions-workspace"><div className="design-content"><Outlet /></div></div> : <Outlet />}</main>
         </div>
       </div>

@@ -5,7 +5,6 @@ export const DEFINITION_TYPES = [
   'PROCEDURE',
   'VARIABLE',
   'SEQUENCE',
-  'USER_FUNCTION',
   'KNOWLEDGE_MODULE',
   'LOAD_PLAN',
 ] as const
@@ -72,50 +71,17 @@ export interface Scenario {
   createdAt: string
 }
 
-export type BindingRole = 'KAYNAK' | 'HEDEF'
 export type DatasetRole = 'SOURCE' | 'TARGET'
-
-export interface DataBinding {
-  uuid: string
-  definitionUuid: string
-  definitionVersionUuid: string
-  nodeCode: string
-  role: BindingRole
-  dataObjectUuid: string
-  schemaSnapshotUuid: string
-  createdAt: string
-}
-
-export interface BindingCandidate {
-  dataObjectUuid: string
-  dataObjectCode: string
-  dataObjectName: string
-  objectReference: string
-  schemaSnapshotUuid: string
-  snapshotFingerprint: string
-  discoveredAt: string
-  physicalSchemaUuid: string
-  physicalSchemaCode: string
-  physicalSchemaReference: string
-  connectionUuid: string
-  connectionCode: string
-  connectionName: string
-  connectionVersionUuid: string
-  connectionVersionNumber: number
-  environmentCodes: string[]
-}
-
-export interface MappingDataset {
+export interface MappingObjectReference {
   id: string
-  role: DatasetRole
-  name?: string
+  alias: string
   dataObjectUuid?: string
   schemaSnapshotUuid?: string
   [key: string]: unknown
 }
 
 export interface ColumnReference {
-  dataset: string
+  object: string
   column: string
 }
 
@@ -125,13 +91,31 @@ export interface ColumnMapping {
   target: ColumnReference
 }
 
+export type MappingJoinType = 'INNER' | 'LEFT' | 'RIGHT' | 'FULL'
+
+export interface MappingJoin {
+  id: string
+  type: MappingJoinType
+  left: ColumnReference
+  right: ColumnReference
+}
+
+export interface MappingFilter {
+  id: string
+  scope: 'SOURCE' | 'GLOBAL'
+  object: string
+  column?: string
+  operator?: 'EQUALS' | 'NOT_EQUALS' | 'GREATER_THAN' | 'LESS_THAN' | 'LIKE' | 'IS_NULL' | 'IS_NOT_NULL'
+  value?: string
+  predicate?: Record<string, unknown>
+}
+
 export interface MappingContent {
-  datasets: MappingDataset[]
+  sources: MappingObjectReference[]
+  target: MappingObjectReference
+  joins: MappingJoin[]
+  filters: MappingFilter[]
   columnMappings: ColumnMapping[]
-  writeStrategy: {
-    kind: 'APPEND' | 'STAGED_REPLACE' | 'MERGE' | 'TRUNCATE_LOAD' | 'ATOMIC_DELETE_INSERT'
-    key?: string[]
-  }
   [key: string]: unknown
 }
 
@@ -159,6 +143,8 @@ export interface ProcedureTask {
   environmentUuid?: string
   requiresApproval?: boolean
   onError?: 'STOP' | 'CONTINUE'
+  /** ODI "Execute" flag; a disabled step stays authored but is left out of the runtime plan. */
+  enabled?: boolean
   timeoutSeconds?: number
   output?: { kind: 'ROWSET'; maxRows: number }
   input?: { fromTask: string; mode: 'BATCH'; batchSize: number }
@@ -167,6 +153,8 @@ export interface ProcedureTask {
 
 export interface ProcedureContent {
   tasks: ProcedureTask[]
+  /** ODI Definition tab: source/target technology chosen for the whole procedure; steps pick logical schemas of that technology. */
+  technology?: { source?: string; target?: string; multiConnection?: boolean }
   [key: string]: unknown
 }
 

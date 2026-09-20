@@ -11,7 +11,8 @@ record StagedColumnLayout(List<OracleWorkTableManager.Column> work,List<JdbcStag
         List<OracleWorkTableManager.Column> work=new ArrayList<>();List<JdbcStagingTransfer.Column> transfer=new ArrayList<>();
         List<String> required=new ArrayList<>();List<List<String>> keys=new ArrayList<>();
         var byName=new HashMap<String,SchemaFingerprintInput.Column>();target.columns().forEach(c->byName.put(c.reference(),c));
-        for(var mapping:plan.columnMappings()) {
+        for(int mappingIndex=0;mappingIndex<plan.columnMappings().size();mappingIndex++) {
+            var mapping=plan.columnMappings().get(mappingIndex);
             var column=Objects.requireNonNull(byName.get(mapping.targetColumn()));
             String type=column.producerType().toUpperCase(Locale.ROOT).replaceAll("\\(.*", "").strip();
             String ddl=switch(type) {
@@ -23,7 +24,12 @@ record StagedColumnLayout(List<OracleWorkTableManager.Column> work,List<JdbcStag
                 default -> throw new IllegalArgumentException("Çalışma kolonu tipi desteklenmiyor.");
             };
             work.add(new OracleWorkTableManager.Column(mapping.targetColumn(),ddl));
-            transfer.add(new JdbcStagingTransfer.Column(mapping.sourceColumn(),mapping.targetColumn(),JdbcStagingTransfer.Type.valueOf(type)));
+            String sourceObject = mappingIndex < plan.columnSourceObjects().size()
+                    ? plan.columnSourceObjects().get(mappingIndex)
+                    : plan.source() == null ? "SOURCE" : plan.source().datasetId();
+            transfer.add(mapping.expression()==null
+                    ?new JdbcStagingTransfer.Column(sourceObject,mapping.sourceColumn(),mapping.targetColumn(),JdbcStagingTransfer.Type.valueOf(type))
+                    :new JdbcStagingTransfer.Column(null,null,mapping.targetColumn(),JdbcStagingTransfer.Type.valueOf(type),mapping.expression()));
             if(!column.nullable()) required.add(mapping.targetColumn());
         }
         var selected=new HashSet<>(work.stream().map(OracleWorkTableManager.Column::name).toList());

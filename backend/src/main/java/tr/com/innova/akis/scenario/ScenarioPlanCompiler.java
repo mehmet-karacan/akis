@@ -6,6 +6,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Set;
 
 import org.springframework.http.HttpStatus;
@@ -57,7 +58,10 @@ final class ScenarioPlanCompiler {
         }
         definitionValidator.validate(
                 source.definitionType(), source.schemaVersion(), source.content());
-        for (String field : source.definitionType().requiredContentFields()) {
+        List<String> requiredFields = source.definitionType() == DefinitionType.MAPPING && source.schemaVersion() < 4
+                ? List.of("datasets", "columnMappings", "writeStrategy")
+                : source.definitionType().requiredContentFields();
+        for (String field : requiredFields) {
             if (!source.content().has(field) || source.content().get(field).isNull()) {
                 throw validation("Tanım sürümünde zorunlu alan eksik: " + field);
             }

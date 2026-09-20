@@ -24,9 +24,9 @@ public class WorkAreaPolicyService {
     private Scope scope(UUID project,UUID schema,boolean lock) {
         return jdbc.sql("""
                 select p.id project_id,f.id schema_id from akis.proje p
-                join akis.fiziksel_sema f on f.proje_id=p.id join akis.baglanti b on b.proje_id=p.id and b.id=f.baglanti_id
+                cross join akis.fiziksel_sema f join akis.baglanti b on b.id=f.baglanti_id
                 where p.uuid=:project and f.uuid=:schema and p.arsivlenme_zamani is null
-                  and f.arsivlenme_zamani is null and b.arsivlenme_zamani is null and b.saglayici_turu='ORACLE'
+                  and f.durum='ETKIN' and b.durum='ETKIN' and b.saglayici_turu='ORACLE'
                 """+(lock?" for update of f":"")).param("project",project).param("schema",schema)
                 .query((r,n)->new Scope(r.getLong("project_id"),r.getLong("schema_id"))).optional()
                 .orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"NOT_FOUND","Oracle çalışma şeması bulunamadı."));

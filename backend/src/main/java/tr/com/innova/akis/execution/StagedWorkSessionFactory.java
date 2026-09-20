@@ -24,28 +24,26 @@ class StagedWorkSessionFactory {
     public ConnectionProfile profile(StagedRuntimePlan plan) {
         var stage=plan.staging();
         return jdbc.sql("""
-                select p.uuid project_uuid,bs.uuid connection_uuid,bs.baglanti_modu,bs.jndi_adi,bs.surucu_sinifi,
-                  bs.sunucu_adi,bs.servis_adi,bs.sid,bs.port,
-                  case bs.tls_modu when 'DEVRE_DISI' then 'DISABLED' when 'ZORUNLU' then 'REQUIRED' else bs.tls_modu end tls_mode,
-                  jsonb_build_object('connectTimeoutMs',bs.baglanti_zaman_asimi_ms,'readTimeoutMs',bs.okuma_zaman_asimi_ms,
-                    'networkTimeoutMs',bs.ag_zaman_asimi_ms,'queryTimeoutSeconds',bs.sorgu_zaman_asimi_saniye) policy,
-                  bk.gizli_deger_saglayicisi provider,bk.gizli_deger_konumu secret_path
+                select p.uuid project_uuid,b.uuid connection_uuid,b.baglanti_modu,b.jndi_adi,b.surucu_sinifi,
+                  b.sunucu_adi,case when b.saglayici_turu='ORACLE' then b.servis_adi else b.veritabani_adi end as servis_adi,b.sid,b.port,
+                  'DISABLED' tls_mode,
+                  jsonb_build_object('connectTimeoutMs',b.baglanti_zaman_asimi_ms,'readTimeoutMs',b.okuma_zaman_asimi_ms,
+                    'networkTimeoutMs',b.okuma_zaman_asimi_ms,'queryTimeoutSeconds',b.sorgu_zaman_asimi_saniye) policy,
+                  case when b.baglanti_modu='JNDI' then null else 'TABLO' end provider,b.sifre secret_path
                 from akis.proje p join akis.yayin y on y.proje_id=p.id
-                join akis.sema_eslemesi se on se.proje_id=p.id and se.ortam_id=y.ortam_id
-                join akis.mantiksal_sema ms on ms.proje_id=p.id and ms.id=se.mantiksal_sema_id
-                join akis.fiziksel_sema f on f.proje_id=p.id and f.id=se.fiziksel_sema_id
-                join akis.baglanti_surumu bs on bs.proje_id=p.id and bs.id=se.baglanti_surumu_id and bs.baglanti_id=f.baglanti_id
-                join akis.baglanti b on b.proje_id=p.id and b.id=bs.baglanti_id
-                join akis.baglanti_kimligi bk on bk.proje_id=p.id and bk.baglanti_surumu_id=bs.id and bk.kullanim_amaci='VERITABANI'
+                join akis.sema_eslemesi se on se.ortam_id=y.ortam_id
+                join akis.mantiksal_sema ms on ms.id=se.mantiksal_sema_id
+                join akis.fiziksel_sema f on f.id=se.fiziksel_sema_id
+                join akis.baglanti b on b.id=f.baglanti_id
                 where p.uuid=:project and y.durum='AKTIF' and y.fiziksel_manifesto->>'releaseHash'=:release
                   and y.fiziksel_manifesto->>'runtimeCapability'='ORACLE_STAGED_MAPPING_V1'
                   and y.fiziksel_manifesto->'stagedPlan'->>'physicalPlanHash'=:plan
-                  and se.uuid=:binding and se.versiyon_no=:version and ms.uuid=:logical
-                  and f.uuid=:schema and f.sema_adi=:owner and bs.uuid=:connection and bs.durum='ETKIN'
-                  and b.saglayici_turu='ORACLE' and p.arsivlenme_zamani is null and b.arsivlenme_zamani is null
-                  and f.arsivlenme_zamani is null and ms.arsivlenme_zamani is null
+                  and se.uuid=:binding and ms.uuid=:logical
+                  and f.uuid=:schema and f.calisma_sema_adi=:owner and b.uuid=:connection and b.durum='ETKIN'
+                  and b.saglayici_turu in ('ORACLE','POSTGRESQL') and p.arsivlenme_zamani is null
+                  and f.durum='ETKIN' and ms.durum='ETKIN' and (b.baglanti_modu='JNDI' or b.sifre is not null)
                 """).param("project",plan.projectUuid()).param("release",plan.releaseHash()).param("plan",plan.runtimePlanHash())
-                .param("binding",UUID.fromString(stage.path("bindingUuid").asText())).param("version",stage.path("bindingVersion").asLong())
+                .param("binding",UUID.fromString(stage.path("bindingUuid").asText()))
                 .param("logical",UUID.fromString(stage.path("logicalSchemaUuid").asText())).param("schema",UUID.fromString(stage.path("physicalSchemaUuid").asText()))
                 .param("owner",stage.path("owner").asText()).param("connection",UUID.fromString(stage.path("connectionVersionUuid").asText()))
                 .query((r,n)->new ConnectionProfile(r.getObject("project_uuid",UUID.class),r.getObject("connection_uuid",UUID.class),

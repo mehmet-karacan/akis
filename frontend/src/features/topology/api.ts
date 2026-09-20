@@ -1,47 +1,69 @@
 import { apiRequest, jsonBody } from '../../core/api/client'
 
+export type ConnectionMode = 'JDBC' | 'JNDI'
+
 export interface Connection {
-  createdBy?: string | null
-  createdAt?: string | null
   uuid: string
   code: string
-  databaseType: string
-  status: string
   name: string
   description?: string | null
-  version: number
-}
-
-export interface ConnectionVersion {
-  uuid: string
-  versionNumber: number
-  mode: 'JDBC' | 'JNDI'
+  databaseType: string
+  mode: ConnectionMode
   driverReference?: string | null
-  username?: string | null
   host?: string | null
+  port?: number | null
   serviceName?: string | null
   sid?: string | null
   databaseName?: string | null
+  jdbcUrlExtra?: string | null
   jndiName?: string | null
-  tlsMode?: string | null
+  username?: string | null
+  hasPassword: boolean
+  fetchSize: number
+  batchSize: number
+  connectTimeoutMs: number
+  readTimeoutMs: number
+  queryTimeoutSeconds: number
+  onConnectSql?: string | null
+  onDisconnectSql?: string | null
+  lastTestedAt?: string | null
+  lastTestPassed?: boolean | null
+  status: string
+  createdBy?: string | null
+  createdAt?: string | null
+  updatedAt?: string | null
+}
+
+/** Body for create, update (PATCH) and draft test of a connection. */
+export interface ConnectionRequest {
+  code: string
+  name: string
+  description?: string | null
+  databaseType: string
+  mode: ConnectionMode
+  driverReference?: string | null
+  host?: string | null
   port?: number | null
-  policyVersion: number
-  policy?: unknown
-  createdAt: string
-  lifecycleStatus: 'DRAFT' | 'TESTED' | 'ACTIVE'
-  lifecycleVersion: number
-  targetIdentityVersion?: number | null
-  targetFingerprint?: string | null
-  latestSuccessfulTestUuid?: string | null
-  testedAt?: string | null
-  activatedAt?: string | null
-  runtimeCapability: 'EXECUTABLE' | 'TEST_DISCOVERY_ONLY'
+  serviceName?: string | null
+  sid?: string | null
+  databaseName?: string | null
+  jdbcUrlExtra?: string | null
+  jndiName?: string | null
+  username?: string | null
+  /** Omit on update to keep the stored password. */
+  password?: string | null
+  fetchSize?: number
+  batchSize?: number
+  connectTimeoutMs?: number
+  readTimeoutMs?: number
+  queryTimeoutSeconds?: number
+  onConnectSql?: string | null
+  onDisconnectSql?: string | null
+  status?: string
 }
 
 export interface ConnectionCatalogProjection {
   connection: Connection
-  displayedVersion?: ConnectionVersion | null
-  latestVersionNumber?: number | null
   physicalSchemaCount: number
   logicalSchemaCount: number
 }
@@ -52,116 +74,106 @@ export interface ConnectionDependency {
   name: string
 }
 
-export interface ConnectionExecutionPolicy {
-  connectTimeoutMs: number
-  readTimeoutMs: number
-  networkTimeoutMs: number
-  queryTimeoutSeconds: number
-}
-
-export type CreateConnectionVersionRequest = {
-  mode: 'JDBC'
-  jdbc: {
-    host: string
-    port: number
-    connectIdentifier: { type: 'SERVICE_NAME' | 'SID'; value: string }
-    transport: 'TCP'
-    credentialProvider?: 'ENV' | 'VAULT'
-    credentialReferencePath?: string
-  }
-  credentials?: { username: string; password: string }
-  policyVersion: 2
-  executionPolicy: ConnectionExecutionPolicy
-} | {
-  mode: 'JNDI'
-  jndi: { name: string }
-  policyVersion: 2
-  executionPolicy: ConnectionExecutionPolicy
-}
-
-export interface CreateOracleConnectionRequest {
-  code: string
-  name: string
-  description?: string
-  initialVersion: OracleConnectionEndpointRequest
-  credentials?: { username: string; password: string }
-}
-
-export type OracleConnectionEndpointRequest = {
-  mode: 'JDBC'
-  jdbc: {
-    host: string
-    port: number
-    connectIdentifier: { type: 'SERVICE_NAME' | 'SID'; value: string }
-    transport: 'TCP'
-  }
-  policyVersion: 2
-  executionPolicy: ConnectionExecutionPolicy
-} | {
-  mode: 'JNDI'
-  jndi: { name: string }
-  policyVersion: 2
-  executionPolicy: ConnectionExecutionPolicy
-}
-
-export type OracleDraftConnectionTestRequest = OracleConnectionEndpointRequest & {
-  credentials?: { username: string; password: string }
-}
-
-export interface OracleConnectionCreated {
-  connection: Connection
-  initialVersion: ConnectionVersion
-}
-
-export interface DraftConnectionTestResult {
+export interface ConnectionTestProbe {
   connected: boolean
-  oracle19cCompatible: boolean
   databaseProduct: string
   databaseVersion: string
-  databaseMajorVersion: number
-  databaseMinorVersion: number
+  databaseMajorVersion?: number | null
+  databaseMinorVersion?: number | null
   driverName: string
   driverVersion: string
+}
+
+export interface ConnectionTestAttempt {
+  uuid: string
+  attemptNumber: number
+  outcome: 'PASSED' | 'FAILED' | 'TARGET_MISMATCH'
+  errorCode?: string | null
+  probe?: ConnectionTestProbe | null
+  startedAt: string
+  completedAt: string
+  durationMs: number
 }
 
 export interface PhysicalSchema {
   uuid: string
   connectionUuid: string
   code: string
-  schemaReference: string
-  status: string
   name: string
-  version: number
+  description?: string | null
+  databaseType: string
+  catalogName?: string | null
+  schemaName: string
+  workCatalogName?: string | null
+  workSchemaName?: string | null
+  defaultSchema: boolean
+  loadingPrefix: string
+  integrationPrefix: string
+  errorPrefix: string
+  tempPrefix: string
+  objectPattern?: string | null
+  remoteObjectPattern?: string | null
+  sequencePattern?: string | null
+  status: string
 }
 
-export interface CreatePhysicalSchemaRequest extends JsonRecord {
-  connectionUuid: string
-  schema: string
+export interface PhysicalSchemaRequest {
+  connectionUuid?: string
+  code?: string
+  name?: string
+  description?: string | null
+  catalogName?: string | null
+  schemaName: string
+  workCatalogName?: string | null
+  workSchemaName?: string | null
+  defaultSchema?: boolean
+  loadingPrefix?: string
+  integrationPrefix?: string
+  errorPrefix?: string
+  tempPrefix?: string
+  objectPattern?: string | null
+  remoteObjectPattern?: string | null
+  sequencePattern?: string | null
+  status?: string
 }
 
 export interface LogicalSchema {
   uuid: string
   code: string
-  status: string
   name: string
   description?: string | null
-  version: number
+  databaseType?: string | null
+  status: string
 }
 
 export interface Environment {
   uuid: string
   code: string
+  name: string
+  description?: string | null
   risk?: string | null
-  status: string
+  defaultEnvironment: boolean
   policyVersion: number
   policy?: unknown
-  name: string
-  version: number
+  status: string
 }
+
+export type EnvironmentRisk = 'DUSUK' | 'ORTA' | 'YUKSEK' | 'URETIM'
 
 export interface CreateEnvironmentRequest extends JsonRecord {
   code: string
   name: string
+  description?: string | null
+  risk?: EnvironmentRisk
+  defaultEnvironment?: boolean
+}
+
+export interface UpdateEnvironmentRequest extends JsonRecord {
+  name: string
+  description?: string | null
+  risk?: EnvironmentRisk
+  defaultEnvironment?: boolean
+  status?: string
 }
 
 export interface SchemaBinding {
@@ -169,14 +181,17 @@ export interface SchemaBinding {
   logicalSchemaUuid: string
   environmentUuid: string
   physicalSchemaUuid: string
-  connectionVersionUuid: string
-  status: string
-  version: number
+  databaseType: string
 }
 
 export interface Model {
   uuid: string
   logicalSchemaUuid: string
+  technologyCode?: 'ORACLE' | string
+  reverseEnvironmentUuid?: string | null
+  reverseMode?: 'STANDARD' | 'CUSTOM_RKM'
+  rkmDefinitionUuid?: string | null
+  reverseOptions?: Record<string, unknown>
   code: string
   status: string
   name: string
@@ -209,40 +224,6 @@ export interface DataObject {
   version: number
 }
 
-export interface ConnectionTestProbe {
-  databaseProduct: string
-  databaseVersion: string
-  databaseMajorVersion: number
-  databaseMinorVersion: number
-  driverName: string
-  driverVersion: string
-}
-
-export interface ConnectionTestAttempt {
-  uuid: string
-  connectionVersionUuid: string
-  attemptNumber: number
-  outcome: 'PASSED' | 'FAILED' | 'TARGET_MISMATCH'
-  errorCode?: string | null
-  probe?: ConnectionTestProbe | null
-  targetIdentityVersion?: number | null
-  targetFingerprint?: string | null
-  startedAt: string
-  completedAt: string
-  durationMs: number
-}
-
-export interface ConnectionVersionLifecycle {
-  connectionVersionUuid: string
-  status: 'DRAFT' | 'TESTED' | 'ACTIVE'
-  stateVersion: number
-  targetIdentityVersion?: number | null
-  targetFingerprint?: string | null
-  latestSuccessfulTestUuid?: string | null
-  testedAt?: string | null
-  activatedAt?: string | null
-}
-
 export interface DiscoveryColumn {
   name: string
   jdbcType: number
@@ -271,7 +252,7 @@ export interface DiscoveryTable {
 }
 
 export interface DiscoveryResult {
-  connectionVersionUuid: string
+  connectionUuid: string
   physicalSchemaUuid: string
   owner: string
   discoveredAt: string
@@ -317,11 +298,8 @@ export interface SchemaSnapshot {
 type JsonRecord = Record<string, unknown>
 
 const base = (projectUuid: string) => `/api/v1/projects/${encodeURIComponent(projectUuid)}`
-const v2Base = (projectUuid: string) => `/api/v2/projects/${encodeURIComponent(projectUuid)}`
-const connectionVersionsV2 = (projectUuid: string, connectionUuid: string) =>
-  `/api/v2/projects/${encodeURIComponent(projectUuid)}/connections/${encodeURIComponent(connectionUuid)}/versions`
-const connectionVersionV2 = (projectUuid: string, connectionUuid: string, versionUuid: string) =>
-  `${connectionVersionsV2(projectUuid, connectionUuid)}/${encodeURIComponent(versionUuid)}`
+const connectionPath = (projectUuid: string, connectionUuid: string) =>
+  `${base(projectUuid)}/connections/${encodeURIComponent(connectionUuid)}`
 
 const get = <T>(path: string) => apiRequest<T>(path)
 const post = <T>(path: string, body?: JsonRecord) => apiRequest<T>(path, {
@@ -333,73 +311,55 @@ const patch = <T>(path: string, body: JsonRecord) => apiRequest<T>(path, {
   ...jsonBody(body),
 })
 const remove = (path: string) => apiRequest<void>(path, { method: 'DELETE' })
+const body = (value: object) => value as JsonRecord
 
 export const topologyApi = {
   listConnections: (projectUuid: string) => get<Connection[]>(`${base(projectUuid)}/connections`),
-  getConnection: (projectUuid: string, connectionUuid: string) => get<Connection>(`${base(projectUuid)}/connections/${encodeURIComponent(connectionUuid)}`),
+  getConnection: (projectUuid: string, connectionUuid: string) => get<Connection>(connectionPath(projectUuid, connectionUuid)),
   listConnectionCatalog: (projectUuid: string) => get<ConnectionCatalogProjection[]>(`${base(projectUuid)}/connections/catalog`),
-  listConnectionDependencies: (projectUuid: string, connectionUuid: string) => get<ConnectionDependency[]>(`${base(projectUuid)}/connections/${encodeURIComponent(connectionUuid)}/dependencies`),
-  createConnection: (projectUuid: string, body: JsonRecord) => post<Connection>(`${base(projectUuid)}/connections`, body),
-  updateConnection: (projectUuid: string, connectionUuid: string, body: JsonRecord) =>
-    patch<Connection>(`${base(projectUuid)}/connections/${encodeURIComponent(connectionUuid)}`, body),
-  deleteConnection: (projectUuid: string, connectionUuid: string, expectedVersion: number) =>
-    remove(`${base(projectUuid)}/connections/${encodeURIComponent(connectionUuid)}?expectedVersion=${encodeURIComponent(String(expectedVersion))}`),
-  createOracleConnection: (projectUuid: string, body: CreateOracleConnectionRequest) =>
-    post<OracleConnectionCreated>(`${v2Base(projectUuid)}/connections`, body as unknown as JsonRecord),
-  testOracleDraftConnection: (projectUuid: string, body: OracleDraftConnectionTestRequest) =>
-    post<DraftConnectionTestResult>(`${v2Base(projectUuid)}/connections/test`, body as unknown as JsonRecord),
-  listVersions: (projectUuid: string, connectionUuid: string) => get<ConnectionVersion[]>(connectionVersionsV2(projectUuid, connectionUuid)),
-  createVersion: (projectUuid: string, connectionUuid: string, body: CreateConnectionVersionRequest) => post<ConnectionVersion>(connectionVersionsV2(projectUuid, connectionUuid), body),
-  testConnectionVersion: (projectUuid: string, connectionUuid: string, versionUuid: string) =>
-    post<ConnectionTestAttempt>(`${connectionVersionV2(projectUuid, connectionUuid, versionUuid)}/tests`),
-  listConnectionVersionTests: (projectUuid: string, connectionUuid: string, versionUuid: string, limit = 20) =>
-    get<ConnectionTestAttempt[]>(`${connectionVersionV2(projectUuid, connectionUuid, versionUuid)}/tests?limit=${encodeURIComponent(String(limit))}`),
-  activateConnectionVersion: (
-    projectUuid: string,
-    connectionUuid: string,
-    versionUuid: string,
-    body: { testUuid: string; expectedStateVersion: number },
-  ) => post<ConnectionVersionLifecycle>(`${connectionVersionV2(projectUuid, connectionUuid, versionUuid)}/activate`, body),
-  makeConnectionCurrent: async (projectUuid: string, connectionUuid: string, versionUuid: string) => {
-    const attempt = await post<ConnectionTestAttempt>(`${connectionVersionV2(projectUuid, connectionUuid, versionUuid)}/tests`)
-    const current = (await get<ConnectionVersion[]>(connectionVersionsV2(projectUuid, connectionUuid)))
-      .find((version) => version.uuid === versionUuid)
-    if (!current || current.lifecycleStatus !== 'TESTED') {
-      throw new Error('The tested connection information could not be prepared for use.')
-    }
-    return post<ConnectionVersionLifecycle>(`${connectionVersionV2(projectUuid, connectionUuid, versionUuid)}/activate`, {
-      testUuid: attempt.uuid,
-      expectedStateVersion: current.lifecycleVersion,
-    })
-  },
-  listOracleSchemas: (projectUuid: string, connectionUuid: string, versionUuid: string) =>
-    get<string[]>(`${base(projectUuid)}/connections/${encodeURIComponent(connectionUuid)}/versions/${encodeURIComponent(versionUuid)}/schemas`),
+  listConnectionDependencies: (projectUuid: string, connectionUuid: string) => get<ConnectionDependency[]>(`${connectionPath(projectUuid, connectionUuid)}/dependencies`),
+  createConnection: (projectUuid: string, request: ConnectionRequest) => post<Connection>(`${base(projectUuid)}/connections`, body(request)),
+  updateConnection: (projectUuid: string, connectionUuid: string, request: ConnectionRequest) =>
+    patch<Connection>(connectionPath(projectUuid, connectionUuid), body(request)),
+  deleteConnection: (projectUuid: string, connectionUuid: string) => remove(connectionPath(projectUuid, connectionUuid)),
+  testDraftConnection: (projectUuid: string, request: ConnectionRequest) =>
+    post<ConnectionTestProbe>(`${base(projectUuid)}/connections/test`, body(request)),
+  testConnection: (projectUuid: string, connectionUuid: string) =>
+    post<ConnectionTestAttempt>(`${connectionPath(projectUuid, connectionUuid)}/tests`),
+  listConnectionTests: (projectUuid: string, connectionUuid: string, limit = 20) =>
+    get<ConnectionTestAttempt[]>(`${connectionPath(projectUuid, connectionUuid)}/tests?limit=${encodeURIComponent(String(limit))}`),
+  listDatabaseSchemas: (projectUuid: string, connectionUuid: string) =>
+    get<string[]>(`${connectionPath(projectUuid, connectionUuid)}/schemas`),
   listPhysicalSchemas: (projectUuid: string) => get<PhysicalSchema[]>(`${base(projectUuid)}/physical-schemas`),
-  createPhysicalSchema: (projectUuid: string, body: CreatePhysicalSchemaRequest) => post<PhysicalSchema>(`${base(projectUuid)}/physical-schemas`, body),
+  createPhysicalSchema: (projectUuid: string, request: PhysicalSchemaRequest) => post<PhysicalSchema>(`${base(projectUuid)}/physical-schemas`, body(request)),
+  updatePhysicalSchema: (projectUuid: string, uuid: string, request: PhysicalSchemaRequest) => patch<PhysicalSchema>(`${base(projectUuid)}/physical-schemas/${encodeURIComponent(uuid)}`, body(request)),
+  deletePhysicalSchema: (projectUuid: string, uuid: string) => remove(`${base(projectUuid)}/physical-schemas/${encodeURIComponent(uuid)}`),
   listLogicalSchemas: (projectUuid: string) => get<LogicalSchema[]>(`${base(projectUuid)}/logical-schemas`),
-  updateContext: (projectUuid: string, kind: 'logical-schemas' | 'environments', uuid: string, body: JsonRecord) => patch<LogicalSchema | Environment>(`${base(projectUuid)}/${kind}/${encodeURIComponent(uuid)}`, body),
-  deleteContext: (projectUuid: string, kind: 'logical-schemas' | 'environments', uuid: string, expectedVersion: number) => remove(`${base(projectUuid)}/${kind}/${encodeURIComponent(uuid)}?expectedVersion=${expectedVersion}`),
-  createLogicalSchema: (projectUuid: string, body: JsonRecord) => post<LogicalSchema>(`${base(projectUuid)}/logical-schemas`, body),
+  updateContext: (projectUuid: string, kind: 'logical-schemas' | 'environments', uuid: string, request: JsonRecord) => patch<LogicalSchema | Environment>(`${base(projectUuid)}/${kind}/${encodeURIComponent(uuid)}`, request),
+  deleteContext: (projectUuid: string, kind: 'logical-schemas' | 'environments', uuid: string) => remove(`${base(projectUuid)}/${kind}/${encodeURIComponent(uuid)}`),
+  createLogicalSchema: (projectUuid: string, request: JsonRecord) => post<LogicalSchema>(`${base(projectUuid)}/logical-schemas`, request),
   listEnvironments: (projectUuid: string) => get<Environment[]>(`${base(projectUuid)}/environments`),
-  createEnvironment: (projectUuid: string, body: CreateEnvironmentRequest) => post<Environment>(`${base(projectUuid)}/environments`, body),
+  createEnvironment: (projectUuid: string, request: CreateEnvironmentRequest) => post<Environment>(`${base(projectUuid)}/environments`, request),
+  updateEnvironment: (projectUuid: string, uuid: string, request: UpdateEnvironmentRequest) => patch<Environment>(`${base(projectUuid)}/environments/${encodeURIComponent(uuid)}`, request),
+  deleteEnvironment: (projectUuid: string, uuid: string) => remove(`${base(projectUuid)}/environments/${encodeURIComponent(uuid)}`),
   listBindings: (projectUuid: string) => get<SchemaBinding[]>(`${base(projectUuid)}/schema-bindings`),
-  createBinding: (projectUuid: string, body: JsonRecord) => post<SchemaBinding>(`${base(projectUuid)}/schema-bindings`, body),
-  updateBinding: (projectUuid: string, bindingUuid: string, body: JsonRecord) => patch<SchemaBinding>(`${base(projectUuid)}/schema-bindings/${encodeURIComponent(bindingUuid)}`, body),
+  createBinding: (projectUuid: string, request: JsonRecord) => post<SchemaBinding>(`${base(projectUuid)}/schema-bindings`, request),
+  updateBinding: (projectUuid: string, bindingUuid: string, request: JsonRecord) => patch<SchemaBinding>(`${base(projectUuid)}/schema-bindings/${encodeURIComponent(bindingUuid)}`, request),
+  deleteBinding: (projectUuid: string, bindingUuid: string) => remove(`${base(projectUuid)}/schema-bindings/${encodeURIComponent(bindingUuid)}`),
   listModels: (projectUuid: string) => get<Model[]>(`${base(projectUuid)}/models`),
   getModel: (projectUuid: string, modelUuid: string) => get<Model>(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}`),
-  createModel: (projectUuid: string, body: JsonRecord) => post<Model>(`${base(projectUuid)}/models`, body),
+  createModel: (projectUuid: string, request: JsonRecord) => post<Model>(`${base(projectUuid)}/models`, request),
+  updateModel: (projectUuid: string, modelUuid: string, request: JsonRecord) => patch<Model>(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}`, request),
+  deleteModel: (projectUuid: string, modelUuid: string, expectedVersion: number) => remove(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}?expectedVersion=${expectedVersion}`),
   listSubmodels: (projectUuid: string, modelUuid: string) => get<Submodel[]>(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}/submodels`),
-  createSubmodel: (projectUuid: string, modelUuid: string, body: JsonRecord) => post<Submodel>(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}/submodels`, body),
+  createSubmodel: (projectUuid: string, modelUuid: string, request: JsonRecord) => post<Submodel>(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}/submodels`, request),
   listDataObjects: (projectUuid: string, modelUuid: string) => get<DataObject[]>(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}/data-objects`),
-  createDataObject: (projectUuid: string, modelUuid: string, body: JsonRecord) => post<DataObject>(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}/data-objects`, body),
-  discoverOracle: (projectUuid: string, connectionUuid: string, versionUuid: string, physicalSchemaUuid: string, body: JsonRecord) => post<DiscoveryResult>(`${base(projectUuid)}/connections/${encodeURIComponent(connectionUuid)}/versions/${encodeURIComponent(versionUuid)}/physical-schemas/${encodeURIComponent(physicalSchemaUuid)}/discover`, body),
-  captureOracleSchemaSnapshot: (
-    projectUuid: string,
-    connectionUuid: string,
-    versionUuid: string,
-    physicalSchemaUuid: string,
-    dataObjectUuid: string,
-  ) => post<SchemaSnapshot>(`${connectionVersionV2(projectUuid, connectionUuid, versionUuid)}/physical-schemas/${encodeURIComponent(physicalSchemaUuid)}/data-objects/${encodeURIComponent(dataObjectUuid)}/schema-snapshots:discover`),
+  createDataObject: (projectUuid: string, modelUuid: string, request: JsonRecord) => post<DataObject>(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}/data-objects`, request),
+  moveDataObject: (projectUuid: string, modelUuid: string, objectUuid: string, request: { submodelUuid: string | null; expectedVersion: number }) => patch<DataObject>(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}/data-objects/${encodeURIComponent(objectUuid)}/folder`, request),
+  discoverOracle: (projectUuid: string, connectionUuid: string, physicalSchemaUuid: string, request: JsonRecord) =>
+    post<DiscoveryResult>(`${connectionPath(projectUuid, connectionUuid)}/physical-schemas/${encodeURIComponent(physicalSchemaUuid)}/discover`, request),
+  captureOracleSchemaSnapshot: (projectUuid: string, connectionUuid: string, physicalSchemaUuid: string, dataObjectUuid: string) =>
+    post<SchemaSnapshot>(`${connectionPath(projectUuid, connectionUuid)}/physical-schemas/${encodeURIComponent(physicalSchemaUuid)}/data-objects/${encodeURIComponent(dataObjectUuid)}/schema-snapshots:discover`),
   listSchemaSnapshots: (projectUuid: string, dataObjectUuid: string) =>
     get<SchemaSnapshot[]>(`${base(projectUuid)}/data-objects/${encodeURIComponent(dataObjectUuid)}/schema-snapshots`),
 }

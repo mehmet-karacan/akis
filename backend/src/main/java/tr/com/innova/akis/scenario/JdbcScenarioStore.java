@@ -206,7 +206,6 @@ public class JdbcScenarioStore implements ScenarioStore {
             case "PROSEDUR" -> DefinitionType.PROCEDURE;
             case "DEGISKEN" -> DefinitionType.VARIABLE;
             case "SEQUENCE" -> DefinitionType.SEQUENCE;
-            case "KULLANICI_FONKSIYONU" -> DefinitionType.USER_FUNCTION;
             case "KNOWLEDGE_MODULE" -> DefinitionType.KNOWLEDGE_MODULE;
             case "LOAD_PLAN" -> DefinitionType.LOAD_PLAN;
             default -> throw new IllegalStateException("Bilinmeyen tanım türü: " + type);

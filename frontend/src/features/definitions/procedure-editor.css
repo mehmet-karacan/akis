@@ -1,0 +1,243 @@
+/* Procedure editor: clear zones (steps list on top, step detail below) and colored marks per role. */
+.procedure-heading-identity { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+.procedure-heading-icon { display: grid; place-items: center; flex: 0 0 auto; width: 34px; height: 34px; border-radius: 9px; }
+.procedure-heading-icon--steps { color: var(--schema-color-info); background: color-mix(in srgb, var(--schema-color-info) 14%, var(--surface)); }
+.procedure-heading-icon--detail { color: var(--schema-color-neutral); background: color-mix(in srgb, var(--schema-color-neutral) 14%, var(--surface)); }
+.procedure-heading-count { margin-left: 8px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--schema-color-info); background: color-mix(in srgb, var(--schema-color-info) 12%, var(--surface)); }
+.procedure-steps-panel { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 12px 14px 8px; }
+.procedure-task-editor { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); margin-top: 10px; }
+.procedure-task-editor > header { border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--schema-color-neutral) 5%, var(--surface)); border-radius: 12px 12px 0 0; }
+.procedure-task-editor > header strong { display: block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); }
+.procedure-task-editor > header b { font-size: 15px; }
+.procedure-step-position { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-soft); }
+.procedure-step-badge { display: inline-grid; place-items: center; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 999px; font-size: 12px; font-weight: 700; color: var(--schema-color-info); background: color-mix(in srgb, var(--schema-color-info) 12%, var(--surface)); }
+.procedure-task.is-selected > td { background: color-mix(in srgb, var(--schema-color-info) 7%, var(--surface)); }
+.procedure-task.is-selected > td:first-child { box-shadow: inset 3px 0 0 var(--schema-color-info); }
+.procedure-task.is-selected .procedure-step-badge { color: #fff; background: var(--schema-color-info); }
+.procedure-step-route { display: inline-flex; align-items: center; gap: 6px; }
+.procedure-route-arrow { color: var(--ink-soft); }
+.procedure-route-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 12px; border: 1px dashed var(--line); color: var(--ink-soft); }
+.procedure-route-chip--source.is-ready { border-style: solid; color: var(--schema-color-teal); border-color: color-mix(in srgb, var(--schema-color-teal) 40%, var(--line)); background: color-mix(in srgb, var(--schema-color-teal) 10%, var(--surface)); }
+.procedure-route-chip--target.is-ready { border-style: solid; color: var(--schema-color-info); border-color: color-mix(in srgb, var(--schema-color-info) 40%, var(--line)); background: color-mix(in srgb, var(--schema-color-info) 10%, var(--surface)); }
+.procedure-counter-chip { display: inline-flex; padding: 2px 8px; border-radius: 999px; font-size: 12px; color: var(--ink-soft); background: color-mix(in srgb, var(--ink-soft) 10%, var(--surface)); }
+.procedure-counter-chip--insert { color: var(--schema-color-success); background: color-mix(in srgb, var(--schema-color-success) 12%, var(--surface)); }
+.procedure-counter-chip--update { color: var(--schema-color-warning); background: color-mix(in srgb, var(--schema-color-warning) 12%, var(--surface)); }
+.procedure-counter-chip--delete { color: var(--schema-color-danger); background: color-mix(in srgb, var(--schema-color-danger) 12%, var(--surface)); }
+.procedure-counter-chip--select { color: var(--schema-color-teal); background: color-mix(in srgb, var(--schema-color-teal) 12%, var(--surface)); }
+.procedure-task-actions { gap: 2px; }
+.procedure-command-tabs { gap: 4px; padding: 8px 12px 0; border-bottom: 1px solid var(--line); }
+.procedure-tab.ant-btn { display: inline-flex; align-items: center; gap: 6px; border-radius: 8px 8px 0 0; border-bottom: 2px solid transparent; color: var(--ink-soft); }
+.procedure-tab.ant-btn[aria-selected="true"] { color: var(--ink); background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
+.procedure-tab--general svg { color: var(--schema-color-neutral); }
+.procedure-tab--target svg { color: var(--schema-color-info); }
+.procedure-tab--source svg { color: var(--schema-color-teal); }
+.procedure-tab--general[aria-selected="true"] { border-bottom-color: var(--schema-color-neutral); }
+.procedure-tab--target[aria-selected="true"] { border-bottom-color: var(--schema-color-info); }
+.procedure-tab--source[aria-selected="true"] { border-bottom-color: var(--schema-color-teal); }
+.procedure-tab-dot { width: 7px; height: 7px; border-radius: 999px; background: var(--line); }
+.procedure-tab-dot.is-ready { background: var(--schema-color-success); }
+.procedure-side-context { padding: 12px; border-radius: 10px; background: color-mix(in srgb, var(--ink-soft) 5%, var(--surface)); border: 1px solid var(--line); }
+.procedure-side-context label > span { font-size: 12px; font-weight: 600; color: var(--ink-soft); }
+.procedure-sql-inline > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; }
+.procedure-sql-caption { display: inline-flex; align-items: center; gap: 6px; }
+.procedure-sql-caption--source > svg { color: var(--schema-color-teal); }
+.procedure-sql-caption--target > svg { color: var(--schema-color-info); }
+.procedure-sql-inline > footer { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 8px 0 0; border-top: 1px solid var(--line); }
+.procedure-sql-inline > footer .sql-apply-hint { margin-right: auto; color: var(--ink-soft); font-size: 12px; }
+.procedure-general-properties { padding: 12px; }
+.procedure-toolbar { flex-wrap: wrap; align-items: center; }
+.procedure-step-search { display: inline-flex; align-items: center; gap: 6px; min-width: 200px; }
+.procedure-step-search > svg { color: var(--schema-color-teal); flex: 0 0 auto; }
+.procedure-toolbar-group { display: inline-flex; align-items: center; gap: 2px; padding-left: 8px; margin-left: 4px; border-left: 1px solid var(--line); }
+.procedure-task-table .procedure-col-name { width: 16rem; }
+.procedure-task-table .procedure-col-flag { width: 6.5rem; }
+.procedure-task-table .procedure-col-tech { width: 8rem; }
+.procedure-flag-cell { text-align: center; }
+.procedure-command-cell { max-width: 100%; }
+.procedure-command-cell code { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 14rem; }
+.procedure-task.is-disabled > td:not(.procedure-flag-cell):not(:last-child) { opacity: .5; }
+.procedure-task.is-disabled .procedure-task-select strong { text-decoration: line-through; }
+.procedure-task { cursor: pointer; }
+.procedure-muted { color: var(--ink-soft); }
+.procedure-technology { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.procedure-technology > svg { color: var(--schema-color-teal); }
+
+/* Versions tab: one version table on top, the selected version's scenarios and run actions below (fits 13" screens). */
+.definition-version-layout.definition-version-layout--stacked { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-height: 0; overflow: visible; }
+.definition-version-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.definition-version-form { display: flex; flex: 1 1 24rem; gap: 8px; align-items: center; padding: 0; margin: 0; }
+.definition-version-note { flex: 1 1 16rem; min-width: 0; }
+.definition-version-table { width: 100%; }
+.definition-version-table tbody tr { cursor: pointer; }
+.definition-version-table tbody tr:hover td, .definition-version-table tbody tr:hover th { background: color-mix(in srgb, var(--ink-soft) 6%, var(--surface)); }
+.definition-version-table tr.is-selected td, .definition-version-table tr.is-selected th { background: color-mix(in srgb, var(--schema-color-success) 8%, var(--surface)); }
+.definition-version-table tr.is-selected th:first-child { box-shadow: inset 3px 0 0 var(--schema-color-success); }
+.definition-version-table tr.is-selected .definition-version-number { color: #fff; background: var(--schema-color-success); }
+.definition-version-table .definition-version-chevron { width: 2rem; color: var(--ink-soft); text-align: right; }
+.definition-version-table td strong { font-weight: 600; }
+.definition-version-detail { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 12px 14px; }
+.definition-version-detail .definition-panel-heading { padding-bottom: 10px; border-bottom: 1px solid var(--line); margin-bottom: 10px; flex-wrap: wrap; }
+.definition-panel-heading h3 { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; }
+.definition-panel-heading p { color: var(--ink-soft); font-size: 12px; }
+.procedure-heading-icon--scenarios { color: var(--schema-color-info); background: color-mix(in srgb, var(--schema-color-info) 14%, var(--surface)); width: 28px; height: 28px; }
+.definition-scenario-list { display: grid; gap: 10px; padding-top: 0; }
+.definition-scenario-list > article { display: grid; grid-template-columns: 1fr; gap: 0; padding: 10px 14px; }
+.definition-scenario-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.definition-version-number--scenario { color: var(--schema-color-info); background: color-mix(in srgb, var(--schema-color-info) 12%, var(--surface)); }
+.definition-scenario-title { display: grid; gap: 1px; min-width: 12rem; flex: 1 1 16rem; }
+.definition-scenario-title strong { color: var(--ink); font-size: 13px; }
+.definition-scenario-title small { color: var(--ink-soft); font-size: 11px; }
+.definition-runnable-environment { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 12px; border-radius: 999px; font-size: 12.5px; color: var(--schema-color-teal); background: color-mix(in srgb, var(--schema-color-teal) 10%, var(--surface)); }
+.definition-runnable-environment code { font-size: 11px; color: var(--ink-soft); }
+.definition-runnable-environment em { color: var(--schema-color-danger); font-style: normal; }
+.definition-runnable-buttons { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
+.definition-runnable-buttons .prerun-actions { display: contents; }
+@media (max-width: 900px) { .definition-runnable-buttons { margin-left: 0; width: 100%; } }
+
+/* Immutable versions / scenarios sub-screen: same badge and card language as the catalogs. */
+.definition-version-list .definition-version-number { display: inline-grid; place-items: center; min-width: 34px; height: 24px; padding: 0 8px; border-radius: 999px; font-size: 12px; font-weight: 700; color: var(--schema-color-neutral); background: color-mix(in srgb, var(--schema-color-neutral) 12%, var(--surface)); }
+.definition-version-list .ant-btn.is-selected .definition-version-number { color: #fff; background: var(--schema-color-neutral); }
+.definition-version-list .ant-btn.is-selected { box-shadow: inset 3px 0 0 var(--schema-color-neutral); background: color-mix(in srgb, var(--schema-color-neutral) 6%, var(--surface)); }
+.definition-scenario-list > article { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: var(--surface); }
+.definition-scenario-list > article > div:first-child strong { color: var(--schema-color-info); }
+.definition-scenario-list > article > code { color: var(--ink-soft); font-size: 11px; }
+.definition-panel-heading h3 { display: inline-flex; align-items: center; gap: 8px; }
+
+/* ODI Properties layout: vertical tab rail on the left, content on the right. */
+.procedure-detail-body { display: grid; grid-template-columns: 200px minmax(0, 1fr); min-height: 0; height: 100%; }
+.procedure-command-tabs--vertical { display: flex; flex-direction: column; align-items: stretch; gap: 2px; padding: 10px 8px; border-bottom: 0; border-right: 1px solid var(--line); background: color-mix(in srgb, var(--ink-soft) 4%, var(--surface)); }
+.procedure-command-tabs--vertical .procedure-tab.ant-btn { justify-content: flex-start; width: 100%; height: 38px; border-radius: 8px; border-bottom: 0; border-left: 3px solid transparent; text-align: left; }
+.procedure-command-tabs--vertical .procedure-tab--general[aria-selected="true"] { border-left-color: var(--schema-color-neutral); }
+.procedure-command-tabs--vertical .procedure-tab--target[aria-selected="true"] { border-left-color: var(--schema-color-info); }
+.procedure-command-tabs--vertical .procedure-tab--source[aria-selected="true"] { border-left-color: var(--schema-color-teal); }
+.procedure-command-tabs--vertical .procedure-tab-dot { margin-left: auto; }
+.procedure-command-detail { min-height: 0; overflow: auto; }
+@media (max-width: 900px) { .procedure-detail-body { grid-template-columns: 1fr; } .procedure-command-tabs--vertical { flex-direction: row; border-right: 0; border-bottom: 1px solid var(--line); } }
+
+/* Step detail: ODI-style top tabs (General · Target Command · Source Command) so the screen keeps a single left rail. */
+.procedure-detail-body--stacked { display: flex; flex-direction: column; grid-template-columns: none; }
+.procedure-command-tabs--horizontal { display: flex; align-items: flex-end; gap: 2px; padding: 6px 12px 0; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--ink-soft) 4%, var(--surface)); }
+.procedure-command-tabs--horizontal .procedure-tab.ant-btn { height: 36px; padding: 0 14px; border-radius: 8px 8px 0 0; border-bottom: 2px solid transparent; }
+.procedure-command-tabs--horizontal .procedure-tab.ant-btn[aria-selected="true"] { background: var(--surface); }
+.procedure-command-tabs--horizontal .procedure-tab-dot { margin-left: 2px; }
+.procedure-detail-body--stacked > .procedure-command-detail { flex: 1; }
+.procedure-flag-group { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; }
+.procedure-general-properties .procedure-checkbox { display: inline-flex; align-items: center; gap: 8px; }
+.procedure-task-table .procedure-flag-cell .ant-checkbox-wrapper { display: inline-flex; justify-content: center; margin: 0; }
+.procedure-task-table .procedure-flag-cell .ant-checkbox-disabled .ant-checkbox-inner { background: color-mix(in srgb, var(--ink-soft) 10%, var(--surface)); border-style: dashed; }
+
+/* Tab labels take the same color as their icon (rail and horizontal). */
+.procedure-tab--general[aria-selected="true"] { color: var(--schema-color-neutral); }
+.procedure-tab--target[aria-selected="true"] { color: var(--schema-color-info); }
+.procedure-tab--source[aria-selected="true"] { color: var(--schema-color-teal); }
+
+/* Definition-level vertical rail (ODI: Definition · Tasks · Versions). */
+.definition-rail-layout { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 0; margin-top: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
+.definition-tabs.definition-tabs--vertical { display: flex; flex-direction: column; align-items: stretch; width: auto; gap: 2px; padding: 10px 8px; border-right: 1px solid var(--line); background: color-mix(in srgb, var(--ink-soft) 4%, var(--surface)); }
+.definition-tabs--vertical .definition-tab.ant-btn { justify-content: flex-start; width: 100%; height: 38px; border-radius: 8px; border-left: 3px solid transparent; text-align: left; color: var(--ink-soft); }
+.definition-tabs--vertical .definition-tab.ant-btn[aria-selected="true"] { color: var(--ink); background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
+.definition-tab--definition svg { color: var(--schema-color-neutral); }
+.definition-tab--draft svg { color: var(--schema-color-info); }
+.definition-tab--versions svg { color: var(--schema-color-success); }
+.definition-tab--definition[aria-selected="true"] { border-left-color: var(--schema-color-neutral); color: var(--schema-color-neutral) !important; }
+.definition-tab--draft[aria-selected="true"] { border-left-color: var(--schema-color-info); color: var(--schema-color-info) !important; }
+.definition-tab--versions[aria-selected="true"] { border-left-color: var(--schema-color-success); color: var(--schema-color-success) !important; }
+.definition-rail-content { min-width: 0; padding: 12px; }
+.definition-rail-content > .definition-editor-panel, .definition-rail-content > .definition-version-layout { margin-top: 0; }
+.definition-properties-fields { border: 0; padding: 0; margin: 0; }
+.definition-type-chip--field { align-self: flex-start; min-height: 32px; }
+@media (max-width: 900px) { .definition-rail-layout { grid-template-columns: 1fr; } .definition-tabs.definition-tabs--vertical { flex-direction: row; border-right: 0; border-bottom: 1px solid var(--line); } }
+
+/* Definition-level tabs sit under the document header (Definition · Tasks/Design · Versions); no tall side rail. */
+.definition-tab-layout { display: flex; flex-direction: column; margin-top: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
+.definition-tabs.definition-tabs--horizontal { display: flex; align-items: flex-end; gap: 2px; width: auto; padding: 6px 12px 0; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--ink-soft) 4%, var(--surface)); }
+.definition-tabs--horizontal .definition-tab.ant-btn { height: 38px; padding: 0 14px; border-radius: 8px 8px 0 0; border-bottom: 2px solid transparent; color: var(--ink-soft); }
+.definition-tabs--horizontal .definition-tab.ant-btn[aria-selected="true"] { background: var(--surface); }
+.definition-tabs--horizontal .definition-tab--definition[aria-selected="true"] { border-bottom-color: var(--schema-color-neutral); color: var(--schema-color-neutral) !important; }
+.definition-tabs--horizontal .definition-tab--draft[aria-selected="true"] { border-bottom-color: var(--schema-color-info); color: var(--schema-color-info) !important; }
+.definition-tabs--horizontal .definition-tab--versions[aria-selected="true"] { border-bottom-color: var(--schema-color-success); color: var(--schema-color-success) !important; }
+.definition-tab-content { min-width: 0; padding: 12px; }
+.definition-tab-content > .definition-editor-panel, .definition-tab-content > .definition-version-layout { margin-top: 0; }
+.definition-context-folder { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-soft); }
+.definition-context-folder > svg { color: #64748b; }
+.definition-new-editor-hint { display: inline-flex; align-items: center; gap: 8px; margin: 12px 0 0; padding: 8px 12px; border-radius: 8px; font-size: 12.5px; color: var(--schema-color-info); background: color-mix(in srgb, var(--schema-color-info) 10%, var(--surface)); }
+
+.procedure-technology-field { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; }
+.procedure-technology-field > svg { color: var(--schema-color-teal); }
+
+/* Resize affordances: always-visible grip on the steps/detail splitter and the explorer edge. */
+body .procedure-workbench-split .ant-splitter-bar-dragger { position: relative; }
+body .procedure-workbench-split .ant-splitter-bar-dragger::after { width: 44px !important; height: 6px !important; border-radius: 999px; background: color-mix(in srgb, var(--schema-color-info) 55%, var(--line)) !important; box-shadow: 0 0 0 4px var(--surface); }
+body .procedure-workbench-split .ant-splitter-bar-dragger:hover::after, body .procedure-workbench-split .ant-splitter-bar-dragger:active::after { background: var(--schema-color-info) !important; }
+body .procedure-workbench-split .ant-splitter-bar { cursor: row-resize; }
+body .explorer-resize-handle::before { content: ''; position: absolute; top: 50%; left: 50%; width: 6px; height: 44px; transform: translate(-50%, -50%); border-radius: 999px; background: color-mix(in srgb, var(--schema-color-info) 55%, var(--line)); box-shadow: 0 0 0 3px var(--surface); pointer-events: none; }
+body .explorer-resize-handle:hover::before, body .explorer-resize-handle:focus-visible::before { background: var(--schema-color-info); }
+
+.definition-multi-connection { display: flex !important; align-items: center; gap: 8px; }
+
+/* Mapping editor: ODI Logical · Column Mappings · Joins and Filters · Physical on a vertical rail, one color per view. */
+.mapping-editor-body { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
+.mapping-editor-detail { padding: 10px 12px 12px; }
+.mapping-editor-detail > [hidden] { display: none; }
+.mapping-tab--diagram svg { color: var(--schema-color-info); }
+.mapping-tab--columns svg { color: var(--schema-color-teal); }
+.mapping-tab--conditions svg { color: var(--schema-color-warning); }
+.mapping-tab--execution svg { color: var(--schema-color-neutral); }
+.mapping-tab--diagram[aria-selected="true"] { color: var(--schema-color-info) !important; border-left-color: var(--schema-color-info) !important; }
+.mapping-tab--columns[aria-selected="true"] { color: var(--schema-color-teal) !important; border-left-color: var(--schema-color-teal) !important; }
+.mapping-tab--conditions[aria-selected="true"] { color: var(--schema-color-warning) !important; border-left-color: var(--schema-color-warning) !important; }
+.mapping-tab--execution[aria-selected="true"] { color: var(--schema-color-neutral) !important; border-left-color: var(--schema-color-neutral) !important; }
+.mapping-inline-actions { display: inline-flex; align-items: center; gap: 8px; }
+.mapping-type-chip { display: inline-flex; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-family: var(--font-mono, ui-monospace, monospace); color: var(--schema-color-neutral); background: color-mix(in srgb, var(--schema-color-neutral) 12%, var(--surface)); }
+.mapping-condition-title { display: inline-flex; align-items: center; gap: 8px; }
+.procedure-heading-icon--join { color: var(--schema-color-warning); background: color-mix(in srgb, var(--schema-color-warning) 14%, var(--surface)); }
+.procedure-heading-icon--filter { color: var(--schema-color-pink); background: color-mix(in srgb, var(--schema-color-pink) 14%, var(--surface)); }
+.procedure-heading-icon--source { color: var(--schema-color-teal); background: color-mix(in srgb, var(--schema-color-teal) 14%, var(--surface)); }
+.procedure-heading-icon--target { color: var(--schema-color-info); background: color-mix(in srgb, var(--schema-color-info) 14%, var(--surface)); }
+.mapping-inspector-identity { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.mapping-inspector-identity > div { display: grid; gap: 1px; }
+.mapping-inspector-identity > div > span { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); }
+.mapping-node-title { display: inline-flex; align-items: center; gap: 6px; }
+.mapping-node-mark { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; }
+.mapping-node-mark--source { color: var(--schema-color-teal); background: color-mix(in srgb, var(--schema-color-teal) 14%, var(--surface)); }
+.mapping-node-mark--target { color: var(--schema-color-info); background: color-mix(in srgb, var(--schema-color-info) 14%, var(--surface)); }
+body .mapping-inspector-resizer span { width: 44px; height: 6px; background: color-mix(in srgb, var(--schema-color-info) 55%, var(--line)); box-shadow: 0 0 0 4px var(--surface); }
+body .mapping-inspector-resizer:hover span, body .mapping-inspector-resizer:focus-visible span { background: var(--schema-color-info); }
+@media (max-width: 900px) { .mapping-editor-body { grid-template-columns: 1fr; } }
+
+/* Package editor: type-colored step nodes, outcome-colored transitions, standardized inspector. */
+.package-editor { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
+.package-toolbar { padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.package-validation-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.package-validation-chip.is-valid { color: var(--schema-color-success); background: color-mix(in srgb, var(--schema-color-success) 12%, var(--surface)); }
+.package-validation-chip.is-invalid { color: var(--schema-color-danger); background: color-mix(in srgb, var(--schema-color-danger) 12%, var(--surface)); }
+.package-node-label { display: flex; align-items: flex-start; gap: 8px; }
+.package-node-text { display: grid; gap: 1px; min-width: 7rem; max-width: 14rem; font-size: 13px; line-height: 1.3; }
+.package-node-text > span { font-size: 10px; letter-spacing: .06em; color: var(--ink-soft); }
+.package-node-text strong { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.package-node-text small { font-size: 11px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.package-node-label > .definition-type-icon { margin-top: 2px; }
+.package-start-badge { color: var(--schema-color-success); background: color-mix(in srgb, var(--schema-color-success) 12%, var(--surface)); border-radius: 999px; }
+body .react-flow__node.package-node { --node-color: var(--schema-color-info); border: 1px solid color-mix(in srgb, var(--node-color) 35%, var(--line)); border-left: 4px solid var(--node-color); border-radius: 10px; padding: 8px 10px; background: var(--surface); box-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 8%, transparent); }
+body .react-flow__node.package-node.selected, body .react-flow__node.package-node:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--node-color) 25%, transparent); }
+body .react-flow__node.package-node--mapping { --node-color: var(--schema-color-info); }
+body .react-flow__node.package-node--procedure { --node-color: var(--schema-color-warning); }
+body .react-flow__node.package-node--package { --node-color: var(--schema-color-neutral); }
+body .react-flow__node.package-node--variable { --node-color: var(--schema-color-pink); }
+body .react-flow__node.package-node.is-start { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--schema-color-success) 40%, transparent); }
+body .react-flow__edge.package-edge--success .react-flow__edge-text, body .react-flow__edge.package-edge--true .react-flow__edge-text { fill: var(--schema-color-success); }
+body .react-flow__edge.package-edge--failure .react-flow__edge-text, body .react-flow__edge.package-edge--false .react-flow__edge-text { fill: var(--schema-color-danger); }
+.package-properties-identity { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.package-properties-identity > span { display: grid; gap: 1px; }
+.package-properties-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+.package-delete-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.package-delete-confirm p { flex: 1 1 100%; margin: 0; }
+.package-properties section h4 { display: inline-flex; align-items: center; gap: 6px; }
+.package-transition-icon { color: var(--schema-color-info); }
+.package-picker-title { display: inline-flex; align-items: center; gap: 8px; }
+.package-picker-list h4 { display: inline-flex; align-items: center; gap: 6px; }
+.package-picker-list { overflow-x: hidden; }
+.package-picker-list .package-picker-item.ant-btn { display: flex; justify-content: flex-start; gap: 8px; width: 100%; min-width: 0; text-align: left; }
+.package-picker-list .package-picker-item > span:not(.definition-type-icon) { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.package-picker-list .package-picker-item > .definition-type-icon { flex: 0 0 auto; }
+.package-picker-list .package-picker-item small { flex: 0 0 auto; max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-soft); font-size: 11px; }

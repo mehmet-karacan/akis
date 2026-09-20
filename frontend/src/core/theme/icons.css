@@ -1,0 +1,75 @@
+/* Semantic icon colors shared by every screen (login, shell navigation, catalogs, dialogs).
+   Tokens mirror the schema-metadata reference palette; each icon carries the meaning of its label. */
+:root {
+  --schema-color-info: #2563eb;
+  --schema-color-success: #059669;
+  --schema-color-warning: #d97706;
+  --schema-color-danger: #dc4446;
+  --schema-color-neutral: #7c3aed;
+  --schema-color-teal: #0891b2;
+  --schema-color-pink: #db2777;
+}
+:root[data-theme="dark"] {
+  --schema-color-info: #6a9bff;
+  --schema-color-success: #34d399;
+  --schema-color-warning: #fbbf24;
+  --schema-color-danger: #f87171;
+  --schema-color-neutral: #a78bfa;
+  --schema-color-teal: #22d3ee;
+  --schema-color-pink: #f472b6;
+}
+
+/* Summary cards: the tone shows only in the icon. */
+body .ui-summary-card.tone-info .ui-summary-icon { color: var(--schema-color-info) !important; background: color-mix(in srgb, var(--schema-color-info) 14%, var(--surface)) !important; }
+body .ui-summary-card.tone-success .ui-summary-icon { color: var(--schema-color-success) !important; background: color-mix(in srgb, var(--schema-color-success) 14%, var(--surface)) !important; }
+body .ui-summary-card.tone-warning .ui-summary-icon { color: var(--schema-color-warning) !important; background: color-mix(in srgb, var(--schema-color-warning) 14%, var(--surface)) !important; }
+body .ui-summary-card.tone-danger .ui-summary-icon { color: var(--schema-color-danger) !important; background: color-mix(in srgb, var(--schema-color-danger) 14%, var(--surface)) !important; }
+body .ui-summary-card.tone-neutral .ui-summary-icon { color: var(--schema-color-neutral) !important; background: color-mix(in srgb, var(--schema-color-neutral) 14%, var(--surface)) !important; }
+body .ui-summary-card.tone-teal .ui-summary-icon { color: var(--schema-color-teal) !important; background: color-mix(in srgb, var(--schema-color-teal) 14%, var(--surface)) !important; }
+body .ui-summary-card.tone-pink .ui-summary-icon { color: var(--schema-color-pink) !important; background: color-mix(in srgb, var(--schema-color-pink) 14%, var(--surface)) !important; }
+
+/* Page, collection, dialog and tab icons. */
+body .ui-page-title-icon svg, body .ui-grid-collection-icon svg, body .connection-dialog-title > svg { color: var(--schema-color-info); }
+body .ui-query-label > svg { color: var(--schema-color-teal); }
+body .ui-grid-view-label > svg { color: var(--schema-color-neutral); }
+body .connection-tab-label > svg { color: var(--schema-color-info); }
+body .connection-tab-physical > svg, body .connection-tab-work-area > svg { color: var(--schema-color-teal); }
+body .connection-detail-section > header h2 > svg { color: var(--schema-color-info); }
+
+/* Record field icons carry the meaning of their label. */
+body [data-field-icon] { color: var(--schema-color-info); }
+body [data-field-icon="description"], body [data-field-icon="recordInformation"] { color: var(--ink-soft) !important; }
+body [data-field-icon="table"], body [data-field-icon="host"], body [data-field-icon="port"], body [data-field-icon="connection"], body [data-field-icon="connectionType"], body [data-field-icon="createdAt"], body [data-field-icon="action"], body [data-field-icon="definition"] { color: var(--schema-color-info) !important; }
+body [data-field-icon="provider"], body [data-field-icon="database"], body [data-field-icon="columns"], body [data-field-icon="technology"], body [data-field-icon="folder"], body [data-field-icon="catalog"] { color: var(--schema-color-teal) !important; }
+body [data-field-icon="logicalSchema"], body [data-field-icon="updatedBy"], body [data-field-icon="indexes"], body [data-field-icon="mapping"], body [data-field-icon="reverse"], body [data-field-icon="issuer"] { color: var(--schema-color-neutral) !important; }
+body [data-field-icon="user"], body [data-field-icon="createdBy"], body [data-field-icon="sequences"], body [data-field-icon="status"], body [data-field-icon="default"], body [data-field-icon="publishedAt"], body [data-field-icon="roles"] { color: var(--schema-color-success) !important; }
+body [data-field-icon="updatedAt"], body [data-field-icon="testTime"], body [data-field-icon="constraints"], body [data-field-icon="time"], body [data-field-icon="duration"], body [data-field-icon="environment"] { color: var(--schema-color-warning) !important; }
+body [data-field-icon="risk"] { color: var(--schema-color-danger) !important; }
+body [data-field-icon="relationships"], body [data-field-icon="email"], body [data-field-icon="publication"] { color: var(--schema-color-pink) !important; }
+body [data-field-icon="code"], body [data-field-icon="hash"], body [data-field-icon="subject"], body [data-field-icon="count"], body [data-field-icon="number"] { color: var(--schema-color-neutral) !important; }
+
+/* Shell navigation: each workspace keeps its own color, active or not. */
+body .workspace-navigation .ant-menu-item .ant-menu-item-icon svg { color: var(--schema-color-info); }
+body .workspace-navigation .ant-menu-item.workspace-nav--project .ant-menu-item-icon svg { color: var(--schema-color-info); }
+body .workspace-navigation .ant-menu-item.workspace-nav--development .ant-menu-item-icon svg { color: var(--schema-color-neutral); }
+body .workspace-navigation .ant-menu-item.workspace-nav--operations .ant-menu-item-icon svg { color: var(--schema-color-warning); }
+body .workspace-navigation .ant-menu-item.workspace-nav--connections .ant-menu-item-icon svg { color: var(--schema-color-teal); }
+body .workspace-navigation .ant-menu-item.workspace-nav--schema-metadata .ant-menu-item-icon svg { color: var(--schema-color-success); }
+body .workspace-subnav-link > svg { width: 16px; height: 16px; color: var(--schema-color-info); }
+body .workspace-subnav-link[data-nav="connections"] > svg { color: var(--schema-color-teal); }
+body .workspace-subnav-link[data-nav="logical-schemas"] > svg { color: var(--schema-color-neutral); }
+body .workspace-subnav-link[data-nav="environments"] > svg { color: var(--schema-color-warning); }
+body .workspace-subnav-link[data-nav="physical-schemas"] > svg { color: var(--schema-color-success); }
+body .project-shortcut[data-shortcut="objects"] > svg { color: var(--schema-color-neutral); }
+body .project-shortcut[data-shortcut="connections"] > svg { color: var(--schema-color-teal); }
+body .project-shortcut[data-shortcut="operations"] > svg { color: var(--schema-color-warning); }
+body .project-shortcut[data-shortcut="models"] > svg { color: var(--schema-color-success); }
+
+/* Row actions: view/edit and secondary actions share the info tone. */
+body .ui-record-action svg, body .connection-row-actions .akis-button svg { color: var(--schema-color-info); }
+body .connection-row-actions .akis-button[class*="danger"] svg, body .akis-button.danger svg { color: var(--schema-color-danger); }
+body .physical-schema-default > svg { color: var(--schema-color-success); }
+body .model-object-kind > svg { color: var(--schema-color-teal); }
+body .connection-delete-impact > svg { color: var(--schema-color-danger); }
+body .topology-inline-error > svg, body .error-banner > svg { color: var(--schema-color-danger); }
+body .topology-test-success > svg { color: var(--schema-color-success); }

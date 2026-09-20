@@ -9,7 +9,7 @@ export function FeedbackToast({ message, onClose, tone = 'success' }: { message:
   useEffect(() => { close.current = onClose }, [onClose])
   useEffect(() => {
     if (!message) { api.destroy('feedback'); return }
-    api.open({ key: 'feedback', title: message, type: tone, role: tone === 'error' ? 'alert' : 'status',
+    api.open({ key: 'feedback', className: 'ui-feedback-toast', title: message, type: tone, role: tone === 'error' ? 'alert' : 'status',
       duration: tone === 'error' ? 8 : SUCCESS_MESSAGE_MS / 1000, pauseOnHover: true,
       onClose: () => close.current() })
     return () => api.destroy('feedback')

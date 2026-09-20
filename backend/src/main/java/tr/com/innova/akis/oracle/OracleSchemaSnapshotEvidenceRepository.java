@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 
 import tr.com.innova.akis.metadata.ApiException;
 
+/** Records the live target-identity probe taken at capture time as evidence for a snapshot. */
 @Repository
 class OracleSchemaSnapshotEvidenceRepository {
 
@@ -21,71 +22,53 @@ class OracleSchemaSnapshotEvidenceRepository {
     void attest(
             UUID projectUuid,
             UUID connectionUuid,
-            UUID connectionVersionUuid,
             UUID snapshotUuid,
-            long expectedLifecycleStateVersion,
-            UUID successfulTestUuid,
             int targetIdentityVersion,
             String targetFingerprint) {
         Optional<Long> inserted = jdbc.sql("""
                         insert into akis.sema_goruntusu_oracle_kaniti(
                             sema_goruntusu_id, proje_id, baglanti_id,
-                            baglanti_surumu_id, basarili_baglanti_testi_uuid,
+                            basarili_baglanti_testi_uuid,
                             hedef_kimlik_surumu, hedef_parmak_izi,
                             yakalama_sozlesmesi_surumu)
-                        select sg.id, p.id, b.id, bs.id, :successfulTestUuid,
+                        select sg.id, p.id, b.id, t.uuid,
                                :targetIdentityVersion, :targetFingerprint, 1
                           from akis.proje p
-                          join akis.baglanti b
-                            on b.proje_id = p.id
-                           and b.uuid = :connectionUuid
-                          join akis.baglanti_surumu bs
-                            on bs.proje_id = p.id
-                           and bs.baglanti_id = b.id
-                           and bs.uuid = :connectionVersionUuid
+                          join akis.baglanti b on b.uuid = :connectionUuid
                           join akis.sema_goruntusu sg
                             on sg.proje_id = p.id
-                           and sg.baglanti_surumu_id = bs.id
+                           and sg.baglanti_id = b.id
                            and sg.uuid = :snapshotUuid
+                          left join lateral (
+                              select bt.uuid from akis.baglanti_testi bt
+                               where bt.baglanti_id = b.id and bt.sonuc = 'BASARILI'
+                               order by bt.deneme_no desc limit 1) t on true
                          where p.uuid = :projectUuid
-                           and bs.durum = 'ETKIN'
-                           and bs.versiyon_no = :expectedLifecycleStateVersion
-                           and bs.son_basarili_test_uuid = :successfulTestUuid
-                           and bs.hedef_kimlik_surumu = :targetIdentityVersion
-                           and bs.hedef_parmak_izi = :targetFingerprint
                         on conflict (sema_goruntusu_id) do nothing
                         returning sema_goruntusu_id
                         """)
                 .param("projectUuid", projectUuid)
                 .param("connectionUuid", connectionUuid)
-                .param("connectionVersionUuid", connectionVersionUuid)
                 .param("snapshotUuid", snapshotUuid)
-                .param("expectedLifecycleStateVersion", expectedLifecycleStateVersion)
-                .param("successfulTestUuid", successfulTestUuid)
                 .param("targetIdentityVersion", targetIdentityVersion)
                 .param("targetFingerprint", targetFingerprint)
                 .query(Long.class)
                 .optional();
-        if (inserted.isPresent() || existingEvidenceMatches(
-                snapshotUuid, targetIdentityVersion, targetFingerprint)) {
+        if (inserted.isPresent() || existingEvidenceMatches(snapshotUuid, targetIdentityVersion, targetFingerprint)) {
             return;
         }
         throw new ApiException(
                 HttpStatus.CONFLICT,
                 "ORACLE_SNAPSHOT_EVIDENCE_REJECTED",
-                "Oracle snapshot kanıtı aktif bağlantı durumu değiştiği için kaydedilemedi.");
+                "Oracle snapshot kanıtı hedef veritabanı kimliği değiştiği için kaydedilemedi.");
     }
 
-    private boolean existingEvidenceMatches(
-            UUID snapshotUuid,
-            int targetIdentityVersion,
-            String targetFingerprint) {
+    private boolean existingEvidenceMatches(UUID snapshotUuid, int targetIdentityVersion, String targetFingerprint) {
         return jdbc.sql("""
                         select exists(
                             select 1
                               from akis.sema_goruntusu_oracle_kaniti ok
-                              join akis.sema_goruntusu sg
-                                on sg.id = ok.sema_goruntusu_id
+                              join akis.sema_goruntusu sg on sg.id = ok.sema_goruntusu_id
                              where sg.uuid = :snapshotUuid
                                and ok.hedef_kimlik_surumu = :targetIdentityVersion
                                and ok.hedef_parmak_izi = :targetFingerprint)

@@ -29,6 +29,60 @@ class JdbcStagedAtomicRefreshWriterTest {
                 new Table("WORK","AKIS_C_TEST"),new Table("DATA","ITEMS"),
                 List.of(new JdbcStagedAtomicRefreshWriter.Column("ID","ID")),30,()->{},()->{});
     }
+    private JdbcStagedAtomicRefreshWriter.Result publish(JdbcStagedAtomicRefreshWriter.WriteMode mode, List<String> keys) {
+        return new JdbcStagedAtomicRefreshWriter(ledger).publish(connection,context,evidence,
+                new Table("WORK","AKIS_C_TEST"),new Table("DATA","ITEMS"),
+                List.of(new JdbcStagedAtomicRefreshWriter.Column("ID","ID")),30,()->{},()->{},
+                tr.com.innova.akis.knowledge.JdbcTransactionBoundary.direct(connection),"",mode,keys);
+    }
+    @Test void appendKeepsExistingRowsAndChecksCombinedCount() throws Exception {
+        setup(false);
+        var count=mock(PreparedStatement.class); var before=mock(ResultSet.class); var after=mock(ResultSet.class);
+        when(connection.prepareStatement("SELECT COUNT(*) FROM \"DATA\".\"ITEMS\"")).thenReturn(count);
+        when(count.executeQuery()).thenReturn(before,after);
+        when(before.next()).thenReturn(true,false); when(before.getLong(1)).thenReturn(7L);
+        when(after.next()).thenReturn(true,false); when(after.getLong(1)).thenReturn(1208L);
+        assertEquals(JdbcStagedAtomicRefreshWriter.Outcome.COMMITTED,
+                publish(JdbcStagedAtomicRefreshWriter.WriteMode.APPEND,List.of()).outcome());
+        verify(connection,never()).prepareStatement(startsWith("DELETE"));
+        verify(connection,never()).prepareStatement(startsWith("TRUNCATE"));
+        verify(count,times(2)).executeQuery();
+    }
+    @Test void mergeWithOnlyKeysUsesInsertBranchWithoutInvalidEmptyUpdate() throws Exception {
+        setup(false);
+        assertEquals(JdbcStagedAtomicRefreshWriter.Outcome.COMMITTED,
+                publish(JdbcStagedAtomicRefreshWriter.WriteMode.MERGE,List.of("ID")).outcome());
+        verify(connection).prepareStatement("MERGE INTO \"DATA\".\"ITEMS\" T USING \"WORK\".\"AKIS_C_TEST\" S ON (T.\"ID\"=S.\"ID\") WHEN NOT MATCHED THEN INSERT (\"ID\") VALUES (S.\"ID\")");
+        verify(connection,never()).prepareStatement(startsWith("DELETE"));
+    }
+    @Test void mergeRequiresMappedKeysBeforeOpeningLedgerOrWriting() {
+        assertThrows(IllegalArgumentException.class,()->publish(JdbcStagedAtomicRefreshWriter.WriteMode.MERGE,List.of()));
+        assertThrows(IllegalArgumentException.class,()->publish(JdbcStagedAtomicRefreshWriter.WriteMode.MERGE,List.of("UNKNOWN")));
+        verifyNoInteractions(connection,ledger,session);
+    }
+    @Test void truncateFailureRemainsUnknownEvenWhenRollbackReturnsNormally() throws Exception {
+        setup(false);
+        when(connection.prepareStatement(startsWith("TRUNCATE"))).thenThrow(new SQLException("DDL acknowledgement unavailable"));
+        assertEquals(JdbcStagedAtomicRefreshWriter.Outcome.UNKNOWN,
+                publish(JdbcStagedAtomicRefreshWriter.WriteMode.TRUNCATE_LOAD,List.of()).outcome());
+        verify(connection).rollback(); verify(connection,never()).commit();
+        verify(session,never()).recordPublish(any());
+        verify(connection,never()).prepareStatement(startsWith("INSERT"));
+    }
+    @Test void insertFailureAfterTruncateIsNotReportedAsRolledBack() throws Exception {
+        setup(false);
+        when(connection.prepareStatement(startsWith("INSERT"))).thenThrow(new SQLException("insert failed"));
+        assertEquals(JdbcStagedAtomicRefreshWriter.Outcome.UNKNOWN,
+                publish(JdbcStagedAtomicRefreshWriter.WriteMode.TRUNCATE_LOAD,List.of()).outcome());
+        verify(connection).prepareStatement("TRUNCATE TABLE \"DATA\".\"ITEMS\"");
+        verify(connection).rollback(); verify(session,never()).recordPublish(any());
+    }
+    @Test void alreadyRecordedTruncateDoesNotRepeatDdl() throws Exception {
+        setup(true);
+        assertEquals(JdbcStagedAtomicRefreshWriter.Outcome.ALREADY_RECORDED,
+                publish(JdbcStagedAtomicRefreshWriter.WriteMode.TRUNCATE_LOAD,List.of()).outcome());
+        verify(connection,never()).prepareStatement(anyString());
+    }
     @Test void dataAndLedgerCommitOnSameConnection() throws Exception {
         setup(false);
         assertEquals(JdbcStagedAtomicRefreshWriter.Outcome.COMMITTED,publish().outcome());

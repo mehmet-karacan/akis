@@ -292,7 +292,7 @@ public final class ProcedureRuntimePlanResolver {
 
     private List<Task> parseTasks(ObjectNode definition) {
         requireOnlyFields(
-                definition, Set.of("tasks", "parameterSchema", "ui", "layout", "editor"),
+                definition, Set.of("tasks", "parameterSchema", "ui", "layout", "editor", "technology"),
                 "Procedure definition", ProcedurePlanFailure.UNSUPPORTED_PROCEDURE_SHAPE);
         JsonNode nodes = definition.get("tasks");
         if (nodes == null || !nodes.isArray() || nodes.isEmpty()
@@ -310,8 +310,12 @@ public final class ProcedureRuntimePlanResolver {
                             "command", "requiresApproval", "onError", "timeoutSeconds",
                             "output", "input", "logCounter", "transactionMode",
                             "transactionChannel", "transactionIsolation", "commitMode",
-                            "logicalSchemaUuid", "environmentUuid", "parameters"),
+                            "logicalSchemaUuid", "environmentUuid", "parameters", "enabled"),
                     "Procedure task", ProcedurePlanFailure.UNSUPPORTED_PROCEDURE_SHAPE);
+            // ODI "Execute" flag: a disabled task is authored but never part of the runtime plan.
+            if (node.has("enabled") && !node.get("enabled").isNull() && !node.get("enabled").asBoolean(true)) {
+                continue;
+            }
             String id = requireText(node, "id");
             String command = requireText(node, "command");
             if (command.getBytes(StandardCharsets.UTF_8).length
@@ -384,6 +388,9 @@ public final class ProcedureRuntimePlanResolver {
                     transactionIsolation,
                     commitMode));
         }
+        if (tasks.isEmpty()) {
+            throw shape("Every procedure task is disabled; enable at least one task.");
+        }
         for (int index = 0; index < tasks.size(); index++) {
             Task task = tasks.get(index);
             if (task.output() != null) {
@@ -422,13 +429,9 @@ public final class ProcedureRuntimePlanResolver {
                     ? requireText(value, "query") : null;
             UUID definitionUuid = value.has("definitionUuid")
                     ? UUID.fromString(requireText(value, "definitionUuid")) : null;
-            if (source == ParameterSource.REFRESH_QUERY
-                    && !refreshQuery.strip().matches("(?i)^SELECT\\s+SYSDATE\\s*-\\s*1\\s+FROM\\s+DUAL$")) {
-                throw shape("Variable refresh query is outside the safe runtime contract.");
-            }
-            if (source == ParameterSource.REFRESH_QUERY
-                    && type != ParameterType.DATE && type != ParameterType.TIMESTAMP) {
-                throw shape("SYSDATE refresh requires a DATE or TIMESTAMP parameter.");
+            if (source == ParameterSource.REFRESH_QUERY) {
+                try { tr.com.innova.akis.metadata.VariableQueryPolicy.validate(refreshQuery, type.name()); }
+                catch (tr.com.innova.akis.metadata.ApiException invalid) { throw shape(invalid.getMessage()); }
             }
             try {
                 if (source == ParameterSource.VALUE) switch (type) {
@@ -618,8 +621,9 @@ public final class ProcedureRuntimePlanResolver {
             if (!expectedRole.equals(requireText(node, "role"))) {
                 throw bindingFailure("Manifest binding role does not match Procedure task " + taskId + ".");
             }
-            if (!"ORACLE".equals(requireText(node, "databaseType"))) {
-                throw shape("Procedure V1 supports only Oracle bindings.");
+            String databaseType = requireText(node, "databaseType");
+            if (!Set.of("ORACLE", "POSTGRESQL").contains(databaseType)) {
+                throw shape("Procedure V1 supports only Oracle and PostgreSQL bindings.");
             }
             String objectType = requireText(node, "dataObjectType");
             if (!("TABLO".equals(objectType) || "VIEW".equals(objectType))

@@ -25,16 +25,10 @@ class OracleDiscoveryApiContractTest {
     void publicRequestAndResponseContractsContainNoSecretOrCredentialField() {
         List<Class<? extends Record>> contracts = List.of(
                 OracleDiscoveryController.DiscoveryRequest.class,
-                OracleDiscoveryController.ConnectionTestView.class,
                 OracleDiscoveryController.DiscoveryView.class,
                 OracleDiscoveryController.TableView.class,
                 OracleDiscoveryController.ColumnView.class,
                 OracleDiscoveryController.ConstraintView.class,
-                OracleConnectionLifecycleController.ActivateRequest.class,
-                OracleConnectionLifecycleController.LifecycleView.class,
-                OracleConnectionLifecycleController.TestAttemptView.class,
-                OracleConnectionLifecycleController.ProbeView.class,
-                OracleDraftConnectionTestController.DraftConnectionTestView.class,
                 OracleSchemaSnapshotCaptureController.SnapshotView.class,
                 OracleSchemaSnapshotCaptureController.ColumnView.class,
                 OracleSchemaSnapshotCaptureController.ConstraintView.class);

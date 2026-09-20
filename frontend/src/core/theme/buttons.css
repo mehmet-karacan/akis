@@ -1,0 +1,30 @@
+/* Button standard: primary = filled accent, secondary = outlined with colored icon, ghost = text, danger = red.
+   Icon-only buttons take their icon color from data-tone. */
+body .ant-btn.akis-button.ant-btn-default svg, body .ant-btn.akis-button.ant-btn-text svg { color: var(--schema-color-info); }
+body .ant-btn.akis-button.ant-btn-primary svg, body .ant-btn.akis-button.ant-btn-dangerous svg { color: inherit; }
+body .ant-btn.akis-button[data-tone="info"] svg { color: var(--schema-color-info); }
+body .ant-btn.akis-button[data-tone="teal"] svg { color: var(--schema-color-teal); }
+body .ant-btn.akis-button[data-tone="neutral"] svg { color: var(--schema-color-neutral); }
+body .ant-btn.akis-button[data-tone="success"] svg { color: var(--schema-color-success); }
+body .ant-btn.akis-button[data-tone="warning"] svg { color: var(--schema-color-warning); }
+body .ant-btn.akis-button[data-tone="danger"] svg { color: var(--schema-color-danger); }
+body .ant-btn.akis-button[data-tone="danger"]:not(:disabled):hover { color: var(--schema-color-danger); background: color-mix(in srgb, var(--schema-color-danger) 10%, var(--surface)); }
+body .ant-btn.akis-button:disabled svg { opacity: .45; }
+
+/* Icon spacing standard: an icon never touches its text — 8px between icon and label in buttons, chips, headings and tree rows. */
+body .ant-btn.akis-button { gap: 8px; }
+body .ant-btn.akis-button > span:has(> svg) { display: inline-flex; align-items: center; gap: 8px; }
+body .ant-btn.akis-button > .ant-btn-icon:not(:only-child) { margin-inline-end: 0; }
+.ui-field-heading, .definition-type-chip, .procedure-route-chip, .procedure-counter-chip, .prerun-status, .package-validation-chip { gap: 8px; }
+.akis-tree-static-label, .akis-tree-title > .ant-btn:first-child { gap: 8px; }
+.akis-tree-count, .procedure-heading-count { margin-left: 8px; }
+.definition-notice > svg { margin-right: 4px; }
+.ui-summary-content, .ui-record-detail dt > svg, .mapping-inspector-context dt > svg { gap: 8px; }
+/* Dropdown menus: custom icons (type badges, lucide) are not wrapped by Ant's icon span, so space them explicitly. */
+body .ant-dropdown-menu-item { display: flex; align-items: center; gap: 10px; }
+body .ant-dropdown-menu-item > .definition-type-icon, body .ant-dropdown-menu-item > svg { flex: 0 0 auto; margin: 0; }
+body .ant-dropdown-menu-item > .ant-dropdown-menu-item-icon { margin-inline-end: 0; }
+body .ant-dropdown-menu-item > .definition-type-icon { width: 22px !important; height: 22px !important; }
+/* Count pills sit clearly apart from their label and share one quiet style. */
+.sidebar-project-tree .akis-tree-count { margin-left: 10px; min-width: 20px; height: 18px; line-height: 18px; padding: 0 6px; font-size: 10.5px; font-weight: 600; color: var(--ink-soft); background: color-mix(in srgb, var(--ink-soft) 12%, transparent); border-radius: 999px; }
+.sidebar-project-tree .akis-tree-title--section .akis-tree-count { background: color-mix(in srgb, var(--ink-soft) 12%, transparent); }

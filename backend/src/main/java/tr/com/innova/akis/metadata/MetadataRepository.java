@@ -303,6 +303,41 @@ public class MetadataRepository {
                 .optional();
     }
 
+    DefinitionRow updateDefinition(
+            long projectId,
+            long definitionId,
+            String name,
+            String description,
+            long expectedVersion) {
+        int changed = jdbc.sql("""
+                        update akis.tanim
+                           set ad = :name,
+                               aciklama = :description,
+                               guncellenme_zamani = current_timestamp,
+                               versiyon_no = versiyon_no + 1
+                         where proje_id = :projectId
+                           and id = :definitionId
+                           and versiyon_no = :expectedVersion
+                        """)
+                .param("projectId", projectId)
+                .param("definitionId", definitionId)
+                .param("name", name)
+                .param("description", description, Types.VARCHAR)
+                .param("expectedVersion", expectedVersion)
+                .update();
+        if (changed != 1) {
+            throw new ApiException(
+                    org.springframework.http.HttpStatus.PRECONDITION_FAILED,
+                    "STALE_VERSION",
+                    "Tanım sürümü istekle uyuşmuyor.");
+        }
+        return jdbc.sql(definitionSelect() + " where t.proje_id = :projectId and t.id = :definitionId")
+                .param("projectId", projectId)
+                .param("definitionId", definitionId)
+                .query(this::mapDefinition)
+                .single();
+    }
+
     DefinitionRow moveDefinition(
             long projectId,
             long definitionId,
@@ -462,6 +497,36 @@ public class MetadataRepository {
                 .single();
     }
 
+    void createDirectObjectReferences(long definitionId, UUID versionUuid, JsonNode content) {
+        var references = new java.util.ArrayList<JsonNode>();
+        content.path("sources").forEach(references::add);
+        references.add(content.path("target"));
+        for (int index = 0; index < references.size(); index++) {
+            JsonNode reference = references.get(index);
+            String role = index == references.size() - 1 ? "HEDEF" : "KAYNAK";
+            jdbc.sql("""
+                    insert into akis.tanim_veri_nesnesi(
+                        proje_id,tanim_surumu_id,veri_nesnesi_id,sema_goruntusu_id,dugum_kodu,rol)
+                    select ts.proje_id,ts.id,vn.id,sg.id,:nodeCode,:role
+                      from akis.tanim_surumu ts
+                      join akis.veri_nesnesi vn on vn.proje_id=ts.proje_id and vn.uuid=:objectUuid
+                      join akis.sema_goruntusu sg on sg.proje_id=ts.proje_id and sg.uuid=:snapshotUuid
+                         and sg.veri_nesnesi_id=vn.id
+                     where ts.tanim_id=:definitionId and ts.uuid=:versionUuid
+                    returning id
+                    """)
+                    .param("nodeCode", reference.path("id").asText())
+                    .param("role", role)
+                    .param("objectUuid", UUID.fromString(reference.path("dataObjectUuid").asText()))
+                    .param("snapshotUuid", UUID.fromString(reference.path("schemaSnapshotUuid").asText()))
+                    .param("definitionId", definitionId)
+                    .param("versionUuid", versionUuid)
+                    .query(Long.class)
+                    .optional()
+                    .orElseThrow(() -> new IllegalArgumentException("Kaynak veya hedef veri nesnesi ile şema görüntüsü uyuşmuyor."));
+        }
+    }
+
     void activateDraftDefinition(long definitionId) {
         jdbc.sql("""
                         update akis.tanim
@@ -553,7 +618,6 @@ public class MetadataRepository {
             case PROCEDURE -> "PROSEDUR";
             case VARIABLE -> "DEGISKEN";
             case SEQUENCE -> "SEQUENCE";
-            case USER_FUNCTION -> "KULLANICI_FONKSIYONU";
             case KNOWLEDGE_MODULE -> "KNOWLEDGE_MODULE";
             case LOAD_PLAN -> "LOAD_PLAN";
         };
@@ -567,7 +631,6 @@ public class MetadataRepository {
             case "PROSEDUR" -> DefinitionType.PROCEDURE;
             case "DEGISKEN" -> DefinitionType.VARIABLE;
             case "SEQUENCE" -> DefinitionType.SEQUENCE;
-            case "KULLANICI_FONKSIYONU" -> DefinitionType.USER_FUNCTION;
             case "KNOWLEDGE_MODULE" -> DefinitionType.KNOWLEDGE_MODULE;
             case "LOAD_PLAN" -> DefinitionType.LOAD_PLAN;
             default -> throw new IllegalStateException("Bilinmeyen tanım türü: " + type);

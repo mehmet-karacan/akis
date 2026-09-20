@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest'
+import { bindingFixture, connectionFixture, physicalSchemaFixture } from '../topology/testFixtures'
 import { resolveProcedureContext } from './ResolvedContextSummary'
 
 describe('procedure context resolution', () => {
-  it('resolves the exact pinned connection revision', () => {
-    const result = resolveProcedureContext('logical', 'test', [{ uuid: 'b', logicalSchemaUuid: 'logical', environmentUuid: 'test', physicalSchemaUuid: 'p', connectionVersionUuid: 'v2', status: 'AKTIF', version: 1 }], [{ uuid: 'p', connectionUuid: 'c', code: 'SCOTT', schemaReference: 'SCOTT', status: 'AKTIF', name: 'SCOTT', version: 1 }], [{ uuid: 'c', code: 'SKY', databaseType: 'ORACLE', status: 'AKTIF', name: 'SKY', version: 1 }], [{ uuid: 'v1', versionNumber: 1, mode: 'JDBC', policyVersion: 2, createdAt: '', lifecycleStatus: 'ACTIVE', lifecycleVersion: 1, runtimeCapability: 'EXECUTABLE' }, { uuid: 'v2', versionNumber: 2, mode: 'JDBC', policyVersion: 2, createdAt: '', lifecycleStatus: 'TESTED', lifecycleVersion: 1, runtimeCapability: 'EXECUTABLE' }])
-    expect(result.version?.uuid).toBe('v2')
+  it('resolves the physical schema and connection behind a logical schema binding', () => {
+    const result = resolveProcedureContext('logical', 'test',
+      [bindingFixture({ uuid: 'b', logicalSchemaUuid: 'logical', environmentUuid: 'test', physicalSchemaUuid: 'p' })],
+      [physicalSchemaFixture({ uuid: 'p', connectionUuid: 'c', schemaName: 'SCOTT' })],
+      [connectionFixture({ uuid: 'c', code: 'SKY', name: 'SKY' })])
+    expect(result.physicalSchema?.schemaName).toBe('SCOTT')
     expect(result.connection?.code).toBe('SKY')
   })
 })

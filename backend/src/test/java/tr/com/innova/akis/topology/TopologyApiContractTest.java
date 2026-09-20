@@ -1,6 +1,8 @@
 package tr.com.innova.akis.topology;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Arrays;
 import java.util.Set;
@@ -9,43 +11,48 @@ import org.junit.jupiter.api.Test;
 
 class TopologyApiContractTest {
 
-    @Test
-    void environmentCreationAcceptsOnlyUserFacingIdentityFields() {
-        Set<String> fields = Arrays.stream(TopologyController.CreateEnvironmentRequest.class.getRecordComponents())
+    private static Set<String> fields(Class<?> record) {
+        return Arrays.stream(record.getRecordComponents())
                 .map(component -> component.getName())
                 .collect(Collectors.toSet());
-
-        assertEquals(Set.of("code", "name"), fields);
     }
 
     @Test
-    void physicalSchemaCreationAcceptsOnlyConnectionAndSchema() {
-        Set<String> fields = Arrays.stream(TopologyController.CreatePhysicalSchemaRequest.class.getRecordComponents())
-                .map(component -> component.getName())
-                .collect(Collectors.toSet());
+    void environmentCreationAcceptsOnlyUserFacingIdentityFields() {
+        assertEquals(Set.of("code", "name", "description", "risk", "defaultEnvironment", "policy"), fields(TopologyController.CreateEnvironmentRequest.class));
+        assertEquals(Set.of("name", "description", "risk", "defaultEnvironment", "status"), fields(TopologyController.UpdateEnvironmentRequest.class));
+    }
 
-        assertEquals(Set.of("connectionUuid", "schema"), fields);
+    @Test
+    void connectionRequestCarriesEndpointAndCredentialsWithoutVersioning() {
+        Set<String> fields = fields(TopologyController.ConnectionRequest.class);
+        assertTrue(fields.containsAll(Set.of("code", "name", "databaseType", "mode", "host", "port", "username", "password")));
+        assertFalse(fields.contains("expectedVersion"));
+        assertFalse(fields.contains("initialVersion"));
+    }
+
+    @Test
+    void connectionViewNeverExposesTheStoredPassword() {
+        Set<String> fields = fields(TopologyController.ConnectionView.class);
+        assertTrue(fields.contains("hasPassword"));
+        assertFalse(fields.contains("password"));
+    }
+
+    @Test
+    void physicalSchemaRequestCarriesWorkSchemaAndPrefixes() {
+        Set<String> fields = fields(TopologyController.PhysicalSchemaRequest.class);
+        assertTrue(fields.containsAll(Set.of("connectionUuid", "schemaName", "workSchemaName", "defaultSchema",
+                "loadingPrefix", "integrationPrefix", "errorPrefix", "tempPrefix")));
     }
 
     @Test
     void logicalSchemaCreationAcceptsPhysicalMappingWithoutTechnicalConnectionRevision() {
-        Set<String> fields = Arrays.stream(TopologyController.CreateLogicalSchemaRequest.class.getRecordComponents())
-                .map(component -> component.getName())
-                .collect(Collectors.toSet());
-
-        assertEquals(Set.of("code", "name", "description", "environmentUuid", "physicalSchemaUuid"), fields);
+        assertEquals(Set.of("code", "name", "description", "databaseType", "environmentUuid", "physicalSchemaUuid"),
+                fields(TopologyController.CreateLogicalSchemaRequest.class));
     }
 
     @Test
     void schemaMappingAcceptsOnlyTheUserFacingContext() {
-        Set<String> createFields = Arrays.stream(TopologyController.CreateSchemaBindingRequest.class.getRecordComponents())
-                .map(component -> component.getName())
-                .collect(Collectors.toSet());
-        Set<String> updateFields = Arrays.stream(TopologyController.UpdateSchemaBindingRequest.class.getRecordComponents())
-                .map(component -> component.getName())
-                .collect(Collectors.toSet());
-
-        assertEquals(Set.of("logicalSchemaUuid", "environmentUuid", "physicalSchemaUuid"), createFields);
-        assertEquals(Set.of("logicalSchemaUuid", "environmentUuid", "physicalSchemaUuid", "expectedVersion"), updateFields);
+        assertEquals(Set.of("logicalSchemaUuid", "environmentUuid", "physicalSchemaUuid"), fields(TopologyController.SchemaBindingRequest.class));
     }
 }

@@ -66,9 +66,8 @@ public class JdbcSchemaSnapshotStore implements SchemaSnapshotStore {
         return jdbc.sql("""
                         select id, uuid, baglanti_id
                           from akis.fiziksel_sema
-                         where proje_id = :projectId and uuid = :uuid
+                         where uuid = :uuid
                         """)
-                .param("projectId", projectId)
                 .param("uuid", physicalSchemaUuid)
                 .query((rs, rowNum) -> new PhysicalSchemaRef(
                         rs.getLong("id"), rs.getObject("uuid", UUID.class),
@@ -80,12 +79,10 @@ public class JdbcSchemaSnapshotStore implements SchemaSnapshotStore {
     public Optional<ConnectionVersionRef> findConnectionVersion(
             long projectId, UUID connectionVersionUuid) {
         return jdbc.sql("""
-                        select v.id, v.uuid, v.baglanti_id
-                          from akis.baglanti_surumu v
-                          join akis.baglanti b on b.id = v.baglanti_id
-                         where b.proje_id = :projectId and v.uuid = :uuid
+                        select b.id, b.uuid, b.id as baglanti_id
+                          from akis.baglanti b
+                         where b.uuid = :uuid
                         """)
-                .param("projectId", projectId)
                 .param("uuid", connectionVersionUuid)
                 .query((rs, rowNum) -> new ConnectionVersionRef(
                         rs.getLong("id"), rs.getObject("uuid", UUID.class),
@@ -98,21 +95,19 @@ public class JdbcSchemaSnapshotStore implements SchemaSnapshotStore {
         Optional<Long> insertedSnapshotId = jdbc.sql("""
                         insert into akis.sema_goruntusu(
                             proje_id, veri_nesnesi_id, fiziksel_sema_id,
-                            baglanti_id, baglanti_surumu_id, uuid, parmak_izi, motor_surumu,
+                            baglanti_id, uuid, parmak_izi, motor_surumu,
                             kesif_zamani, ozellik_sema_surumu, ozellik)
                         select :projectId, :dataObjectId, :physicalSchemaId,
-                               fs.baglanti_id, :connectionVersionId, :uuid, :fingerprint, :engineVersion,
+                               fs.baglanti_id, :uuid, :fingerprint, :engineVersion,
                                :discoveredAt, :propertyVersion, cast(:properties as jsonb)
                           from akis.fiziksel_sema fs
-                         where fs.proje_id = :projectId and fs.id = :physicalSchemaId
-                        on conflict (veri_nesnesi_id, fiziksel_sema_id,
-                                     baglanti_surumu_id, parmak_izi) do nothing
+                         where fs.id = :physicalSchemaId
+                        on conflict (veri_nesnesi_id, fiziksel_sema_id, parmak_izi) do nothing
                         returning id
                         """)
                 .param("projectId", snapshot.projectId())
                 .param("dataObjectId", snapshot.dataObjectId())
                 .param("physicalSchemaId", snapshot.physicalSchemaId())
-                .param("connectionVersionId", snapshot.connectionVersionId())
                 .param("uuid", snapshot.uuid())
                 .param("fingerprint", snapshot.fingerprint())
                 .param("engineVersion", snapshot.engineVersion())
@@ -128,12 +123,10 @@ public class JdbcSchemaSnapshotStore implements SchemaSnapshotStore {
                               from akis.sema_goruntusu
                              where veri_nesnesi_id = :dataObjectId
                                and fiziksel_sema_id = :physicalSchemaId
-                               and baglanti_surumu_id = :connectionVersionId
                                and parmak_izi = :fingerprint
                             """)
                     .param("dataObjectId", snapshot.dataObjectId())
                     .param("physicalSchemaId", snapshot.physicalSchemaId())
-                    .param("connectionVersionId", snapshot.connectionVersionId())
                     .param("fingerprint", snapshot.fingerprint())
                     .query(UUID.class)
                     .single();
@@ -291,13 +284,13 @@ public class JdbcSchemaSnapshotStore implements SchemaSnapshotStore {
         return """
                 select s.id, s.uuid, d.uuid as data_object_uuid,
                        p.uuid as physical_schema_uuid,
-                       v.uuid as connection_version_uuid, s.parmak_izi,
+                       b.uuid as connection_version_uuid, s.parmak_izi,
                        s.motor_surumu, s.kesif_zamani, s.ozellik_sema_surumu as ozellik_surumu,
                        s.ozellik, s.olusturulma_zamani
                   from akis.sema_goruntusu s
                   join akis.veri_nesnesi d on d.id = s.veri_nesnesi_id
                   join akis.fiziksel_sema p on p.id = s.fiziksel_sema_id
-                  join akis.baglanti_surumu v on v.id = s.baglanti_surumu_id
+                  join akis.baglanti b on b.id = s.baglanti_id
                 """;
     }
 

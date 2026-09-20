@@ -5,7 +5,14 @@ import static tr.com.innova.akis.knowledge.AkisKmLanguage.*;
 
 /** Finite operation dispatcher. Database effects belong to a fenced runtime adapter, never DSL eval. */
 public final class AkisKmInterpreter {
-    public record Modules(String loading, String checking, String integration) { }
+    public record Modules(String loading, String checking, String integration, Map<String, Map<String, Object>> options) {
+        public Modules(String loading, String checking, String integration) { this(loading, checking, integration, Map.of()); }
+        public Modules {
+            Map<String, Map<String, Object>> copy = new LinkedHashMap<>();
+            options.forEach((role, values) -> copy.put(role, Map.copyOf(values)));
+            options = Map.copyOf(copy);
+        }
+    }
     public record Plan(List<Step> steps, Set<String> slots) {
         public Plan { steps = List.copyOf(steps); slots = Set.copyOf(slots); }
     }
@@ -33,15 +40,45 @@ public final class AkisKmInterpreter {
         Program loading = requireKind(modules.loading(), Kind.LKM);
         Program integration = requireKind(modules.integration(), Kind.IKM);
         Program checking = modules.checking() == null ? null : requireKind(modules.checking(), Kind.CKM);
+        Set<String> declaredSlots = new LinkedHashSet<>();
+        loading.steps().forEach(step -> declaredSlots.add(step.slot()));
+        List<Step> declared = new ArrayList<>(loading.steps());
+        if (checking != null) declared.addAll(checking.steps());
+        declared.addAll(integration.steps());
+        for (Step step : declared) {
+            if (!declaredSlots.contains(step.slot())) throw new SyntaxException(step.line(), "Yüklenmemiş çalışma slotu: " + step.slot());
+        }
+        List<Step> loadSteps = enabled(loading, modules.options().getOrDefault("loading", Map.of()));
+        List<Step> integrateSteps = enabled(integration, modules.options().getOrDefault("integration", Map.of()));
+        AkisKmLanguage.validateSequence(Kind.LKM, loadSteps);
+        AkisKmLanguage.validateSequence(Kind.IKM, integrateSteps);
         Set<String> slots = new LinkedHashSet<>();
-        loading.steps().forEach(step -> slots.add(step.slot()));
-        List<Step> steps = new ArrayList<>(loading.steps());
-        if (checking != null) steps.addAll(checking.steps());
-        steps.addAll(integration.steps());
+        loadSteps.forEach(step -> slots.add(step.slot()));
+        List<Step> steps = new ArrayList<>(loadSteps);
+        if (checking != null) steps.addAll(enabled(checking, modules.options().getOrDefault("checking", Map.of())));
+        steps.addAll(integrateSteps);
         for (Step step : steps) {
             if (!slots.contains(step.slot())) throw new SyntaxException(step.line(), "Yüklenmemiş çalışma slotu: " + step.slot());
         }
         return new Plan(steps, slots);
+    }
+
+    /** Conditions are resolved from the module's pinned values, not global keys
+     * or mutable definitions. The resulting effective steps are hashed in the
+     * physical plan and recompiled independently before any database effect.
+     */
+    private static List<Step> enabled(Program program, Map<String, Object> values) {
+        return program.steps().stream().filter(step -> {
+            String key = program.conditions().get(step.id());
+            if (key == null) return true;
+            Object value = values.get(key);
+            if (value == null) {
+                var option = program.options().stream().filter(candidate -> candidate.key().equals(key)).findFirst().orElseThrow();
+                if (option.defaultValue() != null) value = Boolean.valueOf(option.defaultValue());
+            }
+            if (!(value instanceof Boolean decision)) throw new SyntaxException(step.line(), "Adım koşulu için Boolean seçenek değeri zorunludur: " + key);
+            return decision;
+        }).toList();
     }
 
     private static Program requireKind(String source, Kind kind) {

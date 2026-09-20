@@ -39,6 +39,31 @@ class RuntimeOracleConnectionProviderTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
+    void variableTestUsesMappedSchemaAndReadOnlyTransactionThenRollsBack() throws SQLException {
+        FakeConnection fake = new FakeConnection(false);
+        var provider = provider(normalProfile(), name -> credential(), (url, properties) -> fake.proxy());
+        try (var session = provider.openVariable(normalProfile(), CONNECTION_VERSION_UUID, "WORK_SCHEMA")) {
+            assertEquals(SessionPurpose.VARIABLE_READ, session.purpose());
+            assertTrue(fake.readOnly);
+            assertFalse(fake.autoCommit);
+            assertEquals(List.of("ALTER SESSION SET CURRENT_SCHEMA = \"WORK_SCHEMA\"", "SET TRANSACTION READ ONLY"), fake.plainStatement.sql);
+            assertEquals(17, fake.plainStatement.queryTimeout);
+            session.connection().prepareStatement("SELECT SYSDATE - 1 FROM DUAL");
+            assertEquals(17, fake.preparedStatement.queryTimeout);
+        }
+        assertEquals(List.of("rollback", "close"), fake.terminalEvents());
+    }
+
+    @Test
+    void refusesInvalidVariableSchemaBeforeOpeningTheDatabase() {
+        var provider = provider(normalProfile(), name -> credential(), (url, properties) -> {
+            throw new AssertionError("Must reject the owner before opening a connection");
+        });
+        assertEquals(Failure.INVALID_CONTRACT, assertThrows(RuntimeOracleConnectionException.class,
+            () -> provider.openVariable(normalProfile(), CONNECTION_VERSION_UUID, "APP\"; DROP TABLE X")).failure());
+    }
+
+    @Test
     void lostCommitAcknowledgementCannotBecomeConfirmedRollbackOrSecondCommit() {
         FakeConnection fake = new FakeConnection(false);
         fake.failCommit = true;
@@ -112,6 +137,25 @@ class RuntimeOracleConnectionProviderTest {
         assertEquals(List.of("close"), opened.get(1).terminalEvents());
         assertEquals(List.of("rollback", "close"), opened.get(2).terminalEvents());
         assertEquals(List.of("commit", "close"), opened.get(3).terminalEvents());
+    }
+
+    @Test
+    void postgresProfileBuildsPostgresJdbcUrlAndUsesPostgresTimeoutProperties() {
+        FakeConnection fake = new FakeConnection(false);
+        List<String> urls = new ArrayList<>();
+        List<Properties> properties = new ArrayList<>();
+        ConnectionProfile profile = new ConnectionProfile(
+                UUID.randomUUID(), CONNECTION_VERSION_UUID,
+                "org.postgresql.Driver", "127.0.0.1", "akis_metadata", null,
+                5432, "DISABLED", policy(), "ENV", "AKIS_POSTGRES_RUNTIME_SECRET");
+        RuntimeOracleConnectionProvider provider = provider(profile, name -> credential(),
+                (url, props) -> { urls.add(url); Properties copy = new Properties(); copy.putAll(props); properties.add(copy); return fake.proxy(); });
+
+        try (RuntimeOracleSession session = provider.openSource(binding(DatasetRole.SOURCE))) {
+            assertEquals("jdbc:postgresql://127.0.0.1:5432/akis_metadata?sslmode=disable", urls.getFirst());
+            assertEquals("12", properties.getFirst().getProperty("loginTimeout"));
+            assertEquals("34000", properties.getFirst().getProperty("socketTimeout"));
+        }
     }
 
     @Test
@@ -414,6 +458,7 @@ class RuntimeOracleConnectionProviderTest {
     private static final class FakeStatement implements InvocationHandler {
 
         private int queryTimeout;
+        private final List<String> sql = new ArrayList<>();
 
         PreparedStatement preparedProxy() {
             return (PreparedStatement) Proxy.newProxyInstance(
@@ -435,6 +480,7 @@ class RuntimeOracleConnectionProviderTest {
 
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) {
+            if (method.getName().equals("execute")) sql.add((String) args[0]);
             if (method.getName().equals("setQueryTimeout")) {
                 queryTimeout = (int) args[0];
                 return null;

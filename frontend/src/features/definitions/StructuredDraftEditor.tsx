@@ -8,12 +8,13 @@ import { topologyApi, type LogicalSchema } from '../topology/api'
 import { definitionCodeLabel, useDefinitionsI18n } from './i18n'
 import type { DefinitionType } from './types'
 import { KnowledgeModuleEditor } from './KnowledgeModuleEditor'
+import { VariableTestPanel } from './VariableTestPanel'
 
-interface Props { projectUuid?: string; type: DefinitionType; value: unknown; onChange: (value: unknown) => void }
+interface Props { projectUuid?: string; definitionUuid?: string; type: DefinitionType; value: unknown; onChange: (value: unknown) => void }
 type Content = Record<string, unknown>
 const record = (value: unknown): Content => value && typeof value === 'object' && !Array.isArray(value) ? value as Content : {}
 
-export function StructuredDraftEditor({ projectUuid, type, value, onChange }: Props) {
+export function StructuredDraftEditor({ projectUuid, definitionUuid, type, value, onChange }: Props) {
   const { language, t } = useDefinitionsI18n()
   const [schemas, setSchemas] = useState<LogicalSchema[]>([])
   const [schemaError, setSchemaError] = useState(false)
@@ -43,7 +44,8 @@ export function StructuredDraftEditor({ projectUuid, type, value, onChange }: Pr
       <small>{schemaError ? (language === 'tr' ? 'Mantıksal şemalar yüklenemedi.' : 'Logical schemas could not be loaded.') : (language === 'tr' ? 'Ortam çalıştırmadan alınır. Sorgu, bu şemanın o ortamdaki bağlantısında çalışır.' : 'The run supplies the environment. The query uses this schema’s mapped connection.')}</small>
     </label>}
     {content.valueSource === 'DEFAULT' && <label className="structured-draft-wide"><span>{t('defaultValue')}</span><AntInput value={String(content.defaultValue ?? '')} onChange={(event) => set('defaultValue', event.target.value)} /></label>}
-    {content.valueSource === 'REFRESH_QUERY' && <label className="structured-draft-wide"><span>{t('sqlCommand')}</span><AntInput.TextArea spellCheck={false} value={String(content.query ?? 'SELECT SYSDATE - 1 FROM DUAL')} onChange={(event) => set('query', event.target.value)} /></label>}
+    {content.valueSource === 'REFRESH_QUERY' && <label className="structured-draft-wide"><span>{t('sqlCommand')}</span><AntInput.TextArea spellCheck={false} value={typeof content.query === 'string' ? content.query : ''} onChange={(event) => set('query', event.target.value)} /></label>}
+    {content.valueSource === 'REFRESH_QUERY' && projectUuid && definitionUuid && <VariableTestPanel key={definitionUuid} projectUuid={projectUuid} definitionUuid={definitionUuid} content={content} />}
   </div>
 
   if (type === 'SEQUENCE') return <div className="structured-draft-form">
@@ -52,15 +54,6 @@ export function StructuredDraftEditor({ projectUuid, type, value, onChange }: Pr
     <label><span>{t('incrementValue')}</span><AntInput type="number" value={Number(content.increment ?? 1)} onChange={(event) => set('increment', Number(event.target.value))} /></label>
     <label className="procedure-checkbox"><AntCheckbox  checked={content.cycle === true} onChange={(event) => set('cycle', event.target.checked)} /><span>{t('cycle')}</span></label>
   </div>
-
-  if (type === 'USER_FUNCTION') {
-    const parameters = Array.isArray(content.parameters) ? content.parameters.map(record) : []
-    return <div className="structured-draft-form">
-      <label><span>{t('returnType')}</span><FormSelect value={String(content.returnType ?? 'STRING')} onChange={(event) => set('returnType', event.target.value)}>{options(['STRING', 'NUMBER', 'DATE', 'BOOLEAN'])}</FormSelect></label>
-      <label className="structured-draft-wide"><span>{t('implementation')}</span><AntInput.TextArea spellCheck={false} value={String(content.expression ?? '')} onChange={(event) => set('expression', event.target.value)} /></label>
-      <section className="structured-draft-wide structured-list-editor"><header><strong>{t('parameters')}</strong><AntActionButton tone="secondary" type="button" onClick={() => set('parameters', [...parameters, { name: `PARAM_${parameters.length + 1}`, dataType: 'STRING' }])}><Plus size={15} />{t('addParameter')}</AntActionButton></header>{parameters.map((parameter, index) => <div key={index}><AntInput aria-label={t('parameterName')} value={String(parameter.name ?? '')} onChange={(event) => set('parameters', parameters.map((item, position) => position === index ? { ...item, name: event.target.value } : item))} /><FormSelect aria-label={t('dataType')} value={String(parameter.dataType ?? 'STRING')} onChange={(event) => set('parameters', parameters.map((item, position) => position === index ? { ...item, dataType: event.target.value } : item))}>{options(['STRING', 'NUMBER', 'DATE', 'BOOLEAN'])}</FormSelect><AntActionButton tone="ghost" className="definition-icon-button" type="button" aria-label={t('remove')} onClick={() => set('parameters', parameters.filter((_, position) => position !== index))}><Trash2 size={15} /></AntActionButton></div>)}</section>
-    </div>
-  }
 
   if (type === 'KNOWLEDGE_MODULE') {
     return <KnowledgeModuleEditor projectUuid={projectUuid} value={content} onChange={onChange} />

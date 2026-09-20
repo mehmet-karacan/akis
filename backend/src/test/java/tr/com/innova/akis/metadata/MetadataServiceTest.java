@@ -47,8 +47,6 @@ class MetadataServiceTest {
                 "{\"dataType\":\"STRING\",\"scope\":\"PROJECT\",\"historyMode\":\"NONE\",\"valueSource\":\"INPUT\"}",
                 DefinitionType.SEQUENCE,
                 "{\"implementation\":\"REPOSITORY\",\"start\":1,\"increment\":1,\"cycle\":false}",
-                DefinitionType.USER_FUNCTION,
-                "{\"returnType\":\"STRING\",\"parameters\":[],\"implementations\":[]}",
                 DefinitionType.KNOWLEDGE_MODULE,
                 "{\"kmType\":\"IKM\",\"tasks\":[],\"options\":[]}",
                 DefinitionType.LOAD_PLAN,

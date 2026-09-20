@@ -47,9 +47,7 @@ class OracleSchemaSnapshotWriter {
                 definition.engineVersion(), governed.capture().capturedAt(),
                 definition.propertyVersion(), definition.properties(), columns, constraints);
         evidenceRepository.attest(
-                governed.projectUuid(), governed.connectionUuid(),
-                governed.connectionVersionUuid(), snapshot.uuid(),
-                governed.lifecycleStateVersion(), governed.successfulTestUuid(),
+                governed.projectUuid(), governed.connectionUuid(), snapshot.uuid(),
                 governed.targetIdentityVersion(), governed.targetFingerprint());
         return new PersistResult(
                 snapshot,

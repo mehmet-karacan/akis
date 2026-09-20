@@ -3,6 +3,8 @@ package tr.com.innova.akis.execution;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -53,25 +55,20 @@ public class JdbcPinnedSchemaSnapshotStore implements PinnedSchemaSnapshotPort {
               join akis.model m
                 on m.proje_id = yb.proje_id and m.id = vn.model_id
               join akis.sema_eslemesi ose
-                on ose.proje_id = yb.proje_id
-               and ose.id = yb.sema_eslemesi_id
+                on ose.id = yb.sema_eslemesi_id
               join akis.ortam o
-                on o.proje_id = yb.proje_id and o.id = ose.ortam_id
+                on o.id = ose.ortam_id
               join akis.mantiksal_sema ms
-                on ms.proje_id = yb.proje_id
-               and ms.id = ose.mantiksal_sema_id
+                on ms.id = ose.mantiksal_sema_id
               join akis.fiziksel_sema fs
-                on fs.proje_id = yb.proje_id and fs.id = yb.fiziksel_sema_id
-              join akis.baglanti_surumu bs
-                on bs.proje_id = yb.proje_id and bs.id = yb.baglanti_surumu_id
+                on fs.id = yb.fiziksel_sema_id
               join akis.baglanti b
-                on b.proje_id = yb.proje_id and b.id = bs.baglanti_id
+                on b.id = fs.baglanti_id
               join akis.sema_goruntusu sg
                 on sg.proje_id = yb.proje_id and sg.id = yb.sema_goruntusu_id
               join akis.sema_goruntusu_oracle_kaniti ok
                 on ok.proje_id = yb.proje_id
                and ok.sema_goruntusu_id = sg.id
-               and ok.baglanti_surumu_id = bs.id
              where t.uuid = :definitionUuid
                and ts.uuid = :definitionVersionUuid
                and (y.fiziksel_manifesto ->> 'releaseHash') = :releaseHash
@@ -86,24 +83,21 @@ public class JdbcPinnedSchemaSnapshotStore implements PinnedSchemaSnapshotPort {
                and vn.nesne_referansi = :objectName
                and ose.uuid = :environmentSchemaBindingUuid
                and ose.ortam_id = y.ortam_id
-               and o.arsivlenme_zamani is null
-               and ms.arsivlenme_zamani is null
+               and o.durum = 'ETKIN'
+               and ms.durum = 'ETKIN'
                and yb.fiziksel_sema_id = ose.fiziksel_sema_id
-               and yb.baglanti_surumu_id = ose.baglanti_surumu_id
                and fs.uuid = :physicalSchemaUuid
                and fs.sema_adi = :owner
-               and fs.arsivlenme_zamani is null
-               and fs.baglanti_id = bs.baglanti_id
-               and bs.uuid = :connectionVersionUuid
-               and b.saglayici_turu = 'ORACLE'
-               and b.arsivlenme_zamani is null
-               and bs.durum = 'ETKIN'
+               and fs.durum = 'ETKIN'
+               and b.uuid = :connectionVersionUuid
+               and b.saglayici_turu in ('ORACLE', 'POSTGRESQL')
+               and b.durum = 'ETKIN'
                and y.durum = :publicationStatus
                and sg.uuid = :schemaSnapshotUuid
                and sg.id = tvn.sema_goruntusu_id
                and sg.veri_nesnesi_id = vn.id
                and sg.fiziksel_sema_id = fs.id
-               and sg.baglanti_surumu_id = bs.id
+               and sg.baglanti_id = b.id
                and sg.parmak_izi = :snapshotFingerprint
                and yb.fiziksel_kimlik = :physicalIdentity
                and yb.bag_surumu = :bindingVersion
@@ -132,9 +126,25 @@ public class JdbcPinnedSchemaSnapshotStore implements PinnedSchemaSnapshotPort {
                     || !source.publicationUuid().equals(target.publicationUuid())) {
                 throw failure(Failure.CROSS_PUBLICATION_BINDING);
             }
+            Map<String, PinnedSnapshot> sourceSnapshots = new LinkedHashMap<>();
+            sourceSnapshots.put(plan.source().datasetId(), source.snapshot());
+            if (plan instanceof StagedRuntimePlan staged) {
+                if (staged.sources().isEmpty() || !staged.sources().getFirst().equals(plan.source())
+                        || staged.sources().stream().map(DatasetBinding::datasetId).distinct().count()!=staged.sources().size())
+                    throw failure(Failure.INVALID_CONTRACT);
+                for (DatasetBinding binding : staged.sources().subList(1, staged.sources().size())) {
+                    if (!binding.connectionVersionUuid().equals(plan.source().connectionVersionUuid()))
+                        throw failure(Failure.INVALID_CONTRACT);
+                    LoadedSnapshot additional = loadBinding(plan, binding, DatasetRole.SOURCE, "AKTIF");
+                    if (!source.projectUuid().equals(additional.projectUuid())
+                            || !source.publicationUuid().equals(additional.publicationUuid()))
+                        throw failure(Failure.CROSS_PUBLICATION_BINDING);
+                    sourceSnapshots.put(binding.datasetId(), additional.snapshot());
+                }
+            }
             return new PinnedSnapshots(
                     source.projectUuid(), source.publicationUuid(),
-                    source.snapshot(), target.snapshot());
+                    source.snapshot(), target.snapshot(), sourceSnapshots);
         }
         catch (PinnedSchemaSnapshotException exception) {
             throw exception;
