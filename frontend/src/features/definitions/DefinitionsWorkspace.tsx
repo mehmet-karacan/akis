@@ -52,6 +52,7 @@ import type {
 import { DEFINITION_TYPES } from './types'
 import { DefinitionCatalog } from './DefinitionCatalog'
 import { DefinitionTypeIcon, ProjectFolderIcon } from './DefinitionTypeIcon'
+import { useDocumentTab } from '../../app/DocumentTabsContext'
 import { DefinitionPropertiesPanel } from './DefinitionPropertiesPanel'
 import { DATABASE_TYPES } from '../topology/connectionFormModel'
 import { databaseProviderVisual } from '../topology/DatabaseProviderIcon'
@@ -161,6 +162,7 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
   const saveDraftAction = useRef<() => Promise<boolean>>(async () => true)
 
   const selectedDefinition = definitions.find((definition) => definition.uuid === selectedUuid) ?? null
+  useDocumentTab(selectedDefinition ? { path: `/project/objects/definitions/${encodeURIComponent(selectedDefinition.uuid)}`, title: selectedDefinition.name, subtitle: selectedDefinition.code, kind: selectedDefinition.type } : null)
   const procedureTechnologies = (procedure: { tasks: Array<{ connectionRole: string; logicalSchemaUuid?: string }> }) => {
     const typeOf = (uuid?: string) => logicalSchemas.find((item) => item.uuid === uuid)?.databaseType ?? undefined
     const pick = (role: string) => procedure.tasks.filter((task) => task.connectionRole === role).map((task) => typeOf(task.logicalSchemaUuid)).find((value): value is string => Boolean(value))
@@ -441,25 +443,6 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
             <DefinitionCatalog definitions={definitions} folders={folders} typeLabel={typeLabel} canWrite={canWrite} onOpen={(uuid) => navigate(`/project/objects/definitions/${encodeURIComponent(uuid)}`)} onCreate={() => { setCreateDefinitionType(null); setCreateDefinitionFolderUuid(null); setShowCreate(true) }} />
           ) : (
             <>
-              <header className="definition-document-header">
-                <div className="definition-document-identity">
-                  <div className="definition-document-meta">
-                    <span className="definition-type-chip"><DefinitionTypeIcon type={selectedDefinition.type} size={12} />{typeLabel(selectedDefinition.type)}</span>
-                    <span><code>{selectedDefinition.code}</code></span>
-                  </div>
-                  <h2>{selectedDefinition.name}</h2>
-                  {selectedDefinition.description && <p>{selectedDefinition.description}</p>}
-                </div>
-                {(tab === 'draft' || tab === 'definition') && !draftLoading && canWrite && (
-                  <div className="definition-document-save">
-                    {dirty && <span className="definition-unsaved-state">{t('unsaved')}</span>}
-                    <AntActionButton tone="primary" type="button" disabled={saving || !dirty} onClick={() => void saveDraft()}>
-                      {saving ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Save size={16} aria-hidden="true" />}
-                      {saving ? t('saving') : t('saveDraft')}
-                    </AntActionButton>
-                  </div>
-                )}
-              </header>
 
               <div className="definition-tab-layout"><div className="definition-tabs definition-tabs--horizontal" role="tablist" aria-label={t('details')} onKeyDown={(event) => {
                 if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
@@ -478,6 +461,16 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
                 <AntActionButton tone="ghost" id="definition-tab-versions" type="button" role="tab" className="definition-tab definition-tab--versions" tabIndex={tab === 'versions' ? 0 : -1} aria-selected={tab === 'versions'} aria-controls="definition-panel-versions" onClick={() => setTab('versions')}>
                   <GitBranch size={16} aria-hidden="true" /> {t('versions')} <span className="definition-count">{versions.length}</span>
                 </AntActionButton>
+                <span className="definition-tabs-identity" title={selectedDefinition.description ?? undefined}><span className="definition-type-chip"><DefinitionTypeIcon type={selectedDefinition.type} size={12} />{typeLabel(selectedDefinition.type)}</span><code>{selectedDefinition.code}</code></span>
+                {(tab === 'draft' || tab === 'definition') && !draftLoading && canWrite && (
+                  <div className="definition-document-save">
+                    {dirty && <span className="definition-unsaved-state">{t('unsaved')}</span>}
+                    <AntActionButton tone="primary" type="button" disabled={saving || !dirty} onClick={() => void saveDraft()}>
+                      {saving ? <LoaderCircle className="spin" size={16} aria-hidden="true" /> : <Save size={16} aria-hidden="true" />}
+                      {saving ? t('saving') : t('saveDraft')}
+                    </AntActionButton>
+                  </div>
+                )}
               </div>
               <div className="definition-tab-content">
               {tab === 'definition' ? (

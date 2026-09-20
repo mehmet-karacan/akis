@@ -53,3 +53,9 @@
 .sidebar-project-tree > header strong { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); }
 .sidebar-project-tree .project-explorer-search { margin: 6px 8px 8px; width: auto; }
 .sidebar-project-tree .sidebar-tree-scroll { padding-bottom: 12px; }
+
+/* Delete confirmation from the explorer context menu. */
+.sidebar-delete-dialog { display: grid; gap: 10px; }
+.sidebar-delete-dialog > p { margin: 0; }
+.sidebar-delete-warning { padding: 8px 12px; border-radius: 8px; color: var(--schema-color-warning); background: color-mix(in srgb, var(--schema-color-warning) 12%, var(--surface)); }
+.sidebar-delete-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }

@@ -10,7 +10,10 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -217,6 +220,16 @@ final class MetadataController {
         authorization.requireProjectPermission(projectUuid, DEFINITION_WRITE);
         return DefinitionView.from(service.updateDefinition(
                 projectUuid, definitionUuid, request.name(), request.description(), request.expectedVersion()));
+    }
+
+    @DeleteMapping("/projects/{projectUuid}/definitions/{definitionUuid}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deleteDefinition(
+            @PathVariable UUID projectUuid,
+            @PathVariable UUID definitionUuid,
+            @RequestParam("expectedVersion") Long expectedVersion) {
+        authorization.requireProjectPermission(projectUuid, DEFINITION_WRITE);
+        service.deleteDefinition(projectUuid, definitionUuid, expectedVersion);
     }
 
     @GetMapping("/projects/{projectUuid}/definitions/{definitionUuid}/draft")

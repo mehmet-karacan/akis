@@ -21,9 +21,10 @@ import { ConnectionsSubnavigation } from './ConnectionsSubnavigation'
 import { resolveWorkspace, WorkspaceNavigation } from './WorkspaceNavigation'
 import { DesignWorkspace } from './DesignWorkspace'
 import { clampExplorerWidth, ExplorerResizeHandle } from './ExplorerResizeHandle'
+import { DocumentTabsProvider, useDocumentTabs } from './DocumentTabsContext'
+import { DocumentTabBar } from './DocumentTabBar'
 
 export function AppShell() {
-  const { t } = useTranslation()
   const { username, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
@@ -97,7 +98,24 @@ export function AppShell() {
   if (!projectUuid) return <Navigate to="/project/select" replace />
 
   return (
-    <CurrentProjectProvider projectUuid={projectUuid}><ProjectAccessProvider value={projectAccess}><PendingChangesContext.Provider value={{ pendingChanges, setPendingChanges }}><div className="app-shell">
+    <CurrentProjectProvider projectUuid={projectUuid}><ProjectAccessProvider value={projectAccess}><PendingChangesContext.Provider value={{ pendingChanges, setPendingChanges }}><DocumentTabsProvider projectUuid={projectUuid}><ShellBody compact={compact} mobileNavigationOpen={mobileNavigationOpen} setMobileNavigationOpen={setMobileNavigationOpen} explorerWidth={explorerWidth} setExplorerWidth={setExplorerWidth} project={project} projectUuid={projectUuid} username={username} pendingChanges={pendingChanges} requestNavigation={requestNavigation} activeWorkspace={activeWorkspace} pendingPath={pendingPath} setPendingPath={setPendingPath} savingBeforeLeave={savingBeforeLeave} setSavingBeforeLeave={setSavingBeforeLeave} completeNavigation={completeNavigation} setPendingChangesState={setPendingChangesState} /></DocumentTabsProvider></PendingChangesContext.Provider></ProjectAccessProvider></CurrentProjectProvider>
+  )
+}
+
+interface ShellBodyProps {
+  compact: boolean; mobileNavigationOpen: boolean; setMobileNavigationOpen(value: boolean | ((current: boolean) => boolean)): void
+  explorerWidth: number; setExplorerWidth(value: number): void; project: Project | null; projectUuid: string; username: string | null | undefined
+  pendingChanges: PendingChanges | null; requestNavigation(path: string): void; activeWorkspace: string
+  pendingPath: string | null; setPendingPath(value: string | null): void; savingBeforeLeave: boolean; setSavingBeforeLeave(value: boolean): void
+  completeNavigation(path: string): void; setPendingChangesState(value: PendingChanges | null): void
+}
+
+function ShellBody({ compact, mobileNavigationOpen, setMobileNavigationOpen, explorerWidth, setExplorerWidth, project, projectUuid, username, pendingChanges, requestNavigation, activeWorkspace, pendingPath, setPendingPath, savingBeforeLeave, setSavingBeforeLeave, completeNavigation, setPendingChangesState }: ShellBodyProps) {
+  const { t } = useTranslation()
+  const { maximized } = useDocumentTabs()
+  const location = useLocation()
+  return (
+    <div className="app-shell">
       <a className="skip-link" href="#main-content">{t('common.skipToContent')}</a>
       <div className="shell-content">
         <header className="topbar">
@@ -111,19 +129,22 @@ export function AppShell() {
             </div>
           </div>
         </header>
-        <div className={`shell-body ${compact ? 'is-compact' : ''}`} style={{ '--explorer-width': `${explorerWidth}px` } as CSSProperties}>
+        <div className={`shell-body ${compact ? 'is-compact' : ''}${maximized ? ' is-maximized' : ''}`} style={{ '--explorer-width': `${explorerWidth}px` } as CSSProperties}>
           {(!compact || mobileNavigationOpen) && <div className="shell-navigation-pane"><aside className="shell-navigation" aria-label={t('nav.workspaces')}>
             <WorkspaceNavigation hasPendingChanges={Boolean(pendingChanges)} onNavigate={requestNavigation} />
             {activeWorkspace === 'connections' && <ConnectionsSubnavigation hasPendingChanges={Boolean(pendingChanges)} onNavigate={requestNavigation} />}
             {activeWorkspace === 'development' && <DesignWorkspace key={projectUuid} projectUuid={projectUuid} onNavigate={requestNavigation} explorerOnly />}
           </aside>{!compact && <ExplorerResizeHandle width={explorerWidth} onChange={setExplorerWidth} />}</div>}
-          <main id="main-content" className="main-content" tabIndex={-1}>{activeWorkspace === 'development' ? <div className="design-workspace definitions-workspace"><div className="design-content"><Outlet /></div></div> : <Outlet />}</main>
+          <main id="main-content" className="main-content" tabIndex={-1}>
+            <DocumentTabBar onNavigate={requestNavigation} dirtyPath={pendingChanges ? location.pathname : null} />
+            {activeWorkspace === 'development' ? <div className="design-workspace definitions-workspace"><div className="design-content"><Outlet /></div></div> : <Outlet />}
+          </main>
         </div>
       </div>
       <Dialog open={pendingPath !== null} title={t('pendingChanges.title')} eyebrow={t('pendingChanges.eyebrow')} closeLabel={t('common.close')} busy={savingBeforeLeave} onClose={() => setPendingPath(null)}>
         <p className="dialog-description">{t('pendingChanges.description')}</p>
         <footer className="dialog-actions"><AntActionButton tone="secondary" type="button" onClick={() => setPendingPath(null)}>{t('pendingChanges.stay')}</AntActionButton><AntActionButton tone="secondary" type="button" onClick={() => { const path = pendingPath; setPendingChangesState(null); setPendingPath(null); if (path) completeNavigation(path) }}>{t('pendingChanges.discard')}</AntActionButton><AntActionButton tone="primary" type="button" disabled={savingBeforeLeave} onClick={async () => { if (!pendingChanges || !pendingPath) return; setSavingBeforeLeave(true); const saved = await pendingChanges.save(); setSavingBeforeLeave(false); if (saved) { const path = pendingPath; setPendingChangesState(null); setPendingPath(null); completeNavigation(path) } }}>{savingBeforeLeave ? t('pendingChanges.saving') : t('pendingChanges.save')}</AntActionButton></footer>
       </Dialog>
-    </div></PendingChangesContext.Provider></ProjectAccessProvider></CurrentProjectProvider>
+    </div>
   )
 }

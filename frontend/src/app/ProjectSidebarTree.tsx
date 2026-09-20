@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Tree, Dropdown, Button, Input, Spin, Alert, type MenuProps, type TreeDataNode } from 'antd'
-import { Blocks, FolderPlus, MoreHorizontal, PanelRightOpen, Play, Plus, Workflow, WandSparkles } from 'lucide-react'
+import { Blocks, FolderPlus, MoreHorizontal, PanelRightOpen, Play, Plus, Trash2, Workflow, WandSparkles } from 'lucide-react'
+import { Dialog } from '../core/ui/Dialog'
+import { Button as AkisButton } from '../core/ui/Button'
 import { useTranslation } from 'react-i18next'
 import { DefinitionTypeIcon, ProjectFolderIcon } from '../features/definitions/DefinitionTypeIcon'
 import { buildFolderTree, folderPath, type FolderTreeNode } from './ProjectObjectTreeAdapter'
@@ -45,6 +47,22 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
   useEffect(() => setSelection(selectedUuid), [selectedUuid])
   const [compiling, setCompiling] = useState<string | null>(null)
   const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<Definition | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+  // Delete = archive on the server; a package that still uses the object blocks it, and the message names the package.
+  const confirmDelete = async () => {
+    if (!pendingDelete) return
+    setDeleting(true); setDeleteError('')
+    try {
+      await definitionsApi.deleteDefinition(projectUuid, pendingDelete.uuid, pendingDelete.version)
+      setNotice({ tone: 'success', text: shellT('nav.deleted', { name: pendingDelete.name }) })
+      setPendingDelete(null)
+      window.dispatchEvent(new Event('akis:definitions-changed'))
+      if (selectedUuid === pendingDelete.uuid) navigate('/objects')
+    } catch (error) { setDeleteError(error instanceof Error ? error.message : shellT('nav.actionFailed')) }
+    finally { setDeleting(false) }
+  }
   const active = definitions.filter(item => !['PASIF', 'ARSIVLENDI'].includes(item.status) && item.type !== 'REUSABLE_MAPPING')
   const tree = useMemo(() => buildFolderTree(folders.filter(item => !['PASIF', 'ARSIVLENDI'].includes(item.status)), i18n.language), [folders, i18n.language])
   useEffect(() => {
@@ -76,6 +94,7 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
     const items: MenuProps['items'] = []
     if (executable && can('TANIM_DOGRULA')) items.push({ key: 'compile', label: shellT('nav.createScenario'), icon: <WandSparkles size={15} />, disabled: compiling === definition.uuid, onClick: () => void compile(definition) })
     if (executable) items.push({ key: 'run', label: shellT('nav.runObject'), icon: <Play size={15} />, onClick: () => navigate(`/operations?definition=${encodeURIComponent(definition.uuid)}&start=1`) })
+    if (canWrite) { if (items.length) items.push({ type: 'divider' }); items.push({ key: 'delete', label: shellT('nav.deleteObject'), icon: <Trash2 size={15} />, danger: true, onClick: () => { setDeleteError(''); setPendingDelete(definition) } }) }
     return { key: definition.uuid, isLeaf: true, className: 'project-tree-object-node', title: <span title={`${definition.name} · ${t(definitionTypeKey[definition.type])}`}>{title(definition.name, <DefinitionTypeIcon type={definition.type} />, () => undefined, items, undefined, undefined, t(definitionTypeKey[definition.type]), 'object', () => openDefinition(definition.uuid))}</span> }
   }
   const flowGroups = (folderUuid: string | null): TreeDataNode[] => FLOW_GROUPS.flatMap(group => {
@@ -111,6 +130,18 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
   return <section className="sidebar-project-tree" aria-label={shellT('nav.objects')}>
     <header><strong>{shellT('nav.objects')}</strong><Button type="text" icon={<PanelRightOpen size={16} />} aria-label={shellT('nav.openObjectWorkspace')} onClick={() => navigate('/objects')} /></header>
     <FeedbackToast message={notice?.text ?? ''} tone={notice?.tone} onClose={() => setNotice(null)} />
+    <Dialog open={pendingDelete !== null} title={shellT('nav.deleteObject')} closeLabel={shellT('common.cancel')} busy={deleting} onClose={() => setPendingDelete(null)} className="akis-modal">
+      {pendingDelete && <div className="sidebar-delete-dialog">
+        <p className="definition-type-chip"><DefinitionTypeIcon type={pendingDelete.type} size={12} />{t(definitionTypeKey[pendingDelete.type])} · <strong>{pendingDelete.name}</strong> <code>{pendingDelete.code}</code></p>
+        <p>{shellT('nav.deleteExplain')}</p>
+        <p className="sidebar-delete-warning">{shellT('nav.deletePackageRule')}</p>
+        {deleteError && <div className="definition-notice definition-notice--error" role="alert">{deleteError}</div>}
+        <div className="sidebar-delete-actions">
+          <AkisButton tone="ghost" type="button" onClick={() => setPendingDelete(null)}>{shellT('common.cancel')}</AkisButton>
+          <AkisButton tone="danger" type="button" icon={<Trash2 size={15} />} busy={deleting} onClick={() => void confirmDelete()}>{shellT('nav.deleteConfirm')}</AkisButton>
+        </div>
+      </div>}
+    </Dialog>
     <Input.Search className="project-explorer-search" allowClear aria-label={i18n.language === 'tr' ? 'Proje nesnelerinde ara' : 'Search project objects'} placeholder={i18n.language === 'tr' ? 'Nesne ara' : 'Search objects'} value={query} onChange={event => setQuery(event.target.value)} />
     <div className="sidebar-tree-scroll">{loading ? <Spin /> : failed ? <Alert type="error" title={shellT('common.loadError')} action={<Button onClick={onRetry}>{shellT('common.retry')}</Button>} /> : <Tree blockNode motion={{ motionAppear: false, motionEnter: false, motionLeave: false }} virtual={false} expandedKeys={term ? allKeys(visibleNodes) : expanded} onExpand={setExpanded} selectedKeys={selection ? [selection] : []} onSelect={keys => setSelection(keys[0] ? String(keys[0]) : null)} treeData={visibleNodes} />}
       <ProjectModelTree key={projectUuid} projectUuid={projectUuid} onNavigate={onNavigate} />

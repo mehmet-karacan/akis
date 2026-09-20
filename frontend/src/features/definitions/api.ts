@@ -55,6 +55,9 @@ export const definitionsApi = {
 
   updateDefinition: (projectUuid: string, definitionUuid: string, body: { name: string; description: string | null; expectedVersion: number }) =>
     apiRequest<Definition>(`${base}/projects/${segment(projectUuid)}/definitions/${segment(definitionUuid)}`, { method: 'PATCH', ...jsonBody(body) }),
+  /** Archives the definition; the server refuses (409 DEFINITION_IN_USE) while an active package step still references it. */
+  deleteDefinition: (projectUuid: string, definitionUuid: string, expectedVersion: number) =>
+    apiRequest<void>(`${base}/projects/${segment(projectUuid)}/definitions/${segment(definitionUuid)}?expectedVersion=${expectedVersion}`, { method: 'DELETE' }),
   async getDraft(projectUuid: string, definitionUuid: string): Promise<Draft | null> {
     try {
       return await apiRequest<Draft>(

@@ -338,6 +338,44 @@ public class MetadataRepository {
                 .single();
     }
 
+    /** Active packages whose draft or any version still references the definition (ODI: an object cannot be deleted while a package step uses it). */
+    List<String> findPackagesReferencing(long projectId, UUID definitionUuid) {
+        return jdbc.sql("""
+                        select distinct p.ad || ' (' || p.kod || ')' as etiket
+                          from akis.tanim p
+                         where p.proje_id = :projectId
+                           and p.tur = 'PACKAGE'
+                           and p.arsivlenme_zamani is null
+                           and (exists (select 1 from akis.tanim_taslagi d
+                                         where d.tanim_id = p.id and d.icerik::text like :needle)
+                             or exists (select 1 from akis.tanim_surumu v
+                                         where v.tanim_id = p.id and v.icerik::text like :needle))
+                         order by 1
+                        """)
+                .param("projectId", projectId)
+                .param("needle", "%" + definitionUuid + "%")
+                .query(String.class)
+                .list();
+    }
+
+    /** Soft delete: archived definitions drop out of every listing while versions, scenarios and run evidence stay intact. */
+    boolean archiveDefinition(long projectId, long definitionId, long expectedVersion) {
+        return jdbc.sql("""
+                        update akis.tanim
+                           set arsivlenme_zamani = current_timestamp,
+                               guncellenme_zamani = current_timestamp,
+                               versiyon_no = versiyon_no + 1
+                         where proje_id = :projectId
+                           and id = :definitionId
+                           and versiyon_no = :expectedVersion
+                           and arsivlenme_zamani is null
+                        """)
+                .param("projectId", projectId)
+                .param("definitionId", definitionId)
+                .param("expectedVersion", expectedVersion)
+                .update() == 1;
+    }
+
     DefinitionRow moveDefinition(
             long projectId,
             long definitionId,

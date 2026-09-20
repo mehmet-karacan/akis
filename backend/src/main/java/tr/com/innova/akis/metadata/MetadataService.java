@@ -203,6 +203,26 @@ public class MetadataService {
                 project.id(), definition.id(), folderId, expectedVersion);
     }
 
+    /** Archives a definition after making sure no active package step still points at it. */
+    @Transactional
+    void deleteDefinition(UUID projectUuid, UUID definitionUuid, Long expectedVersion) {
+        requireExpectedVersion(expectedVersion);
+        ProjectRow project = project(projectUuid);
+        DefinitionRow definition = repository.findDefinition(project.id(), definitionUuid)
+                .orElseThrow(() -> notFound("Tanım bulunamadı."));
+        if (definition.version() != expectedVersion) {
+            throw staleVersion("Tanım sürümü istekle uyuşmuyor.");
+        }
+        List<String> packages = repository.findPackagesReferencing(project.id(), definitionUuid);
+        if (!packages.isEmpty()) {
+            throw new ApiException(HttpStatus.CONFLICT, "DEFINITION_IN_USE",
+                    "Bu nesne şu paketlerde kullanılıyor; önce paketten çıkarın: " + String.join(", ", packages));
+        }
+        if (!repository.archiveDefinition(project.id(), definition.id(), expectedVersion)) {
+            throw staleVersion("Tanım sürümü istekle uyuşmuyor.");
+        }
+    }
+
     /** Renames a definition in place; the code stays immutable because versions and scenarios reference it. */
     @Transactional
     DefinitionRow updateDefinition(

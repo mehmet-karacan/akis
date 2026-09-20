@@ -1,4 +1,5 @@
 import { ArrowLeft, CheckCircle2, CircleAlert, Database, Eye, Folder, Layers3, RefreshCw, ScanSearch, Table2 } from 'lucide-react'
+import { useDocumentTab } from '../../app/DocumentTabsContext'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -36,6 +37,7 @@ function ModelDetailSession({ projectUuid, modelUuid }: { projectUuid: string; m
   const [model, setModel] = useState<Model | null>(null); const [logical, setLogical] = useState<LogicalSchema | null>(null); const [submodels, setSubmodels] = useState<Submodel[]>([]); const [objects, setObjects] = useState<DataObject[]>([]); const [snapshots, setSnapshots] = useState<SchemaSnapshot[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState('')
   const [snapshotLoading, setSnapshotLoading] = useState(false); const [snapshotError, setSnapshotError] = useState(false)
   const folderUuid = params.get('folder'); const folder = submodels.find(item => item.uuid === folderUuid)
+  useDocumentTab(model ? { path: `/project/models/${encodeURIComponent(model.uuid)}`, title: model.name, subtitle: model.code, kind: 'MODEL' } : null)
   const query = params.get('q') ?? ''
   const visibleObjects = useMemo(() => objects
     .filter(item => folderUuid ? item.submodelUuid === folderUuid : !item.submodelUuid)

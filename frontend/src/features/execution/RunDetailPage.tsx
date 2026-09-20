@@ -1,6 +1,6 @@
 import { Alert, Descriptions, Table, Tag, Tree } from 'antd'
 import type { DataNode } from 'antd/es/tree'
-import { ArrowLeft, Ban, CalendarClock, Database, ListTree, PlayCircle, RefreshCw, RotateCcw, ShieldAlert, Timer } from 'lucide-react'
+import { ArrowLeft, CalendarClock, Database, ListTree, PlayCircle, RefreshCw, Timer } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Button } from '../../core/ui/Button'
@@ -10,8 +10,7 @@ import { AsyncState, PageHeader, SummaryStrip } from '../../core/ui'
 import { connectionStatusTagStyles } from '../connections/presentation'
 import { apiErrorMessage, formatDate, redactSensitiveValues } from '../operations/utils'
 import { useRemoteData } from '../operations/useRemoteData'
-import { executionApi, isExecutionDisabled } from './api'
-import { ExecutionDisabledNotice } from './ExecutionDisabledNotice'
+import { executionApi } from './api'
 import { useExecutionI18n } from './i18n'
 import { RunStatusBadge, runStatusPresentation } from './RunStatusBadge'
 import { buildRunStepTree, firstFailedPath, type RunStepNode } from './runTree'
@@ -19,8 +18,6 @@ import './execution.css'
 import '../connections/connections.css'
 import '../connections/catalog-layout.css'
 import { KmRunDetails } from './KmRunDetails'
-import { notifyFeedback } from '../../core/api/networkFeedback'
-import { useProjectAccess } from '../../core/auth/ProjectAccessContext'
 import { exactCount } from './types'
 
 interface RunDetailPageProps { runUuidOverride?: string; panel?: boolean; onClose?: () => void; objectName?: string }
@@ -44,18 +41,12 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
   const { runUuid: routeUuid = '' } = useParams()
   const uuid = runUuidOverride ?? routeUuid
   const project = useCurrentProjectUuid()
-  const { can } = useProjectAccess()
   const { t, locale } = useExecutionI18n()
   const run = useRemoteData(() => executionApi.getRun(project, uuid), [project, uuid])
   const steps = useRemoteData(() => executionApi.listSteps(project, uuid), [project, uuid])
   const events = useRemoteData(() => executionApi.listEventPage(project, uuid), [project, uuid])
   const km = useRemoteData(() => executionApi.getKmDetails(project, uuid), [project, uuid])
-  const recovery = useRemoteData(() => executionApi.getRecoveryPlan(project, uuid), [project, uuid])
   const [selected, setSelected] = useState('')
-  const [confirm, setConfirm] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  const [disabled, setDisabled] = useState(false)
   const [chunkCursor, setChunkCursor] = useState('0')
   const [chunkHistory, setChunkHistory] = useState<string[]>([])
   const chunks = useRemoteData(() => selected
@@ -69,44 +60,15 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
   const insertedRows = totalRows(hierarchy, true)
   const treeData = (nodes: RunStepNode[]): DataNode[] => nodes.map(item => ({ key: item.uuid, title: <span className="run-step-title"><span>{item.ordinal}. {item.name}</span><RunStatusBadge status={item.status} /></span>, children: treeData(item.children) }))
   const failure = events.data?.items.filter(item => /FAIL|ERROR|HATA|BASARISIZ/i.test(item.type)).map(item => eventError(item.data)).find(Boolean)
-  const refresh = () => Promise.all([run.reload(), steps.reload(), events.reload(), km.reload(), recovery.reload(), chunks.reload()])
-  async function cancel() {
-    setBusy(true); setError('')
-    try { run.setData(await executionApi.cancelRun(project, uuid)); setConfirm(false); await events.reload() }
-    catch (reason) { if (isExecutionDisabled(reason)) { setDisabled(true); setConfirm(false) } else setError(apiErrorMessage(reason, t('requestFailed'))) }
-    finally { setBusy(false) }
-  }
-  async function reconcileKm() {
-    setBusy(true)
-    try {
-      const result = await executionApi.reconcileKm(project, uuid)
-      notifyFeedback(result.message, ['PUBLISHED', 'NOT_PUBLISHED'].includes(result.outcome) ? 'success' : 'error')
-      await refresh()
-    } catch (reason) { notifyFeedback(apiErrorMessage(reason, t('requestFailed')), 'error') }
-    finally { setBusy(false) }
-  }
-  async function recover(action: string) {
-    if (!recovery.data) return
-    setBusy(true)
-    try {
-      const created = await executionApi.recoverRun(project, uuid, {
-        action,
-        expectedStateVersion: recovery.data.expectedStateVersion,
-        planHash: recovery.data.planHash,
-      }, crypto.randomUUID())
-      notifyFeedback(t('recoveryCreated', { number: created.attemptNumber }), 'success')
-      await refresh()
-    } catch (reason) { notifyFeedback(apiErrorMessage(reason, t('requestFailed')), 'error') }
-    finally { setBusy(false) }
-  }
+  // Run history is read-only: it shows what happened; operations (cancel, recovery) live with the publication.
+  const refresh = () => Promise.all([run.reload(), steps.reload(), events.reload(), km.reload(), chunks.reload()])
   const statusTag = (status: string) => { const presentation = runStatusPresentation(status, t); return <Tag className={`connection-status-tag connection-status-tag--${presentation.tone} run-status run-status--${status.toLowerCase().replaceAll('_', '-')}`} style={connectionStatusTagStyles[presentation.tone]} icon={presentation.icon}><span className="connection-status-tag-label">{presentation.label}</span></Tag> }
-  const headerActions = <div className="connection-row-actions"><Button icon={<RefreshCw size={16} />} disabled={run.loading} onClick={() => void refresh()}>{t('refresh')}</Button>{run.data?.allowedActions?.some(action => action.action === 'CANCEL' && action.allowed) && <Button tone="danger" icon={<Ban size={16} />} disabled={disabled} onClick={() => setConfirm(true)}>{t('cancelRun')}</Button>}</div>
+  const headerActions = <div className="connection-row-actions"><Button icon={<RefreshCw size={16} />} disabled={run.loading} onClick={() => void refresh()}>{t('refresh')}</Button></div>
   const content = <section className={`page-stack connections-page run-result-page${panel ? ' connection-detail-page' : ''}`}>
     {!panel && <Link className="connection-back-link" to="/project/operations"><ArrowLeft size={16} /> {t('backToRuns')}</Link>}
     {panel
       ? <header className="run-result-header"><h2>{objectName ?? t('runDetail')}</h2>{headerActions}</header>
       : <section className="connection-management-panel"><PageHeader icon={<PlayCircle />} eyebrow={t('runDetail')} title={objectName ?? t('runDetail')} description={run.data ? formatDate(run.data.startedAt, locale) : ''} actions={headerActions} /></section>}
-    {disabled && <ExecutionDisabledNotice />}{error && <Alert type="error" showIcon title={error} />}
     {run.loading && <AsyncState state="loading" title={t('loading')} />}{!!run.error && <AsyncState state="error" title={apiErrorMessage(run.error, t('requestFailed'))} retryLabel={t('retry')} onRetry={() => void run.reload()} />}
     {run.data && <>
       <SummaryStrip ariaLabel={t('runDetail')} items={[
@@ -117,20 +79,10 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
         ...(insertedRows === null ? [] : [{ label: t('insertedRows'), value: insertedRows.toLocaleString(locale), icon: <Database />, tone: 'teal' as const }]),
       ]} />
       {run.data.status === 'BASARISIZ' && <Alert type="error" showIcon title={failure ?? t('errorMessageUnavailable')} />}
-      {!recovery.loading && recovery.data && (recovery.data.allowedActions.length > 0 || recovery.data.reasonCodes.length > 0) && <section className="connection-detail-section"><header><div><h2><ShieldAlert size={18} />{t('safeRecovery')}</h2></div></header>
-        {recovery.data.reconciliationRequired && <Alert type="warning" showIcon icon={<ShieldAlert size={16} />} title={t('reconciliationRequired')} description={t('reconciliationRequiredHelp')} />}
-        {!recovery.data.allowedActions.length && !recovery.data.reconciliationRequired && <Alert type="info" showIcon title={t('recoveryUnavailable')} description={recovery.data.reasonCodes.join(', ')} />}
-        {!!recovery.data.allowedActions.filter(action => ['RETRY_FAILED_UNIT', 'RESUME', 'RESTART'].includes(action)).length && <div className="run-result-actions">
-          {recovery.data.allowedActions.includes('RETRY_FAILED_UNIT') && <Button busy={busy} icon={<RotateCcw size={16} />} onClick={() => void recover('RETRY_FAILED_UNIT')}>{t('retryFailedUnit')}</Button>}
-          {recovery.data.allowedActions.includes('RESUME') && <Button busy={busy} icon={<RefreshCw size={16} />} onClick={() => void recover('RESUME')}>{t('resumeSafely')}</Button>}
-          {recovery.data.allowedActions.includes('RESTART') && <Button busy={busy} icon={<RotateCcw size={16} />} onClick={() => void recover('RESTART')}>{t('restartFromBeginning')}</Button>}
-        </div>}
-      </section>}
       <section className="connection-detail-section"><header><div><h2><ListTree size={18} />{t('steps')}</h2></div></header>
         {!!km.error && <AsyncState state="error" title={apiErrorMessage(km.error, t('requestFailed'))} retryLabel={t('retry')} onRetry={() => void km.reload()} />}
         {!!km.data?.steps.length ? <>
           <KmRunDetails data={km.data} />
-          {run.data.status === 'SONUC_BELIRSIZ' && can('CALISTIRMA_BASLAT') && <Button busy={busy} onClick={() => void reconcileKm()} icon={<RefreshCw size={16} />}>{locale.startsWith('tr') ? 'Hedef Sonucunu Doğrula' : 'Reconcile Target Outcome'}</Button>}
         </> : <>
         {steps.loading && <AsyncState state="loading" title={t('loading')} />}{!!steps.error && <AsyncState state="error" title={apiErrorMessage(steps.error, t('requestFailed'))} retryLabel={t('retry')} onRetry={() => void steps.reload()} />}
         {!steps.loading && !steps.error && !steps.data?.length && <AsyncState state="empty" compact title={t('emptySteps')} />}
@@ -154,7 +106,6 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
       </section>
       {events.error && <AsyncState state="error" title={apiErrorMessage(events.error, t('requestFailed'))} retryLabel={t('retry')} onRetry={() => void events.reload()} />}
     </>}
-    <Dialog open={confirm} title={t('confirmCancel')} closeLabel={t('close')} onClose={() => { if (!busy) setConfirm(false) }}><p>{t('confirmCancelHelp')}</p><div className="run-result-actions"><Button disabled={busy} onClick={() => setConfirm(false)}>{t('keepRun')}</Button><Button tone="danger" busy={busy} onClick={() => void cancel()}>{t('confirm')}</Button></div></Dialog>
   </section>
   return panel ? <Dialog open title={t('runDetail')} closeLabel={t('close')} onClose={() => onClose?.()} className="execution-detail-dialog connection-catalog-dialog">{content}</Dialog> : content
 }
