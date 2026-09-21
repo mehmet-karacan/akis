@@ -5,7 +5,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: '127.0.0.1',
-    port: 5173,
+    // The launcher may assign a port (PORT); 5173 stays the default for hand-started dev servers.
+    port: Number(process.env.PORT) || 5173,
     proxy: {
       '/api': process.env.VITE_API_PROXY_TARGET ?? 'http://127.0.0.1:8080',
       '/actuator': process.env.VITE_API_PROXY_TARGET ?? 'http://127.0.0.1:8080',
