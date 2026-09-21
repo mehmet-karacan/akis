@@ -62,6 +62,9 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
   const failure = events.data?.items.filter(item => /FAIL|ERROR|HATA|BASARISIZ/i.test(item.type)).map(item => eventError(item.data)).find(Boolean)
   // Run history is read-only: it shows what happened; operations (cancel, recovery) live with the publication.
   const refresh = () => Promise.all([run.reload(), steps.reload(), events.reload(), km.reload(), chunks.reload()])
+  // Poll while the worker still owns the run so a freshly started run settles without manual refresh.
+  const inFlight = !!run.data && !/^(BASARILI|BASARISIZ|IPTAL|MUDAHALE_GEREKLI|YENIDEN_DENENEBILIR)$/.test(run.data.status)
+  useEffect(() => { if (!inFlight) return; const timer = setInterval(() => { void refresh() }, 4000); return () => clearInterval(timer) }, [inFlight, uuid])
   const statusTag = (status: string) => { const presentation = runStatusPresentation(status, t); return <Tag className={`connection-status-tag connection-status-tag--${presentation.tone} run-status run-status--${status.toLowerCase().replaceAll('_', '-')}`} style={connectionStatusTagStyles[presentation.tone]} icon={presentation.icon}><span className="connection-status-tag-label">{presentation.label}</span></Tag> }
   const headerActions = <div className="connection-row-actions"><Button icon={<RefreshCw size={16} />} disabled={run.loading} onClick={() => void refresh()}>{t('refresh')}</Button></div>
   const content = <section className={`page-stack connections-page run-result-page${panel ? ' connection-detail-page' : ''}`}>

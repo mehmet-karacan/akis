@@ -9,6 +9,8 @@ import { buildFolderTree, folderPath, type FolderTreeNode } from './ProjectObjec
 import { definitionTypeKey, useDefinitionsI18n } from '../features/definitions/i18n'
 import type { Definition, Folder as ProjectFolder } from '../features/definitions/types'
 import { definitionsApi } from '../features/definitions/api'
+import { operationsApi } from '../features/operations/api'
+import { executionApi } from '../features/execution/api'
 import { useProjectAccess } from '../core/auth/ProjectAccessContext'
 import { projectRoute } from '../features/projects/CurrentProjectContext'
 import { ProjectModelTree } from './ProjectModelTree'
@@ -46,6 +48,7 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
   const [selection, setSelection] = useState<string | null>(selectedUuid)
   useEffect(() => setSelection(selectedUuid), [selectedUuid])
   const [compiling, setCompiling] = useState<string | null>(null)
+  const [starting, setStarting] = useState<string | null>(null)
   const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
   const [pendingDelete, setPendingDelete] = useState<Definition | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -86,6 +89,20 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
     } catch (error) { setNotice({ tone: 'error', text: error instanceof Error ? error.message : shellT('nav.actionFailed') }) }
     finally { setCompiling(null) }
   }
+  // Run = start the object's newest active publication; the run history page only lists runs.
+  const run = async (definition: Definition) => {
+    setStarting(definition.uuid)
+    try {
+      const publications = (await operationsApi.listPublications(projectUuid)).filter(item => item.definitionUuid === definition.uuid)
+      if (!publications.length) throw new Error(shellT('nav.runNeedsPublication'))
+      const active = publications.filter(item => item.status === 'AKTIF').sort((a, b) => b.publicationNumber - a.publicationNumber)[0]
+      if (!active) throw new Error(shellT('nav.runNeedsActivePublication'))
+      const started = await executionApi.startRun(projectUuid, active.uuid, crypto.randomUUID())
+      setNotice({ tone: 'success', text: shellT('nav.runStarted', { name: definition.name, environment: active.environmentCode }) })
+      navigate(`/operations/runs/${started.runUuid}`)
+    } catch (error) { setNotice({ tone: 'error', text: error instanceof Error ? error.message : shellT('nav.actionFailed') }) }
+    finally { setStarting(null) }
+  }
   const title = (label: string, icon: ReactNode, click: () => void, items?: MenuProps['items'], count?: number, actionLabel?: string, subtitle?: string, variant?: 'section' | 'folder' | 'group' | 'object' | 'item', recordAction?: () => void) => {
     return <TreeNodeTitle label={label} icon={icon} onClick={click} items={items} count={count} subtitle={subtitle} variant={variant} actionLabel={actionLabel ?? shellT('nav.objectActions', { name: label })} recordAction={recordAction} />
   }
@@ -93,7 +110,7 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
     const executable = FLOW_GROUPS.some(group => group.type === definition.type)
     const items: MenuProps['items'] = []
     if (executable && can('TANIM_DOGRULA')) items.push({ key: 'compile', label: shellT('nav.createScenario'), icon: <WandSparkles size={15} />, disabled: compiling === definition.uuid, onClick: () => void compile(definition) })
-    if (executable) items.push({ key: 'run', label: shellT('nav.runObject'), icon: <Play size={15} />, onClick: () => navigate(`/operations?definition=${encodeURIComponent(definition.uuid)}&start=1`) })
+    if (executable && definition.type !== 'PACKAGE') items.push({ key: 'run', label: starting === definition.uuid ? shellT('nav.startingRun') : shellT('nav.runObject'), icon: <Play size={15} />, disabled: starting === definition.uuid, onClick: () => void run(definition) })
     if (canWrite) { if (items.length) items.push({ type: 'divider' }); items.push({ key: 'delete', label: shellT('nav.deleteObject'), icon: <Trash2 size={15} />, danger: true, onClick: () => { setDeleteError(''); setPendingDelete(definition) } }) }
     return { key: definition.uuid, isLeaf: true, className: 'project-tree-object-node', title: <span title={`${definition.name} · ${t(definitionTypeKey[definition.type])}`}>{title(definition.name, <DefinitionTypeIcon type={definition.type} />, () => undefined, items, undefined, undefined, t(definitionTypeKey[definition.type]), 'object', () => openDefinition(definition.uuid))}</span> }
   }

@@ -5,6 +5,8 @@ import { ProjectSidebarTree } from './ProjectSidebarTree'
 import type { Definition, Folder } from '../features/definitions/types'
 import { ProjectAccessProvider } from '../core/auth/ProjectAccessContext'
 import { ConfigProvider } from 'antd'
+import { operationsApi } from '../features/operations/api'
+import { executionApi } from '../features/execution/api'
 
 const access = { roles: ['GELISTIRICI'], permissions: ['TANIM_DUZENLE', 'TANIM_DOGRULA'] }
 const render = (element: React.ReactElement) => testingRender(<ConfigProvider theme={{ token: { motion: false } }}><ProjectAccessProvider value={access}>{element}</ProjectAccessProvider></ConfigProvider>)
@@ -51,8 +53,11 @@ describe('persistent project sidebar tree', () => {
     const object = await screen.findByText('Load Daily', { exact: true })
     fireEvent.contextMenu(object.closest('.akis-tree-title')!)
     expect(await screen.findByRole('menuitem', { name: 'Create Scenario' })).toBeInTheDocument()
+    vi.spyOn(operationsApi, 'listPublications').mockResolvedValue([{ uuid: 'pub-1', definitionUuid: 'procedure-1', status: 'AKTIF', publicationNumber: 2, environmentCode: 'TEST' } as never])
+    vi.spyOn(executionApi, 'startRun').mockResolvedValue({ runUuid: 'run-1' } as never)
     fireEvent.click(screen.getByRole('menuitem', { name: 'Run' }))
-    expect(navigate).toHaveBeenCalledWith('/project/operations?definition=procedure-1&start=1')
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/project/operations/runs/run-1'))
+    expect(executionApi.startRun).toHaveBeenCalledWith('project-1', 'pub-1', expect.any(String))
 
     fireEvent.click(await screen.findByRole('button', { name: /Actions for Load Daily/i }))
     expect(await screen.findByRole('menuitem', { name: 'Create Scenario' })).toBeInTheDocument()
