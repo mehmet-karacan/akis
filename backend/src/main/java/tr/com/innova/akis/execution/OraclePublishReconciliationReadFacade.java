@@ -289,7 +289,7 @@ final class OraclePublishReconciliationReadFacade
                 barrier.barrierTargetGeneration(), barrier.canonicalTargetHash(),
                 barrier.targetIdentityVersion());
         PublishEvidence publishEvidence = new PublishEvidence(
-                staged?"KM_ATOMIC_REPLACE":PilotPublishKeyV1.PILOT_STEP_CODE,
+                staged?StagedPublishFacade.publishStepCode(plan):PilotPublishKeyV1.PILOT_STEP_CODE,
                 original.publishKeyHash(),
                 original.payloadHash(),
                 original.rowCount(),

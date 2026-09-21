@@ -190,6 +190,39 @@ public class CatalogService {
                         "Data Store veya model değişti. Kaydı yenileyip tekrar deneyin."));
     }
 
+    /** Archive a data store. Refused while an active definition still binds it, so the explorer can explain what to detach first. */
+    void deleteDataObject(UUID projectUuid, UUID modelUuid, UUID objectUuid, long expectedVersion) {
+        if (expectedVersion < 1) throw validation("Geçerli kayıt sürümü zorunludur.");
+        ProjectRef project = project(projectUuid);
+        ModelRow model = model(project, modelUuid);
+        DataObjectRow object = repository.findDataObject(project.id(), objectUuid)
+                .filter(row -> row.modelId() == model.id())
+                .orElseThrow(() -> notFound("Data Store bu modelde bulunamadı."));
+        List<String> users = repository.definitionsReferencingDataObject(project.id(), object.id());
+        if (!users.isEmpty()) {
+            throw new ApiException(HttpStatus.CONFLICT, "DATA_OBJECT_IN_USE",
+                    "Data Store şu nesnelerde kullanılıyor: " + String.join(", ", users) + ". Önce oradan çıkarın.");
+        }
+        if (!repository.archiveDataObject(project.id(), object.uuid(), expectedVersion)) {
+            throw new ApiException(HttpStatus.CONFLICT, "VERSION_CONFLICT", "Data Store başka bir kullanıcı tarafından güncellendi.");
+        }
+    }
+
+    void deleteSubmodel(UUID projectUuid, UUID modelUuid, UUID submodelUuid, long expectedVersion) {
+        if (expectedVersion < 1) throw validation("Geçerli kayıt sürümü zorunludur.");
+        ProjectRef project = project(projectUuid);
+        ModelRow model = model(project, modelUuid);
+        SubmodelRow folder = repository.findSubmodel(project.id(), submodelUuid)
+                .filter(row -> row.modelId() == model.id())
+                .orElseThrow(() -> notFound("Model klasörü bulunamadı."));
+        if (repository.submodelHasContent(folder.id())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SUBMODEL_IN_USE", "Data Store veya alt klasörü bulunan klasör silinemez.");
+        }
+        if (!repository.archiveSubmodel(project.id(), folder.uuid(), expectedVersion)) {
+            throw new ApiException(HttpStatus.CONFLICT, "VERSION_CONFLICT", "Klasör başka bir kullanıcı tarafından güncellendi.");
+        }
+    }
+
     List<DataObjectRow> listDataObjects(UUID projectUuid, UUID modelUuid) {
         ProjectRef project = project(projectUuid);
         ModelRow model = model(project, modelUuid);

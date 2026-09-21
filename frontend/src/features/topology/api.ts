@@ -351,6 +351,8 @@ export const topologyApi = {
   createModel: (projectUuid: string, request: JsonRecord) => post<Model>(`${base(projectUuid)}/models`, request),
   updateModel: (projectUuid: string, modelUuid: string, request: JsonRecord) => patch<Model>(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}`, request),
   deleteModel: (projectUuid: string, modelUuid: string, expectedVersion: number) => remove(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}?expectedVersion=${expectedVersion}`),
+  deleteDataObject: (projectUuid: string, modelUuid: string, objectUuid: string, expectedVersion: number) => remove(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}/data-objects/${encodeURIComponent(objectUuid)}?expectedVersion=${expectedVersion}`),
+  deleteSubmodel: (projectUuid: string, modelUuid: string, submodelUuid: string, expectedVersion: number) => remove(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}/submodels/${encodeURIComponent(submodelUuid)}?expectedVersion=${expectedVersion}`),
   listSubmodels: (projectUuid: string, modelUuid: string) => get<Submodel[]>(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}/submodels`),
   createSubmodel: (projectUuid: string, modelUuid: string, request: JsonRecord) => post<Submodel>(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}/submodels`, request),
   listDataObjects: (projectUuid: string, modelUuid: string) => get<DataObject[]>(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}/data-objects`),

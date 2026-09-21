@@ -276,6 +276,44 @@ public class CatalogRepository {
         return updated == 1 ? findDataObject(projectId, uuid) : Optional.empty();
     }
 
+    /** Names of active (non-archived) definitions still bound to the data object; archiving is refused while any exist. */
+    List<String> definitionsReferencingDataObject(long projectId, long dataObjectId) {
+        return jdbc.sql("""
+                        select distinct t.ad from akis.tanim_veri_nesnesi b
+                          join akis.tanim_surumu v on v.proje_id = b.proje_id and v.id = b.tanim_surumu_id
+                          join akis.tanim t on t.proje_id = v.proje_id and t.id = v.tanim_id
+                         where b.proje_id = :projectId and b.veri_nesnesi_id = :dataObjectId and t.arsivlenme_zamani is null
+                         order by t.ad
+                        """)
+                .param("projectId", projectId).param("dataObjectId", dataObjectId).query(String.class).list();
+    }
+
+    boolean archiveDataObject(long projectId, UUID uuid, long expectedVersion) {
+        return jdbc.sql("""
+                        update akis.veri_nesnesi
+                           set arsivlenme_zamani=current_timestamp, guncellenme_zamani=current_timestamp, versiyon_no=versiyon_no+1
+                         where proje_id=:projectId and uuid=:uuid and arsivlenme_zamani is null and versiyon_no=:expectedVersion
+                        """)
+                .param("projectId", projectId).param("uuid", uuid).param("expectedVersion", expectedVersion).update() == 1;
+    }
+
+    boolean submodelHasContent(long submodelId) {
+        return Boolean.TRUE.equals(jdbc.sql("""
+                        select exists(select 1 from akis.veri_nesnesi d where d.alt_model_id=:id and d.arsivlenme_zamani is null)
+                            or exists(select 1 from akis.alt_model s where s.ust_alt_model_id=:id and s.arsivlenme_zamani is null)
+                        """)
+                .param("id", submodelId).query(Boolean.class).single());
+    }
+
+    boolean archiveSubmodel(long projectId, UUID uuid, long expectedVersion) {
+        return jdbc.sql("""
+                        update akis.alt_model
+                           set arsivlenme_zamani=current_timestamp, guncellenme_zamani=current_timestamp, versiyon_no=versiyon_no+1
+                         where proje_id=:projectId and uuid=:uuid and arsivlenme_zamani is null and versiyon_no=:expectedVersion
+                        """)
+                .param("projectId", projectId).param("uuid", uuid).param("expectedVersion", expectedVersion).update() == 1;
+    }
+
     List<DataObjectRow> listDataObjects(long projectId, long modelId) {
         return jdbc.sql(dataObjectSelect()
                         + " where d.proje_id = :projectId and d.model_id = :modelId order by d.kod")

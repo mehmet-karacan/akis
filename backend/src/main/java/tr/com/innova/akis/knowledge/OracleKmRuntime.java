@@ -56,8 +56,9 @@ public final class OracleKmRuntime implements AkisKmInterpreter.Runtime {
     }
     public static final class PublishFailure extends RuntimeException {
         private final PublishOutcome outcome;
-        PublishFailure(PublishOutcome outcome) {
-            super(outcome == PublishOutcome.ROLLED_BACK ? "KM hedef yayını geri alındı." : "KM hedef yayını mutabakat gerektiriyor.");
+        PublishFailure(PublishOutcome outcome) { this(outcome, null); }
+        PublishFailure(PublishOutcome outcome, Throwable cause) {
+            super(outcome == PublishOutcome.ROLLED_BACK ? "KM hedef yayını geri alındı." : "KM hedef yayını mutabakat gerektiriyor.", cause);
             this.outcome = outcome;
         }
         public PublishOutcome outcome() { return outcome; }
@@ -98,6 +99,22 @@ public final class OracleKmRuntime implements AkisKmInterpreter.Runtime {
         object = tables.create(workControl, contract.owner(), contract.targetDatabaseIdentity(), contract.work(),
                 contract.workColumns(), contract.timeoutSeconds(), guard::checkpoint,contract.workArea());
         state = State.READY;
+    }
+    /** RESUME: take over the sealed work table of the previous attempt instead of creating, loading and sealing a new one. */
+    public void adopt(OracleWorkTableManager.Created adopted, JdbcStagingTransfer.Result adoptedSeal) {
+        if (verified || state != null || object != null) throw new IllegalStateException("Devralma yalnız ilk adımdan önce yapılabilir.");
+        if (!adopted.table().equals(contract.work()) || adoptedSeal == null) throw new IllegalStateException("Devralınan çalışma tablosu sözleşmeyle uyuşmuyor.");
+        try {
+            guard.verifyWork(adopted);
+            try (PreparedStatement statement = workData.prepareStatement("SELECT COUNT(*) FROM " + adopted.table().sql())) {
+                statement.setQueryTimeout(contract.timeoutSeconds());
+                try (ResultSet result = statement.executeQuery()) {
+                    if (!result.next() || result.getLong(1) != adoptedSeal.rows() || result.wasNull() || result.next())
+                        throw new IllegalStateException("Devralınan çalışma tablosu satır sayısı mühürle uyuşmuyor.");
+                }
+            }
+        } catch (SQLException failure) { throw new IllegalStateException("Devralınan çalışma tablosu doğrulanamadı."); }
+        object = adopted; seal = adoptedSeal; state = State.SEALED;
     }
     @Override public long transferJdbc(String slot) {
         require(slot, State.READY);
@@ -150,7 +167,7 @@ public final class OracleKmRuntime implements AkisKmInterpreter.Runtime {
         guard.checkpoint(); publicationAttempted = true;
         PublishResult result;
         try { result = Objects.requireNonNull(publisher.publish(object, seal)); }
-        catch (RuntimeException failure) { throw new PublishFailure(PublishOutcome.UNKNOWN); }
+        catch (RuntimeException failure) { throw new PublishFailure(PublishOutcome.UNKNOWN, failure); }
         if (result.outcome() != PublishOutcome.COMMITTED && result.outcome() != PublishOutcome.ALREADY_RECORDED)
             throw new PublishFailure(result.outcome());
         if (result.insertedRows() != seal.rows()) throw new PublishFailure(PublishOutcome.UNKNOWN);

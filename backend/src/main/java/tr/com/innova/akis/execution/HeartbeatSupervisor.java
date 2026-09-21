@@ -16,6 +16,7 @@ import tr.com.innova.akis.execution.RunLeasePort.RunLeaseToken;
  * checkpoints. It never starts a worker or polls for work.
  */
 final class HeartbeatSupervisor implements LeaseGate {
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(HeartbeatSupervisor.class);
 
     private static final Duration MAXIMUM_INTERVAL = Duration.ofSeconds(10);
     private static final long MINIMUM_LEASE_SECONDS = 30;
@@ -150,16 +151,21 @@ final class HeartbeatSupervisor implements LeaseGate {
 
     private RunLeaseToken refreshLocked() {
         try {
+            // The store already confirmed the extension. A checkpoint landing right after the scheduled
+            // heartbeat can read an identical deadline (clock_timestamp granularity on Windows hosts);
+            // only a deadline that moved backwards is evidence of lost authority.
             RunLeaseToken refreshed = leases.heartbeatOrFail(freshest, lease);
             if (!sameLeaseIdentity(freshest, refreshed)
                     || refreshed.leaseDeadline() == null
-                    || !refreshed.leaseDeadline().isAfter(freshest.leaseDeadline())) {
-                throw new IllegalStateException();
+                    || refreshed.leaseDeadline().isBefore(freshest.leaseDeadline())) {
+                throw new IllegalStateException("Refreshed lease " + refreshed + " does not extend " + freshest);
             }
             freshest = refreshed;
             return freshest;
         }
         catch (RuntimeException exception) {
+            LOG.warn("Heartbeat for run {} generation {} lost lease authority: {}{}", freshest.runUuid(), freshest.generation(),
+                    exception, exception.getCause() == null ? "" : " <- " + exception.getCause());
             failure = Failure.LEASE_AUTHORITY_LOST;
             cancelLocked();
             throw new LeaseGateException(failure);

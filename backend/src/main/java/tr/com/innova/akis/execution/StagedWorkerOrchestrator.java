@@ -14,6 +14,7 @@ import static tr.com.innova.akis.execution.RuntimeOracleConnectionProvider.Runti
 /** Executes one already-claimed run. Never claims again or retries a target publication. */
 @Component
 final class StagedWorkerOrchestrator {
+    private static final org.slf4j.Logger LOG=org.slf4j.LoggerFactory.getLogger(StagedWorkerOrchestrator.class);
     private final StagedRuntimePlanResolver plans;
     private final JdbcPinnedSchemaSnapshotStore snapshots;
     private final RuntimeOracleConnectionProvider connections;
@@ -27,12 +28,41 @@ final class StagedWorkerOrchestrator {
     private final ObjectMapper mapper;
     private final boolean enabled;
     private final KmStepJournal journal;
+    private final PinnedExecutionContextPort contexts;
     StagedWorkerOrchestrator(StagedRuntimePlanResolver plans,JdbcPinnedSchemaSnapshotStore snapshots,RuntimeOracleConnectionProvider connections,
             StagedWorkSessionFactory workSessions,WorkerLeaseService leases,OracleTargetFencePort fences,RunExecutionTransitionPort transitions,
             StagedPublishFacade publisher,WorkObjectStore objects,WorkAreaPolicyService policies,ObjectMapper mapper,KmStepJournal journal,
-            @Value("${akis.execution.staged-runtime-enabled:false}") boolean enabled) {
+            PinnedExecutionContextPort contexts,@Value("${akis.execution.staged-runtime-enabled:false}") boolean enabled,
+            @Value("${akis.execution.staged-fault-injection:}") String faultInjection) {
         this.plans=plans;this.snapshots=snapshots;this.connections=connections;this.workSessions=workSessions;this.leases=leases;
         this.fences=fences;this.transitions=transitions;this.publisher=publisher;this.objects=objects;this.policies=policies;this.mapper=mapper;this.enabled=enabled;this.journal=journal;
+        this.contexts=contexts;this.faultInjection=faultInjection==null?"":faultInjection.trim();
+    }
+    /** Test-only: "PUBLISH" fails the target publication after the publish intent is recorded so RESUME can be exercised on a real target. */
+    private final String faultInjection;
+    /** What a RESUME attempt can adopt from the failed attempt: the sealed work table and the steps completed before it. */
+    record ResumePoint(UUID previousRun,WorkObjectStore.ObjectRow sealed,int completedSteps) { }
+    private Optional<ResumePoint> resumePoint(StagedRuntimePlan plan,PinnedExecutionContextPort.PinnedExecutionContext context) {
+        var previous=contexts.resumeOrigin(context.runUuid());
+        if(previous.isEmpty()) return Optional.empty();
+        var rows=journal.list(plan.projectUuid(),previous.get());
+        long generation=rows.stream().mapToLong(KmStepJournal.Row::generation).max().orElse(0);
+        var recorded=rows.stream().filter(r->r.generation()==generation).toList();
+        var steps=plan.program().steps();
+        int completed=0;
+        for(int i=0;i<Math.min(recorded.size(),steps.size());i++) {
+            var actual=recorded.get(i);var expected=steps.get(i);
+            if(actual.ordinal()!=i+1 || !actual.stepCode().equals(expected.id()) || !actual.operation().equals(expected.operation().name())
+                    || !Set.of("SUCCEEDED","SKIPPED").contains(actual.state())) break;
+            if(expected.operation()==AkisKmLanguage.Operation.ATOMIC_REPLACE) break;
+            completed=i+1;
+        }
+        boolean sealedReached=steps.subList(0,completed).stream().anyMatch(s->s.operation()==AkisKmLanguage.Operation.SEAL_WORK);
+        var sealed=objects.list(plan.projectUuid(),previous.get()).stream()
+                .filter(row->row.state()==WorkObjectLifecycle.State.SEALED && "WORK_SOURCE_1".equals(row.slot()) && row.objectId()!=null && row.payloadHash()!=null)
+                .findFirst();
+        if(!sealedReached || sealed.isEmpty()) return Optional.empty();
+        return Optional.of(new ResumePoint(previous.get(),sealed.get(),completed));
     }
     RunOnceResult run(PinnedExecutionContextPort.PinnedExecutionContext context,LeaseGate gate) {
         StagedRuntimePlan plan;
@@ -69,6 +99,13 @@ final class StagedWorkerOrchestrator {
             var owner=new WorkObjectStore.Owner(plan.projectUuid(),context.runUuid(),fence.runGeneration(),fence.workerReference());
             String workName=new WorkObjectPrefixes(prefix.path("loading").asText(),prefix.path("integration").asText(),prefix.path("error").asText())
                     .objectName("LOADING",plan.projectUuid(),context.runUuid(),fence.runGeneration(),"WORK_SOURCE_1");
+            // RESUME: the adopted table keeps the name of the attempt that created it.
+            var resume=resumePoint(plan,context);
+            if(resume.isPresent()) {
+                var adopted=resume.get().sealed();
+                if(!adopted.owner().equals(stage.path("owner").asText()) || !adopted.databaseIdentity().equals(databaseIdentity)) throw new IllegalStateException("Devralınacak çalışma tablosu bu hedefe ait değil.");
+                workName=adopted.name();
+            }
             var table=new JdbcStagingTransfer.Table(stage.path("owner").asText(),workName);
             var workArea=new WorkObjectStore.WorkArea(UUID.fromString(stage.path("physicalSchemaUuid").asText()),stage.path("workAreaPolicy").path("version").asLong());
             var manager=new OracleWorkTableManager(objects);
@@ -103,10 +140,21 @@ final class StagedWorkerOrchestrator {
                         var evidence=new PublishIntentEvidence(plan.runtimePlanHash(),StagedPublishFacade.publishKey(plan,context,fence),seal.payloadHash(),seal.rows(),seal.logicalBytes());
                         intent.set(evidence);
                         requireAccepted(gate.execute(run->transitions.beginPublish(new ActiveExecutionToken(run,fence),evidence)));
+                        if("PUBLISH".equals(faultInjection) && contexts.resumeOrigin(context.runUuid()).isEmpty()) throw new IllegalStateException("Test hatası: hedef yayını kasıtlı olarak başarısız.");
                         return publisher.publish(plan,context,fence,object,seal,()->gate.checkpoint());
                     });
             journal.prepare(owner,plan.runtimePlanHash(),plan.program());
-            var results=AkisKmInterpreter.execute(plan.modules(),runtime,journal.observer(owner));
+            var resumeFrom=AkisKmInterpreter.Resume.NONE;
+            if(resume.isPresent()) {
+                var point=resume.get();
+                if(!point.sealed().structureHash().equals(OracleWorkStructure.expected(layout.work()))) throw new IllegalStateException("Devralınan çalışma tablosunun yapısı plandan farklı.");
+                var owned=objects.adopt(owner,point.previousRun(),point.sealed().uuid());
+                var adoptedTable=new OracleWorkTableManager.Created(owned.uuid(),owned.databaseIdentity(),table,owned.objectId(),owned.structureHash());
+                created.set(adoptedTable);
+                runtime.adopt(adoptedTable,new JdbcStagingTransfer.Result(owned.rows(),owned.bytes(),owned.payloadHash()));
+                resumeFrom=new AkisKmInterpreter.Resume(point.completedSteps(),owned.rows());
+            }
+            var results=AkisKmInterpreter.execute(plan.modules(),runtime,journal.observer(owner),resumeFrom);
             var evidence=Objects.requireNonNull(intent.get());
             requireAccepted(gate.completeTerminal(run->transitions.completeSuccessfully(new ActiveExecutionToken(run,fence),evidence),StagedWorkerOrchestrator::accepted));
             int warnings=0;
@@ -115,6 +163,7 @@ final class StagedWorkerOrchestrator {
             return new Succeeded(results.size(),warnings,evidence.rowCount(),evidence.byteCount());
         } catch(SQLException | RuntimeException failure) {
             var fence=targetFence;
+            LOG.warn("KM run {} failed {} target fence: {}{}",context.runUuid(),fence==null?"before":"after",failure.toString(),failure.getCause()==null?"":" <- "+failure.getCause());
             // Once intent is persisted, conservative reconciliation takes precedence over a blind retry.
             if(intent.get()!=null && fence!=null) {
                 try { gate.completeTerminal(run->transitions.markOutcomeUnknown(new ActiveExecutionToken(run,fence)),StagedWorkerOrchestrator::accepted); } catch(RuntimeException ignored) { }

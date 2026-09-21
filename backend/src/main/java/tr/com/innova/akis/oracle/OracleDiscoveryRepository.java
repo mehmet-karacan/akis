@@ -31,8 +31,16 @@ public class OracleDiscoveryRepository {
                    b.okuma_zaman_asimi_ms,
                    b.sorgu_zaman_asimi_saniye,
                    b.sifre,
-                   b.durum
+                   b.durum,
+                   ev.hedef_kimlik_surumu,
+                   ev.hedef_parmak_izi
               from akis.baglanti b
+              left join lateral (
+                   select t.hedef_kimlik_surumu, t.hedef_parmak_izi
+                     from akis.baglanti_testi t
+                    where t.baglanti_id = b.id and t.sonuc = 'BASARILI'
+                      and t.hedef_kimlik_surumu = 1 and t.hedef_parmak_izi ~ '^[0-9a-f]{64}$'
+                    order by t.deneme_no desc limit 1) ev on true
             """;
 
     private final JdbcClient jdbc;
@@ -75,8 +83,9 @@ public class OracleDiscoveryRepository {
                 "ETKIN".equals(rs.getString("durum")) ? "ACTIVE" : "DISABLED",
                 1L,
                 null,
-                null,
-                null);
+                // Pinned target identity = the latest successful connection test; discovery re-attests against it.
+                rs.getObject("hedef_kimlik_surumu", Integer.class),
+                rs.getString("hedef_parmak_izi"));
     }
 
     Optional<DataObjectCaptureProfile> findDataObjectCaptureProfile(

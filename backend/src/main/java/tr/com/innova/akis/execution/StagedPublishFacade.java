@@ -32,8 +32,12 @@ final class StagedPublishFacade {
     static String publishKey(StagedRuntimePlan plan,PinnedExecutionContext execution,TargetFenceToken fence) {
         return KmCanonical.hash("AKIS_KM_PUBLISH/1|"+execution.jobRequestUuid()+"|"+plan.runtimePlanHash()+"|"+fence.canonicalTargetHash()+"|KM_"+writeMode(plan));
     }
+    /** Reconciliation recomputes the key the worker used: the step code carries the pinned WRITE_MODE, not a fixed ATOMIC_REPLACE. */
     static String publishKey(MappingExecutionContract plan,UUID job,String targetHash) {
-        return KmCanonical.hash("AKIS_KM_PUBLISH/1|"+job+"|"+plan.runtimePlanHash()+"|"+targetHash+"|KM_ATOMIC_REPLACE");
+        return KmCanonical.hash("AKIS_KM_PUBLISH/1|"+job+"|"+plan.runtimePlanHash()+"|"+targetHash+"|"+publishStepCode(plan));
+    }
+    static String publishStepCode(MappingExecutionContract plan) {
+        return "KM_"+(plan instanceof StagedRuntimePlan staged?writeMode(staged):"ATOMIC_REPLACE");
     }
     OracleKmRuntime.PublishResult publish(StagedRuntimePlan plan,PinnedExecutionContext execution,TargetFenceToken fence,
             OracleWorkTableManager.Created object,JdbcStagingTransfer.Result seal,Runnable leaseCheckpoint) {
@@ -51,10 +55,11 @@ final class StagedPublishFacade {
                 && intent.rowCount()==seal.rows() && intent.byteCount()==seal.logicalBytes()
                 && execution.runUuid().equals(fence.runUuid()));
         var prefix=plan.staging().path("prefixes");
-        String name=new WorkObjectPrefixes(prefix.path("loading").asText(),prefix.path("integration").asText(),prefix.path("error").asText())
-                .objectName("LOADING",plan.projectUuid(),execution.runUuid(),fence.runGeneration(),"WORK_SOURCE_1");
-        require(object.table().name().equals(name) && object.table().owner().equals(plan.staging().path("owner").asText()));
+        // The registry row is the authority on the table name: a resumed attempt owns the table named after the attempt it adopted from.
         var owned=objects.list(plan.projectUuid(),execution.runUuid()).stream().filter(row->row.uuid().equals(object.uuid())).findFirst().orElseThrow();
+        String name=owned.name();
+        require(new WorkObjectPrefixes(prefix.path("loading").asText(),prefix.path("integration").asText(),prefix.path("error").asText()).ownsName("LOADING",name));
+        require(object.table().name().equals(name) && object.table().owner().equals(plan.staging().path("owner").asText()));
         require(owned.state()==WorkObjectLifecycle.State.SEALED && Objects.equals(owned.objectId(),object.objectId())
                 && owned.name().equals(name) && owned.owner().equals(object.table().owner())
                 && owned.databaseIdentity().equals(object.databaseIdentity()) && owned.structureHash().equals(object.structureHash())
@@ -103,7 +108,7 @@ final class StagedPublishFacade {
             var actual=recorded.get(i);var expected=plan.program().steps().get(i);
             require(actual.ordinal()==i+1 && actual.stepCode().equals(expected.id()) && actual.operation().equals(expected.operation().name())
                     && actual.site().equals(expected.site().name()) && actual.slot().equals(expected.slot()));
-            require(actual.state().equals(i==recorded.size()-1?"RUNNING":"SUCCEEDED"));
+            require(i==recorded.size()-1?actual.state().equals("RUNNING"):Set.of("SUCCEEDED","SKIPPED").contains(actual.state()));
         }
     }
     private static void verifyWork(Connection connection,OracleWorkTableManager.Created object) {

@@ -42,8 +42,9 @@ final class ExecutionFeatureFlags {
             @Value("${akis.execution.staged-runtime-enabled:false}") boolean stagedRuntimeEnabled,
             @Value("${akis.execution.recovery-runtime-enabled:false}") boolean recoveryRuntimeEnabled,
             @Value("${akis.execution.transfer-recovery-enabled:false}") boolean transferRecoveryEnabled) {
+        // RESUME is consumed by the staged worker (adopts the sealed work table); chunked transfer recovery is still not.
         this(acceptManualRequests, workerEnabled, procedureRuntimeEnabled, stagedRuntimeEnabled,
-                recoveryRuntimeEnabled, transferRecoveryEnabled, false, false);
+                recoveryRuntimeEnabled, transferRecoveryEnabled, workerEnabled && stagedRuntimeEnabled, false);
     }
 
     ExecutionFeatureFlags(

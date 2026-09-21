@@ -9,6 +9,9 @@ interface PinnedExecutionContextPort {
 
     Optional<PinnedExecutionContext> find(UUID runUuid);
 
+    /** For a RESUME attempt (baslatma_turu DEVAM_ET): the failed attempt of the same job it continues from. */
+    default Optional<UUID> resumeOrigin(UUID runUuid) { return Optional.empty(); }
+
     record PinnedExecutionContext(
             UUID jobRequestUuid,
             UUID runUuid,

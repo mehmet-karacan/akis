@@ -130,6 +130,22 @@ final class CatalogController {
 
     record MoveDataObjectRequest(UUID submodelUuid, @Min(1) long expectedVersion) { }
 
+    @DeleteMapping("/{modelUuid}/data-objects/{objectUuid}")
+    ResponseEntity<Void> deleteDataObject(@PathVariable UUID projectUuid, @PathVariable UUID modelUuid,
+            @PathVariable UUID objectUuid, @RequestParam long expectedVersion) {
+        authorization.requireProjectPermission(projectUuid, CATALOG_WRITE);
+        service.deleteDataObject(projectUuid, modelUuid, objectUuid, expectedVersion);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/{modelUuid}/submodels/{submodelUuid}")
+    ResponseEntity<Void> deleteSubmodel(@PathVariable UUID projectUuid, @PathVariable UUID modelUuid,
+            @PathVariable UUID submodelUuid, @RequestParam long expectedVersion) {
+        authorization.requireProjectPermission(projectUuid, CATALOG_WRITE);
+        service.deleteSubmodel(projectUuid, modelUuid, submodelUuid, expectedVersion);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/{modelUuid}/data-objects")
     List<DataObjectView> listDataObjects(
             @PathVariable UUID projectUuid,

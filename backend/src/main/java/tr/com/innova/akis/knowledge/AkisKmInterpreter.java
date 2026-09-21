@@ -17,8 +17,14 @@ public final class AkisKmInterpreter {
         public Plan { steps = List.copyOf(steps); slots = Set.copyOf(slots); }
     }
     public record StepResult(String id, Operation operation, String slot, long affectedRows) { }
+    /** RESUME: the first {@code completedSteps} plan steps already succeeded in a previous attempt whose sealed work table is adopted. */
+    public record Resume(int completedSteps, long transferredRows) {
+        public static final Resume NONE = new Resume(0, 0);
+        public Resume { if (completedSteps < 0 || transferredRows < 0) throw new IllegalArgumentException("Devam noktası geçersiz."); }
+    }
     public interface Observer {
         default void before(int ordinal,Step step) { }
+        default void skipped(int ordinal,Step step,long transferredRows) { }
         default void succeeded(int ordinal,StepResult result) { }
         default void failed(int ordinal,Step step,RuntimeException failure) { }
     }
@@ -92,12 +98,29 @@ public final class AkisKmInterpreter {
         return execute(modules,runtime,new Observer() { });
     }
     public static List<StepResult> execute(Modules modules, Runtime runtime,Observer observer) {
+        return execute(modules,runtime,observer,Resume.NONE);
+    }
+    public static List<StepResult> execute(Modules modules, Runtime runtime,Observer observer,Resume resume) {
         Plan plan = compile(modules);
-        Objects.requireNonNull(observer);
+        Objects.requireNonNull(observer); Objects.requireNonNull(resume);
         Objects.requireNonNull(runtime, "runtime").verify(plan);
         Map<String, Long> transferred = new HashMap<>();
         List<StepResult> results = new ArrayList<>();
-        for (Step step : plan.steps()) {
+        if (resume.completedSteps() > 0) {
+            // Skipping is only sound past SEAL_WORK: nothing before it leaves a durable effect to adopt.
+            List<Step> skipped = plan.steps().subList(0, Math.min(resume.completedSteps(), plan.steps().size()));
+            if (skipped.stream().noneMatch(step -> step.operation() == Operation.SEAL_WORK)
+                    || skipped.stream().anyMatch(step -> step.operation() == Operation.ATOMIC_REPLACE))
+                throw new IllegalStateException("Devam noktası mühürlenmiş çalışma tablosundan sonra ve yayından önce olmalıdır.");
+            for (Step step : skipped) {
+                int ordinal=results.size()+1;
+                long rows = step.operation() == Operation.TRANSFER_JDBC ? resume.transferredRows() : 0;
+                if (step.operation() == Operation.TRANSFER_JDBC) transferred.put(step.slot(), rows);
+                observer.skipped(ordinal,step,resume.transferredRows());
+                results.add(new StepResult(step.id(), step.operation(), step.slot(), rows));
+            }
+        }
+        for (Step step : plan.steps().subList(results.size(), plan.steps().size())) {
             int ordinal=results.size()+1;
             observer.before(ordinal,step);
             try {

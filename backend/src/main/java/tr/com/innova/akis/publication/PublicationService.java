@@ -119,7 +119,7 @@ public class PublicationService {
                 throw procedurePlanRejected(exception);
             }
         }
-        boolean stagedExecutable=stagedRuntimeEnabled && context.definitionSchemaVersion()==3;
+        boolean stagedExecutable=stagedRuntimeEnabled && Set.of(3,4).contains(context.definitionSchemaVersion()) && "MAPPING".equals(context.scenarioPlan().path("source").path("definitionType").asText());
         String runtimeCapability = stagedExecutable?tr.com.innova.akis.execution.StagedRuntimePlanResolver.CAPABILITY:pilotExecutable
                 ? PilotRuntimePlanResolver.PILOT_CAPABILITY
                 : procedureExecutable

@@ -1,5 +1,7 @@
 package tr.com.innova.akis.execution;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
@@ -33,6 +35,7 @@ import tr.com.innova.akis.execution.RunReconciliationPort.ReconciliationLeaseTok
  */
 @Service
 final class PublishReconciliationService {
+    private static final Logger LOG = LoggerFactory.getLogger(PublishReconciliationService.class);
 
     private static final Pattern HASH = Pattern.compile("[0-9a-f]{64}");
 
@@ -90,6 +93,8 @@ final class PublishReconciliationService {
         catch (RuntimeException exception) {
             return ServiceResult.unknown(Failure.ORACLE_OUTCOME_UNKNOWN);
         }
+        LOG.info("Publish reconciliation for run {}: {}{}", runUuid, observed.outcome(),
+                observed.failure() == null ? "" : " (" + observed.failure() + ")");
         if (!validOracleResult(observed)) {
             return ServiceResult.unknown(Failure.ORACLE_OUTCOME_UNKNOWN);
         }

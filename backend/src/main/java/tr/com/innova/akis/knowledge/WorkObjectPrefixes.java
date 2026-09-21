@@ -17,6 +17,13 @@ public record WorkObjectPrefixes(String loading, String integration, String erro
         if (loading.equals(integration) || loading.equals(error) || integration.equals(error))
             throw new IllegalArgumentException("Prefixler farklı olmalıdır.");
     }
+    /** True when the name carries this role's AKIS ownership marker (the hash part is opaque to the caller). */
+    public boolean ownsName(String role, String name) {
+        String prefix = switch (role) { case "LOADING" -> loading; case "INTEGRATION" -> integration; case "ERROR" -> error;
+            default -> throw new IllegalArgumentException("Çalışma nesnesi rolü geçersiz."); };
+        String marker = prefix.endsWith("_") ? prefix : prefix + "_";
+        return name != null && name.length() == 30 && name.startsWith("AKIS_" + marker) && name.substring(5 + marker.length()).matches("[0-9A-F]+");
+    }
     public String objectName(String role, UUID project, UUID run, long generation, String slot) {
         if (project == null || run == null || generation < 1 || slot == null || !slot.matches("[A-Z][A-Z0-9_]{0,63}"))
             throw new IllegalArgumentException("Çalışma nesnesi kimliği geçersiz.");

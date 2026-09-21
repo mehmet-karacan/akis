@@ -64,9 +64,24 @@ public class KmStepJournal {
                 .param("rows",rows,java.sql.Types.BIGINT).param("error",error,java.sql.Types.VARCHAR).update();
         if(changed!=1) throw new IllegalStateException("KM adım kaydı güncellenemedi.");
     }
+    /** RESUME: the step completed in the previous attempt and its effect (the sealed work table) was adopted. */
+    @Transactional
+    public void skipped(WorkObjectStore.Owner owner,int ordinal,Long rows) {
+        int changed=jdbc.sql("""
+                update akis.km_step_journal j set state='SKIPPED',affected_rows=:rows,started_at=clock_timestamp(),completed_at=clock_timestamp()
+                from akis.calistirma c join akis.proje p on p.id=c.proje_id
+                join akis.calistirma_durumu d on d.proje_id=p.id and d.calistirma_id=c.id
+                where j.proje_id=p.id and j.calistirma_id=c.id and p.uuid=:project and c.uuid=:run
+                  and j.generation=:generation and j.worker_reference=:worker and j.ordinal=:ordinal and j.state='PENDING'
+                  and d.nesil_no=:generation and d.isleyici_referansi=:worker and d.kiralama_bitis_zamani>clock_timestamp() and d.durum='CALISIYOR'
+                """).param("project",owner.projectUuid()).param("run",owner.runUuid()).param("generation",owner.generation())
+                .param("worker",owner.worker()).param("ordinal",ordinal).param("rows",rows,java.sql.Types.BIGINT).update();
+        if(changed!=1) throw new IllegalStateException("KM adımı atlanmış olarak kaydedilemedi.");
+    }
     public AkisKmInterpreter.Observer observer(WorkObjectStore.Owner owner) {
         return new AkisKmInterpreter.Observer() {
             public void before(int ordinal,AkisKmLanguage.Step step) { transition(owner,ordinal,"RUNNING",null,null); }
+            public void skipped(int ordinal,AkisKmLanguage.Step step,long rows) { KmStepJournal.this.skipped(owner,ordinal,step.operation()==AkisKmLanguage.Operation.TRANSFER_JDBC?rows:null); }
             public void succeeded(int ordinal,AkisKmInterpreter.StepResult result) { transition(owner,ordinal,"SUCCEEDED",result.affectedRows(),null); }
             public void failed(int ordinal,AkisKmLanguage.Step step,RuntimeException failure) {
                 boolean unknown=step.operation()==AkisKmLanguage.Operation.ATOMIC_REPLACE && !(failure instanceof OracleKmRuntime.PublishFailure p && p.outcome()==OracleKmRuntime.PublishOutcome.ROLLED_BACK);

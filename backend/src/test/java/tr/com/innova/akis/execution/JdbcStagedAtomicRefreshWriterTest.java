@@ -65,7 +65,8 @@ class JdbcStagedAtomicRefreshWriterTest {
         when(connection.prepareStatement(startsWith("TRUNCATE"))).thenThrow(new SQLException("DDL acknowledgement unavailable"));
         assertEquals(JdbcStagedAtomicRefreshWriter.Outcome.UNKNOWN,
                 publish(JdbcStagedAtomicRefreshWriter.WriteMode.TRUNCATE_LOAD,List.of()).outcome());
-        verify(connection).rollback(); verify(connection,never()).commit();
+        // The ledger preparation is discarded before the DDL (TRUNCATE commits implicitly), then the failure rolls back.
+        verify(connection,times(2)).rollback(); verify(connection,never()).commit();
         verify(session,never()).recordPublish(any());
         verify(connection,never()).prepareStatement(startsWith("INSERT"));
     }
@@ -75,7 +76,8 @@ class JdbcStagedAtomicRefreshWriterTest {
         assertEquals(JdbcStagedAtomicRefreshWriter.Outcome.UNKNOWN,
                 publish(JdbcStagedAtomicRefreshWriter.WriteMode.TRUNCATE_LOAD,List.of()).outcome());
         verify(connection).prepareStatement("TRUNCATE TABLE \"DATA\".\"ITEMS\"");
-        verify(connection).rollback(); verify(session,never()).recordPublish(any());
+        verify(connection,times(2)).rollback(); verify(session,never()).recordPublish(any());
+        verify(session,times(2)).preparePublish(any());
     }
     @Test void alreadyRecordedTruncateDoesNotRepeatDdl() throws Exception {
         setup(true);

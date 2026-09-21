@@ -58,6 +58,20 @@ public class JdbcPinnedExecutionContextStore implements PinnedExecutionContextPo
                 .optional();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<UUID> resumeOrigin(UUID runUuid) {
+        return jdbc.sql("""
+                        select prev.uuid
+                          from akis.calistirma c
+                          join akis.calistirma prev on prev.id = c.onceki_calistirma_id and prev.is_talebi_id = c.is_talebi_id
+                         where c.uuid = :runUuid and c.baslatma_turu = 'DEVAM_ET'
+                        """)
+                .param("runUuid", runUuid)
+                .query(UUID.class)
+                .optional();
+    }
+
     private JsonNode json(String value) {
         try {
             return objectMapper.readTree(value);

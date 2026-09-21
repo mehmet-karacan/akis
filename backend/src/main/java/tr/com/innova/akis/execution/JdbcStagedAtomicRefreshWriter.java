@@ -9,6 +9,7 @@ import tr.com.innova.akis.execution.OracleTargetLedgerPort.*;
 
 /** Target-local DML+ledger publication. TRUNCATE_LOAD is explicitly non-atomic; no implicit retry. */
 final class JdbcStagedAtomicRefreshWriter {
+    private static final org.slf4j.Logger LOG=org.slf4j.LoggerFactory.getLogger(JdbcStagedAtomicRefreshWriter.class);
     enum WriteMode { APPEND, MERGE, TRUNCATE_LOAD, ATOMIC_DELETE_INSERT }
     enum Outcome { COMMITTED, ALREADY_RECORDED, ROLLED_BACK, UNKNOWN }
     record Result(Outcome outcome,Long deleted,Long inserted) { }
@@ -64,7 +65,22 @@ final class JdbcStagedAtomicRefreshWriter {
             lockedPreflight.run();
             leaseCheckpoint.run();
             if (count(connection,stage,timeoutSeconds)!=evidence.stageRowCount()) throw new IllegalStateException("Mühürlü stage satır sayısı değişmiş.");
-            if(mode==WriteMode.TRUNCATE_LOAD) { nonReversibleStarted=true; command(connection,"TRUNCATE TABLE "+target.sql(),timeoutSeconds); }
+            if(mode==WriteMode.TRUNCATE_LOAD) {
+                // TRUNCATE is DDL and commits implicitly, which would end the transaction the ledger preparation
+                // belongs to. Discard that preparation, truncate, then re-lock and prepare again so the INSERT and
+                // the ledger record commit together.
+                // Plain JDBC rollback: this only discards the preparation; the session's transaction outcome is still open.
+                connection.rollback(); prepared=false;
+                nonReversibleStarted=true; command(connection,"TRUNCATE TABLE "+target.sql(),timeoutSeconds);
+                // The ledger requires a clean transaction boundary for preparation, so prepare before taking the locks again.
+                preparation=session.preparePublish(evidence);
+                if (preparation.alreadyRecorded()) throw new IllegalStateException("Yayın kaydı truncate sonrasında başka bir deneme tarafından oluşturuldu.");
+                prepared=true;
+                command(connection,"LOCK TABLE "+target.sql()+" IN EXCLUSIVE MODE NOWAIT",timeoutSeconds);
+                command(connection,"LOCK TABLE "+stage.sql()+" IN SHARE MODE NOWAIT",timeoutSeconds);
+                lockedPreflight.run();
+                if (count(connection,stage,timeoutSeconds)!=evidence.stageRowCount()) throw new IllegalStateException("Mühürlü stage satır sayısı değişmiş.");
+            }
             long deleted=mode==WriteMode.ATOMIC_DELETE_INSERT?update(connection,"DELETE FROM "+target.sql(),timeoutSeconds):0;
             String targetColumns=String.join(",",columns.stream().map(c->quote(c.target())).toList());
             String stageColumns=String.join(",",columns.stream().map(c->quote(c.stage())).toList());
@@ -85,6 +101,7 @@ final class JdbcStagedAtomicRefreshWriter {
         } catch (SQLException | RuntimeException failure) {
             boolean rolledBack;
             try { transaction.rollback(); rolledBack=true; } catch (SQLException | RuntimeException rollback) { rolledBack=false; }
+            LOG.warn("Staged publish into {} failed (prepared={}, truncated={}, committing={}, rolledBack={}): {}",target.sql(),prepared,nonReversibleStarted,committing,rolledBack,failure.toString());
             // A failed PREPARE might represent an already-committed publish; do not classify absent evidence optimistically.
             return new Result(committing || nonReversibleStarted || !rolledBack || !prepared ? Outcome.UNKNOWN : Outcome.ROLLED_BACK,null,null);
         }

@@ -30,6 +30,7 @@ akis:
     staged-runtime-enabled: ${AKIS_EXECUTION_STAGED_RUNTIME_ENABLED:false}
     recovery-runtime-enabled: ${AKIS_EXECUTION_RECOVERY_RUNTIME_ENABLED:false}
     transfer-recovery-enabled: ${AKIS_EXECUTION_TRANSFER_RECOVERY_ENABLED:false}
+    staged-fault-injection: ${AKIS_EXECUTION_STAGED_FAULT_INJECTION:}
     worker-reference: ${AKIS_EXECUTION_WORKER_REFERENCE:}
     worker-profile-uuid: ${AKIS_EXECUTION_WORKER_PROFILE_UUID:}
     worker-lease-seconds: ${AKIS_EXECUTION_WORKER_LEASE_SECONDS:60}

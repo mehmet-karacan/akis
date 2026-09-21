@@ -113,4 +113,31 @@ class AkisKmInterpreterTest {
         assertThrows(SyntaxException.class, () -> AkisKmInterpreter.compile(
                 new AkisKmInterpreter.Modules(example(Kind.IKM), null, example(Kind.LKM))));
     }
+
+    @Test void resumeSkipsAdoptedStepsAndReportsThemWithTheSealedRowCount() {
+        var runtime = new RecordingRuntime();
+        var modules = new AkisKmInterpreter.Modules(example(Kind.LKM), CONDITIONAL_CHECK, example(Kind.IKM), Map.of("checking", Map.of("CHECK_REQUIRED", true)));
+        var plan = AkisKmInterpreter.compile(modules);
+        int sealIndex = plan.steps().stream().map(Step::operation).toList().indexOf(Operation.SEAL_WORK);
+        List<String> skipped = new ArrayList<>();
+        var observer = new AkisKmInterpreter.Observer() {
+            public void skipped(int ordinal, Step step, long rows) { skipped.add(ordinal + ":" + step.operation() + ":" + rows); }
+        };
+        var results = AkisKmInterpreter.execute(modules, runtime, observer, new AkisKmInterpreter.Resume(sealIndex + 1, 42));
+        assertEquals(List.of("verify", "check", "publish"), runtime.calls);
+        assertEquals(sealIndex + 1, skipped.size());
+        assertEquals("2:TRANSFER_JDBC:42", skipped.get(1));
+        assertEquals(plan.steps().size(), results.size());
+        assertEquals(42, results.get(1).affectedRows());
+    }
+
+    @Test void resumeRejectsPointsBeforeTheSealOrPastThePublication() {
+        var modules = new AkisKmInterpreter.Modules(example(Kind.LKM), null, example(Kind.IKM));
+        int steps = AkisKmInterpreter.compile(modules).steps().size();
+        for (int point : List.of(1, steps)) {
+            var runtime = new RecordingRuntime();
+            assertThrows(IllegalStateException.class, () -> AkisKmInterpreter.execute(modules, runtime, new AkisKmInterpreter.Observer() { }, new AkisKmInterpreter.Resume(point, 1)));
+            assertEquals(List.of("verify"), runtime.calls);
+        }
+    }
 }

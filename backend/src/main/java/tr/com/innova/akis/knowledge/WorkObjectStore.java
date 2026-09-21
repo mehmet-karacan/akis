@@ -87,6 +87,25 @@ public class WorkObjectStore {
             rs.getString("structure_hash"),State.valueOf(rs.getString("state")),rs.getObject("row_count",Long.class),
             rs.getObject("logical_bytes",Long.class),rs.getString("payload_hash"))).list();
     }
+    /** RESUME: the sealed work table of the failed attempt moves to the resuming run of the same job under its live lease. */
+    @Transactional
+    public ObjectRow adopt(Owner token,UUID previousRun,UUID object) {
+        int count=jdbc.sql("""
+            update akis.km_work_object w set calistirma_id=c.id,generation=:generation,worker_reference=:worker,
+              devralinan_calistirma_id=w.calistirma_id,devralinma_zamani=clock_timestamp(),updated_at=clock_timestamp()
+            from akis.calistirma c join akis.proje p on p.id=c.proje_id
+            join akis.calistirma_durumu d on d.proje_id=p.id and d.calistirma_id=c.id
+            join akis.calistirma prev on prev.proje_id=p.id and prev.uuid=:previous and prev.is_talebi_id=c.is_talebi_id
+            where w.uuid=:object and w.proje_id=p.id and w.calistirma_id=prev.id and w.state='SEALED'
+              and w.object_id is not null and w.payload_hash is not null
+              and p.uuid=:project and c.uuid=:run and c.baslatma_turu='DEVAM_ET'
+              and d.nesil_no=:generation and d.isleyici_referansi=:worker
+              and d.kiralama_bitis_zamani>clock_timestamp() and d.durum in ('SAHIPLENILDI','CALISIYOR')
+            """).param("object",object).param("previous",previousRun).param("project",token.projectUuid()).param("run",token.runUuid())
+            .param("generation",token.generation()).param("worker",token.worker()).update();
+        if(count!=1) throw new IllegalStateException("Mühürlü çalışma tablosu devralınamadı; önceki deneme veya kiralama uyuşmuyor.");
+        return list(token.projectUuid(),token.runUuid()).stream().filter(row->row.uuid().equals(object)).findFirst().orElseThrow();
+    }
     /** Single claimant after confirmed success. Unknown/failed runs and another generation cannot authorize DDL. */
     @Transactional
     public ObjectRow claimCleanup(Owner token, UUID object) {

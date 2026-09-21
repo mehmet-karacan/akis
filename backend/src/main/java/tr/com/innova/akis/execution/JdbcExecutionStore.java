@@ -479,6 +479,16 @@ public class JdbcExecutionStore implements ExecutionStore {
                               join akis.proje p on p.id = r.proje_id
                              where p.uuid = :projectUuid and r.uuid = :runUuid
                                and g.durum = 'COMPLETE')
+                            or exists(
+                            select 1
+                              from akis.calistirma r
+                              join akis.proje p on p.id = r.proje_id
+                              join akis.is_talebi it on it.proje_id = r.proje_id and it.id = r.is_talebi_id
+                              join akis.yayin y on y.proje_id = it.proje_id and y.id = it.yayin_id
+                              join akis.senaryo s on s.id = y.senaryo_id
+                             where p.uuid = :projectUuid and r.uuid = :runUuid
+                               and r.yayin_ozeti = (y.fiziksel_manifesto ->> 'releaseHash')
+                               and r.plan_ozeti = s.plan_ozeti)
                         """)
                 .param("projectUuid", projectUuid)
                 .param("runUuid", runUuid)

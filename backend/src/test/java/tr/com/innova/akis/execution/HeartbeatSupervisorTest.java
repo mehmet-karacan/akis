@@ -286,13 +286,16 @@ class HeartbeatSupervisorTest {
     }
 
     @Test
-    void equalDeadlineIsRejectedAsStale() {
+    void equalDeadlineIsKeptAfterConfirmedHeartbeatAndEarlierDeadlineIsRejected() {
         RunLeaseToken initial = token(1, 60);
         FakeLeasePort port = new FakeLeasePort();
         port.answers.add(HeartbeatResult.accepted(initial));
+        port.answers.add(HeartbeatResult.accepted(token(1, 30)));
         HeartbeatSupervisor supervisor = new HeartbeatSupervisor(
                 new WorkerLeaseService(port), initial, LEASE, new FakeScheduler());
 
+        // Same deadline: the store confirmed the extension; clock granularity is not lost authority.
+        assertEquals(initial.leaseDeadline(), supervisor.checkpoint().leaseDeadline());
         LeaseGateException failure = assertThrows(
                 LeaseGateException.class, supervisor::checkpoint);
         assertEquals(Failure.LEASE_AUTHORITY_LOST, failure.failure());
