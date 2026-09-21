@@ -107,6 +107,7 @@ final class ProcedureWorkerOrchestrator {
             }
             plan = plans.resolve(claimed.releaseHash(), claimed.planHash(),
                     context.scenarioPlan(), context.physicalManifest());
+            plan = withBatchOverride(plan, executions.jobParameters(context.runUuid()).path("batchRows").asInt(0));
             targetTask = representativeTarget(plan);
             binding = plan.bindings().get(targetTask.id());
             pinned = snapshots.loadProcedureTarget(plan, targetTask, binding, "AKTIF");
@@ -160,6 +161,19 @@ final class ProcedureWorkerOrchestrator {
             return new OutcomeUnknown(unknown.errorCode());
         }
         return new StoppedFailClosed("PROCEDURE_HANDLER_STOPPED");
+    }
+
+    /** Per-run batch override: every task consuming a rowset uses the requested batch size; the pinned plan hash is untouched. */
+    static ProcedureRuntimePlan withBatchOverride(ProcedureRuntimePlan plan, int batchRows) {
+        if (batchRows < 1) return plan;
+        List<ProcedureRuntimePlan.Task> tasks = plan.tasks().stream().map(task -> task.input() == null ? task
+                : new ProcedureRuntimePlan.Task(task.id(), task.name(), task.type(), task.connectionRole(), task.riskClass(), task.command(),
+                        task.commandHash(), task.requiresApproval(), task.onError(), task.timeoutSeconds(), task.output(),
+                        new ProcedureRuntimePlan.BatchInput(task.input().fromTask(), Math.min(batchRows, ProcedureRuntimePlan.MAXIMUM_ROWSET_ROWS)),
+                        task.namedBinds(), task.parameters(), task.logCounter(), task.transactionMode(), task.transactionChannel(),
+                        task.transactionIsolation(), task.commitMode())).toList();
+        return new ProcedureRuntimePlan(plan.planVersion(), plan.runtimePlanHash(), plan.releaseHash(), plan.scenarioPlanHash(),
+                plan.definitionUuid(), plan.definitionVersionUuid(), tasks, plan.bindings(), plan.canonicalPlan());
     }
 
     private void failPreflight(LeaseGate gate, String code) {

@@ -162,14 +162,30 @@ public class JdbcExecutionStore implements ExecutionStore {
             UUID runUuid,
             UUID stateUuid,
             UUID eventUuid) {
+        return createQueuedRun(publication, actor, requestHash, jobRequestUuid, runUuid, stateUuid, eventUuid, null);
+    }
+
+    @Override
+    public RunRow createQueuedRun(
+            PublicationContext publication,
+            Actor actor,
+            String requestHash,
+            UUID jobRequestUuid,
+            UUID runUuid,
+            UUID stateUuid,
+            UUID eventUuid,
+            Integer batchRows) {
+        ObjectNode parameters = objectMapper.createObjectNode();
+        if (batchRows != null) parameters.put("batchRows", batchRows);
         long jobRequestId = jdbc.sql("""
                         insert into akis.is_talebi(
                             proje_id, yayin_id, istek_ozeti, is_turu, oncelik,
                             parametre_sema_surumu, parametre, uuid, olusturan_kullanici_id)
                         values (:projectId, :publicationId, :requestHash, 'CALISTIR', 50,
-                                1, '{}'::jsonb, :uuid, :actorId)
+                                1, cast(:parameters as jsonb), :uuid, :actorId)
                         returning id
                         """)
+                .param("parameters", parameters.toString())
                 .param("projectId", publication.projectId())
                 .param("publicationId", publication.publicationId())
                 .param("requestHash", requestHash)
@@ -210,6 +226,7 @@ public class JdbcExecutionStore implements ExecutionStore {
         eventData.put("planHash", publication.planHash());
         eventData.put("releaseHash", publication.releaseHash());
         eventData.put("publicationUuid", publication.publicationUuid().toString());
+        if (batchRows != null) eventData.put("batchRows", batchRows);
         insertEvent(
                 publication.projectId(), runId, 1, "RUN_REQUESTED",
                 eventData, eventUuid, actor.id());

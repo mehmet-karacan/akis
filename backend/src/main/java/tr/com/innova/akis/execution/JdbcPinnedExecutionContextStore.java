@@ -60,6 +60,18 @@ public class JdbcPinnedExecutionContextStore implements PinnedExecutionContextPo
 
     @Override
     @Transactional(readOnly = true)
+    public JsonNode jobParameters(UUID runUuid) {
+        return jdbc.sql("""
+                        select it.parametre::text from akis.calistirma c
+                          join akis.is_talebi it on it.id = c.is_talebi_id
+                         where c.uuid = :runUuid
+                        """)
+                .param("runUuid", runUuid).query(String.class).optional().map(this::json)
+                .orElseGet(objectMapper::createObjectNode);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Optional<UUID> resumeOrigin(UUID runUuid) {
         return jdbc.sql("""
                         select prev.uuid

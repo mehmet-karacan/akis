@@ -58,7 +58,7 @@ final class ExecutionController {
         authorization.requireProjectPermission(projectUuid, RUN_START);
         StartResult result = service.start(
                 projectUuid, request.publicationUuid(), idempotencyKey,
-                actorResolver.currentActor());
+                actorResolver.currentActor(), request.batchRows());
         RunView view = RunView.from(result.run(), featureFlags);
         if (!result.created()) {
             return ResponseEntity.ok(view);
@@ -185,7 +185,9 @@ final class ExecutionController {
                 projectUuid, runUuid, actorResolver.currentActor()), featureFlags);
     }
 
-    record StartRunRequest(@NotNull UUID publicationUuid) {
+    /** batchRows: optional per-run override of the pinned batch size (1..5000); the published default applies when absent. */
+    record StartRunRequest(@NotNull UUID publicationUuid, @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(5000) Integer batchRows) {
+        StartRunRequest(UUID publicationUuid) { this(publicationUuid, null); }
     }
 
     record RecoveryRequest(

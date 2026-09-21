@@ -38,6 +38,7 @@ export function PublicationDetailPage() {
   const publication = remote.data
   const navigate = useNavigate()
   const [starting, setStarting] = useState(false)
+  const [batchRows, setBatchRows] = useState('')
   const [startError, setStartError] = useState('')
   // Only an active publication can run; the backend enforces the same gate, the idempotency key keeps double clicks from starting twice.
   const canRun = publication?.status === 'AKTIF'
@@ -45,7 +46,8 @@ export function PublicationDetailPage() {
     if (!publication || !projectUuid) return
     setStarting(true); setStartError('')
     try {
-      const run = await executionApi.startRun(projectUuid, publication.uuid, crypto.randomUUID())
+      const batch = Number.parseInt(batchRows, 10)
+      const run = await executionApi.startRun(projectUuid, publication.uuid, crypto.randomUUID(), Number.isFinite(batch) && batch > 0 ? { batchRows: Math.min(batch, 5000) } : undefined)
       navigate(`/project/operations/runs/${encodeURIComponent(run.runUuid)}`)
     } catch (error) { setStartError(apiErrorMessage(error, t('requestFailed'))) }
     finally { setStarting(false) }
@@ -112,6 +114,7 @@ export function PublicationDetailPage() {
   const statusText = publication ? (['ONAY_BEKLIYOR', 'AKTIF', 'IPTAL', 'ETKIN'].includes(publication.status) ? t(`status_${publication.status}` as Parameters<typeof t>[0]) : publication.status) : ''
   const backLink = <div className="ops-header-actions">
     <Link className="ops-button ops-button-secondary" to="/project/publications"><ArrowLeft aria-hidden="true" /> {t('backToPublications')}</Link>
+    {canRun && <label className="ops-batch-field" title={t('batchRowsHint')}><span>{t('batchRows')}</span><input type="number" min={1} max={5000} inputMode="numeric" value={batchRows} placeholder="—" onChange={(event) => setBatchRows(event.target.value)} /></label>}
     {canRun && <AntActionButton tone="primary" type="button" icon={<Play size={16} />} busy={starting} onClick={() => void startRun()}>{starting ? t('starting') : t('run')}</AntActionButton>}
   </div>
 

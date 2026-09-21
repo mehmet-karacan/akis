@@ -62,11 +62,12 @@ export const executionApi = {
       { method: 'POST', headers: { 'Idempotency-Key': idempotencyKey }, ...jsonBody(request) },
     )
   },
-  startRun(projectUuid: string, publicationUuid: string, idempotencyKey: string) {
+  /** batchRows: optional per-run override of the published batch size (1..5000); the published default applies when omitted. */
+  startRun(projectUuid: string, publicationUuid: string, idempotencyKey: string, options?: { batchRows?: number }) {
     return apiRequest<RunRecord>(runsPath(projectUuid), {
       method: 'POST',
       headers: { 'Idempotency-Key': idempotencyKey },
-      ...jsonBody({ publicationUuid }),
+      ...jsonBody({ publicationUuid, ...(options?.batchRows ? { batchRows: options.batchRows } : {}) }),
     })
   },
   cancelRun(projectUuid: string, runUuid: string) {

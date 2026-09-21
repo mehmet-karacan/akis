@@ -138,9 +138,14 @@ final class StagedWorkerOrchestrator {
                 var columns=pinned.sources().get(reference.id()).body().columns().stream().map(tr.com.innova.akis.discovery.SchemaFingerprintInput.Column::reference).collect(java.util.stream.Collectors.toSet());
                 return new JdbcStagingTransfer.QuerySource(reference.id(),reference.alias(),new JdbcStagingTransfer.Table(binding.owner(),binding.objectName()),columns);
             }).toList();
+            // Per-run batch override (job parameter) replaces the pinned batch/fetch size; Options re-validates the bounds.
+            var pinnedOptions=plan.definition().options();
+            int batchOverride=contexts.jobParameters(context.runUuid()).path("batchRows").asInt(0);
+            var options=batchOverride>0?new StagedMappingDefinition.Options(batchOverride,batchOverride,pinnedOptions.maxRows(),pinnedOptions.maxBytes(),pinnedOptions.allowEmptySource()):pinnedOptions;
+            if(batchOverride>0) LOG.info("KM run {} uses batch override {} (pinned {})",context.runUuid(),batchOverride,pinnedOptions.batchRows());
             var contract=new OracleKmRuntime.Contract(owner,plan.program(),databaseIdentity,plan.target().owner(),
                     new JdbcStagingTransfer.Table(plan.source().owner(),plan.source().objectName()),table,layout.work(),layout.transfer(),
-                    plan.definition().options(),layout.quality(),30,workArea,
+                    options,layout.quality(),30,workArea,
                     new JdbcStagingTransfer.QueryOptions(plan.definition().booleanOption("loading","DISTINCT"),plan.definition().stringOption("loading","ORACLE_HINT"),querySources,plan.definition().joins(),plan.definition().filters()));
             var runtime=new OracleKmRuntime(contract,source.connection(),control.connection(),data.connection(),StagedWorkSessionFactory.transaction(data),
                     manager,objects,new JdbcStagingTransfer(),new JdbcWorkQualityChecks(),guard,(object,seal)->{

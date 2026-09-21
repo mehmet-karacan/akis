@@ -73,14 +73,28 @@ public class ExecutionService {
             UUID publicationUuid,
             String idempotencyKey,
             Actor actor) {
+        return start(projectUuid, publicationUuid, idempotencyKey, actor, null);
+    }
+
+    @Transactional
+    StartResult start(
+            UUID projectUuid,
+            UUID publicationUuid,
+            String idempotencyKey,
+            Actor actor,
+            Integer batchRows) {
         requireManualRequestsEnabled();
         String safeKey = idempotencyKey(idempotencyKey);
         if (publicationUuid == null) {
             throw validation("Yayın UUID değeri gereklidir.");
         }
+        if (batchRows != null && (batchRows < 1 || batchRows > 5000)) {
+            throw validation("Batch boyutu 1 ile 5000 arasında olmalıdır.");
+        }
         long projectId = store.findProjectId(projectUuid)
                 .orElseThrow(() -> notFound("Proje bulunamadı."));
-        String requestHash = sha256("{\"publicationUuid\":\"" + publicationUuid + "\"}");
+        String requestHash = sha256("{\"publicationUuid\":\"" + publicationUuid + "\""
+                + (batchRows == null ? "" : ",\"batchRows\":" + batchRows) + "}");
         String keyHash = sha256(safeKey);
         boolean reserved = store.reserveIdempotency(
                 projectId, actor.id(), IDEMPOTENCY_SCOPE,
@@ -119,7 +133,7 @@ public class ExecutionService {
 
         RunRow created = store.createQueuedRun(
                 publication, actor, requestHash, UUID.randomUUID(), UUID.randomUUID(),
-                UUID.randomUUID(), UUID.randomUUID());
+                UUID.randomUUID(), UUID.randomUUID(), batchRows);
         store.completeIdempotency(reservation.id(), created.jobRequestId(), created);
         return new StartResult(created, true);
     }

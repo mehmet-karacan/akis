@@ -65,3 +65,7 @@ body .mapping-km-option-groups .mapping-option-risk { flex: 1 1 100%; }
 .prerun-transitions li { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 /* Publication header: back link and the primary Run action side by side. */
 .ops-header-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+/* Publication header: optional per-run batch override next to Run. */
+.ops-batch-field { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-soft); }
+.ops-batch-field input { width: 92px; height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; }

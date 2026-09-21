@@ -118,7 +118,8 @@ class ExecutionControllerTest {
                 UUID projectUuid,
                 UUID publicationUuid,
                 String idempotencyKey,
-                Actor actor) {
+                Actor actor,
+                Integer batchRows) {
             return new StartResult(run(), true);
         }
 

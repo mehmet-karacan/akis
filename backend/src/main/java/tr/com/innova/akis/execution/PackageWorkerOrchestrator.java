@@ -136,8 +136,9 @@ final class PackageWorkerOrchestrator {
         Long jobId = jdbc.sql("""
                 insert into akis.is_talebi(proje_id, yayin_id, istek_ozeti, is_turu, oncelik, parametre_sema_surumu, parametre, uuid, olusturan_kullanici_id)
                 select y.proje_id, y.id, encode(sha256(convert_to(:runUuid || '|' || :step, 'UTF8')), 'hex'), 'CALISTIR', 60, 1,
-                       jsonb_build_object('packageRunUuid', :parentRun, 'packageStepCode', :step), :jobUuid, parent.olusturan_kullanici_id
-                  from akis.yayin y, akis.calistirma parent
+                       jsonb_build_object('packageRunUuid', :parentRun, 'packageStepCode', :step) || (parentJob.parametre - 'packageRunUuid' - 'packageStepCode'),
+                       :jobUuid, parent.olusturan_kullanici_id
+                  from akis.yayin y, akis.calistirma parent join akis.is_talebi parentJob on parentJob.id = parent.is_talebi_id
                  where y.uuid = :publication and y.durum = 'AKTIF' and parent.uuid = :parentRun
                 returning id
                 """).param("runUuid", runUuid.toString()).param("step", stepCode).param("parentRun", token.runUuid()).param("jobUuid", jobUuid)

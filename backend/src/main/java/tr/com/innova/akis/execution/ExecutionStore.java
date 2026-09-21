@@ -44,6 +44,19 @@ interface ExecutionStore {
             UUID stateUuid,
             UUID eventUuid);
 
+    /** Job parameters (e.g. batchRows) are pinned on the request and read by the worker; null means defaults. */
+    default RunRow createQueuedRun(
+            PublicationContext publication,
+            Actor actor,
+            String requestHash,
+            UUID jobRequestUuid,
+            UUID runUuid,
+            UUID stateUuid,
+            UUID eventUuid,
+            Integer batchRows) {
+        return createQueuedRun(publication, actor, requestHash, jobRequestUuid, runUuid, stateUuid, eventUuid);
+    }
+
     void completeIdempotency(long reservationId, long jobRequestId, RunRow run);
 
     Optional<RunRow> findByJobRequestId(long projectId, long jobRequestId);
