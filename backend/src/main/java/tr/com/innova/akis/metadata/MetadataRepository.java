@@ -535,6 +535,40 @@ public class MetadataRepository {
                 .single();
     }
 
+    /**
+     * Procedure tasks name their tables in SQL, not through a picker. Bind each task to the one registered data object of its
+     * logical schema's models whose reference appears in the command (ODI-style implicit datastore); the publication later
+     * pins that object's newest schema snapshot as the task's target identity. Ambiguous or unmatched tasks stay unbound and
+     * the publication reports it.
+     */
+    void createProcedureObjectReferences(long definitionId, UUID versionUuid, JsonNode content) {
+        for (JsonNode task : content.path("tasks")) {
+            String logical = task.path("logicalSchemaUuid").asText("");
+            String command = task.path("command").asText("").toUpperCase(java.util.Locale.ROOT);
+            if (logical.isBlank() || command.isBlank()) continue;
+            var matches = jdbc.sql("""
+                    select vn.uuid, vn.nesne_referansi from akis.veri_nesnesi vn
+                      join akis.model m on m.id = vn.model_id and m.arsivlenme_zamani is null
+                      join akis.mantiksal_sema ms on ms.id = m.mantiksal_sema_id
+                     where ms.uuid = :logical and vn.arsivlenme_zamani is null
+                       and exists (select 1 from akis.sema_goruntusu sg where sg.veri_nesnesi_id = vn.id)
+                    """).param("logical", UUID.fromString(logical))
+                    .query((rs, n) -> new String[]{rs.getString("uuid"), rs.getString("nesne_referansi")}).list().stream()
+                    .filter(row -> java.util.regex.Pattern.compile("(?<![A-Z0-9_$#])" + java.util.regex.Pattern.quote(row[1].toUpperCase(java.util.Locale.ROOT)) + "(?![A-Z0-9_$#])").matcher(command).find())
+                    .toList();
+            if (matches.size() != 1) continue;
+            jdbc.sql("""
+                    insert into akis.tanim_veri_nesnesi(proje_id,tanim_surumu_id,veri_nesnesi_id,sema_goruntusu_id,dugum_kodu,rol)
+                    select ts.proje_id, ts.id, vn.id, sg.id, :nodeCode, :role
+                      from akis.tanim_surumu ts
+                      join akis.veri_nesnesi vn on vn.proje_id = ts.proje_id and vn.uuid = :objectUuid
+                      join lateral (select id from akis.sema_goruntusu g where g.veri_nesnesi_id = vn.id order by g.kesif_zamani desc limit 1) sg on true
+                     where ts.tanim_id = :definitionId and ts.uuid = :versionUuid
+                    """).param("nodeCode", task.path("id").asText()).param("role", "SOURCE".equals(task.path("connectionRole").asText()) ? "KAYNAK" : "HEDEF")
+                    .param("objectUuid", UUID.fromString(matches.getFirst()[0])).param("definitionId", definitionId).param("versionUuid", versionUuid).update();
+        }
+    }
+
     void createDirectObjectReferences(long definitionId, UUID versionUuid, JsonNode content) {
         var references = new java.util.ArrayList<JsonNode>();
         content.path("sources").forEach(references::add);

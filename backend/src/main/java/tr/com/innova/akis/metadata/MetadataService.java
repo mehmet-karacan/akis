@@ -401,6 +401,9 @@ public class MetadataService {
         if (definition.type() == DefinitionType.MAPPING && draft.schemaVersion() == 4) {
             repository.createDirectObjectReferences(definition.id(), version.uuid(), canonical);
         }
+        if (definition.type() == DefinitionType.PROCEDURE) {
+            repository.createProcedureObjectReferences(definition.id(), version.uuid(), canonical);
+        }
         repository.activateDraftDefinition(definition.id());
         if (modules != null) knowledgeModules.link(definition.projectId(), version.uuid(), modules);
         return version;

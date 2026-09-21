@@ -8,6 +8,8 @@ import java.util.Objects;
 public interface JdbcTransactionBoundary {
     void commit() throws SQLException;
     void rollback() throws SQLException;
+    /** Roll back the work so far but keep the transaction usable (a mid-flow discard, not the terminal outcome). */
+    default void discard() throws SQLException { rollback(); }
 
     static JdbcTransactionBoundary direct(Connection connection) {
         Objects.requireNonNull(connection);

@@ -67,6 +67,33 @@ class ProcedureOracleSourceSqlContractTest {
     }
 
     @Test
+    void acceptsRownumLimitBoundToAnIntegerVariableWithOrderBy() {
+        String sql = "SELECT ID, KOD FROM TTBP.HAKEDIS_TIPI WHERE ROWNUM <= :SATIR_LIMITI ORDER BY ID";
+        ProcedureRuntimePlan.Task task = new ProcedureRuntimePlan.Task(
+                "READ_SOURCE", "Read source", ProcedureRuntimePlan.TaskType.SQL,
+                ProcedureRuntimePlan.ConnectionRole.SOURCE,
+                ProcedureRuntimePlan.RiskClass.READ_ONLY, sql, "d".repeat(64), false,
+                ProcedureRuntimePlan.ErrorPolicy.STOP, 30,
+                new ProcedureRuntimePlan.RowsetOutput(1_000), null,
+                List.of("SATIR_LIMITI"),
+                Map.of("SATIR_LIMITI", new ProcedureRuntimePlan.ParameterValue(
+                        ProcedureRuntimePlan.ParameterType.INTEGER, "1000")),
+                ProcedureRuntimePlan.LogCounter.NONE,
+                ProcedureRuntimePlan.TransactionMode.AUTOCOMMIT, null,
+                ProcedureRuntimePlan.TransactionIsolation.DRIVER_DEFAULT,
+                ProcedureRuntimePlan.CommitMode.COMMIT);
+        var validated = ProcedureOracleSourceSqlContract.validate(plan(task), task, plan(task).bindings().get(task.id()));
+        assertEquals("SELECT ID, KOD FROM TTBP.HAKEDIS_TIPI WHERE ROWNUM <= ? ORDER BY ID", validated.sql());
+        for (String rejected : List.of("SELECT ID FROM TTBP.HAKEDIS_TIPI WHERE ROWNUM <= 1000",
+                "SELECT ID FROM TTBP.HAKEDIS_TIPI ORDER BY LOWER(ID)",
+                "SELECT ID FROM TTBP.HAKEDIS_TIPI WHERE ID IN (SELECT ID FROM TTBP.X)")) {
+            ProcedureRuntimePlan.Task bad = task(rejected);
+            ProcedureRuntimePlan plan = plan(bad);
+            assertThrows(IllegalArgumentException.class, () -> ProcedureOracleSourceSqlContract.validate(plan, bad, plan.bindings().get(bad.id())));
+        }
+    }
+
+    @Test
     void adapterRejectsSourceViewsUntilTheyHaveASeparateAttestationContract() {
         ProcedureRuntimePlan.TaskBinding view = binding("VIEW");
 

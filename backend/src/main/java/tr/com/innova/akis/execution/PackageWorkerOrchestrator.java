@@ -175,7 +175,7 @@ final class PackageWorkerOrchestrator {
             if (!binding.isObject()) continue;
             jdbc.sql("""
                     insert into akis.degisken_deger_gecmisi(proje_uuid,tanim_uuid,calistirma_uuid,ortam_uuid,mantiksal_sema_uuid,baglanti_surumu_uuid,plan_ozeti,veri_turu,deger,gecmis_modu)
-                    values(:project,:definition,:run,:environment,:logical,:version,:hash,:type,:value,'NONE')
+                    values(:project,:definition,:run,:environment,:logical,:version,:hash,:type,:value,'ALL')
                     """).param("project", UUID.fromString(binding.path("projectUuid").asText())).param("definition", UUID.fromString(entry.getKey()))
                     .param("run", childRun).param("environment", UUID.fromString(binding.path("environmentUuid").asText()))
                     .param("logical", UUID.fromString(binding.path("logicalSchemaUuid").asText())).param("version", UUID.fromString(binding.path("connectionVersionUuid").asText()))

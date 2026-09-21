@@ -41,12 +41,14 @@ final class ProcedureOracleSourceSqlContract {
                 || !identifier(binding.owner()) || !identifier(binding.objectName())) {
             throw invalid();
         }
+        // Filters: up to four AND-joined comparisons of a column (or ROWNUM) against a typed bind, the bind optionally
+        // offset by "+ 1" (day-window idiom); an optional ORDER BY over plain columns. No literals, functions or subqueries.
+        String comparison = "(?:ROWNUM|[A-Z][A-Z0-9_$#]*)\\s*(?:=|>=|<=|<|>)\\s*:[A-Z][A-Z0-9_]*(?:\\s*\\+\\s*1)?";
         Pattern select = Pattern.compile(
                 "^SELECT\\s+(?<columns>[A-Z][A-Z0-9_$#]*(?:\\s*,\\s*[A-Z][A-Z0-9_$#]*)*)"
                         + "\\s+FROM\\s+" + Pattern.quote(binding.physicalIdentity())
-                        + "(?:\\s+WHERE\\s+[A-Z][A-Z0-9_$#]*\\s*=\\s*:[A-Z][A-Z0-9_]*"
-                        + "|\\s+WHERE\\s+[A-Z][A-Z0-9_$#]*\\s*>=\\s*:[A-Z][A-Z0-9_]*"
-                        + "\\s+AND\\s+[A-Z][A-Z0-9_$#]*\\s*<\\s*:[A-Z][A-Z0-9_]*\\s*\\+\\s*1)?$",
+                        + "(?:\\s+WHERE\\s+" + comparison + "(?:\\s+AND\\s+" + comparison + "){0,3})?"
+                        + "(?:\\s+ORDER\\s+BY\\s+[A-Z][A-Z0-9_$#]*(?:\\s+(?:ASC|DESC))?(?:\\s*,\\s*[A-Z][A-Z0-9_$#]*(?:\\s+(?:ASC|DESC))?)*)?$",
                 Pattern.CASE_INSENSITIVE);
         var match = select.matcher(task.command().strip());
         if (!match.matches()) {

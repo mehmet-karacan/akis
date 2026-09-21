@@ -481,6 +481,13 @@ final class RuntimeOracleConnectionProvider {
             }
         }
 
+        /** Mid-flow discard: the transaction stays open and unresolved; close() still rolls back unless a commit is confirmed. */
+        void discardWork() {
+            requireTarget();
+            try { connection.rollback(); }
+            catch (SQLException | RuntimeException exception) { throw new RuntimeOracleConnectionException(Failure.ROLLBACK_NOT_CONFIRMED); }
+        }
+
         void rollbackConfirmed() {
             requireTarget();
             try {

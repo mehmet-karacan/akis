@@ -69,8 +69,8 @@ final class JdbcStagedAtomicRefreshWriter {
                 // TRUNCATE is DDL and commits implicitly, which would end the transaction the ledger preparation
                 // belongs to. Discard that preparation, truncate, then re-lock and prepare again so the INSERT and
                 // the ledger record commit together.
-                // Plain JDBC rollback: this only discards the preparation; the session's transaction outcome is still open.
-                connection.rollback(); prepared=false;
+                // Discard only the preparation; the session's transaction outcome stays open (guarded connections forbid raw rollback).
+                transaction.discard(); prepared=false;
                 nonReversibleStarted=true; command(connection,"TRUNCATE TABLE "+target.sql(),timeoutSeconds);
                 // The ledger requires a clean transaction boundary for preparation, so prepare before taking the locks again.
                 preparation=session.preparePublish(evidence);

@@ -87,6 +87,7 @@ final class StagedPublishFacade {
                         },leaseCheckpoint,new JdbcTransactionBoundary() {
                             public void commit() { session.commitConfirmed(); }
                             public void rollback() { session.rollbackConfirmed(); }
+                            public void discard() { session.discardWork(); }
                         },plan.definition().stringOption("integration","ORACLE_HINT"),writerMode,keys);
         } finally { try { session.close(); } catch(RuntimeException ignored) { } }
         return new OracleKmRuntime.PublishResult(OracleKmRuntime.PublishOutcome.valueOf(result.outcome().name()),result.inserted()==null?0:result.inserted());
