@@ -52,6 +52,7 @@ final class ProjectCapabilityController {
         capabilities.add("ORACLE_TABLE_COPY_V1");
         capabilities.add("ORACLE_PROCEDURE_V1");
         if (executionFlags.stagedRuntimeEnabled()) capabilities.add(StagedRuntimePlanResolver.CAPABILITY);
+        capabilities.add(tr.com.innova.akis.publication.PackagePublicationPlanner.CAPABILITY);
         if (executionFlags.recoveryRuntimeReady()) capabilities.add("ORACLE_PROCEDURE_RECOVERY_V1");
         if (executionFlags.transferRecoveryReady()) capabilities.add("ORACLE_TRANSFER_RECOVERY_V1");
         return List.copyOf(capabilities);

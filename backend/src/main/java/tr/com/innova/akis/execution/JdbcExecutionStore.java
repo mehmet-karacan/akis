@@ -426,10 +426,12 @@ public class JdbcExecutionStore implements ExecutionStore {
     public List<RunStepRow> listSteps(UUID projectUuid, UUID runUuid) {
         return jdbc.sql("""
                         select a.uuid, u.uuid as parent_uuid, a.adim_kodu, a.tur as tur_kodu, a.sira_no, a.ad,
-                               coalesce(d.durum, 'KAYDEDILMEDI') as durum_kodu,
+                               coalesce(d.durum, pd.durum, 'KAYDEDILMEDI') as durum_kodu,
                                k.baglanti_rolu, k.risk as risk_kodu,
-                               d.baslama_zamani, d.bitis_zamani,
-                               d.satir_sayisi, d.bayt_sayisi, d.hata_kodu,
+                               coalesce(d.baslama_zamani, pd.baslama_zamani) as baslama_zamani,
+                               coalesce(d.bitis_zamani, pd.bitis_zamani) as bitis_zamani,
+                               d.satir_sayisi, d.bayt_sayisi, coalesce(d.hata_kodu, pd.hata_kodu) as hata_kodu,
+                               child.uuid as alt_calistirma_uuid,
                                task.content->>'logCounter' as log_counter,
                                case when k.baglanti_rolu = 'SOURCE' then 'NOT_APPLICABLE'
                                     else coalesce(d.transaction_outcome, 'NOT_ATTEMPTED') end
@@ -449,6 +451,9 @@ public class JdbcExecutionStore implements ExecutionStore {
                             on k.proje_id = a.proje_id and k.calistirma_adimi_id = a.id
                           left join akis.prosedur_adim_durumu d
                             on d.proje_id = a.proje_id and d.calistirma_adimi_id = a.id
+                          left join akis.paket_adim_durumu pd
+                            on pd.proje_id = a.proje_id and pd.calistirma_adimi_id = a.id
+                          left join akis.calistirma child on child.id = pd.alt_calistirma_id
                          where p.uuid = :projectUuid and r.uuid = :runUuid
                          order by a.sira_no, a.id
                         """)
@@ -464,7 +469,8 @@ public class JdbcExecutionStore implements ExecutionStore {
                         rs.getObject("bitis_zamani", OffsetDateTime.class),
                         rs.getObject("satir_sayisi", Long.class),
                         rs.getObject("bayt_sayisi", Long.class), rs.getString("hata_kodu"),
-                        rs.getString("log_counter"), rs.getString("transaction_state")))
+                        rs.getString("log_counter"), rs.getString("transaction_state"),
+                        rs.getObject("alt_calistirma_uuid", UUID.class)))
                 .list();
     }
 

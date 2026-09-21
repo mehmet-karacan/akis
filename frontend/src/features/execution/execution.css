@@ -143,3 +143,6 @@
 .run-step-commands { margin-top: 12px; }
 .run-step-commands .prerun-sql-head { flex-wrap: wrap; row-gap: 4px; }
 .run-step-commands .prerun-sql-head strong, .run-step-commands .prerun-cell-hint { white-space: nowrap; }
+
+.run-step-child { margin: 12px 0 0; }
+.run-step-child a { display: inline-flex; align-items: center; gap: 8px; }

@@ -19,7 +19,7 @@ import type { Definition } from './types'
 
 const allowedTypes = new Set(['MAPPING', 'PROCEDURE', 'PACKAGE', 'VARIABLE'])
 const pickerTypes = ['MAPPING', 'PROCEDURE', 'PACKAGE', 'VARIABLE'] as const
-const toStepType = (type: Definition['type']): PackageStepType => type === 'VARIABLE' ? 'VARIABLE_EVALUATE' : type as PackageStepType
+const toStepType = (type: Definition['type']): PackageStepType => type === 'VARIABLE' ? 'VARIABLE_REFRESH' : type as PackageStepType
 const outcomeKey = { SUCCESS: 'outcomeSUCCESS', FAILURE: 'outcomeFAILURE', TRUE: 'outcomeTRUE', FALSE: 'outcomeFALSE', ALWAYS: 'outcomeALWAYS' } as const
 /** Steps reuse the project-object badge colors: variable steps show the variable mark, others their definition type. */
 const stepDefinitionType = (type: PackageStepType): Definition['type'] => type.startsWith('VARIABLE') ? 'VARIABLE' : type as Definition['type']

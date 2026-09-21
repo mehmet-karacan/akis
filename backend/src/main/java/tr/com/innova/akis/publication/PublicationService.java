@@ -46,6 +46,9 @@ public class PublicationService {
     private final ProcedureRuntimePlanResolver procedureRuntimePlanResolver;
     private final SecretValueSanitizer secretSanitizer;
     private StagedMappingPlanner stagedPlanner;
+    private PackagePublicationPlanner packagePlanner;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void configurePackagePlanner(PackagePublicationPlanner planner) { this.packagePlanner = planner; }
     private tr.com.innova.akis.execution.StagedRuntimePlanResolver stagedResolver;
     @org.springframework.beans.factory.annotation.Value("${akis.execution.staged-runtime-enabled:false}")
     private boolean stagedRuntimeEnabled;
@@ -120,7 +123,8 @@ public class PublicationService {
             }
         }
         boolean stagedExecutable=stagedRuntimeEnabled && Set.of(3,4).contains(context.definitionSchemaVersion()) && "MAPPING".equals(context.scenarioPlan().path("source").path("definitionType").asText());
-        String runtimeCapability = stagedExecutable?tr.com.innova.akis.execution.StagedRuntimePlanResolver.CAPABILITY:pilotExecutable
+        boolean packageExecutable="PACKAGE".equals(context.scenarioPlan().path("source").path("definitionType").asText());
+        String runtimeCapability = packageExecutable?PackagePublicationPlanner.CAPABILITY:stagedExecutable?tr.com.innova.akis.execution.StagedRuntimePlanResolver.CAPABILITY:pilotExecutable
                 ? PilotRuntimePlanResolver.PILOT_CAPABILITY
                 : procedureExecutable
                 ? ProcedureRuntimePlanResolver.CAPABILITY
@@ -134,6 +138,13 @@ public class PublicationService {
             throw conflict("PHYSICAL_PLAN_CHANGED", "Çalışma planı değişmiş veya önizleme yapılmamış; yeniden önizleyin.");
         }
         if(stagedExecutable) unsignedManifest.put("runtimePlanHash",unsignedManifest.path("stagedPlan").path("physicalPlanHash").asText());
+        if(packageExecutable) {
+            // The package plan pins child publications and variable bindings; its hash is the runtime plan hash.
+            if (packagePlanner == null) throw validation("Paket plan servisi hazır değil.");
+            ObjectNode packagePlan = packagePlanner.compile(context);
+            unsignedManifest.set("packagePlan", packagePlan);
+            unsignedManifest.put("runtimePlanHash", sha256(canonicalize(packagePlan).toString()));
+        }
         if (pilotExecutable) {
             try {
                 String runtimePlanHash = runtimePlanResolver.compileHashForPublication(

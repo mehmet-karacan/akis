@@ -360,7 +360,8 @@ final class ExecutionController {
             String byteCountExact,
             String errorCode,
             String logCounter,
-            String transactionState) {
+            String transactionState,
+            UUID childRunUuid) {
 
         static RunStepView from(RunStepRow row) {
             return new RunStepView(
@@ -369,7 +370,7 @@ final class ExecutionController {
                     row.finishedAt(), row.rowCount(), row.byteCount(),
                     row.rowCount() == null ? null : row.rowCount().toString(),
                     row.byteCount() == null ? null : row.byteCount().toString(),
-                    row.errorCode(), row.logCounter(), row.transactionState());
+                    row.errorCode(), row.logCounter(), row.transactionState(), row.childRunUuid());
         }
     }
 }

@@ -145,9 +145,11 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
             { key: 'end', label: t('finishedAt'), children: formatDate(selectedUnit.commands.at(-1)!.finishedAt, locale) },
             ...(selectedUnit.commands.length === 1 ? [{ key: 'rows', label: rowsLabel(step), children: rowsValue(step) }] : []),
           ]} />{selectedUnit.commands.map(item => item.errorCode && <Alert key={item.uuid} type="error" showIcon title={item.errorCode} description={t('errorMessageUnavailable')} />)}
+          {step.type === 'PAKET' && step.childRunUuid && <p className="run-step-child"><Link to={`/project/operations/runs/${step.childRunUuid}`}><PlayCircle size={14} aria-hidden="true" /> {t('openChildRun')}</Link></p>}
+          {step.type !== 'PAKET' && <>
           <ul className="prerun-sql-list run-step-commands" aria-label={t('commandSql')}>{selectedUnit.commands.map(item => { const task = tasks?.get(item.code); const role = item.connectionRole === 'SOURCE' ? 'source' : 'target'; return <li key={item.uuid} className={`prerun-sql prerun-sql--${role}`}>
             <div className="prerun-sql-head"><strong>{item.connectionRole === 'SOURCE' ? t('sourceCommand') : t('targetCommand')}</strong><RunStatusBadge status={item.status} />{selectedUnit.commands.length > 1 && <span className="prerun-cell-hint">{rowsLabel(item)}: {rowsValue(item)}</span>}<code>{task?.type ?? item.type} · {item.code}</code></div>
-            <pre><code>{task?.command ?? (published.loading ? '…' : t('sqlUnavailable'))}</code></pre></li> })}</ul>
+            <pre><code>{task?.command ?? (published.loading ? '…' : t('sqlUnavailable'))}</code></pre></li> })}</ul></>}
           {!!chunks.data?.items.length && <section className="run-chunk-evidence" aria-label={t('chunkEvidence')}><h4>{t('chunkEvidence')}</h4><Table size="small" pagination={false} rowKey="uuid" dataSource={chunks.data.items} columns={[
             { title: '#', dataIndex: 'sequence' },
             { title: t('status'), dataIndex: 'status' },

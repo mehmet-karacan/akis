@@ -95,6 +95,8 @@ export interface RunStep {
   rowCountExact?: string | null
   byteCountExact?: string | null
   errorCode: string | null
+  /** Package step: the child run that executed the step's object. */
+  childRunUuid?: string | null
 }
 
 export interface RecoveryUnit {

@@ -1,4 +1,4 @@
-export type PackageStepType = 'MAPPING' | 'PROCEDURE' | 'PACKAGE' | 'VARIABLE_EVALUATE'
+export type PackageStepType = 'MAPPING' | 'PROCEDURE' | 'PACKAGE' | 'VARIABLE_REFRESH' | 'VARIABLE_EVALUATE'
 export type TransitionOutcome = 'SUCCESS' | 'FAILURE' | 'TRUE' | 'FALSE' | 'ALWAYS'
 export interface PackageStep { id: string; type: PackageStepType; name?: string; definitionUuid?: string; x?: number; y?: number }
 export interface PackageTransition { fromStepId: string; toStepId: string; outcome?: TransitionOutcome }

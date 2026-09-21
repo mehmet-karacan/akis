@@ -34,6 +34,9 @@ final class ProcedureWorkerOrchestrator {
     private final RunExecutionTransitionPort transitions;
     private final ProcedureRunHandler handler;
     private StagedWorkerOrchestrator staged;
+    private PackageWorkerOrchestrator packages;
+    @org.springframework.beans.factory.annotation.Autowired
+    void configurePackageWorker(PackageWorkerOrchestrator worker) { this.packages=worker; }
     @org.springframework.beans.factory.annotation.Autowired
     void configureStagedWorker(StagedWorkerOrchestrator worker) { this.staged=worker; }
 
@@ -74,14 +77,14 @@ final class ProcedureWorkerOrchestrator {
             return new StoppedFailClosed("HEARTBEAT_UNAVAILABLE");
         }
         try (gate) {
-            return runClaimed(claimed.get(), gate);
+            return runClaimed(claimed.get(), gate, worker, lease);
         }
         catch (RuntimeException exception) {
             return new StoppedFailClosed("WORKER_BOUNDARY_FAILED");
         }
     }
 
-    private RunOnceResult runClaimed(ClaimedRun claimed, LeaseGate gate) {
+    private RunOnceResult runClaimed(ClaimedRun claimed, LeaseGate gate, WorkerIdentity worker, Duration lease) {
         PinnedExecutionContext context;
         ProcedureRuntimePlan plan;
         ProcedureRuntimePlan.Task targetTask;
@@ -96,6 +99,11 @@ final class ProcedureWorkerOrchestrator {
             if(StagedRuntimePlanResolver.CAPABILITY.equals(context.physicalManifest().path("runtimeCapability").asText())) {
                 if(staged==null) throw new IllegalStateException();
                 return staged.run(context,gate);
+            }
+            if(PackageWorkerOrchestrator.isPackage(context.physicalManifest())) {
+                if(packages==null) throw new IllegalStateException();
+                // Child runs are executed in this worker through the same dispatch, so nested packages work too.
+                return packages.run(context, claimed, gate, worker, lease, (child, childGate) -> runClaimed(child, childGate, worker, lease));
             }
             plan = plans.resolve(claimed.releaseHash(), claimed.planHash(),
                     context.scenarioPlan(), context.physicalManifest());
