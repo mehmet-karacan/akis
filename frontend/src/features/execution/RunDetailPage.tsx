@@ -11,9 +11,14 @@ import { connectionStatusTagStyles } from '../connections/presentation'
 import { apiErrorMessage, formatDate, redactSensitiveValues } from '../operations/utils'
 import { useRemoteData } from '../operations/useRemoteData'
 import { executionApi } from './api'
+import type { RunStep } from './types'
 import { useExecutionI18n } from './i18n'
 import { RunStatusBadge, runStatusPresentation } from './RunStatusBadge'
-import { buildRunStepTree, firstFailedPath, type RunStepNode } from './runTree'
+import { buildRunStepTree, firstFailedPath, groupRunStepUnits, type RunStepNode } from './runTree'
+import { operationsApi } from '../operations/api'
+import { definitionsApi } from '../definitions/api'
+import type { ProcedureContent, ProcedureTask } from '../definitions/types'
+import '../definitions/pre-run-report.css'
 import './execution.css'
 import '../connections/connections.css'
 import '../connections/catalog-layout.css'
@@ -53,12 +58,28 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
     ? executionApi.listChunks(project, uuid, selected, chunkCursor)
     : Promise.resolve({ items: [], nextCursor: null, hasMore: false }), [project, uuid, selected, chunkCursor])
   const hierarchy = useMemo(() => buildRunStepTree(steps.data ?? []), [steps.data])
+  // The published procedure version supplies the command text per step code; the run store keeps only outcomes.
+  const publicationUuid = run.data?.publicationUuid
+  const published = useRemoteData(async () => {
+    if (!publicationUuid) return null
+    const publication = await operationsApi.getPublication(project, publicationUuid)
+    const version = (await definitionsApi.listVersions(project, publication.definitionUuid)).find(item => item.uuid === publication.definitionVersionUuid)
+    const content = version?.content as Partial<ProcedureContent> | undefined
+    return new Map<string, ProcedureTask>((content?.tasks ?? []).map(task => [task.id, task]))
+  }, [project, publicationUuid])
+  const tasks = published.data ?? null
+  const units = useMemo(() => groupRunStepUnits(hierarchy, (source, target) => tasks?.get(target)?.input?.fromTask === source), [hierarchy, tasks])
+  const unitOf = (stepUuid: string) => units.find(unit => unit.commands.some(item => item.uuid === stepUuid) || unit.children.some(item => item.uuid === stepUuid))
   useEffect(() => { if (!selected && steps.data?.length) setSelected(firstFailedPath(hierarchy).at(-1) ?? steps.data[0]!.uuid) }, [hierarchy, selected, steps.data])
   useEffect(() => { setChunkCursor('0'); setChunkHistory([]) }, [selected])
   const step = steps.data?.find(item => item.uuid === selected)
   const selectedRows = totalRows(hierarchy, false)
   const insertedRows = totalRows(hierarchy, true)
   const treeData = (nodes: RunStepNode[]): DataNode[] => nodes.map(item => ({ key: item.uuid, title: <span className="run-step-title"><span>{item.ordinal}. {item.name}</span><RunStatusBadge status={item.status} /></span>, children: treeData(item.children) }))
+  const unitTreeData: DataNode[] = units.map(unit => ({ key: unit.key, title: <span className="run-step-title"><span>{unit.ordinal}. {unit.name}</span><RunStatusBadge status={unit.status} /></span>, children: treeData(unit.children) }))
+  const selectedUnit = unitOf(selected)
+  const rowsLabel = (item: RunStep) => item.connectionRole === 'SOURCE' ? t('selectedRows') : item.logCounter === 'INSERT' && ['COMMITTED', 'COMMIT_CONFIRMED'].includes(item.transactionState ?? '') ? t('insertedRows') : t('rowCount')
+  const rowsValue = (item: RunStep) => (exactCount(item.rowCountExact) ?? (item.rowCount == null ? null : BigInt(item.rowCount)))?.toLocaleString(locale) ?? t('notRecorded')
   const failure = events.data?.items.filter(item => /FAIL|ERROR|HATA|BASARISIZ/i.test(item.type)).map(item => eventError(item.data)).find(Boolean)
   // Run history is read-only: it shows what happened; operations (cancel, recovery) live with the publication.
   const refresh = () => Promise.all([run.reload(), steps.reload(), events.reload(), km.reload(), chunks.reload()])
@@ -89,13 +110,16 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
         </> : <>
         {steps.loading && <AsyncState state="loading" title={t('loading')} />}{!!steps.error && <AsyncState state="error" title={apiErrorMessage(steps.error, t('requestFailed'))} retryLabel={t('retry')} onRetry={() => void steps.reload()} />}
         {!steps.loading && !steps.error && !steps.data?.length && <AsyncState state="empty" compact title={t('emptySteps')} />}
-        {!!steps.data?.length && <div className="run-result-steps"><Tree blockNode defaultExpandAll key={uuid + steps.data.length} treeData={treeData(hierarchy)} selectedKeys={[selected]} onSelect={keys => { if (keys[0]) setSelected(String(keys[0])) }} aria-label={t('steps')} />
-          {step && <section aria-label={t('stepDetail')}><h3>{step.name}</h3><Descriptions column={1} size="small" items={[
-            { key: 'status', label: t('status'), children: statusTag(step.status) },
-            { key: 'start', label: t('startedAt'), children: formatDate(step.startedAt, locale) },
-            { key: 'end', label: t('finishedAt'), children: formatDate(step.finishedAt, locale) },
-            { key: 'rows', label: step.connectionRole === 'SOURCE' ? t('selectedRows') : step.logCounter === 'INSERT' && ['COMMITTED', 'COMMIT_CONFIRMED'].includes(step.transactionState ?? '') ? t('insertedRows') : t('rowCount'), children: (exactCount(step.rowCountExact) ?? (step.rowCount == null ? null : BigInt(step.rowCount)))?.toLocaleString(locale) ?? t('notRecorded') },
-          ]} />{step.errorCode && <Alert type="error" showIcon title={step.errorCode} description={t('errorMessageUnavailable')} />}
+        {!!steps.data?.length && <div className="run-result-steps"><Tree blockNode defaultExpandAll key={uuid + steps.data.length + units.length} treeData={unitTreeData} selectedKeys={[selectedUnit?.key ?? selected]} onSelect={keys => { if (keys[0]) setSelected(String(keys[0])) }} aria-label={t('steps')} />
+          {step && selectedUnit && <section aria-label={t('stepDetail')}><h3>{selectedUnit.name}</h3><Descriptions column={1} size="small" items={[
+            { key: 'status', label: t('status'), children: statusTag(selectedUnit.status) },
+            { key: 'start', label: t('startedAt'), children: formatDate(selectedUnit.commands[0]!.startedAt, locale) },
+            { key: 'end', label: t('finishedAt'), children: formatDate(selectedUnit.commands.at(-1)!.finishedAt, locale) },
+            ...(selectedUnit.commands.length === 1 ? [{ key: 'rows', label: rowsLabel(step), children: rowsValue(step) }] : []),
+          ]} />{selectedUnit.commands.map(item => item.errorCode && <Alert key={item.uuid} type="error" showIcon title={item.errorCode} description={t('errorMessageUnavailable')} />)}
+          <ul className="prerun-sql-list run-step-commands" aria-label={t('commandSql')}>{selectedUnit.commands.map(item => { const task = tasks?.get(item.code); const role = item.connectionRole === 'SOURCE' ? 'source' : 'target'; return <li key={item.uuid} className={`prerun-sql prerun-sql--${role}`}>
+            <div className="prerun-sql-head"><strong>{item.connectionRole === 'SOURCE' ? t('sourceCommand') : t('targetCommand')}</strong><RunStatusBadge status={item.status} />{selectedUnit.commands.length > 1 && <span className="prerun-cell-hint">{rowsLabel(item)}: {rowsValue(item)}</span>}<code>{task?.type ?? item.type} · {item.code}</code></div>
+            <pre><code>{task?.command ?? (published.loading ? '…' : t('sqlUnavailable'))}</code></pre></li> })}</ul>
           {!!chunks.data?.items.length && <section className="run-chunk-evidence" aria-label={t('chunkEvidence')}><h4>{t('chunkEvidence')}</h4><Table size="small" pagination={false} rowKey="uuid" dataSource={chunks.data.items} columns={[
             { title: '#', dataIndex: 'sequence' },
             { title: t('status'), dataIndex: 'status' },

@@ -25,3 +25,27 @@ export function firstFailedPath(nodes: RunStepNode[]): string[] {
   }
   return []
 }
+
+/** A design step as the procedure editor shows it: a SOURCE read feeding the next TARGET write is one step with two commands. */
+export interface RunStepUnit { key: string; ordinal: number; name: string; status: string; commands: RunStepNode[]; children: RunStepNode[] }
+
+const settledStatuses = new Set(['BASARILI', 'IPTAL', 'ATLANDI'])
+
+function unitStatus(commands: RunStepNode[]): string {
+  const failed = commands.find((item) => failedStatuses.has(item.status))
+  if (failed) return failed.status
+  const active = commands.find((item) => !settledStatuses.has(item.status))
+  return active ? active.status : commands.at(-1)!.status
+}
+
+export function groupRunStepUnits(nodes: RunStepNode[], feeds: (sourceCode: string, targetCode: string) => boolean): RunStepUnit[] {
+  const units: RunStepUnit[] = []
+  for (let index = 0; index < nodes.length; index += 1) {
+    const node = nodes[index]!
+    const next = nodes[index + 1]
+    const commands = next && node.connectionRole === 'SOURCE' && next.connectionRole === 'TARGET' && feeds(node.code, next.code) ? [node, next] : [node]
+    if (commands.length === 2) index += 1
+    units.push({ key: node.uuid, ordinal: units.length + 1, name: (commands.at(-1) ?? node).name, status: unitStatus(commands), commands, children: commands.flatMap((item) => item.children) })
+  }
+  return units
+}

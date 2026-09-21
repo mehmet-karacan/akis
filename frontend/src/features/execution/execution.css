@@ -138,3 +138,8 @@
 .run-numeric { text-align: right; }
 
 }
+
+/* Run detail: each design step lists the commands it ran with their SQL; head cells stay on one line. */
+.run-step-commands { margin-top: 12px; }
+.run-step-commands .prerun-sql-head { flex-wrap: wrap; row-gap: 4px; }
+.run-step-commands .prerun-sql-head strong, .run-step-commands .prerun-cell-hint { white-space: nowrap; }
