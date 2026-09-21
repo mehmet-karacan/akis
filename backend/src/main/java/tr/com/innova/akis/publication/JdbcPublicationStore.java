@@ -87,6 +87,74 @@ public class JdbcPublicationStore implements PublicationStore {
                 .optional();
     }
 
+    /** Sensitive column names per source binding node code, from the bound data objects' column policies. */
+    @Override
+    public java.util.Map<String, List<String>> sensitiveColumns(PublicationContext context, List<ResolvedBinding> bindings) {
+        var result = new java.util.LinkedHashMap<String, List<String>>();
+        for (ResolvedBinding binding : bindings) {
+            if (!"KAYNAK".equals(binding.role())) continue;
+            List<String> columns = jdbc.sql("""
+                    select p.kolon_adi from akis.veri_nesnesi_kolon_politikasi p
+                      join akis.veri_nesnesi vn on vn.id = p.veri_nesnesi_id
+                     where vn.uuid = :object and p.koruma = 'SIFRELE' order by p.kolon_adi
+                    """).param("object", binding.dataObjectUuid()).query(String.class).list();
+            if (!columns.isEmpty()) result.put(binding.nodeCode(), columns);
+        }
+        return result;
+    }
+
+    @Override
+    public void verifySensitiveColumns(PublicationContext context, List<ResolvedBinding> bindings, java.util.Map<String, List<String>> sensitive) {
+        JsonNode definition = context.scenarioPlan().path("executable").path("definition");
+        boolean mapping = definition.has("columnMappings");
+        for (var entry : sensitive.entrySet()) {
+            ResolvedBinding source = bindings.stream().filter(b -> b.nodeCode().equals(entry.getKey())).findFirst().orElseThrow();
+            var sourceColumns = snapshotColumns(source.targetSnapshotId());
+            for (String column : entry.getValue()) {
+                var sourceColumn = sourceColumns.get(column);
+                if (sourceColumn == null) continue; // marked column not in the snapshot: nothing to protect
+                if (!sourceColumn.text())
+                    throw new tr.com.innova.akis.metadata.ApiException(org.springframework.http.HttpStatus.UNPROCESSABLE_CONTENT, "SENSITIVE_COLUMN_NOT_TEXT",
+                            "Hassas kolon " + source.dataObjectReference() + "." + column + " metin (VARCHAR2) olmalı; " + sourceColumn.type() + " şifrelenemez.");
+                int required = tr.com.innova.akis.security.DataProtectionCipher.requiredLength((int) Math.max(1, sourceColumn.length()));
+                // Target column: mapping → column mapping target; procedure → same-named column on the target task bindings.
+                for (ResolvedBinding target : bindings) {
+                    if (!"HEDEF".equals(target.role())) continue;
+                    String targetName = mapping ? mappedTarget(definition, entry.getKey(), column) : column;
+                    if (targetName == null) continue;
+                    var targetColumn = snapshotColumns(target.targetSnapshotId()).get(targetName);
+                    if (targetColumn == null) continue;
+                    if (!targetColumn.text() || targetColumn.length() < required)
+                        throw new tr.com.innova.akis.metadata.ApiException(org.springframework.http.HttpStatus.UNPROCESSABLE_CONTENT, "SENSITIVE_TARGET_TOO_NARROW",
+                                "Hassas kolon " + column + " şifreli aktarılacak; hedef " + target.dataObjectReference() + "." + targetName + " (" + targetColumn.type()
+                                + ") en az VARCHAR2(" + required + ") olmalı.");
+                }
+            }
+        }
+    }
+
+    private record SnapshotColumn(String type, long length, boolean text) { }
+
+    private java.util.Map<String, SnapshotColumn> snapshotColumns(Long snapshotId) {
+        var columns = new java.util.HashMap<String, SnapshotColumn>();
+        if (snapshotId == null) return columns;
+        jdbc.sql("select ad, uretici_tipi, coalesce(uzunluk, 0) as uzunluk from akis.kolon_goruntusu where sema_goruntusu_id = :snapshot")
+                .param("snapshot", snapshotId).query((rs, n) -> {
+                    String type = rs.getString("uretici_tipi").toUpperCase(java.util.Locale.ROOT);
+                    columns.put(rs.getString("ad").toUpperCase(java.util.Locale.ROOT), new SnapshotColumn(type, rs.getLong("uzunluk"), type.startsWith("VARCHAR2") || type.startsWith("NVARCHAR2")));
+                    return null;
+                }).list();
+        return columns;
+    }
+
+    private static String mappedTarget(JsonNode definition, String sourceObject, String sourceColumn) {
+        for (JsonNode item : definition.path("columnMappings")) {
+            if (sourceObject.equals(item.path("source").path("object").asText()) && sourceColumn.equalsIgnoreCase(item.path("source").path("column").asText()))
+                return item.path("target").path("column").asText().toUpperCase(java.util.Locale.ROOT);
+        }
+        return null;
+    }
+
     @Override
     public JsonNode resolveVariableBindings(PublicationContext context) {
         var bindings = objectMapper.createObjectNode();

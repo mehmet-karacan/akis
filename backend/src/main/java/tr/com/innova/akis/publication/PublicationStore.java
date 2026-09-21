@@ -19,6 +19,11 @@ interface PublicationStore {
             UUID projectUuid, UUID scenarioUuid, UUID environmentUuid);
 
     List<ResolvedBinding> resolveBindings(PublicationContext context);
+    default java.util.Map<String, List<String>> sensitiveColumns(PublicationContext context, List<ResolvedBinding> bindings) { return java.util.Map.of(); }
+
+    /** Rejects the release when a protected source column is not text or the target column cannot hold the ciphertext. */
+    default void verifySensitiveColumns(PublicationContext context, List<ResolvedBinding> bindings, java.util.Map<String, List<String>> sensitive) { }
+
     default tools.jackson.databind.JsonNode resolveVariableBindings(PublicationContext context) { return null; }
 
     Optional<PublicationRow> findByReleaseHash(

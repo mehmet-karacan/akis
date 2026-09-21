@@ -306,6 +306,7 @@ const post = <T>(path: string, body?: JsonRecord) => apiRequest<T>(path, {
   method: 'POST',
   ...(body ? jsonBody(body) : {}),
 })
+const put = <T>(path: string, body: JsonRecord) => apiRequest<T>(path, { method: 'PUT', ...jsonBody(body) })
 const patch = <T>(path: string, body: JsonRecord) => apiRequest<T>(path, {
   method: 'PATCH',
   ...jsonBody(body),
@@ -351,6 +352,8 @@ export const topologyApi = {
   createModel: (projectUuid: string, request: JsonRecord) => post<Model>(`${base(projectUuid)}/models`, request),
   updateModel: (projectUuid: string, modelUuid: string, request: JsonRecord) => patch<Model>(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}`, request),
   deleteModel: (projectUuid: string, modelUuid: string, expectedVersion: number) => remove(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}?expectedVersion=${expectedVersion}`),
+  listSensitiveColumns: (projectUuid: string, modelUuid: string, objectUuid: string) => get<string[]>(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}/data-objects/${encodeURIComponent(objectUuid)}/sensitive-columns`),
+  replaceSensitiveColumns: (projectUuid: string, modelUuid: string, objectUuid: string, columns: string[]) => put<string[]>(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}/data-objects/${encodeURIComponent(objectUuid)}/sensitive-columns`, { columns }),
   deleteDataObject: (projectUuid: string, modelUuid: string, objectUuid: string, expectedVersion: number) => remove(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}/data-objects/${encodeURIComponent(objectUuid)}?expectedVersion=${expectedVersion}`),
   deleteSubmodel: (projectUuid: string, modelUuid: string, submodelUuid: string, expectedVersion: number) => remove(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}/submodels/${encodeURIComponent(submodelUuid)}?expectedVersion=${expectedVersion}`),
   listSubmodels: (projectUuid: string, modelUuid: string) => get<Submodel[]>(`${base(projectUuid)}/models/${encodeURIComponent(modelUuid)}/submodels`),

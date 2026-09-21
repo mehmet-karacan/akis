@@ -72,3 +72,10 @@
 .metadata-context-summary dt { color: var(--ant-color-text-secondary); font-size: var(--font-caption); }
 .metadata-context-summary dd { margin: 0; }
 .metadata-folder-choice { display: inline-flex; align-items: center; gap: 8px; }
+
+/* Column protection marking on the data store table. */
+.model-protection-hint { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; color: var(--ink-soft); font-size: 12px; }
+.model-protection-hint svg { color: var(--schema-color-teal, #0f766e); flex-shrink: 0; }
+.model-sensitive-toggle { display: inline-flex; align-items: center; gap: 8px; }
+.model-sensitive-toggle span { font-size: 12px; color: var(--schema-color-teal, #0f766e); }
+tr.is-sensitive td:first-child strong::after { content: ' F512'; font-size: 11px; }

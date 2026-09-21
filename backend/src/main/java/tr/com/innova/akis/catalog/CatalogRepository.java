@@ -314,6 +314,21 @@ public class CatalogRepository {
                 .param("projectId", projectId).param("uuid", uuid).param("expectedVersion", expectedVersion).update() == 1;
     }
 
+    /** Sensitive (protected) column names of a data object, upper-case, ordered. */
+    List<String> sensitiveColumns(long projectId, long dataObjectId) {
+        return jdbc.sql("select kolon_adi from akis.veri_nesnesi_kolon_politikasi where proje_id=:project and veri_nesnesi_id=:object order by kolon_adi")
+                .param("project", projectId).param("object", dataObjectId).query(String.class).list();
+    }
+
+    void replaceSensitiveColumns(long projectId, long dataObjectId, List<String> columns) {
+        jdbc.sql("delete from akis.veri_nesnesi_kolon_politikasi where proje_id=:project and veri_nesnesi_id=:object")
+                .param("project", projectId).param("object", dataObjectId).update();
+        for (String column : columns) {
+            jdbc.sql("insert into akis.veri_nesnesi_kolon_politikasi(proje_id,veri_nesnesi_id,kolon_adi) values(:project,:object,:column)")
+                    .param("project", projectId).param("object", dataObjectId).param("column", column).update();
+        }
+    }
+
     List<DataObjectRow> listDataObjects(long projectId, long modelId) {
         return jdbc.sql(dataObjectSelect()
                         + " where d.proje_id = :projectId and d.model_id = :modelId order by d.kod")

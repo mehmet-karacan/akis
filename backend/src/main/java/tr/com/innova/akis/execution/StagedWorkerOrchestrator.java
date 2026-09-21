@@ -5,6 +5,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tr.com.innova.akis.knowledge.*;
 import static tr.com.innova.akis.execution.ProcedureWorkerOrchestrator.*;
@@ -143,8 +144,15 @@ final class StagedWorkerOrchestrator {
             int batchOverride=contexts.jobParameters(context.runUuid()).path("batchRows").asInt(0);
             var options=batchOverride>0?new StagedMappingDefinition.Options(batchOverride,batchOverride,pinnedOptions.maxRows(),pinnedOptions.maxBytes(),pinnedOptions.allowEmptySource()):pinnedOptions;
             if(batchOverride>0) LOG.info("KM run {} uses batch override {} (pinned {})",context.runUuid(),batchOverride,pinnedOptions.batchRows());
+            // Pinned column protection: encrypt marked source columns while they are read into the work table.
+            JsonNode sensitive=context.physicalManifest().path("sensitiveColumns");
+            var transferColumns=layout.transfer().stream().map(column->{
+                if(column.expression()!=null || column.sourceObject()==null) return column;
+                for(JsonNode name:sensitive.path(column.sourceObject())) if(name.asText().equalsIgnoreCase(column.source())) return column.protectedColumn();
+                return column;
+            }).toList();
             var contract=new OracleKmRuntime.Contract(owner,plan.program(),databaseIdentity,plan.target().owner(),
-                    new JdbcStagingTransfer.Table(plan.source().owner(),plan.source().objectName()),table,layout.work(),layout.transfer(),
+                    new JdbcStagingTransfer.Table(plan.source().owner(),plan.source().objectName()),table,layout.work(),transferColumns,
                     options,layout.quality(),30,workArea,
                     new JdbcStagingTransfer.QueryOptions(plan.definition().booleanOption("loading","DISTINCT"),plan.definition().stringOption("loading","ORACLE_HINT"),querySources,plan.definition().joins(),plan.definition().filters()));
             var runtime=new OracleKmRuntime(contract,source.connection(),control.connection(),data.connection(),StagedWorkSessionFactory.transaction(data),

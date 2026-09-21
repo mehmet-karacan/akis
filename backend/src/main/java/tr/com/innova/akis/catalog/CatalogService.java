@@ -223,6 +223,27 @@ public class CatalogService {
         }
     }
 
+    List<String> sensitiveColumns(UUID projectUuid, UUID modelUuid, UUID objectUuid) {
+        ProjectRef project = project(projectUuid);
+        ModelRow model = model(project, modelUuid);
+        DataObjectRow object = repository.findDataObject(project.id(), objectUuid).filter(row -> row.modelId() == model.id())
+                .orElseThrow(() -> notFound("Data Store bu modelde bulunamadı."));
+        return repository.sensitiveColumns(project.id(), object.id());
+    }
+
+    /** Manual marking: the listed columns are protected (encrypted) whenever a mapping or procedure reads this data store. */
+    List<String> replaceSensitiveColumns(UUID projectUuid, UUID modelUuid, UUID objectUuid, List<String> columns) {
+        ProjectRef project = project(projectUuid);
+        ModelRow model = model(project, modelUuid);
+        DataObjectRow object = repository.findDataObject(project.id(), objectUuid).filter(row -> row.modelId() == model.id())
+                .orElseThrow(() -> notFound("Data Store bu modelde bulunamadı."));
+        List<String> normalized = columns == null ? List.of() : columns.stream().filter(java.util.Objects::nonNull).map(String::trim)
+                .filter(value -> !value.isEmpty()).map(value -> value.toUpperCase(java.util.Locale.ROOT)).distinct().sorted().toList();
+        for (String column : normalized) if (!column.matches("[A-Z][A-Z0-9_$#]{0,127}")) throw validation("Kolon adı geçersiz: " + column);
+        repository.replaceSensitiveColumns(project.id(), object.id(), normalized);
+        return normalized;
+    }
+
     List<DataObjectRow> listDataObjects(UUID projectUuid, UUID modelUuid) {
         ProjectRef project = project(projectUuid);
         ModelRow model = model(project, modelUuid);

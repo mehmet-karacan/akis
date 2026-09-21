@@ -37,6 +37,7 @@ akis:
     worker-poll-delay-ms: ${AKIS_EXECUTION_WORKER_POLL_DELAY_MS:2000}
   security:
     mode: ${AKIS_SECURITY_MODE:fail-closed}
+    data-encryption-key: ${AKIS_DATA_ENCRYPTION_KEY:}
     development:
       username: ${AKIS_DEV_USERNAME:}
       password: ${AKIS_DEV_PASSWORD:}

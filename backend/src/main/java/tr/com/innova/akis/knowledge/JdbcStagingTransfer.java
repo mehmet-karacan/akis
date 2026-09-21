@@ -12,8 +12,14 @@ import tools.jackson.databind.JsonNode;
 public final class JdbcStagingTransfer {
     public static final long BUFFER_BYTES = 16L * 1024 * 1024;
     public enum Type { NUMBER, VARCHAR2, NVARCHAR2, DATE, TIMESTAMP }
-    public record Column(String sourceObject, String source, String stage, Type type, JsonNode expression) {
+    public record Column(String sourceObject, String source, String stage, Type type, JsonNode expression, boolean encrypted) {
+        public Column(String sourceObject, String source, String stage, Type type, JsonNode expression) { this(sourceObject, source, stage, type, expression, false); }
         public Column(String sourceObject,String source,String stage,Type type) { this(sourceObject,source,stage,type,null); }
+        /** Sensitive column: the value is encrypted in flight; only text columns can carry the ciphertext. */
+        public Column protectedColumn() {
+            if (type != Type.VARCHAR2 && type != Type.NVARCHAR2) throw new IllegalArgumentException("Yalnız metin kolonları şifrelenebilir: " + stage);
+            return new Column(sourceObject, source, stage, type, expression, true);
+        }
         public Column(String source, String stage, Type type) { this("SOURCE_1", source, stage, type); }
         public Column {
             if(expression==null) { StagedMappingDefinition.identifier(sourceObject); StagedMappingDefinition.identifier(source); }
@@ -103,7 +109,10 @@ public final class JdbcStagingTransfer {
                             checkpoint.run(); execute(write,pending); checkpoint.run(); committing=true; transaction.commit(); committing=false;
                             pending=0; batchBytes=0;
                         }
-                        for (int i=0;i<columns.size();i++) { bind(write,i+1,columns.get(i).type(),values[i]); frame(digest,canonical(values[i])); }
+                        for (int i=0;i<columns.size();i++) {
+                            if (columns.get(i).encrypted() && values[i]!=null) values[i]=tr.com.innova.akis.security.DataProtectionCipher.encrypt(String.valueOf(values[i]));
+                            bind(write,i+1,columns.get(i).type(),values[i]); frame(digest,canonical(values[i]));
+                        }
                         write.addBatch(); rows++; bytes+=rowBytes; batchBytes+=rowBytes; pending++;
                         if (pending==options.batchRows()) {
                             checkpoint.run(); execute(write,pending); checkpoint.run(); committing=true; transaction.commit(); committing=false;

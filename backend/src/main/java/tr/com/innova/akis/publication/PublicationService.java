@@ -346,6 +346,17 @@ public class PublicationService {
         manifest.set("bindings", bindingNodes);
         JsonNode variableBindings = store.resolveVariableBindings(context);
         if (variableBindings != null && variableBindings.size() > 0) manifest.set("variableBindings", variableBindings);
+        // Column protection is pinned with the release: which source columns get encrypted, verified against target width.
+        var sensitive = store.sensitiveColumns(context, bindings);
+        if (!sensitive.isEmpty()) {
+            if (!tr.com.innova.akis.security.DataProtectionCipher.configured())
+                throw new ApiException(HttpStatus.UNPROCESSABLE_CONTENT, "DATA_ENCRYPTION_KEY_MISSING",
+                        "Hassas kolon şifrelemesi için AKIS_DATA_ENCRYPTION_KEY yapılandırılmalıdır.");
+            store.verifySensitiveColumns(context, bindings, sensitive);
+            ObjectNode node = objectMapper.createObjectNode();
+            sensitive.forEach((code, columns) -> { ArrayNode list = node.putArray(code); columns.forEach(list::add); });
+            manifest.set("sensitiveColumns", node);
+        }
         manifest.set("definition", definition);
         manifest.set("environment", environment);
         manifest.put("manifestVersion", MANIFEST_VERSION);

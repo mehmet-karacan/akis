@@ -126,12 +126,23 @@ final class JdbcOracleProcedureTaskExecutorSessionFactory
                 OraclePilotBatch batch = sourceReader.read(
                         session, plan, command.task(), command.binding(), variables);
                 String consumer = adjacentConsumer(command);
+                // Pinned column protection: marked source columns are stored (and later inserted) encrypted.
+                java.util.Set<String> protectedColumns = new java.util.HashSet<>();
+                for (var name : plan.canonicalPlan().path("sensitiveColumns").path(command.task().id())) protectedColumns.add(name.asText().toUpperCase(java.util.Locale.ROOT));
+                List<Boolean> encrypt = batch.columns().stream().map(column -> protectedColumns.contains(column.sourceColumn().toUpperCase(java.util.Locale.ROOT))).toList();
                 Handle stored = rowsets.store(command.taskIndex(), command.task().id(), consumer,
                         batch.columns().stream().map(column -> new Column(
                                 column.sourceColumn(), valueType(column.type()))).toList(),
-                        batch.rows().stream().map(row -> row.stream().map(cell ->
-                                new Cell(valueType(cell.type()), cell.canonicalValue())).toList())
-                                .toList());
+                        batch.rows().stream().map(row -> {
+                            List<Cell> cells = new java.util.ArrayList<>(row.size());
+                            for (int i = 0; i < row.size(); i++) {
+                                var cell = row.get(i);
+                                cells.add(encrypt.get(i) && cell.canonicalValue() != null
+                                        ? new Cell(ValueType.STRING, tr.com.innova.akis.security.DataProtectionCipher.encrypt(cell.canonicalValue()))
+                                        : new Cell(valueType(cell.type()), cell.canonicalValue()));
+                            }
+                            return cells;
+                        }).toList());
                 handles.put(stored.uuid(), stored);
                 return new Succeeded(stored.rowCount(), stored.byteCount(),
                         new RowsetHandle(stored.uuid(), plan.runtimePlanHash(),

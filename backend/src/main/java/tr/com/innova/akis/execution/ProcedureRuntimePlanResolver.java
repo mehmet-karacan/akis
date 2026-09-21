@@ -198,6 +198,7 @@ public final class ProcedureRuntimePlanResolver {
         plan.set("release", releaseNode(manifest, scenarioPlanHash));
         plan.set("tasks", taskNodes(tasks));
         if (manifest.has("variableBindings")) plan.set("variableBindings", manifest.get("variableBindings").deepCopy());
+        if (manifest.has("sensitiveColumns")) plan.set("sensitiveColumns", manifest.get("sensitiveColumns").deepCopy());
         JsonNode canonicalPlan = canonicalize(plan);
         String runtimePlanHash = sha256(canonicalPlan.toString());
         return new ProcedureRuntimePlan(
@@ -792,7 +793,7 @@ public final class ProcedureRuntimePlanResolver {
         }
         Set<String> fields = new HashSet<>(Set.of(
                 "approvalRequired", "bindings", "definition", "environment", "manifestVersion",
-                "runtimeCapability", "scenario", "policyVersions", "variableBindings"));
+                "runtimeCapability", "scenario", "policyVersions", "variableBindings", "sensitiveColumns"));
         if (signed) {
             fields.add("releaseHash");
             fields.add("runtimePlanHash");
