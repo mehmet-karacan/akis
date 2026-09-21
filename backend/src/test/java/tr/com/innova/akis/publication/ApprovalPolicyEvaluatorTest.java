@@ -5,10 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class ApprovalPolicyEvaluatorTest {
     @Test
-    void productionOrTaskRiskAlwaysRequiresApproval() {
-        for (String environment : new String[] { "GELISTIRME", "TEST", "URETIM" }) {
+    void productionAlwaysAndTaskRiskOnlyOnHighRiskEnvironmentsRequireApproval() {
+        for (String environment : new String[] { "DUSUK", "ORTA", "YUKSEK", "URETIM" }) {
             for (boolean task : new boolean[] { false, true }) {
-                assertEquals(task || environment.equals("URETIM"),
+                assertEquals(environment.equals("URETIM") || task && environment.equals("YUKSEK"),
                         ApprovalPolicyEvaluator.requiresApproval(environment, task));
             }
         }

@@ -27,13 +27,24 @@ export interface PreRunSqlStatement { step: string; site: string; owner: string;
 export interface PreRunPreview { plan: PreRunPlan; executionVerified: boolean; message: string; sqlPreview?: PreRunSqlStatement[] }
 
 /** Which connection each plan binding opens; resolved from the project topology so the report names hosts and users. */
+/** Planned C$ name, mirroring the backend rule: AKIS_ + LKM WORK_TABLE_PATTERN ({HEDEF}/{KAYNAK}/{SLOT}) or AKIS_ + loading prefix + target. */
+export function plannedWorkTableName(plan: PreRunPlan): string {
+  const target = plan.bindings?.find(b => b.role === 'HEDEF' || b.role === 'TARGET')?.objectName ?? ''
+  const source = plan.bindings?.find(b => b.role === 'KAYNAK' || b.role === 'SOURCE')?.objectName ?? ''
+  const pattern = String(plan.modules?.loading?.options?.WORK_TABLE_PATTERN ?? '').trim().toUpperCase()
+  if (!target) return ''
+  if (pattern) return 'AKIS_' + pattern.replace('{HEDEF}', target).replace('{TARGET}', target).replace('{KAYNAK}', source).replace('{SOURCE}', source).replace('{SLOT}', 'WORK_SOURCE_1')
+  const prefix = plan.staging?.prefixes?.loading ?? 'C$_'
+  return 'AKIS_' + (prefix.endsWith('_') ? prefix : prefix + '_') + target
+}
+
 export function connectionUses(plan: PreRunPlan, connections: Connection[], physical: PhysicalSchema[], tr: boolean): ConnectionUse[] {
   const find = (binding: { connectionVersionUuid?: string; physicalSchemaUuid?: string }) => ({ connection: connections.find((item) => item.uuid === binding.connectionVersionUuid), physical: physical.find((item) => item.uuid === binding.physicalSchemaUuid) })
   const uses: ConnectionUse[] = (plan.bindings ?? []).map((binding) => ({ role: binding.role === 'KAYNAK' ? 'SOURCE' : 'TARGET', label: binding.role === 'KAYNAK' ? `${tr ? 'Kaynak' : 'Source'} · ${binding.nodeCode}` : `${tr ? 'Hedef' : 'Target'} · ${binding.nodeCode}`, ...find(binding), owner: binding.owner, object: binding.objectName, readOnly: binding.role === 'KAYNAK' }))
   const staging = plan.staging
   if (staging?.owner) {
     const target = (plan.bindings ?? []).find((binding) => binding.role === 'HEDEF')
-    uses.push({ role: 'STAGING', label: 'Staging', ...(target ? find(target) : {}), owner: staging.owner, object: `${staging.prefixes?.loading ?? 'C$_'}…`, readOnly: false })
+    uses.push({ role: 'STAGING', label: 'Staging', ...(target ? find(target) : {}), owner: staging.owner, object: plannedWorkTableName(plan) || `${staging.prefixes?.loading ?? 'C$_'}…`, readOnly: false })
   }
   return uses
 }
@@ -63,7 +74,7 @@ export function preRunReportMarkdown(preview: PreRunPreview, context: { definiti
     `- ${tr ? 'Canlı doğrulama' : 'Live verification'}: ${preview.executionVerified ? (tr ? 'yapıldı' : 'done') : (tr ? 'YAPILMADI — DB/şema/yetki kontrolleri çalıştırmada yapılır' : 'NOT DONE — DB/schema/privilege checks happen at run time')}`, '',
     `## ${tr ? 'Veri Akışı' : 'Data Flow'}`, '',
     ...sources.map((item) => `- ${tr ? 'Kaynak' : 'Source'} (${item.nodeCode}): **${qualified(item)}** — ${tr ? 'yalnız SELECT' : 'SELECT only'}`),
-    `- ${tr ? 'Staging' : 'Staging'}: **${plan.staging?.owner ?? '—'}** (${[plan.staging?.prefixes?.loading, plan.staging?.prefixes?.integration, plan.staging?.prefixes?.error].filter(Boolean).join(' · ')})`,
+    `- ${tr ? 'Staging' : 'Staging'}: **${plan.staging?.owner ?? '—'}** (${[plan.staging?.prefixes?.loading, plan.staging?.prefixes?.integration, plan.staging?.prefixes?.error].filter(Boolean).join(' · ')})${plannedWorkTableName(plan) ? ` · ${tr ? 'çalışma tablosu' : 'work table'} \`${plannedWorkTableName(plan)}\`` : ''}`,
     `- ${tr ? 'Hedef' : 'Target'} (${target?.nodeCode ?? '—'}): **${qualified(target)}**`, '',
     ...(context.connections?.length ? connectionsMarkdown(context.connections, tr) : []),
     `## ${tr ? 'Yazma Davranışı' : 'Write Behavior'}`, '',
@@ -97,7 +108,7 @@ export function PreRunReportBody({ preview, definitionName, environmentName, tr,
   const nonReversible = Boolean(plan.staging?.nonReversibleDdl)
   const metrics: SummaryMetric[] = [
     { label: tr ? 'Kaynak' : 'Source', value: sources.map(qualified).join(', ') || '—', hint: connections?.find((use) => use.role === 'SOURCE')?.connection?.name ?? (tr ? 'Yalnız SELECT' : 'SELECT only'), icon: <DatabaseZap size={18} />, tone: 'teal' },
-    { label: 'Staging', value: plan.staging?.owner ?? '—', hint: [plan.staging?.prefixes?.loading, plan.staging?.prefixes?.integration, plan.staging?.prefixes?.error].filter(Boolean).join(' · '), icon: <Layers3 size={18} />, tone: 'neutral' },
+    { label: 'Staging', value: plan.staging?.owner ?? '—', hint: plannedWorkTableName(plan) || [plan.staging?.prefixes?.loading, plan.staging?.prefixes?.integration, plan.staging?.prefixes?.error].filter(Boolean).join(' · '), icon: <Layers3 size={18} />, tone: 'neutral' },
     { label: tr ? 'Hedef' : 'Target', value: qualified(target), hint: connections?.find((use) => use.role === 'TARGET')?.connection?.name ?? (tr ? 'Yazılır' : 'Written'), icon: <Target size={18} />, tone: 'info' },
     { label: tr ? 'Yazma Modu' : 'Write Mode', value: writeMode, hint: nonReversible ? (tr ? 'Geri alınamaz DDL' : 'Non-reversible DDL') : (tr ? 'İşlem içinde' : 'Transactional'), icon: nonReversible ? <AlertTriangle size={18} /> : <ShieldCheck size={18} />, tone: nonReversible ? 'danger' : 'success' },
     { label: tr ? 'Satır Sınırı' : 'Row Limit', value: number(plan.options?.maxRows), hint: `${bytes(plan.options?.maxBytes)} · batch ${number(plan.options?.batchRows)}`, icon: <Settings2 size={18} />, tone: 'warning' },

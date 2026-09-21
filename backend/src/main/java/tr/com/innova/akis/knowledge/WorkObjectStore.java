@@ -87,6 +87,12 @@ public class WorkObjectStore {
             rs.getString("structure_hash"),State.valueOf(rs.getString("state")),rs.getObject("row_count",Long.class),
             rs.getObject("logical_bytes",Long.class),rs.getString("payload_hash"))).list();
     }
+    /** A registered, not yet dropped work object already carries this physical name (an earlier attempt's table). */
+    @Transactional(readOnly=true)
+    public boolean nameInUse(String databaseIdentity,String owner,String name) {
+        return Boolean.TRUE.equals(jdbc.sql("select exists(select 1 from akis.km_work_object where database_identity=:db and owner_name=:owner and object_name=:name and state<>'DROPPED')")
+                .param("db",databaseIdentity).param("owner",owner).param("name",name).query(Boolean.class).single());
+    }
     /** RESUME: the sealed work table of the failed attempt moves to the resuming run of the same job under its live lease. */
     @Transactional
     public ObjectRow adopt(Owner token,UUID previousRun,UUID object) {

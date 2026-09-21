@@ -27,4 +27,21 @@ class WorkObjectPrefixesTest {
         assertEquals(30, name.length());
         assertTrue(name.matches("AKIS_C\\$_[A-F0-9]+"));
     }
+    @Test void targetNamesFollowOdiStyleAndFallBackToHashedTailOnShortHosts() {
+        var prefixes = WorkObjectPrefixes.DEFAULTS;
+        assertEquals("AKIS_C$_STG_MUSTERI", prefixes.targetObjectName("LOADING", "STG_MUSTERI", 0, 128));
+        assertEquals("AKIS_C$_STG_MUSTERI_2", prefixes.targetObjectName("LOADING", "STG_MUSTERI", 2, 128));
+        String cut = prefixes.targetObjectName("LOADING", "STG_CUSTOMER_PROFILE_HISTORY_LONG", 0, 30);
+        assertEquals(30, cut.length());
+        assertTrue(cut.startsWith("AKIS_C$_STG_CUSTOMER"));
+        assertTrue(prefixes.ownsName("LOADING", cut));
+        assertThrows(IllegalArgumentException.class, () -> prefixes.targetObjectName("LOADING", "bad name", 0, 128));
+    }
+    @Test void kmPatternNamesTheWorkTableAndKeepsTheOwnershipMarker() {
+        var prefixes = WorkObjectPrefixes.DEFAULTS;
+        assertEquals("AKIS_C$_STG_MUSTERI", prefixes.patternObjectName("LOADING", "C$_{HEDEF}", "STG_MUSTERI", "MUSTERI", "WORK_SOURCE_1", 0, 128));
+        assertEquals("AKIS_W_MUSTERI_TO_STG_MUSTERI_3", prefixes.patternObjectName("LOADING", "W_{KAYNAK}_TO_{HEDEF}", "STG_MUSTERI", "MUSTERI", "WORK_SOURCE_1", 3, 128));
+        assertEquals("AKIS_C$_STG_MUSTERI", prefixes.patternObjectName("LOADING", "", "STG_MUSTERI", "MUSTERI", "WORK_SOURCE_1", 0, 128));
+        assertThrows(IllegalArgumentException.class, () -> prefixes.patternObjectName("LOADING", "C$ {HEDEF}", "STG_MUSTERI", null, null, 0, 128));
+    }
 }

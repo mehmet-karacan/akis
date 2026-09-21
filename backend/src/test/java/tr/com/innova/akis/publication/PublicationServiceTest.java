@@ -239,8 +239,9 @@ class PublicationServiceTest {
 
     @Test
     void procedureV2PublishesAsPinnedOracleProcedurePlan() {
+        // A destructive task gates the release only on a high-risk environment; low-risk test releases go straight to AKTIF.
         PublicationContext context = context(
-                "DUSUK", "PROCEDURE", 2, procedureDefinition());
+                "YUKSEK", "PROCEDURE", 2, procedureDefinition());
         FakeStore store = new FakeStore(context, procedureBindings());
         PublicationService service = service(store);
         PublicationRow publication = service

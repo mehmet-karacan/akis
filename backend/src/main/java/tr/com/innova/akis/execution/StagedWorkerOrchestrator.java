@@ -97,8 +97,16 @@ final class StagedWorkerOrchestrator {
             requireAccepted(gate.execute(run->transitions.completePreflight(new ActiveExecutionToken(run,fence))));
             var stage=plan.staging();var prefix=stage.path("prefixes");
             var owner=new WorkObjectStore.Owner(plan.projectUuid(),context.runUuid(),fence.runGeneration(),fence.workerReference());
-            String workName=new WorkObjectPrefixes(prefix.path("loading").asText(),prefix.path("integration").asText(),prefix.path("error").asText())
-                    .objectName("LOADING",plan.projectUuid(),context.runUuid(),fence.runGeneration(),"WORK_SOURCE_1");
+            // ODI-style name after the target (AKIS_C$_<TARGET>); a table an earlier attempt still holds gets _2, _3…
+            var prefixes=new WorkObjectPrefixes(prefix.path("loading").asText(),prefix.path("integration").asText(),prefix.path("error").asText());
+            int nameLimit=Math.max(30,Math.min(128,control.connection().getMetaData().getMaxTableNameLength()));
+            String workPattern=plan.definition().stringOption("loading","WORK_TABLE_PATTERN");
+            String firstSource=plan.sources().isEmpty()?plan.source().objectName():plan.sources().getFirst().objectName();
+            String workName=prefixes.patternObjectName("LOADING",workPattern,plan.target().objectName(),firstSource,"WORK_SOURCE_1",0,nameLimit);
+            for(int sequence=2;objects.nameInUse(databaseIdentity,stage.path("owner").asText(),workName);sequence++) {
+                if(sequence>99) throw new IllegalStateException("Hedef için çok fazla bekleyen çalışma tablosu var; önce temizleyin.");
+                workName=prefixes.patternObjectName("LOADING",workPattern,plan.target().objectName(),firstSource,"WORK_SOURCE_1",sequence,nameLimit);
+            }
             // RESUME: the adopted table keeps the name of the attempt that created it.
             var resume=resumePoint(plan,context);
             if(resume.isPresent()) {

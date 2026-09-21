@@ -87,7 +87,7 @@ public final class JdbcStagingTransfer {
                 try (ResultSet cursor=read.executeQuery()) {
                     verifyMetadata(cursor.getMetaData(),columns);
                     while (cursor.next()) {
-                        checkpoint.run();
+                        // Lease checkpoints happen per batch (below); one per row cost two control-plane round trips per row.
                         if (rows>=options.maxRows()) throw new TransferFailure("Kaynak satır kotası aşıldı; stage mühürlenmedi.",false);
                         Object[] values=new Object[columns.size()];
                         long rowBytes=0;

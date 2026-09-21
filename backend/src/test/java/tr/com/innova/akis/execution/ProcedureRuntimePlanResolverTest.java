@@ -139,6 +139,7 @@ class ProcedureRuntimePlanResolverTest {
         bindings.remove(3);
         bindings.remove(0);
         ((ObjectNode) manifest.get("environment")).put("risk", "URETIM");
+        manifest.put("approvalRequired", true);
         assertTrue(resolver.compileHashForPublication(hash, scenario, manifest).matches("[0-9a-f]{64}"));
         manifest.put("approvalRequired", false);
         assertThrows(ProcedureRuntimePlanException.class, () -> resolver.compileHashForPublication(hash, scenario, manifest));
@@ -427,7 +428,7 @@ class ProcedureRuntimePlanResolverTest {
 
         ObjectNode manifest = objectMapper.createObjectNode();
         manifest.set("bindings", bindings);
-        manifest.put("approvalRequired", true);
+        manifest.put("approvalRequired", false); // DUSUK environment: task-level approval flags do not gate the release
         manifest.set("definition", manifestDefinition);
         manifest.set("environment", environment);
         manifest.put("manifestVersion", 2);
