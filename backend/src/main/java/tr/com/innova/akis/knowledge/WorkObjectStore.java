@@ -31,7 +31,7 @@ public class WorkObjectStore {
                 join akis.baglanti b on b.id=f.baglanti_id
                 where p.uuid=:project and f.uuid=:schema and f.calisma_sema_adi=:owner and k.enabled and k.version=:version
                   and p.arsivlenme_zamani is null and f.durum='ETKIN' and b.durum='ETKIN'
-                  and b.saglayici_turu='ORACLE' for share of k
+                  and b.saglayici_turu in ('ORACLE','POSTGRESQL') for share of k
                 """).param("project",token.projectUuid()).param("schema",workArea.physicalSchemaUuid()).param("owner",owner)
                 .param("version",workArea.policyVersion()).query(Integer.class).optional()
                 .orElseThrow(()->new IllegalStateException("Çalışma alanı politikası değişmiş veya kapatılmış."));

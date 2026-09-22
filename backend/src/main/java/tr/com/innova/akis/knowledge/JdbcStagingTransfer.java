@@ -136,6 +136,26 @@ public final class JdbcStagingTransfer implements StagingTransferPort {
         }
     }
     private record QuerySql(String columns,String from,String where,List<Object> parameters) { }
+    /** The Oracle source SELECT and its bind values; shared with staging adapters that write elsewhere (PostgreSQL COPY). */
+    public record SourceQuery(String select, List<Object> parameters) { }
+    public static SourceQuery sourceQuery(Table from, List<Column> columns, QueryOptions options) {
+        String hint=options.oracleHint().isBlank()?"":"/*+ "+options.oracleHint()+" */ ";
+        QuerySql query=query(from,List.copyOf(columns),options);
+        return new SourceQuery("SELECT "+hint+(options.distinct()?"DISTINCT ":"")+query.columns()+" FROM "+query.from()+query.where(), query.parameters());
+    }
+    /** Seeds the seal digest with the transfer contract so two transfers of the same rows under different mappings differ. */
+    public static MessageDigest sealDigest(List<Column> columns) {
+        MessageDigest digest;
+        try { digest=MessageDigest.getInstance("SHA-256"); }
+        catch (java.security.NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
+        frame(digest,"AKIS_STAGE/1");
+        for (var c:columns) { frame(digest,c.sourceObject()); frame(digest,c.source()); frame(digest,c.stage()); frame(digest,c.type().name());if(c.expression()!=null) frame(digest,c.expression().toString()); }
+        return digest;
+    }
+    public static Object readCell(ResultSet r,int i,Type type) throws SQLException { return read(r,i,type); }
+    public static String canonicalText(Object value) { return canonical(value); }
+    public static void frameValue(MessageDigest digest,String value) { frame(digest,value); }
+    public static void verifySourceMetadata(ResultSetMetaData metadata,List<Column> columns) throws SQLException { verifyMetadata(metadata,columns); }
     public record SqlPreview(String select, String insert) { }
     /** Statement text only, for the pre-run report; binds stay as placeholders and nothing is executed. */
     public static SqlPreview previewSql(Table from, Table to, List<Column> columns, QueryOptions options) {

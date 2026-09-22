@@ -156,8 +156,9 @@ public record StagedMappingDefinition(UUID logicalSchemaUuid, Map<String, Pin> m
     }
     private static ObjectRef objectRef(JsonNode node) { fields(node,Set.of("id","alias","dataObjectUuid","schemaSnapshotUuid")); String id=node.path("id").asText(); identifier(id); String alias=node.path("alias").asText(); identifier(alias); return new ObjectRef(id,alias,uuid(node.path("dataObjectUuid").asText()),uuid(node.path("schemaSnapshotUuid").asText())); }
     private static ColumnRef columnRef(JsonNode node) { fields(node,Set.of("object","column")); return new ColumnRef(identifier(node.path("object").asText()),identifier(node.path("column").asText())); }
+    /** Catalog identifiers as stored: upper-case Oracle names, or case-sensitive PostgreSQL names; always emitted quoted. */
     public static String identifier(String name) {
-        if (name == null || !name.matches("[A-Z][A-Z0-9_$#]{0,127}")) throw invalid("Yalnız katalogdaki standart Oracle adları desteklenir.");
+        if (name == null || !name.matches("[A-Za-z_][A-Za-z0-9_$#]{0,127}")) throw invalid("Yalnız katalogdaki standart nesne adları desteklenir.");
         return name;
     }
     private static UUID uuid(String value) {
