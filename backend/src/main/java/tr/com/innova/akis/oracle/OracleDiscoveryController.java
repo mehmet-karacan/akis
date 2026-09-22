@@ -86,7 +86,7 @@ final class OracleDiscoveryController {
                     result.owner(),
                     result.discoveredAt(),
                     result.truncated(),
-                    result.tables().stream().map(TableView::from).toList());
+                    result.tables().stream().map(table -> TableView.from(result.technology(), table)).toList());
         }
     }
 
@@ -97,12 +97,12 @@ final class OracleDiscoveryController {
             List<ColumnView> columns,
             List<ConstraintView> constraints) {
 
-        static TableView from(TableMetadata table) {
+        static TableView from(String technology, TableMetadata table) {
             return new TableView(
                     table.owner(),
                     table.name(),
                     table.type(),
-                    table.columns().stream().map(ColumnView::from).toList(),
+                    table.columns().stream().map(column -> ColumnView.from(technology, column)).toList(),
                     table.constraints().stream().map(ConstraintView::from).toList());
         }
     }
@@ -119,9 +119,10 @@ final class OracleDiscoveryController {
             boolean nullable,
             String defaultExpression) {
 
-        static ColumnView from(ColumnMetadata column) {
-            OracleColumnCapability.Classification capability =
-                    OracleColumnCapability.classify(
+        static ColumnView from(String technology, ColumnMetadata column) {
+            OracleColumnCapability.Classification capability = "POSTGRESQL".equals(technology)
+                    ? tr.com.innova.akis.postgres.PostgresColumnCapability.classify(column.producerType(), column.precision(), column.scale())
+                    : OracleColumnCapability.classify(
                             column.producerType(), column.precision(), column.scale());
             return new ColumnView(
                     column.name(), column.jdbcType(), column.producerType(),

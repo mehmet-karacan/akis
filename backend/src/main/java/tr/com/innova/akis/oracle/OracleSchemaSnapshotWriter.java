@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import tr.com.innova.akis.discovery.SchemaSnapshotModels.ColumnInput;
 import tr.com.innova.akis.discovery.SchemaSnapshotModels.ConstraintInput;
+import tr.com.innova.akis.discovery.SchemaSnapshotModels.SnapshotProvenance;
 import tr.com.innova.akis.discovery.SchemaSnapshotModels.SnapshotRow;
 import tr.com.innova.akis.discovery.SchemaSnapshotService;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.GovernedSnapshotCapture;
@@ -45,7 +46,13 @@ class OracleSchemaSnapshotWriter {
                 governed.projectUuid(), governed.dataObjectUuid(),
                 governed.physicalSchemaUuid(), governed.connectionVersionUuid(),
                 definition.engineVersion(), governed.capture().capturedAt(),
-                definition.propertyVersion(), definition.properties(), columns, constraints);
+                definition.propertyVersion(), definition.properties(), columns, constraints,
+                new SnapshotProvenance(
+                        governed.technology(),
+                        governed.probe() == null ? null : governed.probe().databaseProduct(),
+                        governed.probe() == null ? null : governed.probe().databaseVersion(),
+                        governed.probe() == null ? null : governed.probe().driverName(),
+                        governed.probe() == null ? null : governed.probe().driverVersion()));
         evidenceRepository.attest(
                 governed.projectUuid(), governed.connectionUuid(), snapshot.uuid(),
                 governed.targetIdentityVersion(), governed.targetFingerprint());

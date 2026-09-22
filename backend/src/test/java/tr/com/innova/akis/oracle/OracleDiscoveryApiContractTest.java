@@ -12,7 +12,7 @@ class OracleDiscoveryApiContractTest {
 
     @Test
     void discoveryColumnExposesCanonicalAndExecutionCapabilities() {
-        var view = OracleDiscoveryController.ColumnView.from(
+        var view = OracleDiscoveryController.ColumnView.from("ORACLE",
                 new OracleDiscoveryModels.ColumnMetadata(
                         "PAYLOAD", java.sql.Types.CLOB, "CLOB", 1,
                         null, null, true, null));

@@ -11,7 +11,7 @@ import tr.com.innova.akis.metadata.ApiException;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.ConnectionProfile;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.Credentials;
 
-class JdbcOracleMetadataGatewayTest {
+class JdbcSchemaDiscoveryPortTest {
 
     @Test
     void missingDriverReturnsSafeServiceUnavailableErrorBeforeNetworkAccess() {
@@ -24,7 +24,7 @@ class JdbcOracleMetadataGatewayTest {
                 "missing.oracle.Driver", normal.host(), normal.serviceName(), normal.sid(),
                 normal.tlsMode(), normal.port(), normal.policy(), normal.secretProvider(),
                 normal.secretReferencePath(), normal.secretStatus());
-        JdbcOracleMetadataGateway gateway = new JdbcOracleMetadataGateway(new ObjectMapper());
+        JdbcSchemaDiscoveryPort gateway = new JdbcSchemaDiscoveryPort(new ObjectMapper());
 
         try (Credentials credentials = new Credentials("reader", secret.toCharArray())) {
             ApiException error = assertThrows(
@@ -45,7 +45,7 @@ class JdbcOracleMetadataGatewayTest {
 
         ApiException error = assertThrows(
                 ApiException.class,
-                () -> new JdbcOracleMetadataGateway(new ObjectMapper())
+                () -> new JdbcSchemaDiscoveryPort(new ObjectMapper())
                         .verifyPinnedTargetIdentity(profile, actual));
 
         assertEquals("ORACLE_TARGET_IDENTITY_MISMATCH", error.code());
@@ -65,7 +65,7 @@ class JdbcOracleMetadataGatewayTest {
                 base.secretProvider(), base.secretReferencePath(), base.secretStatus(),
                 "ACTIVE", actual.identityVersion(), actual.fingerprint());
 
-        new JdbcOracleMetadataGateway(new ObjectMapper())
+        new JdbcSchemaDiscoveryPort(new ObjectMapper())
                 .verifyPinnedTargetIdentity(pinned, actual);
     }
 }

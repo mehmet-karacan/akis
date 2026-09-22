@@ -250,7 +250,7 @@ public class TopologyService {
     @Transactional
     PhysicalSchemaRow createPhysicalSchema(PhysicalSchemaInput input) {
         ConnectionRow connection = connection(input.connectionUuid());
-        PhysicalSchemaWrite write = normalizePhysical(input, null);
+        PhysicalSchemaWrite write = normalizePhysical(input, null, connection.databaseType());
         PhysicalSchemaRow created = repository.createPhysicalSchema(connection.id(), connection.databaseType(), write, null);
         if (write.defaultSchema()) repository.clearDefaultPhysicalSchema(connection.id(), created.uuid());
         return created;
@@ -259,7 +259,7 @@ public class TopologyService {
     @Transactional
     PhysicalSchemaRow updatePhysicalSchema(UUID uuid, PhysicalSchemaInput input) {
         PhysicalSchemaRow current = physicalSchema(uuid);
-        PhysicalSchemaWrite write = normalizePhysical(input, current);
+        PhysicalSchemaWrite write = normalizePhysical(input, current, connection(current.connectionUuid()).databaseType());
         if (write.defaultSchema()) repository.clearDefaultPhysicalSchema(current.connectionId(), uuid);
         if (!repository.updatePhysicalSchema(uuid, write, null)) throw notFound("Fiziksel şema bulunamadı.");
         return physicalSchema(uuid);
@@ -275,11 +275,18 @@ public class TopologyService {
         repository.deletePhysicalSchema(uuid);
     }
 
-    private PhysicalSchemaWrite normalizePhysical(PhysicalSchemaInput in, PhysicalSchemaRow current) {
-        String schemaName = required(in.schemaName(), "Şema adı", 128).toUpperCase(Locale.ROOT);
+    /**
+     * Oracle schema names are dictionary identifiers and upper-cased; PostgreSQL namespaces are case-sensitive and
+     * kept exactly as typed (unquoted names are already lower-case in pg_namespace).
+     */
+    private PhysicalSchemaWrite normalizePhysical(PhysicalSchemaInput in, PhysicalSchemaRow current, String databaseType) {
+        boolean caseSensitive = "POSTGRESQL".equals(databaseType);
+        String schemaName = required(in.schemaName(), "Şema adı", 128);
+        schemaName = caseSensitive ? schemaName : schemaName.toUpperCase(Locale.ROOT);
         String code = normalizeCode(in.code() == null || in.code().isBlank() ? schemaName : in.code());
         String name = normalizeName(in.name() == null || in.name().isBlank() ? schemaName : in.name());
-        String work = trimToNull(in.workSchemaName()) == null ? schemaName : in.workSchemaName().trim().toUpperCase(Locale.ROOT);
+        String work = trimToNull(in.workSchemaName()) == null ? schemaName
+                : caseSensitive ? in.workSchemaName().trim() : in.workSchemaName().trim().toUpperCase(Locale.ROOT);
         String loading = prefix(in.loadingPrefix(), current == null ? "C$_" : current.loadingPrefix(), "Yükleme prefixi");
         String integration = prefix(in.integrationPrefix(), current == null ? "I$_" : current.integrationPrefix(), "Entegrasyon prefixi");
         String error = prefix(in.errorPrefix(), current == null ? "E$_" : current.errorPrefix(), "Hata prefixi");

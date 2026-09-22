@@ -11,7 +11,7 @@ public final class OracleDiscoveryModels {
     private OracleDiscoveryModels() {
     }
 
-    record ConnectionProfile(
+    public record ConnectionProfile(
             long projectId,
             long connectionId,
             UUID connectionUuid,
@@ -122,21 +122,21 @@ public final class OracleDiscoveryModels {
             Integer queryTimeoutSeconds) {
     }
 
-    record PhysicalSchemaProfile(
+    public record PhysicalSchemaProfile(
             UUID uuid,
             long connectionId,
             String schemaReference,
             String status) {
     }
 
-    record DataObjectCaptureProfile(
+    public record DataObjectCaptureProfile(
             UUID uuid,
             String objectReference,
             String objectType,
             String status) {
     }
 
-    record Credentials(String username, char[] password) implements AutoCloseable {
+    public record Credentials(String username, char[] password) implements AutoCloseable {
 
         @Override
         public void close() {
@@ -166,7 +166,7 @@ public final class OracleDiscoveryModels {
         }
     }
 
-    record ColumnMetadata(
+    public record ColumnMetadata(
             String name,
             int jdbcType,
             String producerType,
@@ -177,7 +177,7 @@ public final class OracleDiscoveryModels {
             String defaultExpression) {
     }
 
-    record ConstraintMetadata(
+    public record ConstraintMetadata(
             String name,
             String type,
             List<String> columns,
@@ -185,7 +185,7 @@ public final class OracleDiscoveryModels {
             String referencedTable) {
     }
 
-    record TableMetadata(
+    public record TableMetadata(
             String owner,
             String name,
             String type,
@@ -193,19 +193,24 @@ public final class OracleDiscoveryModels {
             List<ConstraintMetadata> constraints) {
     }
 
-    record DiscoveryResult(
+    public record DiscoveryResult(
+            String technology,
             String owner,
             OffsetDateTime discoveredAt,
             boolean truncated,
             List<TableMetadata> tables) {
+        /** Oracle-era arity kept for existing call sites and tests. */
+        public DiscoveryResult(String owner, OffsetDateTime discoveredAt, boolean truncated, List<TableMetadata> tables) {
+            this("ORACLE", owner, discoveredAt, truncated, tables);
+        }
     }
 
-    record SnapshotCapture(
+    public record SnapshotCapture(
             OffsetDateTime capturedAt,
             OracleSchemaSnapshotCodecV1.SnapshotDefinition definition) {
     }
 
-    record GovernedSnapshotCapture(
+    public record GovernedSnapshotCapture(
             UUID projectUuid,
             UUID connectionUuid,
             UUID connectionVersionUuid,
@@ -215,6 +220,15 @@ public final class OracleDiscoveryModels {
             UUID successfulTestUuid,
             int targetIdentityVersion,
             String targetFingerprint,
-            SnapshotCapture capture) {
+            SnapshotCapture capture,
+            String technology,
+            ConnectionProbe probe) {
+        /** Oracle-era arity kept for tests. */
+        public GovernedSnapshotCapture(UUID projectUuid, UUID connectionUuid, UUID connectionVersionUuid, UUID physicalSchemaUuid,
+                UUID dataObjectUuid, long lifecycleStateVersion, UUID successfulTestUuid, int targetIdentityVersion,
+                String targetFingerprint, SnapshotCapture capture) {
+            this(projectUuid, connectionUuid, connectionVersionUuid, physicalSchemaUuid, dataObjectUuid, lifecycleStateVersion,
+                    successfulTestUuid, targetIdentityVersion, targetFingerprint, capture, "ORACLE", null);
+        }
     }
 }

@@ -90,16 +90,28 @@ public class JdbcSchemaSnapshotStore implements SchemaSnapshotStore {
                 .optional();
     }
 
+    /** Engine and driver identification captured at discovery time; never part of the fingerprint. */
+    private tools.jackson.databind.node.ObjectNode discoveryEvidence(SchemaSnapshotModels.SnapshotProvenance provenance) {
+        var evidence = objectMapper.createObjectNode();
+        if (provenance.engineProduct() != null) evidence.put("engineProduct", provenance.engineProduct());
+        if (provenance.engineVersion() != null) evidence.put("engineVersion", provenance.engineVersion());
+        if (provenance.driverName() != null) evidence.put("driverName", provenance.driverName());
+        if (provenance.driverVersion() != null) evidence.put("driverVersion", provenance.driverVersion());
+        return evidence;
+    }
+
     @Override
     public SnapshotRow create(CreateSnapshot snapshot) {
         Optional<Long> insertedSnapshotId = jdbc.sql("""
                         insert into akis.sema_goruntusu(
                             proje_id, veri_nesnesi_id, fiziksel_sema_id,
                             baglanti_id, uuid, parmak_izi, motor_surumu,
-                            kesif_zamani, ozellik_sema_surumu, ozellik)
+                            kesif_zamani, ozellik_sema_surumu, ozellik,
+                            teknoloji_kodu, parmak_izi_surumu, kesif_kaniti)
                         select :projectId, :dataObjectId, :physicalSchemaId,
                                fs.baglanti_id, :uuid, :fingerprint, :engineVersion,
-                               :discoveredAt, :propertyVersion, cast(:properties as jsonb)
+                               :discoveredAt, :propertyVersion, cast(:properties as jsonb),
+                               :technology, 1, cast(:evidence as jsonb)
                           from akis.fiziksel_sema fs
                          where fs.id = :physicalSchemaId
                         on conflict (veri_nesnesi_id, fiziksel_sema_id, parmak_izi) do nothing
@@ -114,6 +126,8 @@ public class JdbcSchemaSnapshotStore implements SchemaSnapshotStore {
                 .param("discoveredAt", snapshot.discoveredAt())
                 .param("propertyVersion", snapshot.propertyVersion())
                 .param("properties", snapshot.properties().toString())
+                .param("technology", snapshot.provenance().technology())
+                .param("evidence", discoveryEvidence(snapshot.provenance()).toString())
                 .query(Long.class)
                 .optional();
 

@@ -3,7 +3,7 @@ package tr.com.innova.akis.oracle;
 import java.util.Locale;
 
 /** Classifies discovered Oracle columns without widening the execution runtime. */
-final class OracleColumnCapability {
+public final class OracleColumnCapability {
 
     private OracleColumnCapability() {
     }
@@ -57,6 +57,6 @@ final class OracleColumnCapability {
                 .replaceAll("\\s+", " ");
     }
 
-    record Classification(String canonicalType, String executionCapability) {
+    public record Classification(String canonicalType, String executionCapability) {
     }
 }

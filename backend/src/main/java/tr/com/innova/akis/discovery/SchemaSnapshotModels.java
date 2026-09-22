@@ -47,6 +47,21 @@ public final class SchemaSnapshotModels {
             List<String> columnReferences) {
     }
 
+    /**
+     * Where a snapshot came from: the provider code that is part of the row's contract, and the engine/driver evidence
+     * that is stored beside the structural fingerprint without being hashed into it.
+     */
+    public record SnapshotProvenance(
+            String technology,
+            String engineProduct,
+            String engineVersion,
+            String driverName,
+            String driverVersion) {
+        public static SnapshotProvenance oracleWithoutEvidence() {
+            return new SnapshotProvenance("ORACLE", null, null, null, null);
+        }
+    }
+
     public record CreateSnapshot(
             long projectId,
             long dataObjectId,
@@ -62,7 +77,11 @@ public final class SchemaSnapshotModels {
             int propertyVersion,
             JsonNode properties,
             List<ColumnInput> columns,
-            List<ConstraintInput> constraints) {
+            List<ConstraintInput> constraints,
+            SnapshotProvenance provenance) {
+        public CreateSnapshot {
+            provenance = provenance == null ? SnapshotProvenance.oracleWithoutEvidence() : provenance;
+        }
     }
 
     public record ColumnRow(

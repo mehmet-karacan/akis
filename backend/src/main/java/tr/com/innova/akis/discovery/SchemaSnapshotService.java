@@ -21,6 +21,7 @@ import tr.com.innova.akis.discovery.SchemaSnapshotModels.CreateSnapshot;
 import tr.com.innova.akis.discovery.SchemaSnapshotModels.DataObjectRef;
 import tr.com.innova.akis.discovery.SchemaSnapshotModels.PhysicalSchemaRef;
 import tr.com.innova.akis.discovery.SchemaSnapshotModels.ProjectRef;
+import tr.com.innova.akis.discovery.SchemaSnapshotModels.SnapshotProvenance;
 import tr.com.innova.akis.discovery.SchemaSnapshotModels.SnapshotRow;
 import tr.com.innova.akis.metadata.ApiException;
 
@@ -48,6 +49,23 @@ public class SchemaSnapshotService {
             JsonNode properties,
             List<ColumnInput> columns,
             List<ConstraintInput> constraints) {
+        return create(projectUuid, dataObjectUuid, physicalSchemaUuid, connectionVersionUuid, engineVersion, discoveredAt,
+                propertyVersion, properties, columns, constraints, SnapshotProvenance.oracleWithoutEvidence());
+    }
+
+    @Transactional
+    public SnapshotRow create(
+            UUID projectUuid,
+            UUID dataObjectUuid,
+            UUID physicalSchemaUuid,
+            UUID connectionVersionUuid,
+            String engineVersion,
+            OffsetDateTime discoveredAt,
+            int propertyVersion,
+            JsonNode properties,
+            List<ColumnInput> columns,
+            List<ConstraintInput> constraints,
+            SnapshotProvenance provenance) {
         ProjectRef project = project(projectUuid);
         DataObjectRef dataObject = store.findDataObject(project.id(), dataObjectUuid)
                 .orElseThrow(() -> notFound("Veri nesnesi bulunamadı."));
@@ -81,7 +99,7 @@ public class SchemaSnapshotService {
                 physicalSchema.uuid(), connectionVersion.id(), connectionVersion.uuid(),
                 UUID.randomUUID(), calculatedFingerprint, normalizedEngineVersion,
                 discoveredAt, propertyVersion, canonicalProperties,
-                normalizedColumns, normalizedConstraints));
+                normalizedColumns, normalizedConstraints, provenance));
     }
 
     public List<SnapshotRow> list(UUID projectUuid, UUID dataObjectUuid) {

@@ -1,6 +1,8 @@
 package tr.com.innova.akis.oracle;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
@@ -33,21 +35,42 @@ public class OracleDiscoveryService {
     private static final Pattern DATABASE_NAME = Pattern.compile("[A-Za-z0-9_$#.-]{1,128}");
     private static final Pattern JNDI_NAME = Pattern.compile("java:comp/env/jdbc/[A-Za-z0-9_.-]{1,180}");
     private static final Pattern IDENTIFIER = Pattern.compile("[A-Z][A-Z0-9_$#]{0,127}");
+    private static final Pattern POSTGRES_IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_$]{0,62}");
 
     private final OracleDiscoveryRepository repository;
     private final EnvironmentCredentialResolver credentialResolver;
-    private final OracleMetadataGateway gateway;
+    /** Discovery adapters by provider code; a connection whose provider has no adapter cannot be browsed. */
+    private final Map<String, SchemaDiscoveryPort> gateways;
     private final ObjectMapper objectMapper;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public OracleDiscoveryService(
             OracleDiscoveryRepository repository,
             EnvironmentCredentialResolver credentialResolver,
-            OracleMetadataGateway gateway,
+            List<SchemaDiscoveryPort> gateways,
             ObjectMapper objectMapper) {
         this.repository = repository;
         this.credentialResolver = credentialResolver;
-        this.gateway = gateway;
+        Map<String, SchemaDiscoveryPort> byTechnology = new LinkedHashMap<>();
+        for (SchemaDiscoveryPort gateway : gateways) byTechnology.put(gateway.technology(), gateway);
+        this.gateways = Map.copyOf(byTechnology);
         this.objectMapper = objectMapper;
+    }
+
+    OracleDiscoveryService(
+            OracleDiscoveryRepository repository,
+            EnvironmentCredentialResolver credentialResolver,
+            SchemaDiscoveryPort gateway,
+            ObjectMapper objectMapper) {
+        this(repository, credentialResolver, List.of(gateway), objectMapper);
+    }
+
+    private SchemaDiscoveryPort gateway(ConnectionProfile profile) {
+        SchemaDiscoveryPort gateway = gateways.get(profile.databaseType());
+        if (gateway == null) {
+            throw validation("Bu sağlayıcı için şema keşfi desteklenmiyor: " + profile.databaseType());
+        }
+        return gateway;
     }
 
     public ConnectionProbe testConnection(UUID connectionUuid) {
@@ -82,7 +105,7 @@ public class OracleDiscoveryService {
     }
 
     private ConnectionProbe probe(ConnectionProfile profile, Credentials credentials) {
-        ConnectionProbe probe = gateway.test(profile, credentials);
+        ConnectionProbe probe = gateway(profile).test(profile, credentials);
         if ("ORACLE".equals(profile.databaseType())) {
             requireOracle19c(probe);
             requireTargetIdentity(probe);
@@ -91,22 +114,22 @@ public class OracleDiscoveryService {
     }
 
     public DiscoveryResult discover(UUID connectionUuid, UUID physicalSchemaUuid, String tableName, int limit) {
-        ConnectionProfile profile = oracleProfile(connectionUuid);
+        ConnectionProfile profile = discoverableProfile(connectionUuid);
         PhysicalSchemaProfile physicalSchema = physicalSchema(profile, physicalSchemaUuid);
         if (limit < 1 || limit > 200) {
             throw validation("Keşif tablo limiti 1-200 aralığında olmalıdır.");
         }
-        String owner = identifier(physicalSchema.schemaReference(), "Fiziksel şema referansı");
-        String normalizedTableName = tableName == null || tableName.isBlank() ? null : identifier(tableName, "Tablo adı");
+        String owner = identifier(profile, physicalSchema.schemaReference(), "Fiziksel şema referansı");
+        String normalizedTableName = tableName == null || tableName.isBlank() ? null : identifier(profile, tableName, "Tablo adı");
         try (Credentials credentials = credentials(profile)) {
-            return gateway.discover(profile, credentials, owner, normalizedTableName, limit);
+            return gateway(profile).discover(profile, credentials, owner, normalizedTableName, limit);
         }
     }
 
     public List<String> listSchemas(UUID connectionUuid) {
-        ConnectionProfile profile = oracleProfile(connectionUuid);
+        ConnectionProfile profile = discoverableProfile(connectionUuid);
         try (Credentials credentials = credentials(profile)) {
-            return gateway.listSchemas(profile, credentials);
+            return gateway(profile).listSchemas(profile, credentials);
         }
     }
 
@@ -114,28 +137,29 @@ public class OracleDiscoveryService {
     GovernedSnapshotCapture captureSchemaSnapshot(
             UUID projectUuid, UUID connectionUuid, UUID physicalSchemaUuid, UUID dataObjectUuid) {
         long projectId = repository.findProjectId(projectUuid).orElseThrow(() -> notFound("Proje bulunamadı."));
-        ConnectionProfile profile = oracleProfile(connectionUuid);
+        ConnectionProfile profile = discoverableProfile(connectionUuid);
         PhysicalSchemaProfile physicalSchema = physicalSchema(profile, physicalSchemaUuid);
         DataObjectCaptureProfile dataObject = repository.findDataObjectCaptureProfile(
                         projectId, dataObjectUuid, physicalSchemaUuid)
                 .orElseThrow(() -> validation("Veri nesnesi fiziksel şema eşlemesiyle uyuşmuyor."));
         if (!"AKTIF".equals(dataObject.status()) || !"TABLO".equals(dataObject.objectType())) {
-            throw validation("Oracle snapshot yalnız aktif tablo veri nesnesi için alınabilir.");
+            throw validation("Şema görüntüsü yalnız aktif tablo veri nesnesi için alınabilir.");
         }
-        String tableName = identifier(dataObject.objectReference(), "Veri nesnesi referansı");
+        String tableName = identifier(profile, dataObject.objectReference(), "Veri nesnesi referansı");
         ConnectionProbe probe;
         SnapshotCapture capture;
         try (Credentials credentials = credentials(profile)) {
             probe = probe(profile, credentials);
-            capture = gateway.captureSnapshot(
+            capture = gateway(profile).captureSnapshot(
                     profile, credentials,
-                    identifier(physicalSchema.schemaReference(), "Fiziksel şema referansı"),
+                    identifier(profile, physicalSchema.schemaReference(), "Fiziksel şema referansı"),
                     tableName);
         }
         return new GovernedSnapshotCapture(
                 projectUuid, connectionUuid, connectionUuid,
                 physicalSchemaUuid, dataObjectUuid, 1L,
-                null, probe.targetIdentityVersion(), probe.targetFingerprint(), capture);
+                null, probe.targetIdentityVersion(), probe.targetFingerprint(), capture,
+                profile.databaseType(), probe);
     }
 
     private PhysicalSchemaProfile physicalSchema(ConnectionProfile profile, UUID physicalSchemaUuid) {
@@ -150,11 +174,11 @@ public class OracleDiscoveryService {
         return physicalSchema;
     }
 
-    private ConnectionProfile oracleProfile(UUID connectionUuid) {
+    private ConnectionProfile discoverableProfile(UUID connectionUuid) {
         ConnectionProfile profile = repository.findConnectionProfile(connectionUuid)
                 .orElseThrow(() -> notFound("Bağlantı bulunamadı."));
-        if (!"ORACLE".equals(profile.databaseType())) {
-            throw validation("Bu işlem yalnız Oracle bağlantılarında kullanılabilir.");
+        if (!gateways.containsKey(profile.databaseType())) {
+            throw validation("Bu işlem yalnız Oracle ve PostgreSQL bağlantılarında kullanılabilir.");
         }
         if (!"ACTIVE".equals(profile.lifecycleStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "CONNECTION_DISABLED", "Bağlantı pasif durumda.");
@@ -217,6 +241,18 @@ public class OracleDiscoveryService {
 
     private boolean validDatabaseName(String value) {
         return value != null && DATABASE_NAME.matcher(value).matches();
+    }
+
+    /** Oracle identifiers are upper-cased dictionary names; PostgreSQL names are case-sensitive and kept as given. */
+    private String identifier(ConnectionProfile profile, String value, String field) {
+        if ("POSTGRESQL".equals(profile.databaseType())) {
+            String normalized = value == null ? "" : value.strip();
+            if (!POSTGRES_IDENTIFIER.matcher(normalized).matches()) {
+                throw validation(field + " geçersiz.");
+            }
+            return normalized;
+        }
+        return identifier(value, field);
     }
 
     private String identifier(String value, String field) {

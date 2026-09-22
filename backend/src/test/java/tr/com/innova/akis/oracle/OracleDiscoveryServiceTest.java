@@ -90,6 +90,7 @@ class OracleDiscoveryServiceTest {
     void draftConnectionTestSkipsOracleVersionRuleForOtherProviders() {
         StubRepository repository = repository(7L);
         CapturingGateway gateway = new CapturingGateway();
+        gateway.technology = "POSTGRESQL";
         gateway.probe = new ConnectionProbe("PostgreSQL", "16.2", 16, 2, "PostgreSQL JDBC", "42");
 
         ConnectionProbe result = service(repository, gateway).testDraftConnection(new DraftConnection(
@@ -251,7 +252,9 @@ class OracleDiscoveryServiceTest {
         }
     }
 
-    private static final class CapturingGateway implements OracleMetadataGateway {
+    private static final class CapturingGateway implements SchemaDiscoveryPort {
+        private String technology = "ORACLE";
+        @Override public String technology() { return technology; }
         private ConnectionProbe probe;
         private DiscoveryResult discovery;
         private char[] passwordReference;
