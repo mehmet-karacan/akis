@@ -19,6 +19,11 @@ interface PublicationStore {
             UUID projectUuid, UUID scenarioUuid, UUID environmentUuid);
 
     List<ResolvedBinding> resolveBindings(PublicationContext context);
+    /**
+     * Node codes whose definition version was designed against an older schema snapshot than the one the environment would pin
+     * now (the data object was re-snapshotted after the version was created). The runtime refuses such bindings, so publishing must too.
+     */
+    default List<String> staleDesignSnapshots(PublicationContext context, List<ResolvedBinding> bindings) { return List.of(); }
     default java.util.Map<String, List<String>> sensitiveColumns(PublicationContext context, List<ResolvedBinding> bindings) { return java.util.Map.of(); }
 
     /** Rejects the release when a protected source column is not text or the target column cannot hold the ciphertext. */

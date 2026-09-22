@@ -5,7 +5,7 @@ final class PinnedSchemaSnapshotException extends RuntimeException {
     private final Failure failure;
 
     PinnedSchemaSnapshotException(Failure failure) {
-        super("Pinned schema snapshot could not be loaded safely.");
+        super("Pinned schema snapshot could not be loaded safely: " + failure);
         this.failure = failure;
     }
 

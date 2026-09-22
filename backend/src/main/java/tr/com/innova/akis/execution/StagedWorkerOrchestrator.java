@@ -39,7 +39,10 @@ final class StagedWorkerOrchestrator {
         this.fences=fences;this.transitions=transitions;this.publisher=publisher;this.objects=objects;this.policies=policies;this.mapper=mapper;this.enabled=enabled;this.journal=journal;
         this.contexts=contexts;this.faultInjection=faultInjection==null?"":faultInjection.trim();
     }
-    /** Test-only: "PUBLISH" fails the target publication after the publish intent is recorded so RESUME can be exercised on a real target. */
+    /**
+     * Test-only: "PUBLISH" fails the target publication after the publish intent is recorded (outcome unknown, reconcile first);
+     * "BEFORE_PUBLISH" fails once the work table is sealed but before any intent (plain failure, RESUME adopts the work table).
+     */
     private final String faultInjection;
     /** What a RESUME attempt can adopt from the failed attempt: the sealed work table and the steps completed before it. */
     record ResumePoint(UUID previousRun,WorkObjectStore.ObjectRow sealed,int completedSteps) { }
@@ -74,7 +77,10 @@ final class StagedWorkerOrchestrator {
             plan=plans.resolve(context.releaseHash(),context.planHash(),context.scenarioPlan(),context.physicalManifest());
             pinned=snapshots.load(plan);layout=StagedColumnLayout.create(plan,pinned.target().body());
             if(!pinned.projectUuid().equals(plan.projectUuid()) || !pinned.publicationUuid().equals(context.publicationUuid())) throw new IllegalStateException();
-        } catch(RuntimeException failure) { failPreflight(gate);return new FailedSafely("KM_PREFLIGHT_REJECTED"); }
+        } catch(RuntimeException failure) {
+            LOG.warn("KM run {} preflight rejected: {}{}",context.runUuid(),failure.toString(),failure.getCause()==null?"":" <- "+failure.getCause());
+            failPreflight(gate);return new FailedSafely("KM_PREFLIGHT_REJECTED");
+        }
         RuntimeOracleSession source=null,control=null,data=null;
         RunLeasePort.TargetFenceToken targetFence=null;
         var intent=new AtomicReference<PublishIntentEvidence>();
@@ -159,6 +165,7 @@ final class StagedWorkerOrchestrator {
                     manager,objects,new JdbcStagingTransfer(),new JdbcWorkQualityChecks(),guard,(object,seal)->{
                         created.set(object);
                         var evidence=new PublishIntentEvidence(plan.runtimePlanHash(),StagedPublishFacade.publishKey(plan,context,fence),seal.payloadHash(),seal.rows(),seal.logicalBytes());
+                        if("BEFORE_PUBLISH".equals(faultInjection) && contexts.resumeOrigin(context.runUuid()).isEmpty()) throw new IllegalStateException("Test hatası: hedef yazımı kasıtlı olarak başarısız (niyet öncesi).");
                         intent.set(evidence);
                         requireAccepted(gate.execute(run->transitions.beginPublish(new ActiveExecutionToken(run,fence),evidence)));
                         if("PUBLISH".equals(faultInjection) && contexts.resumeOrigin(context.runUuid()).isEmpty()) throw new IllegalStateException("Test hatası: hedef yayını kasıtlı olarak başarısız.");

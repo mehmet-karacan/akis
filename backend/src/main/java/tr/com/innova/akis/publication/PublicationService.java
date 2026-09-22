@@ -102,6 +102,14 @@ public class PublicationService {
                 .sorted(Comparator.comparing(ResolvedBinding::nodeCode))
                 .toList();
         validateResolvedBindings(bindings);
+        List<String> stale = store.staleDesignSnapshots(context, bindings);
+        if (!stale.isEmpty()) {
+            throw new ApiException(
+                    HttpStatus.UNPROCESSABLE_CONTENT,
+                    "DEFINITION_SNAPSHOT_STALE",
+                    "Tanım sürümü, veri nesnesinin daha eski bir şema görüntüsüne göre tasarlanmış; yeni bir sürüm oluşturup yayınlayın: "
+                            + String.join(", ", stale));
+        }
         if (!secretSanitizer.sensitivePaths(context.environmentPolicy()).isEmpty()) {
             throw new ApiException(
                     HttpStatus.UNPROCESSABLE_CONTENT,

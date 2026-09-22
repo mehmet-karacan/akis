@@ -80,7 +80,7 @@ public class PackagePublicationPlanner {
                   join akis.tanim t on t.id = tsv.tanim_id
                  where y.proje_id = :project and y.ortam_id = :environment and y.durum = 'AKTIF'
                    and t.uuid = :definition and t.arsivlenme_zamani is null
-                 order by y.yayin_no desc limit 1
+                 order by y.id desc limit 1
                 """).param("project", context.projectId()).param("environment", context.environmentId()).param("definition", definitionUuid)
                 .query((rs, n) -> {
                     String capability = rs.getString("capability");

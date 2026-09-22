@@ -11,7 +11,7 @@ import { connectionStatusTagStyles } from '../connections/presentation'
 import { apiErrorMessage, formatDate, redactSensitiveValues } from '../operations/utils'
 import { useRemoteData } from '../operations/useRemoteData'
 import { executionApi } from './api'
-import type { RunStep } from './types'
+import type { RunStatus, RunStep } from './types'
 import { useExecutionI18n } from './i18n'
 import { RunStatusBadge, runStatusPresentation } from './RunStatusBadge'
 import { buildRunStepTree, firstFailedPath, groupRunStepUnits, type RunStepNode } from './runTree'
@@ -97,7 +97,9 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
   const step = allSteps.find(item => item.uuid === selected)
   const selectedRows = totalRows(hierarchy, false)
   const insertedRows = totalRows(hierarchy, true)
-  const treeData = (nodes: RunStepNode[]): DataNode[] => nodes.map(item => ({ key: item.uuid, title: <span className="run-step-title"><span>{item.ordinal}. {item.name}</span><RunStatusBadge status={item.status} /></span>, children: treeData(item.children) }))
+  // A package step the resumed attempt adopted from the failed one is shown as adopted rather than skipped.
+  const stepLabel = (item: { type: string; status: RunStatus }) => item.type === 'PAKET' && item.status === 'ATLANDI' ? t('adoptedStep') : undefined
+  const treeData = (nodes: RunStepNode[]): DataNode[] => nodes.map(item => ({ key: item.uuid, title: <span className="run-step-title"><span>{item.ordinal}. {item.name}</span><RunStatusBadge status={item.status} label={stepLabel(item)} /></span>, children: treeData(item.children) }))
   const unitTreeData: DataNode[] = units.map(unit => ({ key: unit.key, title: <span className="run-step-title"><span>{unit.ordinal}. {unit.name}</span><RunStatusBadge status={unit.status} /></span>, children: treeData(unit.children) }))
   const selectedUnit = unitOf(selected)
   const rowsLabel = (item: RunStep) => item.connectionRole === 'SOURCE' ? t('selectedRows') : item.logCounter === 'INSERT' && ['COMMITTED', 'COMMIT_CONFIRMED'].includes(item.transactionState ?? '') ? t('insertedRows') : t('rowCount')

@@ -135,6 +135,19 @@ public class JdbcPublicationStore implements PublicationStore {
 
     private record SnapshotColumn(String type, long length, boolean text) { }
 
+    @Override
+    public List<String> staleDesignSnapshots(PublicationContext context, List<ResolvedBinding> bindings) {
+        return bindings.stream()
+                .filter(binding -> binding.targetSnapshotId() != null)
+                .filter(binding -> {
+                    Long designed = jdbc.sql("select sema_goruntusu_id from akis.tanim_veri_nesnesi where id = :id")
+                            .param("id", binding.definitionDataObjectId()).query(Long.class).optional().orElse(null);
+                    return designed != null && !designed.equals(binding.targetSnapshotId());
+                })
+                .map(ResolvedBinding::nodeCode)
+                .toList();
+    }
+
     private java.util.Map<String, SnapshotColumn> snapshotColumns(Long snapshotId) {
         var columns = new java.util.HashMap<String, SnapshotColumn>();
         if (snapshotId == null) return columns;

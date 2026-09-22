@@ -95,7 +95,7 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
     try {
       const publications = (await operationsApi.listPublications(projectUuid)).filter(item => item.definitionUuid === definition.uuid)
       if (!publications.length) throw new Error(shellT('nav.runNeedsPublication'))
-      const active = publications.filter(item => item.status === 'AKTIF').sort((a, b) => b.publicationNumber - a.publicationNumber)[0]
+      const active = publications.filter(item => item.status === 'AKTIF').sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
       if (!active) throw new Error(shellT('nav.runNeedsActivePublication'))
       const started = await executionApi.startRun(projectUuid, active.uuid, crypto.randomUUID())
       setNotice({ tone: 'success', text: shellT('nav.runStarted', { name: definition.name, environment: active.environmentCode }) })

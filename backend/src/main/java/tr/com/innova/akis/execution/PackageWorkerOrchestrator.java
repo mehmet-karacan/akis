@@ -54,6 +54,10 @@ final class PackageWorkerOrchestrator {
             return new FailedSafely("PACKAGE_START_REJECTED");
         }
         Map<String, Object> values = new LinkedHashMap<>();
+        // RESUME (DEVAM_ET): steps the failed attempt completed are adopted, not re-run; the failed step's child run is resumed.
+        Optional<UUID> origin = contexts.resumeOrigin(token.runUuid());
+        Map<String, PreviousStep> previous = origin.map(this::previousSteps).orElse(Map.of());
+        if (origin.isPresent()) LOG.info("Package run {} resumes from {}: {} completed step(s) adopted", token.runUuid(), origin.get(), previous.values().stream().filter(PreviousStep::succeeded).count());
         String current = plan.path("firstStepId").asText();
         int executed = 0;
         try {
@@ -63,16 +67,27 @@ final class PackageWorkerOrchestrator {
                 JsonNode step = steps.get(current);
                 String outcome;
                 String type = step.path("type").asText();
+                PreviousStep adopted = previous.get(current);
+                boolean variableStep = "VARIABLE_REFRESH".equals(type) || "VARIABLE_EVALUATE".equals(type);
+                if (adopted != null && adopted.succeeded()) {
+                    // Same graph, same decision: a refreshed value is replayed from its recorded text so evaluate steps branch as before.
+                    Object value = variableStep ? VariableScalarValue.parse(adopted.value(), step.path("variable").path("type").asText()) : null;
+                    if (variableStep) values.put(step.path("definitionUuid").asText(), value);
+                    outcome = "VARIABLE_EVALUATE".equals(type) ? (PackageVariableEvaluator.evaluate(value, step.path("evaluate")) ? "TRUE" : "FALSE") : "SUCCESS";
+                    stepState(token, current, "ATLANDI", adopted.childRunUuid(), adopted.value(), null);
+                    current = nextStep(plan, current, outcome);
+                    continue;
+                }
                 stepState(token, current, "CALISIYOR", null, null, null);
                 try {
-                    if ("VARIABLE_REFRESH".equals(type) || "VARIABLE_EVALUATE".equals(type)) {
+                    if (variableStep) {
                         Object value = variables.refresh(token.runUuid(), step.path("variable"));
                         values.put(step.path("definitionUuid").asText(), value);
                         boolean evaluation = !"VARIABLE_EVALUATE".equals(type) || PackageVariableEvaluator.evaluate(value, step.path("evaluate"));
                         outcome = "VARIABLE_EVALUATE".equals(type) ? (evaluation ? "TRUE" : "FALSE") : "SUCCESS";
                         stepState(token, current, "BASARILI", null, String.valueOf(value), null);
                     } else {
-                        ChildOutcome child = runChild(context, token, step, values, worker, lease, children);
+                        ChildOutcome child = runChild(context, token, step, values, worker, lease, children, adopted == null ? null : adopted.childRunUuid());
                         outcome = child.succeeded() ? "SUCCESS" : "FAILURE";
                         stepState(token, current, child.succeeded() ? "BASARILI" : "BASARISIZ", child.runUuid(), null, child.errorCode());
                     }
@@ -99,10 +114,30 @@ final class PackageWorkerOrchestrator {
 
     private record ChildOutcome(UUID runUuid, boolean succeeded, String errorCode) { }
 
+    /** One step of the attempt a RESUME continues from. */
+    private record PreviousStep(String stepCode, String state, UUID childRunUuid, String value) {
+        boolean succeeded() { return "BASARILI".equals(state) || "ATLANDI".equals(state); }
+    }
+
+    private Map<String, PreviousStep> previousSteps(UUID originRun) {
+        Map<String, PreviousStep> result = new LinkedHashMap<>();
+        jdbc.sql("""
+                select a.adim_kodu, pd.durum, child.uuid as child_uuid, pd.deger
+                  from akis.calistirma o join akis.calistirma_adimi a on a.calistirma_id = o.id
+                  join akis.paket_adim_durumu pd on pd.calistirma_adimi_id = a.id
+                  left join akis.calistirma child on child.id = pd.alt_calistirma_id
+                 where o.uuid = :origin
+                """).param("origin", originRun)
+                .query((rs, n) -> new PreviousStep(rs.getString("adim_kodu"), rs.getString("durum"), rs.getObject("child_uuid", UUID.class), rs.getString("deger")))
+                .list().forEach(row -> result.put(row.stepCode(), row));
+        return result;
+    }
+
     private ChildOutcome runChild(PinnedExecutionContextPort.PinnedExecutionContext parent, RunLeaseToken token, JsonNode step, Map<String, Object> values,
-            WorkerIdentity worker, Duration lease, ChildRunner children) {
+            WorkerIdentity worker, Duration lease, ChildRunner children, UUID failedChild) {
         JsonNode publication = step.path("publication");
-        UUID childRun = createChildRun(parent, token, step.path("id").asText(), UUID.fromString(publication.path("publicationUuid").asText()));
+        UUID childRun = failedChild == null ? null : resumeChildRun(token, step.path("id").asText(), failedChild);
+        if (childRun == null) childRun = createChildRun(parent, token, step.path("id").asText(), UUID.fromString(publication.path("publicationUuid").asText()));
         // Package variable values win over the child's own refresh: the procedure runtime reads its history row for this run first.
         seedVariables(childRun, publication.path("runtimePlanHash").asText(), values, publication);
         stepState(token, step.path("id").asText(), "CALISIYOR", childRun, null, null);
@@ -131,6 +166,26 @@ final class PackageWorkerOrchestrator {
         };
     }
 
+    /**
+     * The failed step's child continues as a DEVAM_ET attempt of its own job (so a staged mapping adopts its work table) when the
+     * failed child is in a resumable terminal state; otherwise null, and the step starts a fresh child run.
+     */
+    private UUID resumeChildRun(RunLeaseToken token, String stepCode, UUID failedChild) {
+        UUID runUuid = UUID.randomUUID();
+        Long runId = jdbc.sql("""
+                insert into akis.calistirma(proje_id, is_talebi_id, deneme_no, yayin_ozeti, plan_ozeti, baslatma_turu, onceki_calistirma_id, uuid, olusturan_kullanici_id, ust_calistirma_id, ust_adim_kodu)
+                select prev.proje_id, prev.is_talebi_id, (select max(deneme_no) + 1 from akis.calistirma where is_talebi_id = prev.is_talebi_id),
+                       prev.yayin_ozeti, prev.plan_ozeti, 'DEVAM_ET', prev.id, :runUuid, parent.olusturan_kullanici_id, parent.id, :step
+                  from akis.calistirma prev join akis.calistirma_durumu pd on pd.calistirma_id = prev.id, akis.calistirma parent
+                 where prev.uuid = :failedChild and parent.uuid = :parentRun and pd.durum in ('BASARISIZ', 'YENIDEN_DENENEBILIR', 'IPTAL')
+                returning id
+                """).param("runUuid", runUuid).param("step", stepCode).param("failedChild", failedChild).param("parentRun", token.runUuid())
+                .query(Long.class).optional().orElse(null);
+        if (runId == null) return null;
+        initializeChildState(runId, "RECOVERY_ATTEMPT_CREATED", mapper.createObjectNode().put("action", "RESUME").put("parentRunUuid", failedChild.toString()).put("packageRunUuid", token.runUuid().toString()).put("packageStepCode", stepCode));
+        return runUuid;
+    }
+
     private UUID createChildRun(PinnedExecutionContextPort.PinnedExecutionContext parent, RunLeaseToken token, String stepCode, UUID publicationUuid) {
         UUID jobUuid = UUID.randomUUID(), runUuid = UUID.randomUUID();
         Long jobId = jdbc.sql("""
@@ -152,19 +207,22 @@ final class PackageWorkerOrchestrator {
                 returning id
                 """).param("jobId", jobId).param("runUuid", runUuid).param("step", stepCode).param("publication", publicationUuid).param("parentRun", token.runUuid())
                 .query(Long.class).single();
+        initializeChildState(runId, "RUN_REQUESTED", mapper.createObjectNode().put("publicationUuid", publicationUuid.toString()).put("packageRunUuid", token.runUuid().toString()).put("packageStepCode", stepCode));
+        return runUuid;
+    }
+
+    private void initializeChildState(long runId, String eventType, ObjectNode data) {
         jdbc.sql("""
                 insert into akis.calistirma_durumu(proje_id, calistirma_id, durum, son_olay_no, uuid, olusturan_kullanici_id, guncellenme_zamani, guncelleyen_kullanici_id)
                 select c.proje_id, c.id, 'BEKLIYOR', 1, :stateUuid, c.olusturan_kullanici_id, current_timestamp, c.olusturan_kullanici_id from akis.calistirma c where c.id = :runId
                 """).param("stateUuid", UUID.randomUUID()).param("runId", runId).update();
         jdbc.sql("""
                 insert into akis.calistirma_olayi(proje_id, calistirma_id, olay_no, tur, olay_zamani, veri, uuid, olusturan_kullanici_id)
-                select c.proje_id, c.id, 1, 'RUN_REQUESTED', clock_timestamp(),
-                       jsonb_build_object('releaseHash', c.yayin_ozeti, 'planHash', c.plan_ozeti, 'publicationUuid', :publication, 'packageRunUuid', :parentRun, 'packageStepCode', :step),
+                select c.proje_id, c.id, 1, :type, clock_timestamp(),
+                       jsonb_build_object('releaseHash', c.yayin_ozeti, 'planHash', c.plan_ozeti) || cast(:data as jsonb),
                        :eventUuid, c.olusturan_kullanici_id
                   from akis.calistirma c where c.id = :runId
-                """).param("publication", publicationUuid.toString()).param("parentRun", token.runUuid().toString()).param("step", stepCode)
-                .param("eventUuid", UUID.randomUUID()).param("runId", runId).update();
-        return runUuid;
+                """).param("type", eventType).param("data", data.toString()).param("eventUuid", UUID.randomUUID()).param("runId", runId).update();
     }
 
     /** Pre-seed the child run's variable history so its procedure steps bind the package value instead of refreshing again. */

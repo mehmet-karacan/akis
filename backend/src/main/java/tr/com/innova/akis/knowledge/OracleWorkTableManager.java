@@ -2,10 +2,13 @@ package tr.com.innova.akis.knowledge;
 
 import java.sql.*;
 import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import static tr.com.innova.akis.knowledge.WorkObjectLifecycle.State;
 
 /** DDL runs on a dedicated work-owner connection, never the target data transaction. */
 public final class OracleWorkTableManager {
+    private static final Logger LOG = LoggerFactory.getLogger(OracleWorkTableManager.class);
     public record Column(String name,String oracleType) {
         public Column {
             StagedMappingDefinition.identifier(name);
@@ -47,6 +50,7 @@ public final class OracleWorkTableManager {
             }
         } catch(SQLException | RuntimeException failure) {
             if (creating) try { store.transition(owner,allocated,State.CREATING,State.REVIEW_REQUIRED,null,null); } catch(RuntimeException ignored) { }
+            LOG.warn("Work table {} could not be prepared: {}",table.sql(),failure.toString());
             throw new IllegalStateException("Çalışma tablosu hazırlığı doğrulanamadı; otomatik DROP/tekrar yapılmadı.");
         }
     }

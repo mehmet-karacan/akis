@@ -41,7 +41,7 @@ class JdbcPinnedSchemaSnapshotStoreTest {
                 PinnedSchemaSnapshotException.Failure.INVALID_CONTRACT,
                 exception.failure());
         assertEquals(
-                "Pinned schema snapshot could not be loaded safely.",
+                "Pinned schema snapshot could not be loaded safely: INVALID_CONTRACT",
                 exception.getMessage());
         assertNull(exception.getCause());
     }

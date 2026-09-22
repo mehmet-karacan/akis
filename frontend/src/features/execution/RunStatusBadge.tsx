@@ -12,10 +12,11 @@ export const canonicalRunStatuses = [
   'HATA_DEVAM', 'ATLANDI', 'KAYDEDILMEDI',
 ] as const
 
-export function RunStatusBadge({ status }: { status: RunStatus }) {
+/** `label` overrides the canonical text while keeping the status colour (e.g. a package step adopted from the previous attempt). */
+export function RunStatusBadge({ status, label: override }: { status: RunStatus; label?: string }) {
   const { t } = useExecutionI18n()
   const known = canonicalRunStatuses.includes(status as typeof canonicalRunStatuses[number])
-  const label = known ? t(`status_${status}` as ExecutionMessageKey) : status
+  const label = override ?? (known ? t(`status_${status}` as ExecutionMessageKey) : status)
   const color = status === 'BASARILI' ? 'success' : ['BASARISIZ', 'MUDAHALE_GEREKLI'].includes(status) ? 'error' : ['CALISIYOR', 'HAZIRLANIYOR', 'YAYINLANIYOR'].includes(status) ? 'processing' : ['SONUC_BELIRSIZ', 'HATA_DEVAM'].includes(status) ? 'warning' : 'default'
   return <Tag color={color} className={`run-status run-status--${status.toLowerCase().replaceAll('_', '-')}`}>{label}</Tag>
 }
