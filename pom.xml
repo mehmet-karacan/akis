@@ -25,9 +25,11 @@
     </modules>
 
     <properties>
-        <java.version>21</java.version>
-        <maven.compiler.release>21</maven.compiler.release>
+        <java.version>25</java.version>
+        <maven.compiler.release>25</maven.compiler.release>
         <oracle.jdbc.version>23.26.3.0.0</oracle.jdbc.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- Mockito inline mocks attach the Byte Buddy agent at runtime; JDK 21+ warns unless the JVM is told it is expected. -->
+        <argLine>-XX:+EnableDynamicAgentLoading</argLine>
     </properties>
 </project>

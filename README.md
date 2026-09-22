@@ -37,7 +37,7 @@ diğer geçerli tanım ve mapping sürümleri `DEFINITION_ONLY` olarak yayınlan
 
 ## Teknoloji tabanı
 
-- Java 21
+- Java 25 (LTS)
 - Spring Boot 4.1.1
 - Maven 3.9.16 Wrapper
 - PostgreSQL 18.6
@@ -49,7 +49,7 @@ diğer geçerli tanım ve mapping sürümleri `DEFINITION_ONLY` olarak yayınlan
 
 Gereksinimler:
 
-- Java 21
+- Java 25 (LTS)
 - Docker Desktop veya Docker Engine + Compose
 
 Repository içinde gerçek yerel değerleri taşıyan bir .env bulunur ve Git tarafından
