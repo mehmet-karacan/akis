@@ -32,11 +32,14 @@ final class OracleTargetFenceFacade implements OracleTargetFencePort {
     private final TargetFenceSessionOpener sessions;
     private final TargetIdentityReader identityReader;
 
+    private final TargetTechnologyRegistry targets;
+
     @Autowired
     OracleTargetFenceFacade(
             RuntimeOracleConnectionProvider connections,
-            TargetLedgerPort ledger) {
-        this(ledger, connections::openTargetFence);
+            TargetLedgerPort ledger,
+            TargetTechnologyRegistry targets) {
+        this(ledger, connections::openTargetFence, new JdbcOracleTargetIdentityReader()::read, targets);
     }
 
     OracleTargetFenceFacade(
@@ -49,6 +52,15 @@ final class OracleTargetFenceFacade implements OracleTargetFencePort {
             TargetLedgerPort ledger,
             TargetFenceSessionOpener sessions,
             TargetIdentityReader identityReader) {
+        this(ledger, sessions, identityReader, null);
+    }
+
+    OracleTargetFenceFacade(
+            TargetLedgerPort ledger,
+            TargetFenceSessionOpener sessions,
+            TargetIdentityReader identityReader,
+            TargetTechnologyRegistry targets) {
+        this.targets = targets;
         this.ledger = Objects.requireNonNull(ledger, "Target ledger is required.");
         this.sessions = Objects.requireNonNull(sessions, "Target sessions are required.");
         this.identityReader = Objects.requireNonNull(
@@ -111,13 +123,19 @@ final class OracleTargetFenceFacade implements OracleTargetFencePort {
         return closeAndReturn(session, result);
     }
 
+    /** Without a registry (unit fixtures) only Oracle is fenced; wired, every registered target technology is. */
+    private boolean supported(PilotRuntimePlan.DatabaseType technology) {
+        if (targets == null) return technology == PilotRuntimePlan.DatabaseType.ORACLE;
+        try { targets.of(technology); return true; }
+        catch (RuntimeException unsupported) { return false; }
+    }
+
     private NotAttempted validate(OracleTargetFenceCommand command) {
         if (command == null || command.plan() == null
                 || command.execution() == null || command.fence() == null
                 || command.plan().target() == null
                 || command.plan().target().role() != DatasetRole.TARGET
-                || command.plan().target().databaseType()
-                        != PilotRuntimePlan.DatabaseType.ORACLE
+                || !supported(command.plan().target().databaseType())
                 || command.plan().target().dataObjectType()
                         != PilotRuntimePlan.DataObjectType.TABLE
                 || command.plan().target().connectionVersionUuid() == null

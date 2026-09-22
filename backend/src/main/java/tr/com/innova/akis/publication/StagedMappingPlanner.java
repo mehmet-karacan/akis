@@ -29,8 +29,10 @@ final class StagedMappingPlanner {
         catch (IllegalArgumentException invalid) { throw rejected(invalid.getMessage()); }
         var bundle = modules.resolve(context.projectId(), definition);
         int expectedBindingCount = definition.sources().isEmpty() ? 2 : definition.sources().size() + 1;
-        if (bindings.size()!=expectedBindingCount || bindings.stream().anyMatch(b -> !"ORACLE".equals(b.databaseType()) || !Set.of("TABLE", "TABLO").contains(b.dataObjectType())))
-            throw rejected("Tüm kaynak ve hedeflerin Oracle tablo çözümlemesi gerekir.");
+        // Faz A: sources are Oracle; the target may be Oracle or PostgreSQL, and its provider decides the runtime bundle.
+        if (bindings.size()!=expectedBindingCount || bindings.stream().anyMatch(b -> !Set.of("TABLE", "TABLO").contains(b.dataObjectType())
+                || !("ORACLE".equals(b.databaseType()) || "POSTGRESQL".equals(b.databaseType()) && "HEDEF".equals(b.role()))))
+            throw rejected("Kaynaklar Oracle tablosu, hedef Oracle veya PostgreSQL tablosu olmalıdır.");
         Set<String> expected = new HashSet<>();
         if (content.has("sources")) { content.path("sources").forEach(d -> expected.add(d.path("id").asText())); expected.add(content.path("target").path("id").asText()); }
         else content.path("datasets").forEach(d -> expected.add(d.path("id").asText()));
@@ -53,8 +55,8 @@ final class StagedMappingPlanner {
             join akis.mantiksal_sema ms on ms.id=se.mantiksal_sema_id
             join akis.fiziksel_sema fs on fs.id=se.fiziksel_sema_id and fs.uuid=:physical
             join akis.baglanti b on b.id=fs.baglanti_id and b.uuid=:connection
-            where p.id=:project and fs.durum='ETKIN' and b.durum='ETKIN' and b.saglayici_turu='ORACLE'
-            """).param("project",context.projectId()).param("binding",target.environmentSchemaBindingUuid())
+            where p.id=:project and fs.durum='ETKIN' and b.durum='ETKIN' and b.saglayici_turu=:provider
+            """).param("provider",target.databaseType()).param("project",context.projectId()).param("binding",target.environmentSchemaBindingUuid())
             .param("physical",target.physicalSchemaUuid()).param("connection",target.connectionVersionUuid()).query((rs,n) -> {
                 var node=mapper.createObjectNode();
                 node.put("projectUuid",rs.getString("project_uuid"));
@@ -68,12 +70,21 @@ final class StagedMappingPlanner {
                 prefix.put("loading",rs.getString("yukleme_prefix")); prefix.put("integration",rs.getString("entegrasyon_prefix")); prefix.put("error",rs.getString("hata_prefix"));
                 node.set("prefixes",prefix); node.put("prefixOrigin","PHYSICAL_SCHEMA"); node.put("prefixVersion",1L);
                 return node;
-            }).optional().orElseThrow(() -> rejected("Hedef fiziksel şeması etkin bir Oracle bağlantısına bağlı olmalıdır."));
+            }).optional().orElseThrow(() -> rejected("Hedef fiziksel şeması hedefle aynı sağlayıcıya sahip etkin bir bağlantıya bağlı olmalıdır."));
         var workPolicy=workAreas.get(UUID.fromString(staging.path("projectUuid").asText()),UUID.fromString(staging.path("physicalSchemaUuid").asText()));
         // Same-name owners on different DBs are conservatively treated alike; live preflight proves actual DB/PDB.
         WorkAreaPolicyService.requireAllowed(workPolicy,definition.options(),staging.path("owner").asText().equals(target.physicalSchemaReference()));
         staging.set("workAreaPolicy",mapper.valueToTree(workPolicy));
         var integrationOptions = bundle.modules().get("integration").options();
+        // PostgreSQL publishes TRUNCATE_LOAD in one transaction; the other write modes arrive with Faz B.
+        if ("POSTGRESQL".equals(target.databaseType())) {
+            Object writeMode = integrationOptions.get("WRITE_MODE");
+            if (writeMode != null && !"TRUNCATE_LOAD".equals(writeMode))
+                throw rejected("PostgreSQL hedefi şimdilik yalnız TRUNCATE_LOAD yazma modunu destekler: " + writeMode);
+            Object keyColumns = integrationOptions.get("KEY_COLUMNS");
+            if (keyColumns != null && !String.valueOf(keyColumns).isBlank())
+                throw rejected("PostgreSQL hedefinde anahtar kolonlu yazma modu henüz desteklenmiyor.");
+        }
         staging.put("nonReversibleDdl", "TRUNCATE_LOAD".equals(integrationOptions.get("WRITE_MODE"))
                 && Boolean.TRUE.equals(integrationOptions.get("TRUNCATE_TARGET")));
         var plan=mapper.createObjectNode();

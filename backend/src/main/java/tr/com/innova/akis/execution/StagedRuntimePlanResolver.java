@@ -81,10 +81,13 @@ public final class StagedRuntimePlanResolver {
         require(manifest.path("bindings").isArray() && manifest.path("bindings").size()==expectedBindings);
         for(var node:manifest.path("bindings")) {
             String role=text(node,"role");require(Set.of("KAYNAK","HEDEF").contains(role));
-            require("ORACLE".equals(text(node,"databaseType")) && Set.of("TABLE","TABLO").contains(text(node,"dataObjectType")));
+            // Sources stay Oracle in Faz A; the target may be Oracle or PostgreSQL and its technology drives the runtime bundle.
+            String technology=text(node,"databaseType");
+            require(("ORACLE".equals(technology) || "POSTGRESQL".equals(technology) && role.equals("HEDEF"))
+                    && Set.of("TABLE","TABLO").contains(text(node,"dataObjectType")));
             String owner=StagedMappingDefinition.identifier(text(node,"physicalSchemaReference")),name=StagedMappingDefinition.identifier(text(node,"dataObjectReference"));
             require((owner+"."+name).equals(text(node,"physicalIdentity")) && node.path("bindingVersion").asLong()>0 && hash(text(node,"schemaSnapshotFingerprint")));
-            var binding=new DatasetBinding(text(node,"nodeCode"),role.equals("KAYNAK")?DatasetRole.SOURCE:DatasetRole.TARGET,DatabaseType.ORACLE,DataObjectType.TABLE,
+            var binding=new DatasetBinding(text(node,"nodeCode"),role.equals("KAYNAK")?DatasetRole.SOURCE:DatasetRole.TARGET,DatabaseType.valueOf(technology),DataObjectType.TABLE,
                     uuid(node,"definitionDataObjectUuid"),uuid(node,"dataObjectUuid"),uuid(node,"environmentSchemaBindingUuid"),uuid(node,"physicalSchemaUuid"),
                     uuid(node,"connectionVersionUuid"),uuid(node,"schemaSnapshotUuid"),node.path("bindingVersion").asLong(),text(node,"schemaSnapshotFingerprint"),text(node,"physicalIdentity"),owner,name);
             require(bindings.put(binding.datasetId(),binding)==null);

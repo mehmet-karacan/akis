@@ -23,11 +23,11 @@ class StagedPublishGuardTest {
     private WorkTableManagerPort.Created object;
     private final JdbcStagingTransfer.Result seal=new JdbcStagingTransfer.Result(1201,24020,"b".repeat(64));
     private final AkisKmInterpreter.Plan program=AkisKmInterpreter.compile(new AkisKmInterpreter.Modules(AkisKmLanguage.example(AkisKmLanguage.Kind.LKM),AkisKmLanguage.example(AkisKmLanguage.Kind.CKM),AkisKmLanguage.example(AkisKmLanguage.Kind.IKM)));
-    private StagedPublishFacade facade() { return new StagedPublishFacade(connections,intents,mock(TargetLedgerPort.class),objects,snapshots,mapper,policies,journal); }
+    private StagedPublishFacade facade() { return new StagedPublishFacade(connections,intents,mock(TargetLedgerPort.class),objects,snapshots,mapper,policies,journal,new TargetTechnologyRegistry(java.util.List.of(new OracleTargetTechnology(mock(TargetLedgerPort.class),mapper)))); }
     private void fixture() {
         when(plan.projectUuid()).thenReturn(project);when(plan.runtimePlanHash()).thenReturn(hash);when(plan.releaseHash()).thenReturn(hash);when(plan.scenarioPlanHash()).thenReturn(hash);
         when(plan.program()).thenReturn(program);
-        var targetBinding=mock(PilotRuntimePlan.DatasetBinding.class);when(targetBinding.owner()).thenReturn("DATA");when(plan.target()).thenReturn(targetBinding);
+        var targetBinding=mock(PilotRuntimePlan.DatasetBinding.class);when(targetBinding.owner()).thenReturn("DATA");when(targetBinding.databaseType()).thenReturn(PilotRuntimePlan.DatabaseType.ORACLE);when(plan.target()).thenReturn(targetBinding);
         when(plan.definition()).thenReturn(new StagedMappingDefinition(UUID.randomUUID(),Map.of(),new StagedMappingDefinition.Options(500,500,2000,100000,false)));
         var stage=mapper.createObjectNode().put("owner","WORK").put("physicalSchemaUuid",schema.toString());
         stage.set("prefixes",mapper.valueToTree(WorkObjectPrefixes.DEFAULTS));stage.putObject("workAreaPolicy").put("version",1);when(plan.staging()).thenReturn(stage);

@@ -24,10 +24,12 @@ final class StagedPublishFacade {
     private final ObjectMapper mapper;
     private final WorkAreaPolicyService policies;
     private final KmStepJournal journal;
+    private final TargetTechnologyRegistry targets;
     StagedPublishFacade(RuntimeOracleConnectionProvider connections,PilotPublishIntentPort intents,TargetLedgerPort ledger,
-            WorkObjectStore objects,JdbcPinnedSchemaSnapshotStore snapshots,ObjectMapper mapper,WorkAreaPolicyService policies,KmStepJournal journal) {
+            WorkObjectStore objects,JdbcPinnedSchemaSnapshotStore snapshots,ObjectMapper mapper,WorkAreaPolicyService policies,KmStepJournal journal,
+            TargetTechnologyRegistry targets) {
         this.connections=connections;this.intents=intents;this.ledger=ledger;this.objects=objects;this.snapshots=snapshots;this.mapper=mapper;
-        this.policies=policies;this.journal=journal;
+        this.policies=policies;this.journal=journal;this.targets=targets;
     }
     static String publishKey(StagedRuntimePlan plan,PinnedExecutionContext execution,TargetFenceToken fence) {
         return KmCanonical.hash("AKIS_KM_PUBLISH/1|"+execution.jobRequestUuid()+"|"+plan.runtimePlanHash()+"|"+fence.canonicalTargetHash()+"|KM_"+writeMode(plan));
@@ -69,6 +71,7 @@ final class StagedPublishFacade {
         requireCompletedSteps(plan,execution,fence);
         verifyPolicy(plan);
         leaseCheckpoint.run();
+        var technology=targets.of(plan);
         var session=connections.openTargetData(plan.target(),PERMIT);
         JdbcStagedAtomicRefreshWriter.Result result;
         try {
@@ -78,12 +81,12 @@ final class StagedPublishFacade {
             var writerMode=JdbcStagedAtomicRefreshWriter.WriteMode.valueOf(mode);
             String keyOption=plan.definition().stringOption("integration","KEY_COLUMNS");
             List<String> keys=keyOption.isBlank()?List.of():Arrays.stream(keyOption.split(",")).map(String::strip).peek(StagedMappingDefinition::identifier).toList();
-            result=new JdbcStagedAtomicRefreshWriter(ledger).publish(connection,TargetLedgerContext.from(fence,execution),evidence,object.table(),
+            result=technology.publish(connection,TargetLedgerContext.from(fence,execution),evidence,object.table(),
                     new JdbcStagingTransfer.Table(plan.target().owner(),plan.target().objectName()),plan.columnMappings().stream()
                         .map(c->new JdbcStagedAtomicRefreshWriter.Column(c.targetColumn(),c.targetColumn())).toList(),30,()->{
                             verifyPolicy(plan);
-                            new JdbcOracleSchemaPreflight(mapper).verifyLockedStagedTarget(plan,connection,pinned);
-                            verifyWork(connection,object);
+                            technology.verifyLockedTarget(plan,connection,pinned);
+                            technology.verifyWorkObject(connection,object);
                         },leaseCheckpoint,new JdbcTransactionBoundary() {
                             public void commit() { session.commitConfirmed(); }
                             public void rollback() { session.rollbackConfirmed(); }
@@ -111,16 +114,6 @@ final class StagedPublishFacade {
                     && actual.site().equals(expected.site().name()) && actual.slot().equals(expected.slot()));
             require(i==recorded.size()-1?actual.state().equals("RUNNING"):Set.of("SUCCEEDED","SKIPPED").contains(actual.state()));
         }
-    }
-    private static void verifyWork(Connection connection,WorkTableManagerPort.Created object) {
-        try {
-            require(object.databaseIdentity().equals(OracleWorkTableManager.databaseIdentity(connection))
-                    && object.structureHash().equals(OracleWorkStructure.read(connection,object.table(),30)));
-            try(var statement=connection.prepareStatement("SELECT OBJECT_ID FROM ALL_OBJECTS WHERE OWNER=? AND OBJECT_NAME=? AND OBJECT_TYPE='TABLE' AND SUBOBJECT_NAME IS NULL")) {
-                statement.setString(1,object.table().owner());statement.setString(2,object.table().name());statement.setQueryTimeout(30);
-                try(var result=statement.executeQuery()) { require(result.next() && result.getLong(1)==object.objectId() && !result.next()); }
-            }
-        } catch(SQLException failure) { throw new IllegalStateException("KM çalışma nesnesi doğrulanamadı."); }
     }
     private static void require(boolean valid) { if(!valid) throw new IllegalStateException("KM yayın kanıtı uyuşmuyor."); }
 }

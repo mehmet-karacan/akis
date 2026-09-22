@@ -64,7 +64,9 @@ public final class DataProtectionCipher {
 
     /** Characters a protected column needs for a plaintext of {@code plainChars} characters (UTF-8 worst case 4 bytes/char is not assumed; 2 is). */
     public static int requiredLength(int plainChars) {
-        int bytes = NONCE_BYTES + plainChars * 2 + TAG_BITS / 8;
+        // Worst case per character in UTF-8 is 4 bytes (a non-BMP code point is 2 Java chars, so 2 chars -> 4 bytes);
+        // 2 bytes/char under-counted 3-byte characters and could size an Oracle target column too narrowly.
+        int bytes = NONCE_BYTES + plainChars * 3 + TAG_BITS / 8;
         return PREFIX.length() + ((bytes + 2) / 3) * 4;
     }
 }

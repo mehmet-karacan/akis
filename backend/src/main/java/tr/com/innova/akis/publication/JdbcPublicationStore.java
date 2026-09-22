@@ -115,7 +115,7 @@ public class JdbcPublicationStore implements PublicationStore {
                 if (sourceColumn == null) continue; // marked column not in the snapshot: nothing to protect
                 if (!sourceColumn.text())
                     throw new tr.com.innova.akis.metadata.ApiException(org.springframework.http.HttpStatus.UNPROCESSABLE_CONTENT, "SENSITIVE_COLUMN_NOT_TEXT",
-                            "Hassas kolon " + source.dataObjectReference() + "." + column + " metin (VARCHAR2) olmalı; " + sourceColumn.type() + " şifrelenemez.");
+                            "Hassas kolon " + source.dataObjectReference() + "." + column + " metin olmalı; " + sourceColumn.type() + " şifrelenemez.");
                 int required = tr.com.innova.akis.security.DataProtectionCipher.requiredLength((int) Math.max(1, sourceColumn.length()));
                 // Target column: mapping → column mapping target; procedure → same-named column on the target task bindings.
                 for (ResolvedBinding target : bindings) {
@@ -124,10 +124,12 @@ public class JdbcPublicationStore implements PublicationStore {
                     if (targetName == null) continue;
                     var targetColumn = snapshotColumns(target.targetSnapshotId()).get(targetName);
                     if (targetColumn == null) continue;
-                    if (!targetColumn.text() || targetColumn.length() < required)
+                    // An unbounded textual target (PostgreSQL TEXT / VARCHAR without a modifier) has no capacity to check.
+                    boolean unbounded = targetColumn.length() <= 0;
+                    if (!targetColumn.text() || !unbounded && targetColumn.length() < required)
                         throw new tr.com.innova.akis.metadata.ApiException(org.springframework.http.HttpStatus.UNPROCESSABLE_CONTENT, "SENSITIVE_TARGET_TOO_NARROW",
                                 "Hassas kolon " + column + " şifreli aktarılacak; hedef " + target.dataObjectReference() + "." + targetName + " (" + targetColumn.type()
-                                + ") en az VARCHAR2(" + required + ") olmalı.");
+                                + ") en az " + required + " karakter taşıyabilmeli.");
                 }
             }
         }
@@ -154,7 +156,9 @@ public class JdbcPublicationStore implements PublicationStore {
         jdbc.sql("select ad, uretici_tipi, coalesce(uzunluk, 0) as uzunluk from akis.kolon_goruntusu where sema_goruntusu_id = :snapshot")
                 .param("snapshot", snapshotId).query((rs, n) -> {
                     String type = rs.getString("uretici_tipi").toUpperCase(java.util.Locale.ROOT);
-                    columns.put(rs.getString("ad").toUpperCase(java.util.Locale.ROOT), new SnapshotColumn(type, rs.getLong("uzunluk"), type.startsWith("VARCHAR2") || type.startsWith("NVARCHAR2")));
+                    // Textual across technologies: Oracle VARCHAR2/NVARCHAR2, PostgreSQL VARCHAR/TEXT (unbounded = no capacity limit).
+                    boolean text = type.startsWith("VARCHAR2") || type.startsWith("NVARCHAR2") || type.startsWith("VARCHAR") || type.equals("TEXT");
+                    columns.put(rs.getString("ad").toUpperCase(java.util.Locale.ROOT), new SnapshotColumn(type, rs.getLong("uzunluk"), text));
                     return null;
                 }).list();
         return columns;

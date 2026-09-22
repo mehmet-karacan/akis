@@ -30,14 +30,15 @@ final class StagedWorkerOrchestrator {
     private final boolean enabled;
     private final KmStepJournal journal;
     private final PinnedExecutionContextPort contexts;
+    private final TargetTechnologyRegistry targets;
     StagedWorkerOrchestrator(StagedRuntimePlanResolver plans,JdbcPinnedSchemaSnapshotStore snapshots,RuntimeOracleConnectionProvider connections,
             StagedWorkSessionFactory workSessions,WorkerLeaseService leases,OracleTargetFencePort fences,RunExecutionTransitionPort transitions,
             StagedPublishFacade publisher,WorkObjectStore objects,WorkAreaPolicyService policies,ObjectMapper mapper,KmStepJournal journal,
-            PinnedExecutionContextPort contexts,@Value("${akis.execution.staged-runtime-enabled:false}") boolean enabled,
+            PinnedExecutionContextPort contexts,TargetTechnologyRegistry targets,@Value("${akis.execution.staged-runtime-enabled:false}") boolean enabled,
             @Value("${akis.execution.staged-fault-injection:}") String faultInjection) {
         this.plans=plans;this.snapshots=snapshots;this.connections=connections;this.workSessions=workSessions;this.leases=leases;
         this.fences=fences;this.transitions=transitions;this.publisher=publisher;this.objects=objects;this.policies=policies;this.mapper=mapper;this.enabled=enabled;this.journal=journal;
-        this.contexts=contexts;this.faultInjection=faultInjection==null?"":faultInjection.trim();
+        this.contexts=contexts;this.targets=targets;this.faultInjection=faultInjection==null?"":faultInjection.trim();
     }
     /**
      * Test-only: "PUBLISH" fails the target publication after the publish intent is recorded (outcome unknown, reconcile first);
@@ -75,12 +76,16 @@ final class StagedWorkerOrchestrator {
         try {
             if(!enabled) throw new IllegalStateException();
             plan=plans.resolve(context.releaseHash(),context.planHash(),context.scenarioPlan(),context.physicalManifest());
-            pinned=snapshots.load(plan);layout=StagedColumnLayout.create(plan,pinned.target().body());
+            pinned=snapshots.load(plan);
+            var technology=targets.of(plan);
+            layout=StagedColumnLayout.create(plan,pinned.target().body(),technology.technology(),
+                    pinned.sources().entrySet().stream().collect(java.util.stream.Collectors.toMap(java.util.Map.Entry::getKey,e->e.getValue().body())));
             if(!pinned.projectUuid().equals(plan.projectUuid()) || !pinned.publicationUuid().equals(context.publicationUuid())) throw new IllegalStateException();
         } catch(RuntimeException failure) {
             LOG.warn("KM run {} preflight rejected: {}{}",context.runUuid(),failure.toString(),failure.getCause()==null?"":" <- "+failure.getCause());
             failPreflight(gate);return new FailedSafely("KM_PREFLIGHT_REJECTED");
         }
+        var technology=targets.of(plan);
         RuntimeOracleSession source=null,control=null,data=null;
         RunLeasePort.TargetFenceToken targetFence=null;
         var intent=new AtomicReference<PublishIntentEvidence>();
@@ -89,14 +94,14 @@ final class StagedWorkerOrchestrator {
             String databaseIdentity;
             OracleTargetIdentityV1.CanonicalTargetIdentity identity;
             try(var target=connections.openTargetIdentityRead(plan.target())) {
-                new JdbcOracleSchemaPreflight(mapper).verifyStaged(plan,source.connection(),pinned,target.connection());
-                databaseIdentity=OracleWorkTableManager.databaseIdentity(target.connection());
-                identity=new JdbcOracleTargetIdentityReader().read(target.connection(),plan.target().owner(),"TABLE",plan.target().objectName());
+                technology.verifyStaged(plan,source.connection(),pinned,target.connection());
+                databaseIdentity=technology.databaseIdentity(target.connection());
+                identity=technology.identity().read(target.connection(),plan.target().owner(),"TABLE",plan.target().objectName());
             }
             gate.checkpoint();
             control=workSessions.open(plan,true);data=workSessions.open(plan,false);
-            if(!databaseIdentity.equals(OracleWorkTableManager.databaseIdentity(control.connection()))
-                    || !databaseIdentity.equals(OracleWorkTableManager.databaseIdentity(data.connection()))) throw new IllegalStateException();
+            if(!databaseIdentity.equals(technology.databaseIdentity(control.connection()))
+                    || !databaseIdentity.equals(technology.databaseIdentity(data.connection()))) throw new IllegalStateException();
             targetFence=gate.execute(run->leases.acquireTarget(run,identity.canonicalTargetHash(),identity.targetIdentityVersion()));
             var fence=targetFence;
             var fenceResult=fences.acquire(new OracleTargetFencePort.OracleTargetFenceCommand(plan,context,fence));
@@ -123,7 +128,7 @@ final class StagedWorkerOrchestrator {
             }
             var table=new JdbcStagingTransfer.Table(stage.path("owner").asText(),workName);
             var workArea=new WorkObjectStore.WorkArea(UUID.fromString(stage.path("physicalSchemaUuid").asText()),stage.path("workAreaPolicy").path("version").asLong());
-            var manager=new OracleWorkTableManager(objects);
+            var manager=technology.workTables(objects);
             var workConnection=control.connection();
             StagedKmRuntime.Guard guard=new StagedKmRuntime.Guard() {
                 public void preflight() {
@@ -162,7 +167,7 @@ final class StagedWorkerOrchestrator {
                     options,layout.quality(),30,workArea,
                     new JdbcStagingTransfer.QueryOptions(plan.definition().booleanOption("loading","DISTINCT"),plan.definition().stringOption("loading","ORACLE_HINT"),querySources,plan.definition().joins(),plan.definition().filters()));
             var runtime=new StagedKmRuntime(contract,source.connection(),control.connection(),data.connection(),StagedWorkSessionFactory.transaction(data),
-                    manager,objects,new JdbcStagingTransfer(),new JdbcWorkQualityChecks(),guard,(object,seal)->{
+                    manager,objects,technology.stagingTransfer(),new JdbcWorkQualityChecks(),guard,(object,seal)->{
                         created.set(object);
                         var evidence=new PublishIntentEvidence(plan.runtimePlanHash(),StagedPublishFacade.publishKey(plan,context,fence),seal.payloadHash(),seal.rows(),seal.logicalBytes());
                         if("BEFORE_PUBLISH".equals(faultInjection) && contexts.resumeOrigin(context.runUuid()).isEmpty()) throw new IllegalStateException("Test hatası: hedef yazımı kasıtlı olarak başarısız (niyet öncesi).");
@@ -175,7 +180,7 @@ final class StagedWorkerOrchestrator {
             var resumeFrom=AkisKmInterpreter.Resume.NONE;
             if(resume.isPresent()) {
                 var point=resume.get();
-                if(!point.sealed().structureHash().equals(OracleWorkStructure.expected(layout.work()))) throw new IllegalStateException("Devralınan çalışma tablosunun yapısı plandan farklı.");
+                if(!point.sealed().structureHash().equals(technology.expectedWorkStructure(layout.work()))) throw new IllegalStateException("Devralınan çalışma tablosunun yapısı plandan farklı.");
                 var owned=objects.adopt(owner,point.previousRun(),point.sealed().uuid());
                 var adoptedTable=new WorkTableManagerPort.Created(owned.uuid(),owned.databaseIdentity(),table,owned.objectId(),owned.structureHash());
                 created.set(adoptedTable);
