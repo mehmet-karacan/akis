@@ -64,7 +64,7 @@ public final class PostgresWorkStructure {
     }
 
     /** format_type text back to the declared DDL spelling. */
-    static String ddlOf(String formatType) {
+    public static String ddlOf(String formatType) {
         String type = formatType == null ? "" : formatType.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
         Matcher m;
         if ((m = Pattern.compile("numeric\\((\\d+),(\\d+)\\)").matcher(type)).matches()) return "NUMERIC(" + m.group(1) + "," + m.group(2) + ")";

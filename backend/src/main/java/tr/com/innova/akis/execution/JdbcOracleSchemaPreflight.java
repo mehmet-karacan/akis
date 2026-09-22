@@ -146,6 +146,47 @@ final class JdbcOracleSchemaPreflight {
         verifyTargetWriteSafety(targetConnection, plan.target(), target);
     }
 
+    /** Live verification of every Oracle source binding of a staged plan; the target is verified by its own technology. */
+    Map<String, List<Column>> verifySources(StagedRuntimePlan plan, Connection sourceConnection,
+            PinnedSchemaSnapshotPort.PinnedSnapshots snapshots) {
+        requireStagedSnapshots(plan, snapshots);
+        if (sourceConnection == null) throw failure(OracleSchemaPreflightFailure.INVALID_CONTRACT);
+        Map<String, List<Column>> columns = new LinkedHashMap<>();
+        for (DatasetBinding binding : plan.sources()) {
+            var snapshot = snapshots.sources().get(binding.datasetId());
+            var verified = verifyBinding(binding, DatasetRole.SOURCE, sourceConnection,
+                    new ExpectedSnapshot(snapshot.schemaSnapshotUuid(), snapshot.body()));
+            columns.put(binding.datasetId(), verified.expectedColumns());
+        }
+        return columns;
+    }
+
+    /** Pinned-only verification of the sources (no live read), for the locked publish preflight of another target technology. */
+    Map<String, List<Column>> pinnedSources(StagedRuntimePlan plan, PinnedSchemaSnapshotPort.PinnedSnapshots snapshots) {
+        requireStagedSnapshots(plan, snapshots);
+        Map<String, List<Column>> columns = new LinkedHashMap<>();
+        for (DatasetBinding binding : plan.sources()) {
+            var snapshot = snapshots.sources().get(binding.datasetId());
+            columns.put(binding.datasetId(), verifyPinnedSnapshot(binding, DatasetRole.SOURCE,
+                    new ExpectedSnapshot(snapshot.schemaSnapshotUuid(), snapshot.body())).expectedColumns());
+        }
+        return columns;
+    }
+
+    /** Fingerprint and contract check of a pinned target snapshot of the given technology (no live read). */
+    List<Column> pinnedTarget(DatasetBinding binding, ExpectedSnapshot snapshot, PilotRuntimePlan.DatabaseType technology) {
+        return verifyPinnedSnapshot(binding, DatasetRole.TARGET, snapshot, technology).expectedColumns();
+    }
+
+    /** A live target column as another technology's preflight sees it: what unmapped-target rules need. */
+    record LiveTarget(String name, boolean nullable, String defaultExpression) { }
+
+    /** Mapping-level validation with the target technology's compatibility rule and live nullability. */
+    void validateStagedMappings(StagedRuntimePlan plan, Map<String, List<Column>> sources, List<Column> targetColumns,
+            List<LiveTarget> liveTargets, java.util.function.BiConsumer<Column, Column> compatibility) {
+        validateMappingsWith(plan, sources, targetColumns, liveTargets, compatibility);
+    }
+
     BindingResult verifyLockedStagedTarget(StagedRuntimePlan plan, Connection targetConnection,
             PinnedSchemaSnapshotPort.PinnedSnapshots snapshots) {
         requireStagedSnapshots(plan, snapshots);
@@ -300,7 +341,15 @@ final class JdbcOracleSchemaPreflight {
             DatasetBinding binding,
             DatasetRole requiredRole,
             ExpectedSnapshot snapshot) {
-        validateContract(binding, requiredRole, snapshot);
+        return verifyPinnedSnapshot(binding, requiredRole, snapshot, PilotRuntimePlan.DatabaseType.ORACLE);
+    }
+
+    private PinnedBinding verifyPinnedSnapshot(
+            DatasetBinding binding,
+            DatasetRole requiredRole,
+            ExpectedSnapshot snapshot,
+            PilotRuntimePlan.DatabaseType technology) {
+        validateContract(binding, requiredRole, snapshot, technology);
         String calculated;
         try {
             calculated = fingerprint.calculate(snapshot.input());
@@ -311,22 +360,23 @@ final class JdbcOracleSchemaPreflight {
         if (!constantTimeEquals(binding.schemaSnapshotFingerprint(), calculated)) {
             throw failure(OracleSchemaPreflightFailure.SNAPSHOT_FINGERPRINT_MISMATCH);
         }
-        validateVerifiableSnapshot(snapshot.input(), requiredRole);
+        validateVerifiableSnapshot(snapshot.input(), requiredRole, technology);
         return new PinnedBinding(calculated, snapshot.input().columns());
     }
 
     private void validateContract(
             DatasetBinding binding,
             DatasetRole requiredRole,
-            ExpectedSnapshot snapshot) {
+            ExpectedSnapshot snapshot,
+            PilotRuntimePlan.DatabaseType technology) {
         if (binding == null || binding.role() != requiredRole
-                || binding.databaseType() != PilotRuntimePlan.DatabaseType.ORACLE
+                || binding.databaseType() != technology
                 || binding.dataObjectType() != PilotRuntimePlan.DataObjectType.TABLE
                 || binding.schemaSnapshotUuid() == null
                 || !binding.schemaSnapshotUuid().equals(snapshot.schemaSnapshotUuid())
                 || binding.schemaSnapshotFingerprint() == null
                 || !HASH.matcher(binding.schemaSnapshotFingerprint()).matches()
-                || !identifier(binding.owner()) || !identifier(binding.objectName())
+                || !identifier(binding.owner(), technology) || !identifier(binding.objectName(), technology)
                 || snapshot.input() == null) {
             throw failure(OracleSchemaPreflightFailure.INVALID_CONTRACT);
         }
@@ -334,6 +384,11 @@ final class JdbcOracleSchemaPreflight {
 
     private void validateVerifiableSnapshot(
             SchemaFingerprintInput input, DatasetRole role) {
+        validateVerifiableSnapshot(input, role, PilotRuntimePlan.DatabaseType.ORACLE);
+    }
+
+    private void validateVerifiableSnapshot(
+            SchemaFingerprintInput input, DatasetRole role, PilotRuntimePlan.DatabaseType technology) {
         if (input.engineVersion() == null || input.engineVersion().isBlank()
                 || input.propertyVersion() < 1 || input.properties() == null
                 || !input.properties().isObject() || input.columns().isEmpty()) {
@@ -342,7 +397,7 @@ final class JdbcOracleSchemaPreflight {
         Set<String> columnReferences = new java.util.HashSet<>();
         Set<Integer> ordinals = new java.util.HashSet<>();
         for (Column column : input.columns()) {
-            if (column == null || !identifier(column.reference())
+            if (column == null || !identifier(column.reference(), technology)
                     || !column.reference().equals(column.name())
                     || column.ordinal() < 1 || column.producerType() == null
                     || column.producerType().isBlank() || column.canonicalType() == null
@@ -354,7 +409,7 @@ final class JdbcOracleSchemaPreflight {
         }
         Set<String> constraintReferences = new java.util.HashSet<>();
         for (Constraint constraint : input.constraints()) {
-            if (constraint == null || !identifier(constraint.externalReference())
+            if (constraint == null || !identifier(constraint.externalReference(), technology)
                     || !constraint.externalReference().equals(constraint.name())
                     || constraint.detailVersion() < 1 || constraint.details() == null
                     || !constraint.details().isObject()
@@ -496,13 +551,21 @@ final class JdbcOracleSchemaPreflight {
         if (mappedTargets.isEmpty()) {
             throw failure(OracleSchemaPreflightFailure.INVALID_CONTRACT);
         }
-        validateUnmappedTargets(mappedTargets, target);
+        validateUnmappedTargets(mappedTargets, target.expectedColumns(),
+                target.liveColumns().stream().map(live -> new LiveTarget(live.name(), live.nullable(), live.defaultExpression())).toList());
     }
 
     private void validateStagedMappings(StagedRuntimePlan plan, Map<String, List<Column>> sources, VerifiedBinding target) {
+        validateMappingsWith(plan, sources, target.expectedColumns(),
+                target.liveColumns().stream().map(live -> new LiveTarget(live.name(), live.nullable(), live.defaultExpression())).toList(),
+                this::requireCompatible);
+    }
+
+    private void validateMappingsWith(StagedRuntimePlan plan, Map<String, List<Column>> sources, List<Column> expectedTargets,
+            List<LiveTarget> liveTargetColumns, java.util.function.BiConsumer<Column, Column> compatibility) {
         Map<String, Map<String, Column>> sourceColumns = new LinkedHashMap<>();
         sources.forEach((id, columns) -> sourceColumns.put(id, byReference(columns)));
-        Map<String, Column> targetColumns = byReference(target.expectedColumns());
+        Map<String, Column> targetColumns = byReference(expectedTargets);
         Set<String> mappedTargets = new java.util.HashSet<>();
         Set<String> nullableSources = nullableJoinedSources(plan);
         var expressionCatalog=plan.sources().stream().map(binding->{
@@ -527,7 +590,7 @@ final class JdbcOracleSchemaPreflight {
             Column source = sourceColumns.get(sourceId).get(mapping.sourceColumn());
             if (source == null || destination == null)
                 throw failure(OracleSchemaPreflightFailure.LIVE_SCHEMA_DRIFT);
-            requireCompatible(source, destination);
+            compatibility.accept(source, destination);
             if (nullableSources.contains(sourceId) && !destination.nullable())
                 throw failure(OracleSchemaPreflightFailure.UNSUPPORTED_SCHEMA);
         }
@@ -543,7 +606,7 @@ final class JdbcOracleSchemaPreflight {
                 catch(IllegalArgumentException invalid) { throw failure(OracleSchemaPreflightFailure.INVALID_CONTRACT); }
             } else requireSourceColumn(sourceColumns, filter.object(), filter.column());
         }
-        validateUnmappedTargets(mappedTargets, target);
+        validateUnmappedTargets(mappedTargets, expectedTargets, liveTargetColumns);
     }
 
     private void requireSourceColumn(Map<String, Map<String, Column>> sources, String object, String column) {
@@ -565,13 +628,16 @@ final class JdbcOracleSchemaPreflight {
         return nullable;
     }
 
-    private void validateUnmappedTargets(Set<String> mappedTargets, VerifiedBinding target) {
-        Map<String, LiveColumn> liveTargets = liveByName(target.liveColumns());
-        for (Column targetColumn : target.expectedColumns()) {
+    private void validateUnmappedTargets(Set<String> mappedTargets, List<Column> expectedTargets, List<LiveTarget> liveTargetColumns) {
+        Map<String, LiveTarget> liveTargets = new LinkedHashMap<>();
+        for (LiveTarget column : liveTargetColumns) {
+            if (liveTargets.put(column.name(), column) != null) throw failure(OracleSchemaPreflightFailure.LIVE_SCHEMA_DRIFT);
+        }
+        for (Column targetColumn : expectedTargets) {
             if (mappedTargets.contains(targetColumn.reference())) {
                 continue;
             }
-            LiveColumn live = liveTargets.get(targetColumn.reference());
+            LiveTarget live = liveTargets.get(targetColumn.reference());
             if (live == null) {
                 throw failure(OracleSchemaPreflightFailure.LIVE_SCHEMA_DRIFT);
             }
@@ -720,6 +786,14 @@ final class JdbcOracleSchemaPreflight {
 
     private boolean identifier(String value) {
         return value != null && IDENTIFIER.matcher(value).matches();
+    }
+
+    private static final Pattern POSTGRES_IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_$]{0,62}");
+
+    private boolean identifier(String value, PilotRuntimePlan.DatabaseType technology) {
+        return technology == PilotRuntimePlan.DatabaseType.POSTGRESQL
+                ? value != null && POSTGRES_IDENTIFIER.matcher(value).matches()
+                : identifier(value);
     }
 
     private String trimToNull(String value) {
