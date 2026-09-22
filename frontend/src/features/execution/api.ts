@@ -70,6 +70,10 @@ export const executionApi = {
       ...jsonBody({ publicationUuid, ...(options?.batchRows ? { batchRows: options.batchRows } : {}) }),
     })
   },
+  /** Operator action after a reconciliation conflict: lifts the target quarantine; the reason is recorded on the run. */
+  releaseTarget(projectUuid: string, runUuid: string, reason: string) {
+    return apiRequest<RunRecord>(`${runsPath(projectUuid)}/${encodeURIComponent(runUuid)}/target/release`, { method: 'POST', ...jsonBody({ reason }) })
+  },
   cancelRun(projectUuid: string, runUuid: string) {
     return apiRequest<RunRecord>(`${runsPath(projectUuid)}/${encodeURIComponent(runUuid)}/cancel`, {
       method: 'POST',

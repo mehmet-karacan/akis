@@ -41,3 +41,6 @@ scripts/*.class
 # Ad-hoc local probes and Playwright artifacts stay local.
 .runtime/
 test-results/
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/

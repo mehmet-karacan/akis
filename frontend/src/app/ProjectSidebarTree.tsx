@@ -110,7 +110,7 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
     const executable = FLOW_GROUPS.some(group => group.type === definition.type)
     const items: MenuProps['items'] = []
     if (executable && can('TANIM_DOGRULA')) items.push({ key: 'compile', label: shellT('nav.createScenario'), icon: <WandSparkles size={15} />, disabled: compiling === definition.uuid, onClick: () => void compile(definition) })
-    if (executable && definition.type !== 'PACKAGE') items.push({ key: 'run', label: starting === definition.uuid ? shellT('nav.startingRun') : shellT('nav.runObject'), icon: <Play size={15} />, disabled: starting === definition.uuid, onClick: () => void run(definition) })
+    if (executable) items.push({ key: 'run', label: starting === definition.uuid ? shellT('nav.startingRun') : shellT('nav.runObject'), icon: <Play size={15} />, disabled: starting === definition.uuid, onClick: () => void run(definition) })
     if (canWrite) { if (items.length) items.push({ type: 'divider' }); items.push({ key: 'delete', label: shellT('nav.deleteObject'), icon: <Trash2 size={15} />, danger: true, onClick: () => { setDeleteError(''); setPendingDelete(definition) } }) }
     return { key: definition.uuid, isLeaf: true, className: 'project-tree-object-node', title: <span title={`${definition.name} · ${t(definitionTypeKey[definition.type])}`}>{title(definition.name, <DefinitionTypeIcon type={definition.type} />, () => undefined, items, undefined, undefined, t(definitionTypeKey[definition.type]), 'object', () => openDefinition(definition.uuid))}</span> }
   }

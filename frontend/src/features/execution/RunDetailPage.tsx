@@ -1,6 +1,6 @@
 import { Alert, Descriptions, Table, Tag, Tree } from 'antd'
 import type { DataNode } from 'antd/es/tree'
-import { ArrowLeft, CalendarClock, Database, ListTree, PlayCircle, RefreshCw, RotateCcw, StepForward, Timer } from 'lucide-react'
+import { ArrowLeft, CalendarClock, Database, ListTree, PlayCircle, RefreshCw, RotateCcw, StepForward, Timer, Unlock } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Button } from '../../core/ui/Button'
@@ -57,7 +57,29 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
   const chunks = useRemoteData(() => selected
     ? executionApi.listChunks(project, uuid, selected, chunkCursor)
     : Promise.resolve({ items: [], nextCursor: null, hasMore: false }), [project, uuid, selected, chunkCursor])
-  const hierarchy = useMemo(() => buildRunStepTree(steps.data ?? []), [steps.data])
+  // Package runs: the steps of each child run are shown inline under the package step (procedure steps, or the KM
+  // journal of a mapping), so the package page reads like ODI's session tree without opening every child.
+  const childKeys = (steps.data ?? []).filter(item => item.type === 'PAKET' && item.childRunUuid).map(item => `${item.uuid}:${item.childRunUuid}`).join(',')
+  const childSteps = useRemoteData(async () => {
+    const result = new Map<string, RunStep[]>()
+    for (const parent of (steps.data ?? []).filter(item => item.type === 'PAKET' && item.childRunUuid)) {
+      const child = parent.childRunUuid!
+      try {
+        const rows = await executionApi.listSteps(project, child)
+        if (rows.length) { result.set(parent.uuid, rows.map(row => ({ ...row, parentUuid: parent.uuid }))); continue }
+        const km = await executionApi.getKmDetails(project, child)
+        const generation = Math.max(0, ...km.steps.map(item => item.generation))
+        result.set(parent.uuid, km.steps.filter(item => item.generation === generation).map(item => ({
+          uuid: `${child}:${item.ordinal}`, parentUuid: parent.uuid, code: item.stepCode, type: 'KM', ordinal: item.ordinal, name: item.operation,
+          status: item.state === 'SUCCEEDED' ? 'BASARILI' : item.state === 'FAILED' ? 'BASARISIZ' : item.state === 'RUNNING' ? 'CALISIYOR' : item.state === 'SKIPPED' ? 'ATLANDI' : item.state === 'UNKNOWN' ? 'SONUC_BELIRSIZ' : 'BEKLIYOR',
+          connectionRole: null, risk: null, startedAt: item.startedAt, finishedAt: item.completedAt, rowCount: item.affectedRows, byteCount: null, errorCode: item.errorCode,
+        })))
+      } catch { /* child detail stays reachable through its own page */ }
+    }
+    return result
+  }, [project, childKeys])
+  const allSteps = useMemo(() => [...(steps.data ?? []), ...[...(childSteps.data?.values() ?? [])].flat()], [steps.data, childSteps.data])
+  const hierarchy = useMemo(() => buildRunStepTree(allSteps), [allSteps])
   // The published procedure version supplies the command text per step code; the run store keeps only outcomes.
   const publicationUuid = run.data?.publicationUuid
   const published = useRemoteData(async () => {
@@ -72,7 +94,7 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
   const unitOf = (stepUuid: string) => units.find(unit => unit.commands.some(item => item.uuid === stepUuid) || unit.children.some(item => item.uuid === stepUuid))
   useEffect(() => { if (!selected && steps.data?.length) setSelected(firstFailedPath(hierarchy).at(-1) ?? steps.data[0]!.uuid) }, [hierarchy, selected, steps.data])
   useEffect(() => { setChunkCursor('0'); setChunkHistory([]) }, [selected])
-  const step = steps.data?.find(item => item.uuid === selected)
+  const step = allSteps.find(item => item.uuid === selected)
   const selectedRows = totalRows(hierarchy, false)
   const insertedRows = totalRows(hierarchy, true)
   const treeData = (nodes: RunStepNode[]): DataNode[] => nodes.map(item => ({ key: item.uuid, title: <span className="run-step-title"><span>{item.ordinal}. {item.name}</span><RunStatusBadge status={item.status} /></span>, children: treeData(item.children) }))
@@ -110,7 +132,17 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
     } catch (error) { setRecoveryNotice({ tone: 'error', text: apiErrorMessage(error, t('reconcileFailed')) }) }
     finally { setRecovering(null) }
   }
+  const [releaseOpen, setReleaseOpen] = useState(false)
+  const [releaseReason, setReleaseReason] = useState('')
+  const releaseTarget = async () => {
+    setRecovering('RESTART'); setRecoveryNotice(null)
+    try { await executionApi.releaseTarget(project, uuid, releaseReason.trim()); setReleaseOpen(false); setReleaseReason(''); setRecoveryNotice({ tone: 'success', text: t('releaseTargetDone') }); await refresh() }
+    catch (error) { setRecoveryNotice({ tone: 'error', text: apiErrorMessage(error, t('requestFailed')) }) }
+    finally { setRecovering(null) }
+  }
+  const quarantined = run.data?.status === 'MUDAHALE_GEREKLI'
   const headerActions = <div className="connection-row-actions">
+    {quarantined && <Button tone="danger" icon={<Unlock size={16} />} disabled={!!recovering} title={t('releaseTargetHelp')} onClick={() => setReleaseOpen(true)}>{t('releaseTarget')}</Button>}
     {recoverable && <Button tone="primary" icon={<StepForward size={16} />} disabled={!!recovering} title={t('resumeHelp')} onClick={() => void recover('RESUME')}>{t('resumeSafely')}</Button>}
     {recoverable && <Button icon={<RotateCcw size={16} />} disabled={!!recovering} onClick={() => void recover('RESTART')}>{t('restartFromBeginning')}</Button>}
     <Button icon={<RefreshCw size={16} />} disabled={run.loading} onClick={() => void refresh()}>{t('refresh')}</Button>
@@ -164,5 +196,15 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
       {events.error && <AsyncState state="error" title={apiErrorMessage(events.error, t('requestFailed'))} retryLabel={t('retry')} onRetry={() => void events.reload()} />}
     </>}
   </section>
-  return panel ? <Dialog open title={t('runDetail')} closeLabel={t('close')} onClose={() => onClose?.()} className="execution-detail-dialog connection-catalog-dialog">{content}</Dialog> : content
+  const releaseDialog = <Dialog open={releaseOpen} title={t('releaseTargetTitle')} closeLabel={t('close')} busy={recovering === 'RESTART'} onClose={() => setReleaseOpen(false)} className="akis-modal">
+    <div className="sidebar-delete-dialog">
+      <p>{t('releaseTargetHelp')}</p>
+      <label className="run-release-reason"><span>{t('releaseReason')}</span><textarea id="release-reason" rows={3} maxLength={500} value={releaseReason} onChange={(event) => setReleaseReason(event.target.value)} /></label>
+      <div className="sidebar-delete-actions">
+        <Button tone="ghost" type="button" onClick={() => setReleaseOpen(false)}>{t('close')}</Button>
+        <Button tone="danger" type="button" icon={<Unlock size={15} />} disabled={!releaseReason.trim() || recovering === 'RESTART'} onClick={() => void releaseTarget()}>{t('confirmRelease')}</Button>
+      </div>
+    </div>
+  </Dialog>
+  return panel ? <Dialog open title={t('runDetail')} closeLabel={t('close')} onClose={() => onClose?.()} className="execution-detail-dialog connection-catalog-dialog">{content}{releaseDialog}</Dialog> : <>{content}{releaseDialog}</>
 }

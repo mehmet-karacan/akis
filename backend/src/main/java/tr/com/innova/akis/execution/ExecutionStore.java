@@ -80,4 +80,10 @@ interface ExecutionStore {
     }
 
     RunRow cancelQueued(RunRow run, Actor actor, UUID eventUuid);
+
+    /**
+     * Operator intervention: the run's quarantined target (ASKIDA after a reconciliation conflict) goes back to BOS with a
+     * new generation, and the run closes as BASARISIZ so a restart becomes possible. Returns false when nothing was quarantined.
+     */
+    default boolean releaseQuarantinedTarget(RunRow run, Actor actor, String reason) { return false; }
 }

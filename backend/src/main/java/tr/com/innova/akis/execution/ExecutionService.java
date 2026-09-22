@@ -293,6 +293,18 @@ public class ExecutionService {
         return store.cancelQueued(run, actor, UUID.randomUUID());
     }
 
+    /** Human decision after a reconciliation conflict: release the target so runs can fence it again. Reason is mandatory. */
+    @Transactional
+    RunRow releaseTarget(UUID projectUuid, UUID runUuid, String reason, Actor actor) {
+        requireManualRequestsEnabled();
+        if (reason == null || reason.isBlank() || reason.length() > 500) throw validation("Serbest bırakma gerekçesi (1-500 karakter) zorunludur.");
+        RunRow run = store.lock(projectUuid, runUuid).orElseThrow(() -> notFound("Çalıştırma bulunamadı."));
+        if (!store.releaseQuarantinedTarget(run, actor, reason.trim())) {
+            throw conflict("TARGET_NOT_QUARANTINED", "Bu çalıştırmanın karantinada bir hedefi yok.");
+        }
+        return get(projectUuid, runUuid);
+    }
+
     private void requireProject(UUID projectUuid) {
         if (!store.projectExists(projectUuid)) {
             throw notFound("Proje bulunamadı.");

@@ -13,7 +13,8 @@ const operations: Record<string, [string, string]> = {
 }
 const states: Record<string, [string, string, string]> = {
   PENDING: ['Bekliyor', 'Pending', 'default'], RUNNING: ['Çalışıyor', 'Running', 'processing'], SUCCEEDED: ['Başarılı', 'Succeeded', 'success'],
-  FAILED: ['Başarısız', 'Failed', 'error'], UNKNOWN: ['Sonuç Belirsiz', 'Outcome Unknown', 'warning'],
+  FAILED: ['Başarısız', 'Failed', 'error'], UNKNOWN: ['Sonuç Belirsiz', 'Outcome Unknown', 'warning'], SKIPPED: ['Devralındı', 'Adopted', 'cyan'],
+  RECONCILED_PUBLISHED: ['Mutabakat: hedefe yazıldı', 'Reconciled: published', 'success'], RECONCILED_NOT_PUBLISHED: ['Mutabakat: yazılmadı', 'Reconciled: not published', 'error'],
   ALLOCATED: ['Tahsis Edildi', 'Allocated', 'default'], CREATING: ['Oluşturuluyor', 'Creating', 'processing'], READY: ['Hazır', 'Ready', 'default'],
   LOADING: ['Yükleniyor', 'Loading', 'processing'], SEALED: ['Doğrulandı', 'Sealed', 'success'], CONSUMED: ['Hedefe Uygulandı', 'Published', 'success'],
   CLEANUP_PENDING: ['Temizleme Bekliyor', 'Cleanup Pending', 'warning'], DROPPED: ['Temizlendi', 'Cleaned', 'default'], REVIEW_REQUIRED: ['İnceleme Gerekli', 'Review Required', 'warning'],
@@ -38,9 +39,10 @@ export function KmRunDetails({ data }: { data: KmRunData }) {
       { title: '#', dataIndex: 'ordinal', width: 48 },
       { title: tr ? 'Adım' : 'Step', dataIndex: 'operation', render: value => operations[value]?.[language] ?? value },
       { title: tr ? 'Konum' : 'Location', dataIndex: 'site', render: value => value === 'STAGING' ? (tr ? 'Çalışma Alanı' : 'Work Area') : (tr ? 'Hedef' : 'Target') },
-      { title: tr ? 'Durum' : 'Status', dataIndex: 'state', render: state },
+      // An UNKNOWN publish step takes the outcome reconciliation later proved; the journal row itself stays as written.
+      { title: tr ? 'Durum' : 'Status', dataIndex: 'state', render: (value: string, row) => <>{state(value)}{value === 'UNKNOWN' && row.operation === 'ATOMIC_REPLACE' && data.reconciliation && ['PUBLISHED', 'NOT_PUBLISHED'].includes(data.reconciliation.outcome) && state(data.reconciliation.outcome === 'PUBLISHED' ? 'RECONCILED_PUBLISHED' : 'RECONCILED_NOT_PUBLISHED')}</> },
       { title: tr ? 'Satır' : 'Rows', dataIndex: 'affectedRows', render: (value, row) => ['TRANSFER_JDBC', 'ATOMIC_REPLACE'].includes(row.operation) ? value ?? (tr ? 'Kaydedilmedi' : 'Not recorded') : '' },
-      { title: tr ? 'Hata' : 'Error', dataIndex: 'errorCode', render: value => value ?? (tr ? 'Bulunmuyor' : 'None') },
+      { title: tr ? 'Hata' : 'Error', dataIndex: 'errorCode', render: (value, row) => row.state === 'UNKNOWN' && row.operation === 'ATOMIC_REPLACE' && data.reconciliation?.outcome === 'PUBLISHED' ? (tr ? 'Bulunmuyor' : 'None') : value ?? (tr ? 'Bulunmuyor' : 'None') },
     ]} />
     {data.workObjects.length > 0 && <Table size="small" pagination={false} dataSource={data.workObjects} rowKey="uuid" scroll={{ x: 'max-content' }} columns={[
       { title: tr ? 'Çalışma Şeması' : 'Work Schema', dataIndex: 'owner' },

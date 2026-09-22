@@ -176,6 +176,15 @@ final class ExecutionController {
                 : ResponseEntity.ok(view);
     }
 
+    record ReleaseTargetRequest(@NotNull String reason) { }
+
+    /** Operator action: lift a target quarantine left by a reconciliation conflict. */
+    @PostMapping("/{runUuid}/target/release")
+    RunView releaseTarget(@PathVariable UUID projectUuid, @PathVariable UUID runUuid, @Valid @RequestBody ReleaseTargetRequest request) {
+        authorization.requireProjectPermission(projectUuid, RUN_START);
+        return RunView.from(service.releaseTarget(projectUuid, runUuid, request.reason(), actorResolver.currentActor()), featureFlags);
+    }
+
     @PostMapping("/{runUuid}/cancel")
     RunView cancel(
             @PathVariable UUID projectUuid,

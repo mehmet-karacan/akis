@@ -559,6 +559,34 @@ public class JdbcExecutionStore implements ExecutionStore {
                 .optional();
     }
 
+    @Override
+    public boolean releaseQuarantinedTarget(RunRow run, Actor actor, String reason) {
+        Integer released = jdbc.sql("""
+                        update akis.hedef_kaynagi hk
+                           set durum = 'BOS', calistirma_id = null, kiralama_bitis_zamani = null,
+                               nesil_no = hk.nesil_no + 1, guncellenme_zamani = clock_timestamp(),
+                               guncelleyen_kullanici_id = :actorId, versiyon_no = hk.versiyon_no + 1
+                          from akis.calistirma_durumu cd
+                         where cd.calistirma_id = :runId and hk.id = cd.hedef_kaynagi_id and hk.durum = 'ASKIDA'
+                        """).param("runId", run.runId()).param("actorId", actor.id()).update();
+        if (released == null || released == 0) return false;
+        Long eventNumber = jdbc.sql("""
+                        update akis.calistirma_durumu
+                           set durum = case when durum = 'MUDAHALE_GEREKLI' then 'BASARISIZ' else durum end,
+                               kiralama_bitis_zamani = null, bitis_zamani = coalesce(bitis_zamani, clock_timestamp()),
+                               son_olay_no = son_olay_no + 1, guncellenme_zamani = clock_timestamp(),
+                               guncelleyen_kullanici_id = :actorId, versiyon_no = versiyon_no + 1
+                         where calistirma_id = :runId
+                        returning son_olay_no
+                        """).param("runId", run.runId()).param("actorId", actor.id()).query(Long.class).single();
+        ObjectNode data = objectMapper.createObjectNode();
+        data.put("reason", reason);
+        data.put("actor", actor.name());
+        long projectId = jdbc.sql("select proje_id from akis.calistirma where id=:id").param("id", run.runId()).query(Long.class).single();
+        insertEvent(projectId, run.runId(), eventNumber, "TARGET_RELEASED", data, UUID.randomUUID(), actor.id());
+        return true;
+    }
+
     private void insertEvent(
             long projectId,
             long runId,
