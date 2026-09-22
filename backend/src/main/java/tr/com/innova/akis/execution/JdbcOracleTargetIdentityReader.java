@@ -11,7 +11,7 @@ import tr.com.innova.akis.execution.OracleTargetIdentityV1.ValidatedTargetObject
 import tr.com.innova.akis.execution.OracleTargetIdentityV1.VerifiedDatabaseIdentity;
 
 /** Reads a target identity from Oracle without changing session or database state. */
-final class JdbcOracleTargetIdentityReader {
+final class JdbcOracleTargetIdentityReader implements TargetIdentityPort {
 
     private static final String DATABASE_IDENTITY_SQL = """
             SELECT SYS_CONTEXT('USERENV', 'DB_UNIQUE_NAME') AS DB_UNIQUE_NAME,
@@ -37,7 +37,8 @@ final class JdbcOracleTargetIdentityReader {
         this.canonicalizer = Objects.requireNonNull(canonicalizer, "Canonicalizer is required.");
     }
 
-    CanonicalTargetIdentity read(
+    @Override
+    public CanonicalTargetIdentity read(
             Connection connection,
             String owner,
             String objectType,

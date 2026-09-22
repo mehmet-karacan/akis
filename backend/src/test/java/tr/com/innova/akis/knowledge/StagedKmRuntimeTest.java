@@ -7,27 +7,27 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static tr.com.innova.akis.knowledge.WorkObjectLifecycle.State;
 
-class OracleKmRuntimeTest {
+class StagedKmRuntimeTest {
     private final Connection source = mock(Connection.class), control = mock(Connection.class), data = mock(Connection.class);
     private final OracleWorkTableManager tables = mock(OracleWorkTableManager.class);
     private final WorkObjectStore store = mock(WorkObjectStore.class);
     private final JdbcStagingTransfer transfer = mock(JdbcStagingTransfer.class);
     private final JdbcWorkQualityChecks checks = mock(JdbcWorkQualityChecks.class);
-    private final OracleKmRuntime.Guard guard = mock(OracleKmRuntime.Guard.class);
-    private final OracleKmRuntime.Publisher publisher = mock(OracleKmRuntime.Publisher.class);
+    private final StagedKmRuntime.Guard guard = mock(StagedKmRuntime.Guard.class);
+    private final TargetPublishPort publisher = mock(TargetPublishPort.class);
     private final JdbcTransactionBoundary transaction = mock(JdbcTransactionBoundary.class);
     private final AkisKmInterpreter.Modules modules = new AkisKmInterpreter.Modules(
             AkisKmLanguage.example(AkisKmLanguage.Kind.LKM), AkisKmLanguage.example(AkisKmLanguage.Kind.CKM),
             AkisKmLanguage.example(AkisKmLanguage.Kind.IKM));
     private final WorkObjectStore.Owner owner = new WorkObjectStore.Owner(UUID.randomUUID(), UUID.randomUUID(), 1, "worker");
     private final JdbcStagingTransfer.Table work = new JdbcStagingTransfer.Table("WORK", "AKIS_C_TEST");
-    private final OracleWorkTableManager.Created created = new OracleWorkTableManager.Created(
+    private final WorkTableManagerPort.Created created = new WorkTableManagerPort.Created(
             UUID.randomUUID(), "a".repeat(64), work, 123L, "b".repeat(64));
     private final JdbcStagingTransfer.Result seal = new JdbcStagingTransfer.Result(1201, 20000, "c".repeat(64));
-    private OracleKmRuntime runtime() throws SQLException {
-        var contract = new OracleKmRuntime.Contract(owner, AkisKmInterpreter.compile(modules), "a".repeat(64), "DATA",
+    private StagedKmRuntime runtime() throws SQLException {
+        var contract = new StagedKmRuntime.Contract(owner, AkisKmInterpreter.compile(modules), "a".repeat(64), "DATA",
                 new JdbcStagingTransfer.Table("SRC", "ITEMS"), work,
-                List.of(new OracleWorkTableManager.Column("ID", "NUMBER")),
+                List.of(new WorkTableManagerPort.Column("ID", "NUMBER")),
                 List.of(new JdbcStagingTransfer.Column("ID", "ID", JdbcStagingTransfer.Type.NUMBER)),
                 new StagedMappingDefinition.Options(500, 500, 2000, 100000, false),
                 new JdbcWorkQualityChecks.Contract(List.of("ID"), List.of()), 30,new WorkObjectStore.WorkArea(UUID.randomUUID(),1));
@@ -38,8 +38,8 @@ class OracleKmRuntimeTest {
         when(data.prepareStatement(anyString())).thenReturn(statement);
         when(statement.executeQuery()).thenReturn(result);
         when(result.next()).thenReturn(true, false); when(result.getLong(1)).thenReturn(1201L);
-        when(publisher.publish(created, seal)).thenReturn(new OracleKmRuntime.PublishResult(OracleKmRuntime.PublishOutcome.COMMITTED, 1201));
-        return new OracleKmRuntime(contract, source, control, data, transaction, tables, store, transfer, checks, guard, publisher);
+        when(publisher.publish(created, seal)).thenReturn(new StagedKmRuntime.PublishResult(StagedKmRuntime.PublishOutcome.COMMITTED, 1201));
+        return new StagedKmRuntime(contract, source, control, data, transaction, tables, store, transfer, checks, guard, publisher);
     }
     @Test void interpreterRunsLoadingQualityAndPublicationInOrder() throws Exception {
         var results = AkisKmInterpreter.execute(modules, runtime());
@@ -78,9 +78,9 @@ class OracleKmRuntimeTest {
     }
     @Test void unknownPublicationCannotBeRetriedOrMarkedConsumed() throws Exception {
         var runtime = runtime();
-        when(publisher.publish(created, seal)).thenReturn(new OracleKmRuntime.PublishResult(OracleKmRuntime.PublishOutcome.UNKNOWN, 0));
-        var failure = assertThrows(OracleKmRuntime.PublishFailure.class, () -> AkisKmInterpreter.execute(modules, runtime));
-        assertEquals(OracleKmRuntime.PublishOutcome.UNKNOWN, failure.outcome());
+        when(publisher.publish(created, seal)).thenReturn(new StagedKmRuntime.PublishResult(StagedKmRuntime.PublishOutcome.UNKNOWN, 0));
+        var failure = assertThrows(StagedKmRuntime.PublishFailure.class, () -> AkisKmInterpreter.execute(modules, runtime));
+        assertEquals(StagedKmRuntime.PublishOutcome.UNKNOWN, failure.outcome());
         assertThrows(IllegalStateException.class, () -> runtime.atomicReplace("WORK_SOURCE_1"));
         verify(publisher, times(1)).publish(any(), any());
         verify(store, never()).transition(any(), any(), eq(State.SEALED), eq(State.CONSUMED), any(), any());
@@ -88,8 +88,8 @@ class OracleKmRuntimeTest {
     @Test void controlPlaneFailureAfterCommitRequiresReconciliation() throws Exception {
         var runtime = runtime();
         doThrow(new IllegalStateException()).when(store).transition(owner, created.uuid(), State.SEALED, State.CONSUMED, null, null);
-        var failure = assertThrows(OracleKmRuntime.PublishFailure.class, () -> AkisKmInterpreter.execute(modules, runtime));
-        assertEquals(OracleKmRuntime.PublishOutcome.UNKNOWN, failure.outcome());
+        var failure = assertThrows(StagedKmRuntime.PublishFailure.class, () -> AkisKmInterpreter.execute(modules, runtime));
+        assertEquals(StagedKmRuntime.PublishOutcome.UNKNOWN, failure.outcome());
         verify(publisher, times(1)).publish(created, seal);
     }
 }

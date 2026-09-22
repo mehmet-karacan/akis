@@ -13,9 +13,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.BatchEvidence;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.BatchPreparation;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.TargetLedgerContext;
+import tr.com.innova.akis.execution.TargetLedgerPort.BatchEvidence;
+import tr.com.innova.akis.execution.TargetLedgerPort.BatchPreparation;
+import tr.com.innova.akis.execution.TargetLedgerPort.TargetLedgerContext;
 import tr.com.innova.akis.knowledge.JdbcTransactionBoundary;
 import tr.com.innova.akis.knowledge.StagedMappingDefinition;
 
@@ -28,9 +28,9 @@ final class OracleChunkWriteFacade {
     enum Outcome { COMMIT_CONFIRMED, ALREADY_RECORDED, ROLLBACK_CONFIRMED, OUTCOME_UNKNOWN }
     record Result(Outcome outcome, long rowCount, long byteCount) { }
 
-    private final OracleTargetLedgerPort ledger;
+    private final TargetLedgerPort ledger;
 
-    OracleChunkWriteFacade(OracleTargetLedgerPort ledger) {
+    OracleChunkWriteFacade(TargetLedgerPort ledger) {
         this.ledger = Objects.requireNonNull(ledger);
     }
 

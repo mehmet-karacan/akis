@@ -5,10 +5,10 @@ import tr.com.innova.akis.discovery.SchemaFingerprintInput;
 import tr.com.innova.akis.knowledge.*;
 
 /** Only typed direct columns from the already verified snapshots can become work DDL. */
-record StagedColumnLayout(List<OracleWorkTableManager.Column> work,List<JdbcStagingTransfer.Column> transfer,
+record StagedColumnLayout(List<WorkTableManagerPort.Column> work,List<JdbcStagingTransfer.Column> transfer,
         JdbcWorkQualityChecks.Contract quality) {
     static StagedColumnLayout create(StagedRuntimePlan plan,SchemaFingerprintInput target) {
-        List<OracleWorkTableManager.Column> work=new ArrayList<>();List<JdbcStagingTransfer.Column> transfer=new ArrayList<>();
+        List<WorkTableManagerPort.Column> work=new ArrayList<>();List<JdbcStagingTransfer.Column> transfer=new ArrayList<>();
         List<String> required=new ArrayList<>();List<List<String>> keys=new ArrayList<>();
         var byName=new HashMap<String,SchemaFingerprintInput.Column>();target.columns().forEach(c->byName.put(c.reference(),c));
         for(int mappingIndex=0;mappingIndex<plan.columnMappings().size();mappingIndex++) {
@@ -23,7 +23,7 @@ record StagedColumnLayout(List<OracleWorkTableManager.Column> work,List<JdbcStag
                 case "TIMESTAMP" -> "TIMESTAMP("+column.timePrecision()+")";
                 default -> throw new IllegalArgumentException("Çalışma kolonu tipi desteklenmiyor.");
             };
-            work.add(new OracleWorkTableManager.Column(mapping.targetColumn(),ddl));
+            work.add(new WorkTableManagerPort.Column(mapping.targetColumn(),ddl));
             String sourceObject = mappingIndex < plan.columnSourceObjects().size()
                     ? plan.columnSourceObjects().get(mappingIndex)
                     : plan.source() == null ? "SOURCE" : plan.source().datasetId();
@@ -32,7 +32,7 @@ record StagedColumnLayout(List<OracleWorkTableManager.Column> work,List<JdbcStag
                     :new JdbcStagingTransfer.Column(null,null,mapping.targetColumn(),JdbcStagingTransfer.Type.valueOf(type),mapping.expression()));
             if(!column.nullable()) required.add(mapping.targetColumn());
         }
-        var selected=new HashSet<>(work.stream().map(OracleWorkTableManager.Column::name).toList());
+        var selected=new HashSet<>(work.stream().map(WorkTableManagerPort.Column::name).toList());
         for(var constraint:target.constraints()) if(constraint.enabled() && Set.of("PK","UK").contains(constraint.type())) {
             if(!selected.containsAll(constraint.columnReferences())) {
                 if(plan.program().steps().stream().anyMatch(s->s.operation()==AkisKmLanguage.Operation.CHECK_UNIQUE))

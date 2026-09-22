@@ -297,7 +297,7 @@ public class CatalogService {
     }
 
     private String validateTechnology(long projectId, long logicalSchemaId, String value) {
-        String technology = allowed(value, Set.of("ORACLE"), "teknoloji");
+        String technology = allowed(value, Set.of("ORACLE", "POSTGRESQL"), "teknoloji");
         if (repository.logicalSchemaProviders(projectId, logicalSchemaId).stream()
                 .anyMatch(provider -> !technology.equals(provider))) {
             throw validation("Mantıksal şema farklı bir teknoloji sağlayıcısına bağlı.");

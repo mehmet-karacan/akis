@@ -12,7 +12,7 @@ public final class OracleWorkStructure {
     private record Shape(String name, String type, Integer precision, Integer scale, Long characters) { }
     private OracleWorkStructure() { }
 
-    public static String expected(List<OracleWorkTableManager.Column> columns) {
+    public static String expected(List<WorkTableManagerPort.Column> columns) {
         if (columns.isEmpty() || columns.size() > 256) throw new IllegalArgumentException("Çalışma kolonları eksik.");
         return hash(columns.stream().map(OracleWorkStructure::shape).toList());
     }
@@ -52,7 +52,7 @@ public final class OracleWorkStructure {
         if (shapes.isEmpty()) throw new SQLException("Work columns missing");
         return hash(shapes);
     }
-    private static Shape shape(OracleWorkTableManager.Column column) {
+    private static Shape shape(WorkTableManagerPort.Column column) {
         Matcher number = NUMBER.matcher(column.oracleType()), text = TEXT.matcher(column.oracleType()), time = TIME.matcher(column.oracleType());
         if (number.matches()) return new Shape(column.name(), "NUMBER", number.group(1) == null ? null : Integer.valueOf(number.group(1)),
                 number.group(1) == null ? null : number.group(2) == null ? 0 : Integer.valueOf(number.group(2)), null);

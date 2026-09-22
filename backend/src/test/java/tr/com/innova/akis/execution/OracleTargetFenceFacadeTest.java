@@ -25,10 +25,10 @@ import tr.com.innova.akis.execution.OracleTargetFencePort.OracleTargetFenceComma
 import tr.com.innova.akis.execution.OracleTargetFencePort.OracleTargetFenceResult;
 import tr.com.innova.akis.execution.OracleTargetFencePort.OutcomeUnknown;
 import tr.com.innova.akis.execution.OracleTargetFencePort.SafeFailure;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.DataLedgerSession;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.FenceSession;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.ReconciliationSession;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.TargetLedgerContext;
+import tr.com.innova.akis.execution.TargetLedgerPort.DataLedgerSession;
+import tr.com.innova.akis.execution.TargetLedgerPort.FenceSession;
+import tr.com.innova.akis.execution.TargetLedgerPort.ReconciliationSession;
+import tr.com.innova.akis.execution.TargetLedgerPort.TargetLedgerContext;
 import tr.com.innova.akis.execution.OracleTargetIdentityV1.CanonicalTargetIdentity;
 import tr.com.innova.akis.execution.PilotRuntimePlan.DataObjectType;
 import tr.com.innova.akis.execution.PilotRuntimePlan.DatabaseType;
@@ -337,7 +337,7 @@ class OracleTargetFenceFacadeTest {
         }
     }
 
-    private static final class FakeLedger implements OracleTargetLedgerPort {
+    private static final class FakeLedger implements TargetLedgerPort {
 
         private final List<String> events;
         private boolean acquireFailure;

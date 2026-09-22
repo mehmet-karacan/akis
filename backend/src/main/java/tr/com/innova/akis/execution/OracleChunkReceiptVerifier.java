@@ -3,15 +3,15 @@ package tr.com.innova.akis.execution;
 import java.sql.Connection;
 import java.util.Objects;
 
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.BatchEvidence;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.TargetLedgerContext;
+import tr.com.innova.akis.execution.TargetLedgerPort.BatchEvidence;
+import tr.com.innova.akis.execution.TargetLedgerPort.TargetLedgerContext;
 
 /** Reads committed batch evidence on a fresh Oracle connection. */
 final class OracleChunkReceiptVerifier {
 
-    private final OracleTargetLedgerPort ledger;
+    private final TargetLedgerPort ledger;
 
-    OracleChunkReceiptVerifier(OracleTargetLedgerPort ledger) {
+    OracleChunkReceiptVerifier(TargetLedgerPort ledger) {
         this.ledger = Objects.requireNonNull(ledger);
     }
 

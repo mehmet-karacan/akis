@@ -17,8 +17,8 @@ import tr.com.innova.akis.execution.OracleTargetFencePort.OracleTargetFenceComma
 import tr.com.innova.akis.execution.OracleTargetFencePort.OracleTargetFenceResult;
 import tr.com.innova.akis.execution.OracleTargetFencePort.OutcomeUnknown;
 import tr.com.innova.akis.execution.OracleTargetFencePort.SafeFailure;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.FenceSession;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.TargetLedgerContext;
+import tr.com.innova.akis.execution.TargetLedgerPort.FenceSession;
+import tr.com.innova.akis.execution.TargetLedgerPort.TargetLedgerContext;
 import tr.com.innova.akis.execution.OracleTargetIdentityV1.CanonicalTargetIdentity;
 import tr.com.innova.akis.execution.PilotRuntimePlan.DatasetRole;
 import tr.com.innova.akis.execution.RuntimeOracleConnectionProvider.RuntimeOracleSession;
@@ -28,25 +28,25 @@ import tr.com.innova.akis.execution.RuntimeOracleConnectionProvider.SessionPurpo
 @Component
 final class OracleTargetFenceFacade implements OracleTargetFencePort {
 
-    private final OracleTargetLedgerPort ledger;
+    private final TargetLedgerPort ledger;
     private final TargetFenceSessionOpener sessions;
     private final TargetIdentityReader identityReader;
 
     @Autowired
     OracleTargetFenceFacade(
             RuntimeOracleConnectionProvider connections,
-            OracleTargetLedgerPort ledger) {
+            TargetLedgerPort ledger) {
         this(ledger, connections::openTargetFence);
     }
 
     OracleTargetFenceFacade(
-            OracleTargetLedgerPort ledger,
+            TargetLedgerPort ledger,
             TargetFenceSessionOpener sessions) {
         this(ledger, sessions, new JdbcOracleTargetIdentityReader()::read);
     }
 
     OracleTargetFenceFacade(
-            OracleTargetLedgerPort ledger,
+            TargetLedgerPort ledger,
             TargetFenceSessionOpener sessions,
             TargetIdentityReader identityReader) {
         this.ledger = Objects.requireNonNull(ledger, "Target ledger is required.");

@@ -20,12 +20,12 @@ class OracleWorkStructureTest {
     }
     @Test void actualColumnsMatchDeclaredShape() throws Exception {
         setup();
-        assertEquals(OracleWorkStructure.expected(List.of(new OracleWorkTableManager.Column("ID","NUMBER"))),
+        assertEquals(OracleWorkStructure.expected(List.of(new WorkTableManagerPort.Column("ID","NUMBER"))),
                 OracleWorkStructure.read(connection,table,30));
     }
     @Test void alteredColumnChangesHash() throws Exception {
         setup();when(row.getString("COLUMN_NAME")).thenReturn("OTHER_ID");
-        assertNotEquals(OracleWorkStructure.expected(List.of(new OracleWorkTableManager.Column("ID","NUMBER"))),
+        assertNotEquals(OracleWorkStructure.expected(List.of(new WorkTableManagerPort.Column("ID","NUMBER"))),
                 OracleWorkStructure.read(connection,table,30));
     }
     @Test void hiddenColumnFailsClosed() throws Exception {

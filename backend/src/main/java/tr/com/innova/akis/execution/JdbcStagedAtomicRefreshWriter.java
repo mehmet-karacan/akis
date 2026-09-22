@@ -5,7 +5,7 @@ import java.util.*;
 import tr.com.innova.akis.knowledge.JdbcStagingTransfer.Table;
 import tr.com.innova.akis.knowledge.StagedMappingDefinition;
 import tr.com.innova.akis.knowledge.JdbcTransactionBoundary;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.*;
+import tr.com.innova.akis.execution.TargetLedgerPort.*;
 
 /** Target-local DML+ledger publication. TRUNCATE_LOAD is explicitly non-atomic; no implicit retry. */
 final class JdbcStagedAtomicRefreshWriter {
@@ -16,8 +16,8 @@ final class JdbcStagedAtomicRefreshWriter {
     record Column(String stage,String target) {
         Column { StagedMappingDefinition.identifier(stage); StagedMappingDefinition.identifier(target); }
     }
-    private final OracleTargetLedgerPort ledger;
-    JdbcStagedAtomicRefreshWriter(OracleTargetLedgerPort ledger) { this.ledger=Objects.requireNonNull(ledger); }
+    private final TargetLedgerPort ledger;
+    JdbcStagedAtomicRefreshWriter(TargetLedgerPort ledger) { this.ledger=Objects.requireNonNull(ledger); }
     Result publish(Connection connection,TargetLedgerContext context,PublishEvidence evidence,
             Table stage,Table target,List<Column> columns,int timeoutSeconds,Runnable lockedPreflight,Runnable leaseCheckpoint) {
         return publish(connection, context, evidence, stage, target, columns, timeoutSeconds,

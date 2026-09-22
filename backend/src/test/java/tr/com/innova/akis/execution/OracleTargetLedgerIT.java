@@ -19,14 +19,14 @@ import java.util.UUID;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.BatchEvidence;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.BatchPreparation;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.DataLedgerSession;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.FenceSession;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.PublishEvidence;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.PublishPreparation;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.ReconciliationSession;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.TargetLedgerContext;
+import tr.com.innova.akis.execution.TargetLedgerPort.BatchEvidence;
+import tr.com.innova.akis.execution.TargetLedgerPort.BatchPreparation;
+import tr.com.innova.akis.execution.TargetLedgerPort.DataLedgerSession;
+import tr.com.innova.akis.execution.TargetLedgerPort.FenceSession;
+import tr.com.innova.akis.execution.TargetLedgerPort.PublishEvidence;
+import tr.com.innova.akis.execution.TargetLedgerPort.PublishPreparation;
+import tr.com.innova.akis.execution.TargetLedgerPort.ReconciliationSession;
+import tr.com.innova.akis.execution.TargetLedgerPort.TargetLedgerContext;
 
 class OracleTargetLedgerIT {
 

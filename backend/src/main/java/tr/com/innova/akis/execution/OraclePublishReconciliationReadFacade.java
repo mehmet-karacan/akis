@@ -20,10 +20,10 @@ import tr.com.innova.akis.execution.OracleTargetFencePort.OracleTargetFenceComma
 import tr.com.innova.akis.execution.OracleTargetFencePort.OracleTargetFenceResult;
 import tr.com.innova.akis.execution.OracleTargetFencePort.OutcomeUnknown;
 import tr.com.innova.akis.execution.OracleTargetFencePort.SafeFailure;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.PublishEvidence;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.RecordedEvidence;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.TargetLedgerContext;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.FenceEvidence;
+import tr.com.innova.akis.execution.TargetLedgerPort.PublishEvidence;
+import tr.com.innova.akis.execution.TargetLedgerPort.RecordedEvidence;
+import tr.com.innova.akis.execution.TargetLedgerPort.TargetLedgerContext;
+import tr.com.innova.akis.execution.TargetLedgerPort.FenceEvidence;
 import tr.com.innova.akis.execution.PilotPublishIntentPort.PilotPublishIntent;
 import tr.com.innova.akis.execution.PinnedExecutionContextPort.PinnedExecutionContext;
 import tr.com.innova.akis.execution.PinnedPublishReconciliationPort.BarrierEvidence;
@@ -43,7 +43,7 @@ final class OraclePublishReconciliationReadFacade
     private static final Pattern HASH = Pattern.compile("[0-9a-f]{64}");
 
     private final PinnedPublishReconciliationPort evidenceStore;
-    private final OracleTargetLedgerPort ledger;
+    private final TargetLedgerPort ledger;
     private final OracleTargetFencePort fences;
     private final ReconciliationSessionOpener sessions;
     private final JdbcOracleTargetIdentityReader identityReader;
@@ -53,7 +53,7 @@ final class OraclePublishReconciliationReadFacade
     OraclePublishReconciliationReadFacade(
             RuntimeOracleConnectionProvider connections,
             PinnedPublishReconciliationPort evidenceStore,
-            OracleTargetLedgerPort ledger,
+            TargetLedgerPort ledger,
             OracleTargetFencePort fences) {
         this(
                 evidenceStore,
@@ -66,7 +66,7 @@ final class OraclePublishReconciliationReadFacade
 
     OraclePublishReconciliationReadFacade(
             PinnedPublishReconciliationPort evidenceStore,
-            OracleTargetLedgerPort ledger,
+            TargetLedgerPort ledger,
             OracleTargetFencePort fences,
             ReconciliationSessionOpener sessions,
             JdbcOracleTargetIdentityReader identityReader,
@@ -128,7 +128,7 @@ final class OraclePublishReconciliationReadFacade
         try {
             Connection connection = session.connection();
             verifyTargetIdentity(connection, verified);
-            OracleTargetLedgerPort.ReconciliationSession ledgerSession =
+            TargetLedgerPort.ReconciliationSession ledgerSession =
                     ledger.bindReconciliation(connection, verified.barrierContext());
             Optional<FenceEvidence> fence = ledgerSession.readFence();
             if (fence.isEmpty() || !barrierMatches(

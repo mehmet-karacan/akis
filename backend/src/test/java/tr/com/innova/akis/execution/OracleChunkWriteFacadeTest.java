@@ -18,10 +18,10 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.BatchEvidence;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.BatchPreparation;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.DataLedgerSession;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.TargetLedgerContext;
+import tr.com.innova.akis.execution.TargetLedgerPort.BatchEvidence;
+import tr.com.innova.akis.execution.TargetLedgerPort.BatchPreparation;
+import tr.com.innova.akis.execution.TargetLedgerPort.DataLedgerSession;
+import tr.com.innova.akis.execution.TargetLedgerPort.TargetLedgerContext;
 import tr.com.innova.akis.knowledge.JdbcTransactionBoundary;
 
 class OracleChunkWriteFacadeTest {
@@ -83,7 +83,7 @@ class OracleChunkWriteFacadeTest {
     private static final class Fixture {
         private final Connection connection = mock(Connection.class);
         private final PreparedStatement statement = mock(PreparedStatement.class);
-        private final OracleTargetLedgerPort ledger = mock(OracleTargetLedgerPort.class);
+        private final TargetLedgerPort ledger = mock(TargetLedgerPort.class);
         private final DataLedgerSession ledgerSession = mock(DataLedgerSession.class);
         private final BatchEvidence evidence = new BatchEvidence(
                 "LOAD", "P0", "b".repeat(64), 1,

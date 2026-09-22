@@ -27,14 +27,14 @@ import tr.com.innova.akis.execution.OracleAtomicPublishPort.OracleAtomicPublishC
 import tr.com.innova.akis.execution.OracleAtomicPublishPort.OracleAtomicPublishResult;
 import tr.com.innova.akis.execution.OracleAtomicPublishPort.OutcomeUnknown;
 import tr.com.innova.akis.execution.OracleAtomicPublishPort.SafeFailure;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.BatchEvidence;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.BatchPreparation;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.DataLedgerSession;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.FenceSession;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.PublishEvidence;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.PublishPreparation;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.ReconciliationSession;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.TargetLedgerContext;
+import tr.com.innova.akis.execution.TargetLedgerPort.BatchEvidence;
+import tr.com.innova.akis.execution.TargetLedgerPort.BatchPreparation;
+import tr.com.innova.akis.execution.TargetLedgerPort.DataLedgerSession;
+import tr.com.innova.akis.execution.TargetLedgerPort.FenceSession;
+import tr.com.innova.akis.execution.TargetLedgerPort.PublishEvidence;
+import tr.com.innova.akis.execution.TargetLedgerPort.PublishPreparation;
+import tr.com.innova.akis.execution.TargetLedgerPort.ReconciliationSession;
+import tr.com.innova.akis.execution.TargetLedgerPort.TargetLedgerContext;
 import tr.com.innova.akis.execution.PilotPublishIntentPort.PilotPublishIntent;
 import tr.com.innova.akis.execution.PilotRuntimePlan.DataObjectType;
 import tr.com.innova.akis.execution.PilotRuntimePlan.DatabaseType;
@@ -366,7 +366,7 @@ class OracleAtomicPublishFacadeTest {
         }
     }
 
-    private static final class FakeLedger implements OracleTargetLedgerPort {
+    private static final class FakeLedger implements TargetLedgerPort {
         private final List<String> events;
         private final boolean alreadyRecorded;
         private RuntimeException prepareFailure;

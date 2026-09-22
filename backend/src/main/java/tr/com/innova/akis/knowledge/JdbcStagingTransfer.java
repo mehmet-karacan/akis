@@ -9,7 +9,7 @@ import java.util.*;
 import tools.jackson.databind.JsonNode;
 
 /** Streams a single source cursor to an already-owned stage. Never touches the final target. */
-public final class JdbcStagingTransfer {
+public final class JdbcStagingTransfer implements StagingTransferPort {
     public static final long BUFFER_BYTES = 16L * 1024 * 1024;
     public enum Type { NUMBER, VARCHAR2, NVARCHAR2, DATE, TIMESTAMP }
     public record Column(String sourceObject, String source, String stage, Type type, JsonNode expression, boolean encrypted) {
@@ -58,6 +58,7 @@ public final class JdbcStagingTransfer {
             JdbcTransactionBoundary transaction) {
         return transfer(source,stage,from,to,columns,options,timeoutSeconds,checkpoint,transaction,QueryOptions.defaults());
     }
+    @Override
     public Result transfer(Connection source, Connection stage, Table from, Table to, List<Column> columns,
             StagedMappingDefinition.Options options, int timeoutSeconds, Runnable checkpoint,
             JdbcTransactionBoundary transaction, QueryOptions queryOptions) {

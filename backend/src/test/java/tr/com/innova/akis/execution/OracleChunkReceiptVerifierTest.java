@@ -13,14 +13,14 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.BatchEvidence;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.ReconciliationSession;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.RecordedEvidence;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.TargetLedgerContext;
+import tr.com.innova.akis.execution.TargetLedgerPort.BatchEvidence;
+import tr.com.innova.akis.execution.TargetLedgerPort.ReconciliationSession;
+import tr.com.innova.akis.execution.TargetLedgerPort.RecordedEvidence;
+import tr.com.innova.akis.execution.TargetLedgerPort.TargetLedgerContext;
 
 class OracleChunkReceiptVerifierTest {
 
-    private final OracleTargetLedgerPort ledger = mock(OracleTargetLedgerPort.class);
+    private final TargetLedgerPort ledger = mock(TargetLedgerPort.class);
     private final Connection connection = mock(Connection.class);
     private final ReconciliationSession session = mock(ReconciliationSession.class);
     private final TargetLedgerContext context = new TargetLedgerContext("a".repeat(64), 3,

@@ -5,27 +5,29 @@ import java.util.*;
 import static tr.com.innova.akis.knowledge.WorkObjectLifecycle.State;
 
 /** Single-use adapter for the finite interpreter. Publication authority remains in the fenced publisher. */
-public final class OracleKmRuntime implements AkisKmInterpreter.Runtime {
+/**
+ * Technology-neutral staged KM state machine (create → transfer → seal → checks → publish). Vendor behaviour lives behind
+ * {@link WorkTableManagerPort}, {@link StagingTransferPort} and {@link TargetPublishPort}; this class only orders the steps,
+ * re-verifies the work object and records lifecycle transitions.
+ */
+public final class StagedKmRuntime implements AkisKmInterpreter.Runtime {
     public enum PublishOutcome { COMMITTED, ALREADY_RECORDED, ROLLED_BACK, UNKNOWN }
     public record PublishResult(PublishOutcome outcome, long insertedRows) { }
-    @FunctionalInterface public interface Publisher {
-        PublishResult publish(OracleWorkTableManager.Created object, JdbcStagingTransfer.Result seal);
-    }
     /** Live pinned schema, owned object and lease checks supplied by the execution boundary. */
     public interface Guard {
         void preflight();
         void checkpoint();
-        void verifyWork(OracleWorkTableManager.Created object);
+        void verifyWork(WorkTableManagerPort.Created object);
     }
     public record Contract(WorkObjectStore.Owner owner, AkisKmInterpreter.Plan plan,
             String targetDatabaseIdentity, String targetUser, JdbcStagingTransfer.Table source,
-            JdbcStagingTransfer.Table work, List<OracleWorkTableManager.Column> workColumns,
+            JdbcStagingTransfer.Table work, List<WorkTableManagerPort.Column> workColumns,
             List<JdbcStagingTransfer.Column> transferColumns, StagedMappingDefinition.Options options,
             JdbcWorkQualityChecks.Contract quality, int timeoutSeconds,WorkObjectStore.WorkArea workArea,
             JdbcStagingTransfer.QueryOptions queryOptions) {
         public Contract(WorkObjectStore.Owner owner, AkisKmInterpreter.Plan plan,
                 String targetDatabaseIdentity, String targetUser, JdbcStagingTransfer.Table source,
-                JdbcStagingTransfer.Table work, List<OracleWorkTableManager.Column> workColumns,
+                JdbcStagingTransfer.Table work, List<WorkTableManagerPort.Column> workColumns,
                 List<JdbcStagingTransfer.Column> transferColumns, StagedMappingDefinition.Options options,
                 JdbcWorkQualityChecks.Contract quality, int timeoutSeconds,WorkObjectStore.WorkArea workArea) {
             this(owner,plan,targetDatabaseIdentity,targetUser,source,work,workColumns,transferColumns,options,quality,timeoutSeconds,workArea,JdbcStagingTransfer.QueryOptions.defaults());
@@ -41,7 +43,7 @@ public final class OracleKmRuntime implements AkisKmInterpreter.Runtime {
                     || workColumns.isEmpty() || workColumns.size() != transferColumns.size()
                     || timeoutSeconds < 1 || timeoutSeconds > 3600)
                 throw new IllegalArgumentException("KM çalışma sözleşmesi geçersiz.");
-            List<String> columns = workColumns.stream().map(OracleWorkTableManager.Column::name).toList();
+            List<String> columns = workColumns.stream().map(WorkTableManagerPort.Column::name).toList();
             if (!columns.equals(transferColumns.stream().map(JdbcStagingTransfer.Column::stage).toList())
                     || columns.stream().distinct().count() != columns.size()
                     || !columns.containsAll(quality.requiredColumns())
@@ -67,20 +69,20 @@ public final class OracleKmRuntime implements AkisKmInterpreter.Runtime {
     private final Contract contract;
     private final Connection source, workControl, workData;
     private final JdbcTransactionBoundary transaction;
-    private final OracleWorkTableManager tables;
+    private final WorkTableManagerPort tables;
     private final WorkObjectStore store;
-    private final JdbcStagingTransfer transfer;
+    private final StagingTransferPort transfer;
     private final JdbcWorkQualityChecks checks;
     private final Guard guard;
-    private final Publisher publisher;
-    private OracleWorkTableManager.Created object;
+    private final TargetPublishPort publisher;
+    private WorkTableManagerPort.Created object;
     private JdbcStagingTransfer.Result seal;
     private State state;
     private boolean verified, publicationAttempted;
 
-    public OracleKmRuntime(Contract contract, Connection source, Connection workControl, Connection workData,
-            JdbcTransactionBoundary transaction, OracleWorkTableManager tables, WorkObjectStore store,
-            JdbcStagingTransfer transfer, JdbcWorkQualityChecks checks, Guard guard, Publisher publisher) {
+    public StagedKmRuntime(Contract contract, Connection source, Connection workControl, Connection workData,
+            JdbcTransactionBoundary transaction, WorkTableManagerPort tables, WorkObjectStore store,
+            StagingTransferPort transfer, JdbcWorkQualityChecks checks, Guard guard, TargetPublishPort publisher) {
         this.contract = Objects.requireNonNull(contract);
         this.source = Objects.requireNonNull(source); this.workControl = Objects.requireNonNull(workControl);
         this.workData = Objects.requireNonNull(workData); this.transaction = Objects.requireNonNull(transaction);
@@ -101,7 +103,7 @@ public final class OracleKmRuntime implements AkisKmInterpreter.Runtime {
         state = State.READY;
     }
     /** RESUME: take over the sealed work table of the previous attempt instead of creating, loading and sealing a new one. */
-    public void adopt(OracleWorkTableManager.Created adopted, JdbcStagingTransfer.Result adoptedSeal) {
+    public void adopt(WorkTableManagerPort.Created adopted, JdbcStagingTransfer.Result adoptedSeal) {
         if (verified || state != null || object != null) throw new IllegalStateException("Devralma yalnız ilk adımdan önce yapılabilir.");
         if (!adopted.table().equals(contract.work()) || adoptedSeal == null) throw new IllegalStateException("Devralınan çalışma tablosu sözleşmeyle uyuşmuyor.");
         try {

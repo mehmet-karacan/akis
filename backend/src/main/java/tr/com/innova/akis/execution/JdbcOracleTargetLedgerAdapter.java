@@ -12,19 +12,19 @@ import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Component;
 
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.BatchEvidence;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.BatchPreparation;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.DataLedgerSession;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.FenceSession;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.FenceEvidence;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.PublishEvidence;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.PublishPreparation;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.ReconciliationSession;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.RecordedEvidence;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.TargetLedgerContext;
+import tr.com.innova.akis.execution.TargetLedgerPort.BatchEvidence;
+import tr.com.innova.akis.execution.TargetLedgerPort.BatchPreparation;
+import tr.com.innova.akis.execution.TargetLedgerPort.DataLedgerSession;
+import tr.com.innova.akis.execution.TargetLedgerPort.FenceSession;
+import tr.com.innova.akis.execution.TargetLedgerPort.FenceEvidence;
+import tr.com.innova.akis.execution.TargetLedgerPort.PublishEvidence;
+import tr.com.innova.akis.execution.TargetLedgerPort.PublishPreparation;
+import tr.com.innova.akis.execution.TargetLedgerPort.ReconciliationSession;
+import tr.com.innova.akis.execution.TargetLedgerPort.RecordedEvidence;
+import tr.com.innova.akis.execution.TargetLedgerPort.TargetLedgerContext;
 
 @Component
-final class JdbcOracleTargetLedgerAdapter implements OracleTargetLedgerPort {
+final class JdbcOracleTargetLedgerAdapter implements TargetLedgerPort {
 
     private static final Pattern SHA_256 = Pattern.compile("[0-9a-f]{64}");
     private static final Pattern CODE = Pattern.compile("[A-Za-z0-9_.:-]+");

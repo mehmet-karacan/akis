@@ -125,19 +125,19 @@ final class StagedWorkerOrchestrator {
             var workArea=new WorkObjectStore.WorkArea(UUID.fromString(stage.path("physicalSchemaUuid").asText()),stage.path("workAreaPolicy").path("version").asLong());
             var manager=new OracleWorkTableManager(objects);
             var workConnection=control.connection();
-            OracleKmRuntime.Guard guard=new OracleKmRuntime.Guard() {
+            StagedKmRuntime.Guard guard=new StagedKmRuntime.Guard() {
                 public void preflight() {
                     var policy=policies.get(plan.projectUuid(),workArea.physicalSchemaUuid());
                     if(policy.version()!=workArea.policyVersion()) throw new IllegalStateException("Çalışma politikası değişmiş.");
                     WorkAreaPolicyService.requireAllowed(policy,plan.definition().options(),table.owner().equals(plan.target().owner()));
                 }
                 public void checkpoint() { gate.checkpoint(); }
-                public void verifyWork(OracleWorkTableManager.Created object) {
+                public void verifyWork(WorkTableManagerPort.Created object) {
                     try { manager.verify(workConnection,object,30); }
                     catch(SQLException failure) { throw new IllegalStateException("Çalışma nesnesi doğrulanamadı."); }
                 }
             };
-            var created=new AtomicReference<OracleWorkTableManager.Created>();
+            var created=new AtomicReference<WorkTableManagerPort.Created>();
             List<JdbcStagingTransfer.QuerySource> querySources;
             if(plan.definition().sources().isEmpty()) querySources=List.of(new JdbcStagingTransfer.QuerySource(plan.source().datasetId(),plan.source().datasetId(),new JdbcStagingTransfer.Table(plan.source().owner(),plan.source().objectName())));
             else querySources=plan.definition().sources().stream().map(reference->{
@@ -157,11 +157,11 @@ final class StagedWorkerOrchestrator {
                 for(JsonNode name:sensitive.path(column.sourceObject())) if(name.asText().equalsIgnoreCase(column.source())) return column.protectedColumn();
                 return column;
             }).toList();
-            var contract=new OracleKmRuntime.Contract(owner,plan.program(),databaseIdentity,plan.target().owner(),
+            var contract=new StagedKmRuntime.Contract(owner,plan.program(),databaseIdentity,plan.target().owner(),
                     new JdbcStagingTransfer.Table(plan.source().owner(),plan.source().objectName()),table,layout.work(),transferColumns,
                     options,layout.quality(),30,workArea,
                     new JdbcStagingTransfer.QueryOptions(plan.definition().booleanOption("loading","DISTINCT"),plan.definition().stringOption("loading","ORACLE_HINT"),querySources,plan.definition().joins(),plan.definition().filters()));
-            var runtime=new OracleKmRuntime(contract,source.connection(),control.connection(),data.connection(),StagedWorkSessionFactory.transaction(data),
+            var runtime=new StagedKmRuntime(contract,source.connection(),control.connection(),data.connection(),StagedWorkSessionFactory.transaction(data),
                     manager,objects,new JdbcStagingTransfer(),new JdbcWorkQualityChecks(),guard,(object,seal)->{
                         created.set(object);
                         var evidence=new PublishIntentEvidence(plan.runtimePlanHash(),StagedPublishFacade.publishKey(plan,context,fence),seal.payloadHash(),seal.rows(),seal.logicalBytes());
@@ -177,7 +177,7 @@ final class StagedWorkerOrchestrator {
                 var point=resume.get();
                 if(!point.sealed().structureHash().equals(OracleWorkStructure.expected(layout.work()))) throw new IllegalStateException("Devralınan çalışma tablosunun yapısı plandan farklı.");
                 var owned=objects.adopt(owner,point.previousRun(),point.sealed().uuid());
-                var adoptedTable=new OracleWorkTableManager.Created(owned.uuid(),owned.databaseIdentity(),table,owned.objectId(),owned.structureHash());
+                var adoptedTable=new WorkTableManagerPort.Created(owned.uuid(),owned.databaseIdentity(),table,owned.objectId(),owned.structureHash());
                 created.set(adoptedTable);
                 runtime.adopt(adoptedTable,new JdbcStagingTransfer.Result(owned.rows(),owned.bytes(),owned.payloadHash()));
                 resumeFrom=new AkisKmInterpreter.Resume(point.completedSteps(),owned.rows());

@@ -5,7 +5,7 @@ import java.util.*;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 import tr.com.innova.akis.knowledge.*;
-import static tr.com.innova.akis.execution.OracleTargetLedgerPort.*;
+import static tr.com.innova.akis.execution.TargetLedgerPort.*;
 import static tr.com.innova.akis.execution.RunLeasePort.TargetFenceToken;
 import static tr.com.innova.akis.execution.PinnedExecutionContextPort.PinnedExecutionContext;
 
@@ -18,13 +18,13 @@ final class StagedPublishFacade {
     private static final PublishPermit PERMIT=new PublishPermit();
     private final RuntimeOracleConnectionProvider connections;
     private final PilotPublishIntentPort intents;
-    private final OracleTargetLedgerPort ledger;
+    private final TargetLedgerPort ledger;
     private final WorkObjectStore objects;
     private final JdbcPinnedSchemaSnapshotStore snapshots;
     private final ObjectMapper mapper;
     private final WorkAreaPolicyService policies;
     private final KmStepJournal journal;
-    StagedPublishFacade(RuntimeOracleConnectionProvider connections,PilotPublishIntentPort intents,OracleTargetLedgerPort ledger,
+    StagedPublishFacade(RuntimeOracleConnectionProvider connections,PilotPublishIntentPort intents,TargetLedgerPort ledger,
             WorkObjectStore objects,JdbcPinnedSchemaSnapshotStore snapshots,ObjectMapper mapper,WorkAreaPolicyService policies,KmStepJournal journal) {
         this.connections=connections;this.intents=intents;this.ledger=ledger;this.objects=objects;this.snapshots=snapshots;this.mapper=mapper;
         this.policies=policies;this.journal=journal;
@@ -39,8 +39,8 @@ final class StagedPublishFacade {
     static String publishStepCode(MappingExecutionContract plan) {
         return "KM_"+(plan instanceof StagedRuntimePlan staged?writeMode(staged):"ATOMIC_REPLACE");
     }
-    OracleKmRuntime.PublishResult publish(StagedRuntimePlan plan,PinnedExecutionContext execution,TargetFenceToken fence,
-            OracleWorkTableManager.Created object,JdbcStagingTransfer.Result seal,Runnable leaseCheckpoint) {
+    StagedKmRuntime.PublishResult publish(StagedRuntimePlan plan,PinnedExecutionContext execution,TargetFenceToken fence,
+            WorkTableManagerPort.Created object,JdbcStagingTransfer.Result seal,Runnable leaseCheckpoint) {
         var intent=intents.find(execution.runUuid()).orElseThrow(()->new IllegalStateException("KM yayın niyeti bulunamadı."));
         String key=publishKey(plan,execution,fence);
         require(Objects.equals(intent.projectUuid(),plan.projectUuid()) && Objects.equals(intent.publicationUuid(),execution.publicationUuid())
@@ -90,7 +90,7 @@ final class StagedPublishFacade {
                             public void discard() { session.discardWork(); }
                         },plan.definition().stringOption("integration","ORACLE_HINT"),writerMode,keys);
         } finally { try { session.close(); } catch(RuntimeException ignored) { } }
-        return new OracleKmRuntime.PublishResult(OracleKmRuntime.PublishOutcome.valueOf(result.outcome().name()),result.inserted()==null?0:result.inserted());
+        return new StagedKmRuntime.PublishResult(StagedKmRuntime.PublishOutcome.valueOf(result.outcome().name()),result.inserted()==null?0:result.inserted());
     }
     private static String writeMode(StagedRuntimePlan plan) {
         String configured=plan.definition().stringOption("integration","WRITE_MODE");
@@ -112,7 +112,7 @@ final class StagedPublishFacade {
             require(i==recorded.size()-1?actual.state().equals("RUNNING"):Set.of("SUCCEEDED","SKIPPED").contains(actual.state()));
         }
     }
-    private static void verifyWork(Connection connection,OracleWorkTableManager.Created object) {
+    private static void verifyWork(Connection connection,WorkTableManagerPort.Created object) {
         try {
             require(object.databaseIdentity().equals(OracleWorkTableManager.databaseIdentity(connection))
                     && object.structureHash().equals(OracleWorkStructure.read(connection,object.table(),30)));

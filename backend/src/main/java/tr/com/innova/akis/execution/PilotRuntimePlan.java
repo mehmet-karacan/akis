@@ -66,8 +66,10 @@ public record PilotRuntimePlan(
         TARGET
     }
 
+    /** Pinned binding technology. Oracle runtimes check for ORACLE explicitly and fail closed on anything else. */
     public enum DatabaseType {
-        ORACLE
+        ORACLE,
+        POSTGRESQL
     }
 
     public enum DataObjectType {

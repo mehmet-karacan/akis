@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import tr.com.innova.akis.execution.ChunkManifestStore.Intent;
 import tr.com.innova.akis.execution.OracleChunkWriteFacade.Outcome;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.BatchEvidence;
+import tr.com.innova.akis.execution.TargetLedgerPort.BatchEvidence;
 
 /** Durable one-writer range loop. It advances only after target-local evidence. */
 final class ChunkExecutionCoordinator {

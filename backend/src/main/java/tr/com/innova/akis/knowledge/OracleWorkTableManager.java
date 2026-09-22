@@ -7,25 +7,21 @@ import org.slf4j.LoggerFactory;
 import static tr.com.innova.akis.knowledge.WorkObjectLifecycle.State;
 
 /** DDL runs on a dedicated work-owner connection, never the target data transaction. */
-public final class OracleWorkTableManager {
+public final class OracleWorkTableManager implements WorkTableManagerPort {
     private static final Logger LOG = LoggerFactory.getLogger(OracleWorkTableManager.class);
-    public record Column(String name,String oracleType) {
-        public Column {
-            StagedMappingDefinition.identifier(name);
-            if (oracleType==null || !oracleType.matches("NUMBER(\\(([1-9]|[12][0-9]|3[0-8])(,-?([0-9]|[1-7][0-9]|8[0-4]))?\\))?|VARCHAR2\\(([1-9][0-9]{0,3}) CHAR\\)|NVARCHAR2\\(([1-9][0-9]{0,3})\\)|DATE|TIMESTAMP\\([0-9]\\)"))
-                throw new IllegalArgumentException("Desteklenmeyen çalışma kolonu tipi.");
-        }
-    }
-    public record Created(UUID uuid,String databaseIdentity,JdbcStagingTransfer.Table table,long objectId,String structureHash) { }
+    /** Oracle work column DDL types the runtime may declare; checked when the table is created, not when the column is described. */
+    private static final String ORACLE_TYPES="NUMBER(\\(([1-9]|[12][0-9]|3[0-8])(,-?([0-9]|[1-7][0-9]|8[0-4]))?\\))?|VARCHAR2\\(([1-9][0-9]{0,3}) CHAR\\)|NVARCHAR2\\(([1-9][0-9]{0,3})\\)|DATE|TIMESTAMP\\([0-9]\\)";
     private final WorkObjectStore store;
     private final OracleDdlLockPort ddlLocks;
     public OracleWorkTableManager(WorkObjectStore store) { this(store,new JdbcOracleDdlLock()); }
     OracleWorkTableManager(WorkObjectStore store,OracleDdlLockPort ddlLocks) {
         this.store=Objects.requireNonNull(store);this.ddlLocks=Objects.requireNonNull(ddlLocks);
     }
+    @Override
     public Created create(Connection control,WorkObjectStore.Owner owner,String targetDatabaseIdentity,
             JdbcStagingTransfer.Table table,List<Column> columns,int timeout,Runnable checkpoint,WorkObjectStore.WorkArea workArea) {
         columns=List.copyOf(columns);
+        for (Column column:columns) if (column.ddlType()==null || !column.ddlType().matches(ORACLE_TYPES)) throw new IllegalArgumentException("Desteklenmeyen çalışma kolonu tipi.");
         if (columns.isEmpty() || columns.size()>256 || timeout<1 || timeout>3600 || !table.name().startsWith("AKIS_")) throw new IllegalArgumentException("Çalışma tablosu sözleşmesi geçersiz.");
         if (columns.stream().map(Column::name).distinct().count()!=columns.size()) throw new IllegalArgumentException("Çalışma kolonları benzersiz olmalıdır.");
         String structure=OracleWorkStructure.expected(columns);
@@ -54,6 +50,7 @@ public final class OracleWorkTableManager {
             throw new IllegalStateException("Çalışma tablosu hazırlığı doğrulanamadı; otomatik DROP/tekrar yapılmadı.");
         }
     }
+    @Override
     public void grantRead(Connection control,Created created,String targetUser,int timeout,Runnable checkpoint) {
         StagedMappingDefinition.identifier(targetUser);
         try {
@@ -63,6 +60,7 @@ public final class OracleWorkTableManager {
             }
         } catch(SQLException ex) { throw new IllegalStateException("Çalışma tablosu okuma yetkisi doğrulanamadı."); }
     }
+    @Override
     public void verify(Connection control,Created created,int timeout) throws SQLException {
         if (!created.databaseIdentity().equals(databaseIdentity(control)) || !created.table().owner().equals(sessionUser(control))
                 || !Objects.equals(created.objectId(),objectId(control,created.table()))
@@ -70,6 +68,7 @@ public final class OracleWorkTableManager {
             throw new IllegalStateException("Çalışma nesnesi kimliği veya yapısı değişmiş.");
     }
     /** Only the registry can grant cleanup. Do not PURGE: Oracle recycle-bin recovery remains available. */
+    @Override
     public void cleanup(Connection control,WorkObjectStore.Owner owner,UUID object,int timeout) {
         if(timeout<1 || timeout>3600) throw new IllegalArgumentException("Temizleme zaman sınırı geçersiz.");
         var row=store.claimCleanup(owner,object);

@@ -6,11 +6,11 @@ import org.junit.jupiter.api.Test;
 import tr.com.innova.akis.knowledge.JdbcStagingTransfer.Table;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
-import static tr.com.innova.akis.execution.OracleTargetLedgerPort.*;
+import static tr.com.innova.akis.execution.TargetLedgerPort.*;
 
 class JdbcStagedAtomicRefreshWriterTest {
     private final Connection connection=mock(Connection.class);
-    private final OracleTargetLedgerPort ledger=mock(OracleTargetLedgerPort.class);
+    private final TargetLedgerPort ledger=mock(TargetLedgerPort.class);
     private final DataLedgerSession session=mock(DataLedgerSession.class);
     private final TargetLedgerContext context=new TargetLedgerContext("a".repeat(64),1,UUID.randomUUID(),UUID.randomUUID(),1,"b".repeat(64),"c".repeat(64));
     private final PublishEvidence evidence=new PublishEvidence("KM_IKM","d".repeat(64),"e".repeat(64),1201,1201,0,null,null);

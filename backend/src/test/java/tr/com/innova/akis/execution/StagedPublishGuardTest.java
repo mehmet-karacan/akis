@@ -20,10 +20,10 @@ class StagedPublishGuardTest {
     private final RunLeasePort.TargetFenceToken fence=mock(RunLeasePort.TargetFenceToken.class);
     private final UUID project=UUID.randomUUID(),run=UUID.randomUUID(),publication=UUID.randomUUID(),job=UUID.randomUUID(),target=UUID.randomUUID(),schema=UUID.randomUUID();
     private final String hash="a".repeat(64);
-    private OracleWorkTableManager.Created object;
+    private WorkTableManagerPort.Created object;
     private final JdbcStagingTransfer.Result seal=new JdbcStagingTransfer.Result(1201,24020,"b".repeat(64));
     private final AkisKmInterpreter.Plan program=AkisKmInterpreter.compile(new AkisKmInterpreter.Modules(AkisKmLanguage.example(AkisKmLanguage.Kind.LKM),AkisKmLanguage.example(AkisKmLanguage.Kind.CKM),AkisKmLanguage.example(AkisKmLanguage.Kind.IKM)));
-    private StagedPublishFacade facade() { return new StagedPublishFacade(connections,intents,mock(OracleTargetLedgerPort.class),objects,snapshots,mapper,policies,journal); }
+    private StagedPublishFacade facade() { return new StagedPublishFacade(connections,intents,mock(TargetLedgerPort.class),objects,snapshots,mapper,policies,journal); }
     private void fixture() {
         when(plan.projectUuid()).thenReturn(project);when(plan.runtimePlanHash()).thenReturn(hash);when(plan.releaseHash()).thenReturn(hash);when(plan.scenarioPlanHash()).thenReturn(hash);
         when(plan.program()).thenReturn(program);
@@ -44,7 +44,7 @@ class StagedPublishGuardTest {
         when(intent.publishKeyHash()).thenReturn(key);when(intent.payloadHash()).thenReturn(seal.payloadHash());when(intent.rowCount()).thenReturn(seal.rows());when(intent.byteCount()).thenReturn(seal.logicalBytes());
         when(intents.find(run)).thenReturn(Optional.of(intent));
         String name=WorkObjectPrefixes.DEFAULTS.objectName("LOADING",project,run,1,"WORK_SOURCE_1");
-        object=new OracleWorkTableManager.Created(UUID.randomUUID(),hash,new JdbcStagingTransfer.Table("WORK",name),123,hash);
+        object=new WorkTableManagerPort.Created(UUID.randomUUID(),hash,new JdbcStagingTransfer.Table("WORK",name),123,hash);
         when(objects.list(project,run)).thenReturn(List.of(new WorkObjectStore.ObjectRow(object.uuid(),"WORK_SOURCE_1",hash,"WORK",name,123L,hash,WorkObjectLifecycle.State.SEALED,seal.rows(),seal.logicalBytes(),seal.payloadHash())));
         var pinned=mock(PinnedSchemaSnapshotPort.PinnedSnapshots.class);when(pinned.projectUuid()).thenReturn(project);when(pinned.publicationUuid()).thenReturn(publication);when(snapshots.load(plan)).thenReturn(pinned);
         when(journal.list(project,run)).thenReturn(rows("SUCCEEDED"));

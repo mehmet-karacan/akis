@@ -25,16 +25,16 @@ import tr.com.innova.akis.execution.OraclePublishReconciliationReadFacade.Reconc
 import tr.com.innova.akis.execution.OraclePublishReconciliationReadPort.Failure;
 import tr.com.innova.akis.execution.OraclePublishReconciliationReadPort.Outcome;
 import tr.com.innova.akis.execution.OracleTargetIdentityV1.VerifiedDatabaseIdentity;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.BatchEvidence;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.BatchPreparation;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.DataLedgerSession;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.FenceSession;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.FenceEvidence;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.PublishEvidence;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.PublishPreparation;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.ReconciliationSession;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.RecordedEvidence;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.TargetLedgerContext;
+import tr.com.innova.akis.execution.TargetLedgerPort.BatchEvidence;
+import tr.com.innova.akis.execution.TargetLedgerPort.BatchPreparation;
+import tr.com.innova.akis.execution.TargetLedgerPort.DataLedgerSession;
+import tr.com.innova.akis.execution.TargetLedgerPort.FenceSession;
+import tr.com.innova.akis.execution.TargetLedgerPort.FenceEvidence;
+import tr.com.innova.akis.execution.TargetLedgerPort.PublishEvidence;
+import tr.com.innova.akis.execution.TargetLedgerPort.PublishPreparation;
+import tr.com.innova.akis.execution.TargetLedgerPort.ReconciliationSession;
+import tr.com.innova.akis.execution.TargetLedgerPort.RecordedEvidence;
+import tr.com.innova.akis.execution.TargetLedgerPort.TargetLedgerContext;
 import tr.com.innova.akis.execution.PilotPublishIntentPort.PilotPublishIntent;
 import tr.com.innova.akis.execution.PilotRuntimePlan.DataObjectType;
 import tr.com.innova.akis.execution.PilotRuntimePlan.DatabaseType;
@@ -580,7 +580,7 @@ class OraclePublishReconciliationReadFacadeTest {
         }
     }
 
-    private static final class FakeLedger implements OracleTargetLedgerPort {
+    private static final class FakeLedger implements TargetLedgerPort {
         private Optional<FenceEvidence> fence = Optional.empty();
         private Optional<RecordedEvidence> recorded = Optional.empty();
         private RuntimeException failure;

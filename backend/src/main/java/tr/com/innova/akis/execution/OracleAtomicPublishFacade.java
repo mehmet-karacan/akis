@@ -22,10 +22,10 @@ import tr.com.innova.akis.execution.OracleAtomicPublishPort.OracleAtomicPublishR
 import tr.com.innova.akis.execution.OracleAtomicPublishPort.OutcomeUnknown;
 import tr.com.innova.akis.execution.OracleAtomicPublishPort.PublishReceipt;
 import tr.com.innova.akis.execution.OracleAtomicPublishPort.SafeFailure;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.DataLedgerSession;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.PublishEvidence;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.PublishPreparation;
-import tr.com.innova.akis.execution.OracleTargetLedgerPort.TargetLedgerContext;
+import tr.com.innova.akis.execution.TargetLedgerPort.DataLedgerSession;
+import tr.com.innova.akis.execution.TargetLedgerPort.PublishEvidence;
+import tr.com.innova.akis.execution.TargetLedgerPort.PublishPreparation;
+import tr.com.innova.akis.execution.TargetLedgerPort.TargetLedgerContext;
 import tr.com.innova.akis.execution.PilotPublishIntentPort.PilotPublishIntent;
 import tr.com.innova.akis.execution.PinnedSchemaSnapshotPort.PinnedSnapshot;
 import tr.com.innova.akis.execution.PinnedSchemaSnapshotPort.PinnedSnapshots;
@@ -40,7 +40,7 @@ import tr.com.innova.akis.execution.RuntimeOracleConnectionProvider.RuntimeOracl
 final class OracleAtomicPublishFacade implements OracleAtomicPublishPort {
 
     private final PilotPublishIntentPort intents;
-    private final OracleTargetLedgerPort ledger;
+    private final TargetLedgerPort ledger;
     private final OracleAtomicRefreshWriterPort writer;
     private final TargetSessionOpener sessions;
     private final LockedTargetPreflight lockedTargetPreflight;
@@ -50,7 +50,7 @@ final class OracleAtomicPublishFacade implements OracleAtomicPublishPort {
     OracleAtomicPublishFacade(
             RuntimeOracleConnectionProvider connections,
             PilotPublishIntentPort intents,
-            OracleTargetLedgerPort ledger,
+            TargetLedgerPort ledger,
             ObjectMapper objectMapper) {
         this(
                 intents,
@@ -63,7 +63,7 @@ final class OracleAtomicPublishFacade implements OracleAtomicPublishPort {
 
     OracleAtomicPublishFacade(
             PilotPublishIntentPort intents,
-            OracleTargetLedgerPort ledger,
+            TargetLedgerPort ledger,
             OracleAtomicRefreshWriterPort writer,
             RuntimeOracleConnectionProvider connections,
             LockedTargetPreflight lockedTargetPreflight,
@@ -79,7 +79,7 @@ final class OracleAtomicPublishFacade implements OracleAtomicPublishPort {
 
     OracleAtomicPublishFacade(
             PilotPublishIntentPort intents,
-            OracleTargetLedgerPort ledger,
+            TargetLedgerPort ledger,
             OracleAtomicRefreshWriterPort writer,
             TargetSessionOpener sessions,
             LockedTargetPreflight lockedTargetPreflight,

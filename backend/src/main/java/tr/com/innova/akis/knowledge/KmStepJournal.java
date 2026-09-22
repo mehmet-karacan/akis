@@ -84,7 +84,7 @@ public class KmStepJournal {
             public void skipped(int ordinal,AkisKmLanguage.Step step,long rows) { KmStepJournal.this.skipped(owner,ordinal,step.operation()==AkisKmLanguage.Operation.TRANSFER_JDBC?rows:null); }
             public void succeeded(int ordinal,AkisKmInterpreter.StepResult result) { transition(owner,ordinal,"SUCCEEDED",result.affectedRows(),null); }
             public void failed(int ordinal,AkisKmLanguage.Step step,RuntimeException failure) {
-                boolean unknown=step.operation()==AkisKmLanguage.Operation.ATOMIC_REPLACE && !(failure instanceof OracleKmRuntime.PublishFailure p && p.outcome()==OracleKmRuntime.PublishOutcome.ROLLED_BACK);
+                boolean unknown=step.operation()==AkisKmLanguage.Operation.ATOMIC_REPLACE && !(failure instanceof StagedKmRuntime.PublishFailure p && p.outcome()==StagedKmRuntime.PublishOutcome.ROLLED_BACK);
                 transition(owner,ordinal,unknown?"UNKNOWN":"FAILED",null,unknown?"KM_RECONCILIATION_REQUIRED":"KM_STEP_FAILED");
             }
         };

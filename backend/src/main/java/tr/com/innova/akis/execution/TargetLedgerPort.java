@@ -9,7 +9,7 @@ import tr.com.innova.akis.execution.PinnedExecutionContextPort.PinnedExecutionCo
 import tr.com.innova.akis.execution.RunLeasePort.TargetFenceToken;
 
 /**
- * Target-local Oracle ledger boundary. A bound session never commits or rolls back;
+ * Target-local publication ledger boundary (technology port; Oracle adapter: JdbcOracleTargetLedgerAdapter). A bound session never commits or rolls back;
  * its caller owns the transaction outcome. Prepare and record must be invoked through
  * the same data session so both calls use the same physical JDBC connection. Fence
  * acquisition is deliberately exposed through a different session type and package
@@ -17,7 +17,7 @@ import tr.com.innova.akis.execution.RunLeasePort.TargetFenceToken;
  * must use a fresh, independent physical connection so it cannot observe uncommitted
  * evidence through the writer transaction.
  */
-interface OracleTargetLedgerPort {
+interface TargetLedgerPort {
 
     FenceSession bindFence(Connection connection, TargetLedgerContext context);
 
