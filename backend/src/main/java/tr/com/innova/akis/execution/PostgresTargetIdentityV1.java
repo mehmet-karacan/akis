@@ -9,13 +9,14 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
 import java.util.regex.Pattern;
-import tr.com.innova.akis.execution.OracleTargetIdentityV1.CanonicalTargetIdentity;
+import tr.com.innova.akis.execution.TargetIdentityPort.CanonicalTargetIdentity;
 
 /**
  * Canonical PostgreSQL table identity (POSTGRES_TARGET_V1): ledger installation uuid, database name, namespace and
  * relation (with their oids) and relkind. The oids make a dropped-and-recreated table a different target while TRUNCATE
  * keeps it the same; the installation uuid ties the identity to one ledger installation even when a database is cloned
- * under another name. Reuses the V1 identity record: databaseUniqueName = database, containerName = installation uuid.
+ * under another name. Installation uuid, database and their oids fold into the opaque canonical payload/hash rather than
+ * the shared record's named fields; schema/table map onto the technology-neutral owner/objectName.
  */
 final class PostgresTargetIdentityV1 {
     static final int TARGET_IDENTITY_VERSION = 1;
@@ -40,7 +41,8 @@ final class PostgresTargetIdentityV1 {
         byte[] payload = encode(List.of(DOMAIN, Integer.toString(TARGET_IDENTITY_VERSION), installation, database,
                 Long.toString(relation.databaseOid()), schema, Long.toString(relation.schemaOid()), table,
                 Long.toString(relation.relationOid()), relation.relkind()));
-        return new CanonicalTargetIdentity(TARGET_IDENTITY_VERSION, database, installation, schema, "TABLE", table, payload, sha256(payload));
+        return new CanonicalTargetIdentity(
+                "POSTGRESQL", TARGET_IDENTITY_VERSION, database, installation, schema, "TABLE", table, payload, sha256(payload));
     }
 
     String requireIdentifier(String value, String name) {

@@ -15,8 +15,9 @@ class PostgresTargetIdentityV1Test {
     void hashCoversInstallationDatabaseNamespaceAndRelationOids() {
         var base = canonicalizer.canonicalize(relation(INSTALLATION, 16384L, 2200L, 90001L, "r"), "TABLE");
         assertEquals(1, base.targetIdentityVersion());
-        assertEquals("akis_metadata", base.databaseUniqueName());
-        assertEquals(INSTALLATION, base.containerName());
+        assertEquals("POSTGRESQL", base.technologyCode());
+        assertEquals("akis_metadata", base.site());
+        assertEquals(INSTALLATION, base.container());
         assertEquals("akis_pg_target", base.owner());
         assertEquals("STG_HAKEDIS_TIPI", base.objectName());
         assertEquals(64, base.canonicalTargetHash().length());

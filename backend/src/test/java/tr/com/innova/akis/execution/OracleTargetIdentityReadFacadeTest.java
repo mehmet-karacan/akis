@@ -23,7 +23,7 @@ import tr.com.innova.akis.execution.OracleTargetIdentityReadPort.IdentityReadSuc
 import tr.com.innova.akis.execution.OracleTargetIdentityReadPort.NotAttempted;
 import tr.com.innova.akis.execution.OracleTargetIdentityReadPort.SafeFailure;
 import tr.com.innova.akis.execution.OracleTargetIdentityReadPort.TargetIdentityReadCommand;
-import tr.com.innova.akis.execution.OracleTargetIdentityV1.CanonicalTargetIdentity;
+import tr.com.innova.akis.execution.TargetIdentityPort.CanonicalTargetIdentity;
 import tr.com.innova.akis.execution.OracleTargetIdentityV1.VerifiedDatabaseIdentity;
 import tr.com.innova.akis.execution.PilotRuntimePlan.DataObjectType;
 import tr.com.innova.akis.execution.PilotRuntimePlan.DatabaseType;

@@ -19,9 +19,9 @@ import tr.com.innova.akis.execution.OracleTargetFencePort.OutcomeUnknown;
 import tr.com.innova.akis.execution.OracleTargetFencePort.SafeFailure;
 import tr.com.innova.akis.execution.TargetLedgerPort.FenceSession;
 import tr.com.innova.akis.execution.TargetLedgerPort.TargetLedgerContext;
-import tr.com.innova.akis.execution.OracleTargetIdentityV1.CanonicalTargetIdentity;
 import tr.com.innova.akis.execution.PilotRuntimePlan.DatasetRole;
 import tr.com.innova.akis.execution.RuntimeOracleConnectionProvider.RuntimeOracleSession;
+import tr.com.innova.akis.execution.TargetIdentityPort.CanonicalTargetIdentity;
 import tr.com.innova.akis.execution.RuntimeOracleConnectionProvider.SessionPurpose;
 
 /** Owns the fresh Oracle transaction that makes a target fence durable. */

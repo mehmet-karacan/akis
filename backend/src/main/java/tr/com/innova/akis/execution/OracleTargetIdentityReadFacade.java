@@ -19,7 +19,7 @@ import tr.com.innova.akis.execution.OracleTargetIdentityReadPort.SafeFailure;
 import tr.com.innova.akis.execution.OracleTargetIdentityReadPort.TargetIdentityEvidence;
 import tr.com.innova.akis.execution.OracleTargetIdentityReadPort.TargetIdentityReadCommand;
 import tr.com.innova.akis.execution.OracleTargetIdentityReadPort.TargetIdentityReadResult;
-import tr.com.innova.akis.execution.OracleTargetIdentityV1.CanonicalTargetIdentity;
+import tr.com.innova.akis.execution.TargetIdentityPort.CanonicalTargetIdentity;
 import tr.com.innova.akis.execution.PinnedSchemaSnapshotPort.PinnedSnapshot;
 import tr.com.innova.akis.execution.RuntimeOracleConnectionProvider.RuntimeOracleSession;
 
@@ -180,10 +180,10 @@ final class OracleTargetIdentityReadFacade implements OracleTargetIdentityReadPo
                 && Objects.equals(identity.owner(), plan.target().owner())
                 && Objects.equals(identity.objectType(), plan.target().dataObjectType().name())
                 && Objects.equals(identity.objectName(), plan.target().objectName())
-                && identity.databaseUniqueName() != null
-                && !identity.databaseUniqueName().isBlank()
-                && identity.containerName() != null
-                && !identity.containerName().isBlank()
+                && identity.site() != null
+                && !identity.site().isBlank()
+                && identity.container() != null
+                && !identity.container().isBlank()
                 && identity.canonicalTargetHash() != null
                 && identity.canonicalTargetHash().matches("[0-9a-f]{64}");
     }
@@ -191,8 +191,8 @@ final class OracleTargetIdentityReadFacade implements OracleTargetIdentityReadPo
     private TargetIdentityEvidence evidence(CanonicalTargetIdentity identity) {
         return new TargetIdentityEvidence(
                 identity.targetIdentityVersion(),
-                identity.databaseUniqueName(),
-                identity.containerName(),
+                identity.site(),
+                identity.container(),
                 identity.owner(),
                 identity.objectType(),
                 identity.objectName(),

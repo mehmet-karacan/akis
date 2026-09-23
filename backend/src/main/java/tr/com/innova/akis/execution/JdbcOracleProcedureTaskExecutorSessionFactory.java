@@ -19,7 +19,7 @@ import tools.jackson.databind.ObjectMapper;
 import tr.com.innova.akis.execution.JdbcOracleSchemaPreflight.ExpectedSnapshot;
 import tr.com.innova.akis.execution.JdbcPinnedSchemaSnapshotStore.PinnedProcedureSource;
 import tr.com.innova.akis.execution.JdbcPinnedSchemaSnapshotStore.PinnedProcedureTarget;
-import tr.com.innova.akis.execution.OracleTargetIdentityV1.CanonicalTargetIdentity;
+import tr.com.innova.akis.execution.TargetIdentityPort.CanonicalTargetIdentity;
 import tr.com.innova.akis.execution.ProcedureRunScopedRowsetStore.Cell;
 import tr.com.innova.akis.execution.ProcedureRunScopedRowsetStore.Column;
 import tr.com.innova.akis.execution.ProcedureRunScopedRowsetStore.Handle;
@@ -266,7 +266,7 @@ final class JdbcOracleProcedureTaskExecutorSessionFactory
                     .findConnectionEvidence(pinned.projectUuid(), binding.connectionVersionUuid())
                     .orElseThrow();
             var database = new OracleDatabaseIdentityFingerprintV1().canonicalize(
-                    identity.databaseUniqueName(), identity.containerName());
+                    identity.site(), identity.container());
             if (evidence.identityVersion() != database.identityVersion()
                     || !constantTimeEquals(evidence.targetFingerprint(), database.fingerprint())) {
                 throw new IllegalStateException("Target database identity changed.");

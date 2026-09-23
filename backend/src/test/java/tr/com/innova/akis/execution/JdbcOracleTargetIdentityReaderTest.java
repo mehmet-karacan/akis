@@ -32,8 +32,8 @@ class JdbcOracleTargetIdentityReaderTest {
         var identity = reader.read(
                 oracle.connection(), "INNOVA_ODI", "TABLE", "STG_TABLE");
 
-        assertEquals("AKISDB", identity.databaseUniqueName());
-        assertEquals("AKISPDB", identity.containerName());
+        assertEquals("AKISDB", identity.site());
+        assertEquals("AKISPDB", identity.container());
         assertEquals(List.of("INNOVA_ODI", "STG_TABLE"), oracle.boundValues);
         assertEquals(2, oracle.sql.size());
         assertTrue(oracle.sql.stream().allMatch(sql -> sql.stripLeading().startsWith("SELECT")));

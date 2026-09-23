@@ -13,7 +13,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import tr.com.innova.akis.execution.JdbcOracleSchemaPreflight.ExpectedSnapshot;
 import tr.com.innova.akis.execution.JdbcPinnedSchemaSnapshotStore.PinnedProcedureTarget;
-import tr.com.innova.akis.execution.OracleTargetIdentityV1.CanonicalTargetIdentity;
+import tr.com.innova.akis.execution.TargetIdentityPort.CanonicalTargetIdentity;
 import tr.com.innova.akis.execution.PinnedSchemaSnapshotPort.PinnedSnapshot;
 import tr.com.innova.akis.execution.RuntimeOracleConnectionProvider.RuntimeOracleSession;
 import tr.com.innova.akis.metadata.ApiException;
@@ -124,7 +124,7 @@ final class ProcedureTargetPreflightService {
                     session.connection(), binding.owner(), "TABLE", binding.objectName());
             CanonicalDatabaseIdentity databaseIdentity =
                     new OracleDatabaseIdentityFingerprintV1().canonicalize(
-                            identity.databaseUniqueName(), identity.containerName());
+                            identity.site(), identity.container());
             if (evidence.identityVersion() != databaseIdentity.identityVersion()
                     || !constantTimeEquals(evidence.targetFingerprint(),
                             databaseIdentity.fingerprint())) {
@@ -182,7 +182,7 @@ final class ProcedureTargetPreflightService {
         return new Result(publicationUuid, context.status(), plan.releaseHash(),
                 plan.runtimePlanHash(), targetTask.id(), binding.physicalIdentity(),
                 binding.schemaSnapshotUuid(), binding.schemaSnapshotFingerprint(),
-                identity.databaseUniqueName(), identity.containerName(),
+                identity.site(), identity.container(),
                 identity.canonicalTargetHash(), privileges.currentUser(),
                 privileges.ownsTarget(), privileges.canTruncate(), privileges.canInsert(),
                 privileges.canExecuteDbmsStats(), startedAt, completedAt,

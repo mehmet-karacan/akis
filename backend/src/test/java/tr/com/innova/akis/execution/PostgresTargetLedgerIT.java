@@ -43,7 +43,7 @@ class PostgresTargetLedgerIT {
             var identity = new JdbcPostgresTargetIdentityReader().read(writer, "public", "TABLE", table);
             assertEquals(64, identity.canonicalTargetHash().length());
             assertEquals(table, identity.objectName());
-            assertTrue(identity.containerName().matches("[0-9a-f-]{36}"), "installation uuid is the container");
+            assertTrue(identity.container().matches("[0-9a-f-]{36}"), "installation uuid is the container");
 
             TargetLedgerContext context = new TargetLedgerContext(identity.canonicalTargetHash(), 7L, UUID.randomUUID(), UUID.randomUUID(), 1, hash("release"), hash("plan"));
             ledger.bindFence(writer, context).acquireFence();

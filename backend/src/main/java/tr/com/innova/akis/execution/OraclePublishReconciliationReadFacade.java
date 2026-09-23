@@ -48,20 +48,23 @@ final class OraclePublishReconciliationReadFacade
     private final ReconciliationSessionOpener sessions;
     private final JdbcOracleTargetIdentityReader identityReader;
     private final PilotPublishKeyV1 publishKeys;
+    private final TargetTechnologyRegistry targets;
 
     @Autowired
     OraclePublishReconciliationReadFacade(
             RuntimeOracleConnectionProvider connections,
             PinnedPublishReconciliationPort evidenceStore,
             TargetLedgerPort ledger,
-            OracleTargetFencePort fences) {
+            OracleTargetFencePort fences,
+            TargetTechnologyRegistry targets) {
         this(
                 evidenceStore,
                 ledger,
                 fences,
                 binding -> session(connections.openTargetReconciliation(binding)),
                 new JdbcOracleTargetIdentityReader(),
-                new PilotPublishKeyV1());
+                new PilotPublishKeyV1(),
+                targets);
     }
 
     OraclePublishReconciliationReadFacade(
@@ -71,6 +74,17 @@ final class OraclePublishReconciliationReadFacade
             ReconciliationSessionOpener sessions,
             JdbcOracleTargetIdentityReader identityReader,
             PilotPublishKeyV1 publishKeys) {
+        this(evidenceStore, ledger, fences, sessions, identityReader, publishKeys, null);
+    }
+
+    OraclePublishReconciliationReadFacade(
+            PinnedPublishReconciliationPort evidenceStore,
+            TargetLedgerPort ledger,
+            OracleTargetFencePort fences,
+            ReconciliationSessionOpener sessions,
+            JdbcOracleTargetIdentityReader identityReader,
+            PilotPublishKeyV1 publishKeys,
+            TargetTechnologyRegistry targets) {
         this.evidenceStore = Objects.requireNonNull(
                 evidenceStore, "Pinned reconciliation evidence is required.");
         this.ledger = Objects.requireNonNull(ledger, "Target ledger is required.");
@@ -79,6 +93,7 @@ final class OraclePublishReconciliationReadFacade
         this.identityReader = Objects.requireNonNull(
                 identityReader, "Target identity reader is required.");
         this.publishKeys = Objects.requireNonNull(publishKeys, "Publish keys are required.");
+        this.targets = targets;
     }
 
     @Override
@@ -129,7 +144,7 @@ final class OraclePublishReconciliationReadFacade
             Connection connection = session.connection();
             verifyTargetIdentity(connection, verified);
             TargetLedgerPort.ReconciliationSession ledgerSession =
-                    ledger.bindReconciliation(connection, verified.barrierContext());
+                    ledgerFor(verified).bindReconciliation(connection, verified.barrierContext());
             Optional<FenceEvidence> fence = ledgerSession.readFence();
             if (fence.isEmpty() || !barrierMatches(
                     fence.get(), verified.barrierContext())) {
@@ -301,10 +316,21 @@ final class OraclePublishReconciliationReadFacade
                 plan, execution, original, barrierFence, barrierContext, publishEvidence);
     }
 
+    /** Without a registry (unit fixtures) the Oracle reader/ledger are used; wired, the target's own bundle is. */
+    private TargetIdentityPort identityReaderFor(VerifiedEvidence verified) {
+        return targets == null ? identityReader
+                : targets.of(verified.plan().target().databaseType()).identity();
+    }
+
+    private TargetLedgerPort ledgerFor(VerifiedEvidence verified) {
+        return targets == null ? ledger
+                : targets.of(verified.plan().target().databaseType()).ledger();
+    }
+
     private void verifyTargetIdentity(
             Connection connection, VerifiedEvidence verified) {
         try {
-            var actual = identityReader.read(
+            var actual = identityReaderFor(verified).read(
                     connection,
                     verified.plan().target().owner(),
                     "TABLE",
@@ -316,7 +342,10 @@ final class OraclePublishReconciliationReadFacade
                 throw new TargetIdentityMismatchException();
             }
         }
-        catch (OracleTargetIdentityException exception) {
+        catch (RuntimeException exception) {
+            if (exception instanceof TargetIdentityMismatchException) {
+                throw exception;
+            }
             throw new TargetIdentityMismatchException();
         }
     }

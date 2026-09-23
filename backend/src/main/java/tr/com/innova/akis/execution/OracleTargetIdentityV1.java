@@ -21,7 +21,7 @@ final class OracleTargetIdentityV1 {
     private static final Pattern UNQUOTED_ORACLE_IDENTIFIER =
             Pattern.compile("[A-Z][A-Z0-9_$#]{0,127}");
 
-    CanonicalTargetIdentity canonicalize(
+    TargetIdentityPort.CanonicalTargetIdentity canonicalize(
             VerifiedDatabaseIdentity database,
             String owner,
             String objectType,
@@ -39,7 +39,8 @@ final class OracleTargetIdentityV1 {
                 target.owner(),
                 target.objectType(),
                 target.objectName()));
-        return new CanonicalTargetIdentity(
+        return new TargetIdentityPort.CanonicalTargetIdentity(
+                "ORACLE",
                 TARGET_IDENTITY_VERSION,
                 databaseUniqueName,
                 containerName,
@@ -107,25 +108,5 @@ final class OracleTargetIdentityV1 {
     }
 
     record ValidatedTargetObject(String owner, String objectType, String objectName) {
-    }
-
-    record CanonicalTargetIdentity(
-            int targetIdentityVersion,
-            String databaseUniqueName,
-            String containerName,
-            String owner,
-            String objectType,
-            String objectName,
-            byte[] canonicalPayload,
-            String canonicalTargetHash) {
-
-        CanonicalTargetIdentity {
-            canonicalPayload = canonicalPayload.clone();
-        }
-
-        @Override
-        public byte[] canonicalPayload() {
-            return canonicalPayload.clone();
-        }
     }
 }

@@ -6,9 +6,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Objects;
 
-import tr.com.innova.akis.execution.OracleTargetIdentityV1.CanonicalTargetIdentity;
 import tr.com.innova.akis.execution.OracleTargetIdentityV1.ValidatedTargetObject;
 import tr.com.innova.akis.execution.OracleTargetIdentityV1.VerifiedDatabaseIdentity;
+import tr.com.innova.akis.execution.TargetIdentityPort.CanonicalTargetIdentity;
 
 /** Reads a target identity from Oracle without changing session or database state. */
 final class JdbcOracleTargetIdentityReader implements TargetIdentityPort {

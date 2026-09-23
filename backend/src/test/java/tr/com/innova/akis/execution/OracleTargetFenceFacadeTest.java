@@ -29,7 +29,7 @@ import tr.com.innova.akis.execution.TargetLedgerPort.DataLedgerSession;
 import tr.com.innova.akis.execution.TargetLedgerPort.FenceSession;
 import tr.com.innova.akis.execution.TargetLedgerPort.ReconciliationSession;
 import tr.com.innova.akis.execution.TargetLedgerPort.TargetLedgerContext;
-import tr.com.innova.akis.execution.OracleTargetIdentityV1.CanonicalTargetIdentity;
+import tr.com.innova.akis.execution.TargetIdentityPort.CanonicalTargetIdentity;
 import tr.com.innova.akis.execution.PilotRuntimePlan.DataObjectType;
 import tr.com.innova.akis.execution.PilotRuntimePlan.DatabaseType;
 import tr.com.innova.akis.execution.PilotRuntimePlan.DatasetBinding;
@@ -271,7 +271,7 @@ class OracleTargetFenceFacadeTest {
 
     private CanonicalTargetIdentity identity(String hash) {
         return new CanonicalTargetIdentity(
-                OracleTargetIdentityV1.TARGET_IDENTITY_VERSION,
+                "ORACLE", OracleTargetIdentityV1.TARGET_IDENTITY_VERSION,
                 "AKISDB", "AKISPDB", "OWNER", "TABLE", "TABLE",
                 new byte[0], hash);
     }

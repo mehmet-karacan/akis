@@ -58,8 +58,8 @@ class OracleTargetLedgerIT {
             assertEquals(owner.trim().toUpperCase(Locale.ROOT), identity.owner());
             assertEquals("STG_HAKEDIS_TIPI", identity.objectName());
             assertEquals(64, identity.canonicalTargetHash().length());
-            assertFalse(identity.databaseUniqueName().isBlank());
-            assertFalse(identity.containerName().isBlank());
+            assertFalse(identity.site().isBlank());
+            assertFalse(identity.container().isBlank());
         }
         finally {
             properties.clear();

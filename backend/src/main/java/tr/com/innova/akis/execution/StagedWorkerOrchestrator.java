@@ -92,7 +92,7 @@ final class StagedWorkerOrchestrator {
         try {
             source=connections.openSource(plan.source());
             String databaseIdentity;
-            OracleTargetIdentityV1.CanonicalTargetIdentity identity;
+            TargetIdentityPort.CanonicalTargetIdentity identity;
             try(var target=connections.openTargetIdentityRead(plan.target())) {
                 technology.verifyStaged(plan,source.connection(),pinned,target.connection());
                 databaseIdentity=technology.databaseIdentity(target.connection());

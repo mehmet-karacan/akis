@@ -5,8 +5,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Objects;
-import tr.com.innova.akis.execution.OracleTargetIdentityV1.CanonicalTargetIdentity;
 import tr.com.innova.akis.execution.PostgresTargetIdentityV1.VerifiedRelation;
+import tr.com.innova.akis.execution.TargetIdentityPort.CanonicalTargetIdentity;
 
 /**
  * PostgreSQL adapter of {@link TargetIdentityPort}: reads the ledger installation uuid and the relation's catalog identity

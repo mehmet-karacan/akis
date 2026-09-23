@@ -9,8 +9,8 @@ import java.util.HexFormat;
 
 import org.junit.jupiter.api.Test;
 
-import tr.com.innova.akis.execution.OracleTargetIdentityV1.CanonicalTargetIdentity;
 import tr.com.innova.akis.execution.OracleTargetIdentityV1.VerifiedDatabaseIdentity;
+import tr.com.innova.akis.execution.TargetIdentityPort.CanonicalTargetIdentity;
 
 class OracleTargetIdentityV1Test {
 
@@ -24,9 +24,10 @@ class OracleTargetIdentityV1Test {
                 "TABLE",
                 "STG_HAKEDIS_TIPI");
 
+        assertEquals("ORACLE", identity.technologyCode());
         assertEquals(1, identity.targetIdentityVersion());
-        assertEquals("CT_GPU_TESTDB", identity.databaseUniqueName());
-        assertEquals("CT_GPU_TESTDB", identity.containerName());
+        assertEquals("CT_GPU_TESTDB", identity.site());
+        assertEquals("CT_GPU_TESTDB", identity.container());
         assertEquals(
                 "0000001b414b49535f4f5241434c455f5441524745545f4944454e54495459"
                         + "00000001310000000d43545f4750555f5445535444420000000d43545f4750"

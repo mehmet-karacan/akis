@@ -11,7 +11,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import tr.com.innova.akis.execution.JdbcOracleSchemaPreflight.ExpectedSnapshot;
 import tr.com.innova.akis.execution.JdbcPinnedSchemaSnapshotStore.PinnedProcedureTarget;
-import tr.com.innova.akis.execution.OracleTargetIdentityV1.CanonicalTargetIdentity;
+import tr.com.innova.akis.execution.TargetIdentityPort.CanonicalTargetIdentity;
 import tr.com.innova.akis.execution.PinnedExecutionContextPort.PinnedExecutionContext;
 import tr.com.innova.akis.execution.RunExecutionTransitionPort.ActiveExecutionToken;
 import tr.com.innova.akis.execution.RunExecutionTransitionPort.MutationOutcome;
