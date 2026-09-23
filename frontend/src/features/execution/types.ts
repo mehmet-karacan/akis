@@ -38,6 +38,8 @@ export interface RunSearchInput {
   to?: string
   page: number
   size: number
+  /** undefined = both; true = only schedule-triggered runs; false = only manually started runs. */
+  scheduled?: boolean
 }
 
 export interface RunSummary {
@@ -51,6 +53,8 @@ export interface RunSummary {
   environmentName: string
   environmentRisk: string
   initiatorName: string
+  /** The schedule that fired this run; null means it was started manually. */
+  scheduleCode: string | null
   selectedRows: number | null
   insertedRows: number | null
   selectedRowsExact?: string | null

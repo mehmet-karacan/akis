@@ -34,6 +34,16 @@ const en = {
   expandStep: 'Expand step', collapseStep: 'Collapse step', executionRoot: 'Execution', selectedRows: 'Rows Selected', insertedRows: 'Rows Inserted', notRecorded: 'Not recorded', resumeHelp: 'Continues from the failed step; work already sealed in the staging table is adopted, not reloaded.', resumeStarted: 'Attempt #{{number}} started from the failed step.', restartStarted: 'Attempt #{{number}} started from the beginning.', reconciledFirst: 'Target reconciliation: {{message}}', resumeUnavailable: 'Resume is not available for this run: {{reason}}', reconcileFailed: 'Target reconciliation could not be completed; resume was not started.', sourceCommand: 'Source Command', targetCommand: 'Target Command', commandSql: 'Executed SQL', sqlUnavailable: 'The published command text could not be loaded.', openChildRun: 'Open the step run', packageStep: 'Package step', adoptedStep: 'Adopted', releaseTarget: 'Release target', releaseTargetTitle: 'Release the quarantined target', releaseTargetHelp: 'The target was quarantined because reconciliation found conflicting publication evidence. Releasing it lets new runs fence the target again; this run closes as failed. Check the target table first and record why.', releaseReason: 'Reason', releaseTargetDone: 'Target released; new runs may use it.', confirmRelease: 'Release',
   safeRecovery: 'Safe recovery', recoveryUnavailable: 'Automatic recovery is unavailable', reconciliationRequired: 'Target reconciliation required', reconciliationRequiredHelp: 'The transaction outcome must be proven from target-local evidence before another write can start.', retryFailedUnit: 'Retry failed unit', resumeSafely: 'Resume safely', restartFromBeginning: 'Restart from beginning', recoveryCreated: 'Recovery attempt #{{number}} was created.',
   chunkEvidence: 'Committed transfer chunks', range: 'Key range',
+  schedules: 'Schedules', schedulesHelp: 'Cron schedules that fire a publication\'s runs automatically. A newly created schedule starts paused.',
+  emptySchedules: 'No schedules have been created for this project yet.', createSchedule: 'Create schedule', creatingSchedule: 'Creating…',
+  scheduleCode: 'Code', scheduleName: 'Name', scheduleCron: 'Cron expression', scheduleCronHelp: 'Six fields: second minute hour day month weekday, e.g. "0 0 * * * *" for every hour.',
+  scheduleTimeZone: 'Time zone', scheduleConflictPolicy: 'Overlap policy', scheduleMisfirePolicy: 'Misfire policy',
+  conflict_SKIP: 'Skip while a run is active', conflict_QUEUE: 'Queue behind the active run',
+  misfire_SKIP: 'Skip a missed occurrence', misfire_RUN_ONCE: 'Fire once for the missed occurrence',
+  scheduleStatus_AKTIF: 'Active', scheduleStatus_ASKIDA: 'Paused', nextFireTime: 'Next run', lastFireTime: 'Last run',
+  pauseSchedule: 'Pause', resumeSchedule: 'Resume', deleteSchedule: 'Delete', confirmDeleteSchedule: 'Delete this schedule?',
+  confirmDeleteScheduleHelp: 'Runs it already created are kept; only the schedule itself is removed.', scheduleSaved: 'Schedule saved.',
+  manualTrigger: 'Manual', trigger: 'Trigger', allTriggers: 'All triggers',
 } as const
 
 const tr: Record<keyof typeof en, string> = {
@@ -70,6 +80,16 @@ const tr: Record<keyof typeof en, string> = {
   expandStep: 'Adımı genişlet', collapseStep: 'Adımı daralt', executionRoot: 'Çalıştırma', selectedRows: 'Kaynaktan Seçilen Satır', insertedRows: 'Hedefe Eklenen Satır', notRecorded: 'Kaydedilmedi', resumeHelp: 'Başarısız adımdan devam eder; ara tabloda mühürlenmiş veri yeniden yüklenmez, devralınır.', resumeStarted: '{{number}}. deneme başarısız adımdan başlatıldı.', restartStarted: '{{number}}. deneme baştan başlatıldı.', reconciledFirst: 'Hedef mutabakatı: {{message}}', resumeUnavailable: 'Bu çalıştırma için devam edilemiyor: {{reason}}', reconcileFailed: 'Hedef mutabakatı tamamlanamadı; devam başlatılmadı.', sourceCommand: 'Kaynak Komutu', targetCommand: 'Hedef Komutu', commandSql: 'Çalışan SQL', sqlUnavailable: 'Yayınlanan komut metni yüklenemedi.', openChildRun: 'Adımın çalıştırmasını aç', packageStep: 'Paket adımı', adoptedStep: 'Devralındı', releaseTarget: 'Hedefi serbest bırak', releaseTargetTitle: 'Karantinadaki hedefi serbest bırak', releaseTargetHelp: 'Hedef, mutabakatta çelişkili yayın kanıtı bulunduğu için karantinaya alındı. Serbest bırakınca yeni çalıştırmalar hedefi yeniden kilitleyebilir; bu çalıştırma başarısız olarak kapanır. Önce hedef tabloyu kontrol edin ve gerekçeyi yazın.', releaseReason: 'Gerekçe', releaseTargetDone: 'Hedef serbest bırakıldı; yeni çalıştırmalar kullanabilir.', confirmRelease: 'Serbest bırak',
   safeRecovery: 'Güvenli yeniden çalıştırma', recoveryUnavailable: 'Otomatik yeniden çalıştırma kullanılamıyor', reconciliationRequired: 'Hedef mutabakatı gerekli', reconciliationRequiredHelp: 'Yeni bir yazma başlamadan önce işlem sonucu hedefteki yerel kanıttan doğrulanmalıdır.', retryFailedUnit: 'Başarısız birimi yeniden dene', resumeSafely: 'Güvenle devam et', restartFromBeginning: 'Baştan yeniden başlat', recoveryCreated: '{{number}} numaralı kurtarma denemesi oluşturuldu.',
   chunkEvidence: 'Commit edilmiş aktarım parçaları', range: 'Anahtar aralığı',
+  schedules: 'Zamanlamalar', schedulesHelp: 'Bir yayının çalıştırmalarını otomatik başlatan cron zamanlamaları. Yeni oluşturulan zamanlama duraklatılmış başlar.',
+  emptySchedules: 'Bu proje için henüz zamanlama oluşturulmadı.', createSchedule: 'Zamanlama Oluştur', creatingSchedule: 'Oluşturuluyor…',
+  scheduleCode: 'Kod', scheduleName: 'Ad', scheduleCron: 'Cron ifadesi', scheduleCronHelp: 'Altı alan: saniye dakika saat gün ay haftagünü, örn. her saat için "0 0 * * * *".',
+  scheduleTimeZone: 'Zaman dilimi', scheduleConflictPolicy: 'Çakışma politikası', scheduleMisfirePolicy: 'Kaçırma politikası',
+  conflict_SKIP: 'Bir çalışma aktifken atla', conflict_QUEUE: 'Aktif çalışmanın arkasına kuyruğa al',
+  misfire_SKIP: 'Kaçırılan tetiklemeyi atla', misfire_RUN_ONCE: 'Kaçırılan tetikleme için bir kez çalıştır',
+  scheduleStatus_AKTIF: 'Aktif', scheduleStatus_ASKIDA: 'Askıda', nextFireTime: 'Sonraki çalışma', lastFireTime: 'Son çalışma',
+  pauseSchedule: 'Duraklat', resumeSchedule: 'Devam Ettir', deleteSchedule: 'Sil', confirmDeleteSchedule: 'Bu zamanlama silinsin mi?',
+  confirmDeleteScheduleHelp: 'Daha önce oluşturduğu çalıştırmalar korunur; yalnız zamanlamanın kendisi kaldırılır.', scheduleSaved: 'Zamanlama kaydedildi.',
+  manualTrigger: 'Manuel', trigger: 'Tetikleyici', allTriggers: 'Tüm tetikleyiciler',
 }
 
 export type ExecutionMessageKey = keyof typeof en

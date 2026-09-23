@@ -18,6 +18,7 @@ import { CurrentProjectProvider } from '../features/projects/CurrentProjectConte
 import { getRememberedProject } from '../features/projects/projectPreference'
 import { ProjectSwitcher } from './ProjectSwitcher'
 import { ConnectionsSubnavigation } from './ConnectionsSubnavigation'
+import { OperationsSubnavigation } from './OperationsSubnavigation'
 import { resolveWorkspace, WorkspaceNavigation } from './WorkspaceNavigation'
 import { DesignWorkspace } from './DesignWorkspace'
 import { clampExplorerWidth, ExplorerResizeHandle } from './ExplorerResizeHandle'
@@ -133,6 +134,7 @@ function ShellBody({ compact, mobileNavigationOpen, setMobileNavigationOpen, exp
           {(!compact || mobileNavigationOpen) && <div className="shell-navigation-pane"><aside className="shell-navigation" aria-label={t('nav.workspaces')}>
             <WorkspaceNavigation hasPendingChanges={Boolean(pendingChanges)} onNavigate={requestNavigation} />
             {activeWorkspace === 'connections' && <ConnectionsSubnavigation hasPendingChanges={Boolean(pendingChanges)} onNavigate={requestNavigation} />}
+            {activeWorkspace === 'operations' && <OperationsSubnavigation hasPendingChanges={Boolean(pendingChanges)} onNavigate={requestNavigation} />}
             {activeWorkspace === 'development' && <DesignWorkspace key={projectUuid} projectUuid={projectUuid} onNavigate={requestNavigation} explorerOnly />}
           </aside>{!compact && <ExplorerResizeHandle width={explorerWidth} onChange={setExplorerWidth} />}</div>}
           <main id="main-content" className="main-content" tabIndex={-1}>

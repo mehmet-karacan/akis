@@ -16,7 +16,7 @@ const workspaces = [
 
 export function resolveWorkspace(pathname: string): WorkspaceId {
   if (pathname.includes('/schema-metadata')) return 'schema-metadata'
-  if (pathname.includes('/operations') || pathname.includes('/runs') || pathname.includes('/publications')) return 'operations'
+  if (pathname.includes('/operations') || pathname.includes('/runs') || pathname.includes('/publications') || pathname.includes('/schedules')) return 'operations'
   if (pathname.includes('/connections') || pathname.includes('/topology') || pathname.includes('/logical-schemas') || pathname.includes('/environments') || pathname.includes('/schema-bindings')) return 'connections'
   if (pathname.includes('/objects') || pathname.includes('/development') || pathname.includes('/definitions') || pathname.includes('/models')) return 'development'
   return 'project'

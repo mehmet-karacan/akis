@@ -85,10 +85,11 @@ final class ExecutionController {
             @RequestParam(required = false) OffsetDateTime from,
             @RequestParam(required = false) OffsetDateTime to,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size) {
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(required = false) Boolean scheduled) {
         authorization.requireProjectPermission(projectUuid, RUN_READ);
         var result = service.search(projectUuid, new RunSearch(
-                view, query, statuses, environment, definitionType, from, to, page, size));
+                view, query, statuses, environment, definitionType, from, to, page, size, scheduled));
         return new RunPageView(
                 result.items().stream().map(row -> RunSummaryView.from(row, featureFlags)).toList(),
                 result.total(), result.page(), result.size());
@@ -321,6 +322,7 @@ final class ExecutionController {
             String environmentName,
             String environmentRisk,
             String initiatorName,
+            String scheduleCode,
             Long selectedRows,
             Long insertedRows,
             String selectedRowsExact,
@@ -330,7 +332,7 @@ final class ExecutionController {
                     RunView.from(row.run(), flags), row.definitionUuid(), row.definitionCode(),
                     row.definitionName(), row.definitionType(), row.environmentUuid(),
                     row.environmentCode(), row.environmentName(), row.environmentRisk(),
-                    row.initiatorName(), row.selectedRows(), row.insertedRows(),
+                    row.initiatorName(), row.scheduleCode(), row.selectedRows(), row.insertedRows(),
                     exact(row.selectedRows()), exact(row.insertedRows()));
         }
 

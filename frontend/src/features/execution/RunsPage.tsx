@@ -47,15 +47,17 @@ export function RunsPage() {
   const query = searchParams.get('query') ?? ''; const status = searchParams.get('statuses') ?? ''; const environment = searchParams.get('environment') ?? ''; const definitionType = searchParams.get('definitionType') ?? ''; const from = searchParams.get('from') ?? ''; const to = searchParams.get('to') ?? ''
   const selectedRunUuid = searchParams.get('run') ?? ''
   const [collectionView, setCollectionView] = useCollectionView('akis:runs:view')
-  const [filterDraft, setFilterDraft] = useState({ view, status, environment, definitionType })
+  const triggerParam = searchParams.get('trigger') ?? ''
+  const [filterDraft, setFilterDraft] = useState({ view, status, environment, definitionType, trigger: triggerParam })
   const [queryDraft, setQueryDraft] = useState(query); const [fromDraft, setFromDraft] = useState(from); const [toDraft, setToDraft] = useState(to); const [live, setLive] = useState(false)
   const [refreshSeconds, setRefreshSeconds] = useState('15')
   const refreshInterval = Number(refreshSeconds)
   const validInterval = Number.isInteger(refreshInterval) && refreshInterval >= 1 && refreshInterval <= 86400
   const refreshing = useRef(false)
   const tr = locale.startsWith('tr')
-  const searchInput: RunSearchInput = { view, query, statuses: status, environment, definitionType, from, to, page, size }
-  const runs = useRemoteData(() => executionApi.searchRuns(projectUuid, searchInput), [projectUuid, view, query, status, environment, definitionType, from, to, page, size])
+  const scheduled = triggerParam === 'SCHEDULED' ? true : triggerParam === 'MANUAL' ? false : undefined
+  const searchInput: RunSearchInput = { view, query, statuses: status, environment, definitionType, from, to, page, size, scheduled }
+  const runs = useRemoteData(() => executionApi.searchRuns(projectUuid, searchInput), [projectUuid, view, query, status, environment, definitionType, from, to, page, size, scheduled])
   const publications = useRemoteData(() => operationsApi.listPublications(projectUuid), [projectUuid])
   const environmentCodes = useMemo(() => [...new Set((publications.data ?? []).map(item => item.environmentCode))].sort(), [publications.data])
   const refreshRuns = async () => {
@@ -81,8 +83,8 @@ export function RunsPage() {
   const totalPages = Math.max(1, Math.ceil((runs.data?.total ?? 0) / size))
 
   const statusTag = (runStatus: string) => { const presentation = runStatusPresentation(runStatus, t); return <Tag className={`connection-status-tag connection-status-tag--${presentation.tone} run-status run-status--${runStatus.toLowerCase()}`} style={connectionStatusTagStyles[presentation.tone]} icon={presentation.icon}><span className="connection-status-tag-label">{presentation.label}</span></Tag> }
-  const applyFilters = () => updateFilters({ view: filterDraft.view === 'RECENT' ? '' : filterDraft.view, query: queryDraft, statuses: filterDraft.status, environment: filterDraft.environment, definitionType: filterDraft.definitionType })
-  const clearFilters = () => { setFilterDraft({ view: 'RECENT', status: '', environment: '', definitionType: '' }); setQueryDraft(''); setFromDraft(''); setToDraft(''); updateFilters({ view: '', query: '', statuses: '', environment: '', definitionType: '', from: '', to: '' }) }
+  const applyFilters = () => updateFilters({ view: filterDraft.view === 'RECENT' ? '' : filterDraft.view, query: queryDraft, statuses: filterDraft.status, environment: filterDraft.environment, definitionType: filterDraft.definitionType, trigger: filterDraft.trigger })
+  const clearFilters = () => { setFilterDraft({ view: 'RECENT', status: '', environment: '', definitionType: '', trigger: '' }); setQueryDraft(''); setFromDraft(''); setToDraft(''); updateFilters({ view: '', query: '', statuses: '', environment: '', definitionType: '', from: '', to: '', trigger: '' }) }
   const refreshControls = <div className="run-refresh-controls">
     <AntActionButton tone="ghost" className="ops-button ops-button-secondary" type="button" onClick={() => void refreshRuns()} disabled={runs.loading}><RefreshCw aria-hidden="true" />{t('refresh')}</AntActionButton>
     <label className="run-refresh-interval" title={tr ? 'Otomatik yenileme aralığı' : 'Auto-refresh interval'}><Timer aria-hidden="true" /><AntInput aria-label={tr ? 'Yenileme aralığı saniye' : 'Refresh interval seconds'} type="number" min="1" max="86400" step="1" value={refreshSeconds} aria-invalid={!validInterval} onChange={event => setRefreshSeconds(event.target.value)} /><span>{tr ? 'sn' : 'sec'}</span></label>
@@ -99,6 +101,7 @@ export function RunsPage() {
       <label><span>{t('status')}</span><FormSelect aria-label={t('status')} value={filterDraft.status} onChange={(event) => setFilterDraft(current => ({ ...current, status: event.target.value }))}><option value="">{t('allStatuses')}</option><option value="CALISIYOR">{t('status_CALISIYOR')}</option><option value="BASARISIZ">{t('status_BASARISIZ')}</option><option value="BASARILI">{t('status_BASARILI')}</option><option value="SONUCU_BILINMIYOR">{t('status_SONUC_BELIRSIZ')}</option></FormSelect></label>
       <label><span>{t('environment')}</span><FormSelect aria-label={t('environment')} value={filterDraft.environment} onChange={(event) => setFilterDraft(current => ({ ...current, environment: event.target.value }))}><option value="">{t('allEnvironments')}</option>{environmentCodes.map((code) => <option key={code}>{code}</option>)}</FormSelect></label>
       <label><span>{t('objectType')}</span><FormSelect aria-label={t('objectType')} value={filterDraft.definitionType} onChange={(event) => setFilterDraft(current => ({ ...current, definitionType: event.target.value }))}><option value="">{t('allObjectTypes')}</option><option value="PROSEDUR">{t('procedure')}</option><option value="MAPPING">{t('mapping')}</option><option value="PAKET">{t('package')}</option></FormSelect></label>
+      <label><span>{t('trigger')}</span><FormSelect aria-label={t('trigger')} value={filterDraft.trigger} onChange={(event) => setFilterDraft(current => ({ ...current, trigger: event.target.value }))}><option value="">{t('allTriggers')}</option><option value="SCHEDULED">{executionCodeLabel('SCHEDULED', locale)}</option><option value="MANUAL">{executionCodeLabel('MANUAL', locale)}</option></FormSelect></label>
       {filterDraft.view === 'HISTORY' && <><label><span>{t('from')}</span><AntInput type="datetime-local" value={fromDraft ? fromDraft.slice(0, 16) : ''} onChange={(event) => setFromDraft(event.target.value)} /></label><label><span>{t('to')}</span><AntInput type="datetime-local" value={toDraft ? toDraft.slice(0, 16) : ''} onChange={(event) => setToDraft(event.target.value)} /></label></>}
       <div className="run-filter-actions"><AntActionButton tone="primary" icon={<Search size={16} />} className="ops-button" type="submit">{t('applyFilters')}</AntActionButton>
       <AntActionButton tone="secondary" icon={<XCircle size={16} />} className="ops-button ops-button-secondary" type="button" onClick={clearFilters}>{t('clearFilters')}</AntActionButton></div>
@@ -112,7 +115,7 @@ export function RunsPage() {
     <section className="connections-records">
       {Boolean(runs.error) && runs.data && <div className="error-banner" role="alert">{t('refreshFailed')} <AntActionButton tone="ghost" type="button" onClick={() => void runs.reload()}>{t('retry')}</AntActionButton></div>}
       {runs.loading && !runs.data ? <AsyncState state="loading" title={t('loading')} /> : Boolean(runs.error) && !runs.data ? <AsyncState state="error" title={apiErrorMessage(runs.error, t('requestFailed'))} retryLabel={t('retry')} onRetry={() => void runs.reload()} /> : !runs.data || runs.data.items.length === 0 ? <AsyncState state="empty" title={t('emptyRuns')} action={refreshControls} /> : <ProgressiveRecords key={`${view}:${query}:${page}`} items={runs.data.items}>{(visible) => <DataGrid collectionTitle={tr ? 'Çalıştırma Listesi' : 'Run List'} collectionIcon={<PlayCircle />} toolbarActions={refreshControls} cardHeaderField="status" cardHiddenFields={['status']} headerFieldsInList view={collectionView} onViewChange={setCollectionView}>
-        <thead><tr><th data-field-key="name">{t('object')}</th><th data-field-key="environment">{t('environment')}</th><th data-field-key="status">{t('status')}</th><th data-field-key="startedAt">{t('startedAt')}</th><th data-field-key="duration">{t('duration')}</th><th data-field-key="selected">{t('selectedRows')}</th><th data-field-key="inserted">{t('insertedRows')}</th><th data-field-key="initiator">{t('initiator')}</th><th data-field-key="actions" className="ui-grid-actions-column"><span className="sr-only">{t('actions')}</span></th></tr></thead>
+        <thead><tr><th data-field-key="name">{t('object')}</th><th data-field-key="environment">{t('environment')}</th><th data-field-key="status">{t('status')}</th><th data-field-key="startedAt">{t('startedAt')}</th><th data-field-key="duration">{t('duration')}</th><th data-field-key="selected">{t('selectedRows')}</th><th data-field-key="inserted">{t('insertedRows')}</th><th data-field-key="initiator">{t('initiator')}</th><th data-field-key="trigger">{t('trigger')}</th><th data-field-key="actions" className="ui-grid-actions-column"><span className="sr-only">{t('actions')}</span></th></tr></thead>
         <tbody>{visible.map((item) => <tr key={item.run.runUuid} data-connection-uuid={item.run.runUuid}>
           <td><span className="connection-record-identity"><strong>{item.definitionName}</strong><small>{executionCodeLabel(item.definitionType, locale)} · {item.definitionCode}</small></span></td>
           <td><span className="connection-record-identity"><strong>{item.environmentName}</strong><small>{item.environmentCode} · {executionCodeLabel(item.environmentRisk, locale)}</small></span></td>
@@ -122,6 +125,7 @@ export function RunsPage() {
           <td className="run-numeric">{count(item.selectedRowsExact, item.selectedRows)}</td>
           <td className="run-numeric">{count(item.insertedRowsExact, item.insertedRows)}</td>
           <td>{item.initiatorName}</td>
+          <td>{item.scheduleCode ? <Tag className="connection-status-tag connection-status-tag--neutral" style={connectionStatusTagStyles.neutral}><span className="connection-status-tag-label">{item.scheduleCode}</span></Tag> : executionCodeLabel('MANUAL', locale)}</td>
           <td className="row-actions"><div className="connection-row-actions"><RecordActionButton name={item.definitionName} editable={false} onClick={() => openRun(item.run.runUuid)} /></div></td>
         </tr>)}</tbody>
       </DataGrid>}</ProgressiveRecords>}

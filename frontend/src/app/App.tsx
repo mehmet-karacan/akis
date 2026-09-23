@@ -21,6 +21,7 @@ const EnvironmentDetailPage = lazy(() => import('../features/schemas').then((mod
 const EnvironmentsPage = lazy(() => import('../features/environments').then((module) => ({ default: module.EnvironmentsPage })))
 const RunDetailPage = lazy(() => import('../features/execution').then((module) => ({ default: module.RunDetailPage })))
 const RunsPage = lazy(() => import('../features/execution').then((module) => ({ default: module.RunsPage })))
+const SchedulesPage = lazy(() => import('../features/execution').then((module) => ({ default: module.SchedulesPage })))
 const IdentityUsersPage = lazy(() => import('../features/operations').then((module) => ({ default: module.IdentityUsersPage })))
 const MembershipsPage = lazy(() => import('../features/operations').then((module) => ({ default: module.MembershipsPage })))
 const PublicationDetailPage = lazy(() => import('../features/operations').then((module) => ({ default: module.PublicationDetailPage })))
@@ -109,6 +110,7 @@ export function App() {
         <Route path="/project/publications/:publicationUuid" element={<PublicationDetailPage />} />
         <Route path="/project/runs" element={<LegacyRunsRedirect />} />
         <Route path="/project/operations" element={<RunsPage />} />
+        <Route path="/project/schedules" element={<SchedulesPage />} />
         <Route path="/project/runs/:runUuid" element={<LegacyRunsRedirect detail />} />
         <Route path="/project/operations/runs/:runUuid" element={<RunDetailPage />} />
         <Route path="/project/team" element={<MembershipsPage />} />

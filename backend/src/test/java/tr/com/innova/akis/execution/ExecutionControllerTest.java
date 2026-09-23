@@ -70,7 +70,7 @@ class ExecutionControllerTest {
         controller.list(PROJECT_UUID);
         assertEquals(RUN_READ, authorization.permission);
         controller.search(PROJECT_UUID, "RECENT", null, null, null, null,
-                null, null, 0, 50);
+                null, null, 0, 50, null);
         assertEquals(RUN_READ, authorization.permission);
         controller.get(PROJECT_UUID, RUN_UUID);
         assertEquals(RUN_READ, authorization.permission);

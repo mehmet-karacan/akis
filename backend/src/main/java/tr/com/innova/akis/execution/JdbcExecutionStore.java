@@ -345,12 +345,14 @@ public class JdbcExecutionStore implements ExecutionStore {
                   join akis.calistirma_durumu d on d.calistirma_id = r.id
                   join akis.proje p on p.id = r.proje_id
                   left join akis.kullanici k on k.id = j.olusturan_kullanici_id
+                  left join akis.zamanlama z on z.id = j.zamanlama_id
                  where p.uuid = :projectUuid
                    and (:query is null or lower(t.ad) like '%' || lower(:query) || '%'
                         or lower(t.kod) like '%' || lower(:query) || '%')
                    and (:statuses is null or d.durum = any(string_to_array(:statuses, ',')))
                    and (:environment is null or o.kod = :environment)
                    and (:definitionType is null or t.tur = :definitionType)
+                   and (:scheduled is null or (:scheduled and j.zamanlama_id is not null) or (:scheduled = false and j.zamanlama_id is null))
                    and (
                         (:view = 'ACTIVE' and d.durum not in ('BASARILI','BASARISIZ','IPTAL','SONUCU_BILINMIYOR'))
                         or (:view = 'RECENT' and r.olusturulma_zamani >= coalesce(:fromTime, current_timestamp - interval '24 hours') and r.olusturulma_zamani <= coalesce(:toTime, current_timestamp))
@@ -371,7 +373,7 @@ public class JdbcExecutionStore implements ExecutionStore {
                                t.ad as definition_name, t.tur as definition_type,
                                o.uuid as environment_uuid, o.kod as environment_code,
                                o.ad as environment_name, o.risk as environment_risk,
-                               coalesce(k.gorunen_ad, 'Kaydedilmemiş') as initiator_name,
+                               coalesce(k.gorunen_ad, 'Kaydedilmemiş') as initiator_name, z.kod as schedule_code,
                                (select sum(ad.satir_sayisi)::bigint
                                   from akis.calistirma_adimi ca
                                   join akis.prosedur_adim_kaniti ak on ak.calistirma_adimi_id = ca.id
@@ -401,7 +403,7 @@ public class JdbcExecutionStore implements ExecutionStore {
                         rs.getString("definition_type"),
                         rs.getObject("environment_uuid", UUID.class),
                         rs.getString("environment_code"), rs.getString("environment_name"),
-                        rs.getString("environment_risk"), rs.getString("initiator_name"),
+                        rs.getString("environment_risk"), rs.getString("initiator_name"), rs.getString("schedule_code"),
                         rs.getObject("selected_rows", Long.class),
                         rs.getObject("inserted_rows", Long.class)))
                 .list();
@@ -418,7 +420,8 @@ public class JdbcExecutionStore implements ExecutionStore {
                 .param("definitionType", blankToNull(search.definitionType()), Types.VARCHAR)
                 .param("view", search.view())
                 .param("fromTime", search.from(), Types.TIMESTAMP_WITH_TIMEZONE)
-                .param("toTime", search.to(), Types.TIMESTAMP_WITH_TIMEZONE);
+                .param("toTime", search.to(), Types.TIMESTAMP_WITH_TIMEZONE)
+                .param("scheduled", search.scheduled(), Types.BOOLEAN);
     }
 
     private String blankToNull(String value) {

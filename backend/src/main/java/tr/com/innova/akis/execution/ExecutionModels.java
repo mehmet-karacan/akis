@@ -72,6 +72,8 @@ final class ExecutionModels {
             String environmentName,
             String environmentRisk,
             String initiatorName,
+            /** The schedule that fired this run (V049); null means it was started manually. */
+            String scheduleCode,
             Long selectedRows,
             Long insertedRows) {
     }
@@ -85,7 +87,13 @@ final class ExecutionModels {
             OffsetDateTime from,
             OffsetDateTime to,
             int page,
-            int size) {
+            int size,
+            /** null = both; true = only schedule-triggered runs; false = only manually started runs. */
+            Boolean scheduled) {
+        RunSearch(String view, String query, String statuses, String environmentCode, String definitionType,
+                OffsetDateTime from, OffsetDateTime to, int page, int size) {
+            this(view, query, statuses, environmentCode, definitionType, from, to, page, size, null);
+        }
     }
 
     record RunSummaryPage(List<RunSummaryRow> items, long total, int page, int size) {
