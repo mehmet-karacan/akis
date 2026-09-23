@@ -76,14 +76,12 @@ final class StagedMappingPlanner {
         WorkAreaPolicyService.requireAllowed(workPolicy,definition.options(),staging.path("owner").asText().equals(target.physicalSchemaReference()));
         staging.set("workAreaPolicy",mapper.valueToTree(workPolicy));
         var integrationOptions = bundle.modules().get("integration").options();
-        // PostgreSQL publishes TRUNCATE_LOAD in one transaction; the other write modes arrive with Faz B.
+        // PostgreSQL publishes TRUNCATE_LOAD or MERGE (Faz B: INSERT ... ON CONFLICT) in one transaction; APPEND and
+        // ATOMIC_DELETE_INSERT are not yet supported.
         if ("POSTGRESQL".equals(target.databaseType())) {
             Object writeMode = integrationOptions.get("WRITE_MODE");
-            if (writeMode != null && !"TRUNCATE_LOAD".equals(writeMode))
-                throw rejected("PostgreSQL hedefi şimdilik yalnız TRUNCATE_LOAD yazma modunu destekler: " + writeMode);
-            Object keyColumns = integrationOptions.get("KEY_COLUMNS");
-            if (keyColumns != null && !String.valueOf(keyColumns).isBlank())
-                throw rejected("PostgreSQL hedefinde anahtar kolonlu yazma modu henüz desteklenmiyor.");
+            if (writeMode != null && !Set.of("TRUNCATE_LOAD", "MERGE").contains(String.valueOf(writeMode)))
+                throw rejected("PostgreSQL hedefi TRUNCATE_LOAD veya MERGE yazma modunu destekler: " + writeMode);
         }
         staging.put("nonReversibleDdl", "TRUNCATE_LOAD".equals(integrationOptions.get("WRITE_MODE"))
                 && Boolean.TRUE.equals(integrationOptions.get("TRUNCATE_TARGET")));

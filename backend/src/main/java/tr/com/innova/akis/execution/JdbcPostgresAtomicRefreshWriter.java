@@ -23,7 +23,8 @@ import tr.com.innova.akis.knowledge.StagedMappingDefinition;
 /**
  * PostgreSQL publish of a sealed work table. Unlike Oracle, TRUNCATE is transactional here, so the whole publication —
  * ledger preparation, the target write and the ledger record — is one transaction that either commits together or leaves
- * the previous target rows untouched. Faz A implements TRUNCATE_LOAD only; other write modes are rejected up front.
+ * the previous target rows untouched. Faz A implements TRUNCATE_LOAD; Faz B adds MERGE as
+ * {@code INSERT ... ON CONFLICT (KEY_COLUMNS) DO UPDATE}, mirroring {@link JdbcStagedAtomicRefreshWriter}'s Oracle MERGE.
  */
 final class JdbcPostgresAtomicRefreshWriter {
     private static final Logger LOG = LoggerFactory.getLogger(JdbcPostgresAtomicRefreshWriter.class);
@@ -34,12 +35,23 @@ final class JdbcPostgresAtomicRefreshWriter {
     Result publish(Connection connection, TargetLedgerContext context, PublishEvidence evidence, Table stage, Table target,
             List<Column> columns, int timeoutSeconds, Runnable lockedPreflight, Runnable leaseCheckpoint,
             JdbcTransactionBoundary transaction, WriteMode mode) {
+        return publish(connection, context, evidence, stage, target, columns, timeoutSeconds, lockedPreflight, leaseCheckpoint,
+                transaction, mode, List.of());
+    }
+
+    Result publish(Connection connection, TargetLedgerContext context, PublishEvidence evidence, Table stage, Table target,
+            List<Column> columns, int timeoutSeconds, Runnable lockedPreflight, Runnable leaseCheckpoint,
+            JdbcTransactionBoundary transaction, WriteMode mode, List<String> keyColumns) {
         Objects.requireNonNull(transaction); Objects.requireNonNull(mode);
         Objects.requireNonNull(lockedPreflight); Objects.requireNonNull(leaseCheckpoint);
-        columns = List.copyOf(columns);
+        columns = List.copyOf(columns); keyColumns = List.copyOf(keyColumns);
+        boolean invalidKey = false;
+        for (String key : keyColumns) { boolean found = false; for (Column column : columns) if (column.target().equals(key)) { found = true; break; } if (!found) { invalidKey = true; break; } }
         if (columns.isEmpty() || columns.size() > 256 || timeoutSeconds < 1 || timeoutSeconds > 3600 || evidence.stageRowCount() < 0
                 || columns.stream().map(Column::target).distinct().count() != columns.size()
-                || mode != WriteMode.TRUNCATE_LOAD
+                || invalidKey
+                || mode != WriteMode.TRUNCATE_LOAD && mode != WriteMode.MERGE
+                || mode == WriteMode.MERGE && keyColumns.isEmpty()
                 || evidence.stageRowCount() != evidence.publishedRowCount() || evidence.rejectedRowCount() != 0 || stage.equals(target))
             throw new IllegalArgumentException("Atomik stage yayın sözleşmesi geçersiz.");
         boolean committing = false, prepared = false, targetChanged = false;
@@ -60,11 +72,15 @@ final class JdbcPostgresAtomicRefreshWriter {
             leaseCheckpoint.run();
             if (count(connection, stage, timeoutSeconds) != evidence.stageRowCount()) throw new IllegalStateException("Mühürlü stage satır sayısı değişmiş.");
             targetChanged = true;
-            command(connection, "TRUNCATE TABLE ONLY " + target.sql(), timeoutSeconds);
+            if (mode == WriteMode.TRUNCATE_LOAD) command(connection, "TRUNCATE TABLE ONLY " + target.sql(), timeoutSeconds);
             String targetColumns = String.join(",", columns.stream().map(c -> quote(c.target())).toList());
             String stageColumns = String.join(",", columns.stream().map(c -> quote(c.stage())).toList());
-            long inserted = update(connection, "INSERT INTO " + target.sql() + " (" + targetColumns + ") SELECT " + stageColumns + " FROM " + stage.sql(), timeoutSeconds);
-            if (inserted != evidence.stageRowCount() || count(connection, target, timeoutSeconds) != inserted) throw new IllegalStateException("Hedef satır doğrulaması başarısız.");
+            String sql = mode == WriteMode.MERGE
+                    ? upsertSql(stage, target, columns, keyColumns)
+                    : "INSERT INTO " + target.sql() + " (" + targetColumns + ") SELECT " + stageColumns + " FROM " + stage.sql();
+            long inserted = update(connection, sql, timeoutSeconds);
+            if (inserted != evidence.stageRowCount() || mode != WriteMode.MERGE && count(connection, target, timeoutSeconds) != inserted)
+                throw new IllegalStateException("Hedef satır doğrulaması başarısız.");
             leaseCheckpoint.run();
             session.recordPublish(preparation);
             leaseCheckpoint.run();
@@ -80,6 +96,17 @@ final class JdbcPostgresAtomicRefreshWriter {
             // A confirmed rollback restores the previous target rows and drops the preparation with them.
             return new Result(committing || !rolledBack ? Outcome.UNKNOWN : Outcome.ROLLED_BACK, null, null);
         }
+    }
+
+    private static String upsertSql(Table stage, Table target, List<Column> columns, List<String> keys) {
+        String targetColumns = String.join(",", columns.stream().map(c -> quote(c.target())).toList());
+        String stageColumns = String.join(",", columns.stream().map(c -> quote(c.stage())).toList());
+        String conflictColumns = String.join(",", keys.stream().map(JdbcPostgresAtomicRefreshWriter::quote).toList());
+        List<Column> mutable = columns.stream().filter(column -> !keys.contains(column.target())).toList();
+        String onConflict = mutable.isEmpty() ? "DO NOTHING"
+                : "DO UPDATE SET " + String.join(",", mutable.stream().map(column -> quote(column.target()) + "=EXCLUDED." + quote(column.target())).toList());
+        return "INSERT INTO " + target.sql() + " (" + targetColumns + ") SELECT " + stageColumns + " FROM " + stage.sql()
+                + " ON CONFLICT (" + conflictColumns + ") " + onConflict;
     }
 
     private static void command(Connection connection, String sql, int timeout) throws SQLException {

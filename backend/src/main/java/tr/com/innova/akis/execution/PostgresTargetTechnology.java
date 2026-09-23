@@ -21,8 +21,9 @@ import tr.com.innova.akis.knowledge.WorkObjectStore;
 import tr.com.innova.akis.knowledge.WorkTableManagerPort;
 
 /**
- * PostgreSQL bundle (Faz A): work tables and COPY staging on the target database, the target-local akis_yayin_defteri
- * ledger, and TRUNCATE_LOAD published in a single transaction. Other write modes are rejected until Faz B adds upsert.
+ * PostgreSQL bundle: work tables and COPY staging on the target database, the target-local akis_yayin_defteri ledger,
+ * and TRUNCATE_LOAD or MERGE (Faz B: {@code INSERT ... ON CONFLICT (KEY_COLUMNS) DO UPDATE}) published in a single
+ * transaction. Other write modes (APPEND, ATOMIC_DELETE_INSERT) are not yet supported.
  */
 @Component
 final class PostgresTargetTechnology implements TargetTechnology {
@@ -73,14 +74,16 @@ final class PostgresTargetTechnology implements TargetTechnology {
         catch (SQLException | RuntimeException failure) { throw new IllegalStateException("KM çalışma nesnesi doğrulanamadı."); }
     }
 
-    @Override public boolean supportsWriteMode(WriteMode mode) { return mode == WriteMode.TRUNCATE_LOAD; }
+    @Override public boolean supportsWriteMode(WriteMode mode) { return mode == WriteMode.TRUNCATE_LOAD || mode == WriteMode.MERGE; }
 
     @Override
     public Result publish(Connection connection, TargetLedgerContext context, PublishEvidence evidence, JdbcStagingTransfer.Table stage,
             JdbcStagingTransfer.Table target, List<Column> columns, int timeoutSeconds, Runnable lockedPreflight, Runnable leaseCheckpoint,
             JdbcTransactionBoundary transaction, String oracleHint, WriteMode mode, List<String> keyColumns) {
-        if (!supportsWriteMode(mode) || !keyColumns.isEmpty()) throw new IllegalArgumentException("PostgreSQL hedefi bu yazma modunu desteklemiyor.");
+        if (!supportsWriteMode(mode) || mode == WriteMode.TRUNCATE_LOAD && !keyColumns.isEmpty()
+                || mode == WriteMode.MERGE && keyColumns.isEmpty())
+            throw new IllegalArgumentException("PostgreSQL hedefi bu yazma modunu desteklemiyor.");
         return new JdbcPostgresAtomicRefreshWriter(ledger).publish(connection, context, evidence, stage, target, columns, timeoutSeconds,
-                lockedPreflight, leaseCheckpoint, transaction, mode);
+                lockedPreflight, leaseCheckpoint, transaction, mode, keyColumns);
     }
 }

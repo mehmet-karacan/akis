@@ -15,6 +15,9 @@ import static tr.com.innova.akis.publication.PublicationModels.*;
 class StagedMappingPlannerTest {
     private final JsonMapper mapper = new JsonMapper();
     private ObjectNode plan(Map<String,Object> resolvedIntegration, Map<String,Object> suppliedIntegration) {
+        return plan(resolvedIntegration, suppliedIntegration, "ORACLE");
+    }
+    private ObjectNode plan(Map<String,Object> resolvedIntegration, Map<String,Object> suppliedIntegration, String targetDatabaseType) {
         var modules = mock(KnowledgeModuleRegistry.class);
         var workAreas = mock(WorkAreaPolicyService.class);
         var jdbc = mock(JdbcClient.class);
@@ -52,11 +55,14 @@ class StagedMappingPlannerTest {
         var context = new PublicationContext(1, 2, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), 4,
                 KmCanonical.hash(mapper, content), KmCanonical.hash(mapper, scenario), scenario, 3, UUID.randomUUID(), "TEST", "LOW", 1, mapper.createObjectNode());
         return (ObjectNode) new StagedMappingPlanner(modules, jdbc, mapper, workAreas)
-                .compile(context, List.of(binding("S", "KAYNAK"), binding("T", "HEDEF")));
+                .compile(context, List.of(binding("S", "KAYNAK"), binding("T", "HEDEF", targetDatabaseType)));
     }
     private ResolvedBinding binding(String code, String role) {
+        return binding(code, role, "ORACLE");
+    }
+    private ResolvedBinding binding(String code, String role, String databaseType) {
         return new ResolvedBinding(1, UUID.randomUUID(), code, role, UUID.randomUUID(), "ITEMS", "TABLE", 2L,
-                UUID.randomUUID(), 3L, UUID.randomUUID(), "DATA", 4L, UUID.randomUUID(), "ORACLE", 5L,
+                UUID.randomUUID(), 3L, UUID.randomUUID(), "DATA", 4L, UUID.randomUUID(), databaseType, 5L,
                 UUID.randomUUID(), "e".repeat(64), 1, "AKTIF", "AKTIF", "AKTIF", "AKTIF");
     }
     @Test void flagsNonReversibleDdlWhenTruncateComesFromResolvedModuleDefaults() {
@@ -70,5 +76,14 @@ class StagedMappingPlannerTest {
     @Test void usesResolvedOverridesRatherThanAnUnrelatedBooleanForDdlRisk() {
         var result = plan(Map.of("WRITE_MODE", "APPEND", "TRUNCATE_TARGET", true), Map.of("WRITE_MODE", "APPEND"));
         assertFalse(result.path("staging").path("nonReversibleDdl").asBoolean());
+    }
+    @Test void acceptsPostgresMergeWithKeyColumnsFazB() {
+        var result = plan(Map.of("WRITE_MODE", "MERGE", "KEY_COLUMNS", "ID"), Map.of(), "POSTGRESQL");
+        assertEquals("MERGE", result.path("modules").path("integration").path("options").path("WRITE_MODE").asText());
+    }
+    @Test void stillRejectsUnsupportedPostgresWriteModes() {
+        var exception = assertThrows(tr.com.innova.akis.metadata.ApiException.class,
+                () -> plan(Map.of("WRITE_MODE", "APPEND"), Map.of(), "POSTGRESQL"));
+        assertEquals("STAGED_PLAN_REJECTED", exception.code());
     }
 }
