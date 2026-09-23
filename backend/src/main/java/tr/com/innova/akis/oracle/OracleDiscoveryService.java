@@ -42,19 +42,25 @@ public class OracleDiscoveryService {
     /** Discovery adapters by provider code; a connection whose provider has no adapter cannot be browsed. */
     private final Map<String, SchemaDiscoveryPort> gateways;
     private final ObjectMapper objectMapper;
+    private final tr.com.innova.akis.discovery.JdbcSchemaSnapshotStore snapshotStore;
+    private final tr.com.innova.akis.topology.TargetProvisioningPolicyService provisioningPolicies;
 
     @org.springframework.beans.factory.annotation.Autowired
     public OracleDiscoveryService(
             OracleDiscoveryRepository repository,
             EnvironmentCredentialResolver credentialResolver,
             List<SchemaDiscoveryPort> gateways,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            tr.com.innova.akis.discovery.JdbcSchemaSnapshotStore snapshotStore,
+            tr.com.innova.akis.topology.TargetProvisioningPolicyService provisioningPolicies) {
         this.repository = repository;
         this.credentialResolver = credentialResolver;
         Map<String, SchemaDiscoveryPort> byTechnology = new LinkedHashMap<>();
         for (SchemaDiscoveryPort gateway : gateways) byTechnology.put(gateway.technology(), gateway);
         this.gateways = Map.copyOf(byTechnology);
         this.objectMapper = objectMapper;
+        this.snapshotStore = snapshotStore;
+        this.provisioningPolicies = provisioningPolicies;
     }
 
     OracleDiscoveryService(
@@ -62,7 +68,7 @@ public class OracleDiscoveryService {
             EnvironmentCredentialResolver credentialResolver,
             SchemaDiscoveryPort gateway,
             ObjectMapper objectMapper) {
-        this(repository, credentialResolver, List.of(gateway), objectMapper);
+        this(repository, credentialResolver, List.of(gateway), objectMapper, null, null);
     }
 
     private SchemaDiscoveryPort gateway(ConnectionProfile profile) {
@@ -124,6 +130,45 @@ public class OracleDiscoveryService {
         try (Credentials credentials = credentials(profile)) {
             return gateway(profile).discover(profile, credentials, owner, normalizedTableName, limit);
         }
+    }
+
+    /** DDL preview/execution for a PostgreSQL target table, from a pinned Oracle snapshot; governed by V048 policy. */
+    public record ProvisionResult(String schema, String table, String ddl, java.util.List<String> skippedColumns,
+            tr.com.innova.akis.topology.TargetProvisioningPolicyService.Policy policy, boolean executed) { }
+
+    public ProvisionResult provisionTarget(UUID projectUuid, UUID connectionUuid, UUID physicalSchemaUuid,
+            UUID sourceSnapshotUuid, String targetTable, boolean execute) {
+        long projectId = repository.findProjectId(projectUuid).orElseThrow(() -> notFound("Proje bulunamadı."));
+        ConnectionProfile profile = discoverableProfile(connectionUuid);
+        if (!"POSTGRESQL".equals(profile.databaseType()))
+            throw validation("Hedef sağlama yalnız PostgreSQL bağlantılarında kullanılabilir.");
+        PhysicalSchemaProfile physicalSchema = physicalSchema(profile, physicalSchemaUuid);
+        var policyView = provisioningPolicies.get(projectUuid, physicalSchemaUuid);
+        if (policyView.policy() == tr.com.innova.akis.topology.TargetProvisioningPolicyService.Policy.DDL_DISABLED)
+            throw new tr.com.innova.akis.metadata.ApiException(org.springframework.http.HttpStatus.UNPROCESSABLE_CONTENT,
+                    "TARGET_PROVISIONING_DISABLED", "Bu fiziksel şemada hedef sağlama kapalı.");
+        if (execute && policyView.policy() != tr.com.innova.akis.topology.TargetProvisioningPolicyService.Policy.DDL_AUTO_CREATE)
+            throw new tr.com.innova.akis.metadata.ApiException(org.springframework.http.HttpStatus.UNPROCESSABLE_CONTENT,
+                    "TARGET_PROVISIONING_NOT_AUTO", "Bu fiziksel şemada yalnız DDL metni üretilebilir; otomatik çalıştırma kapalı.");
+        var snapshot = snapshotStore.find(projectId, sourceSnapshotUuid)
+                .orElseThrow(() -> notFound("Kaynak şema görüntüsü bulunamadı."));
+        if (!snapshot.engineVersion().startsWith("ORACLE"))
+            throw validation("Hedef sağlama yalnız Oracle kaynak şema görüntüsünden yapılabilir.");
+        var plan = tr.com.innova.akis.postgres.PostgresSchemaProvisioner.plan(snapshot, physicalSchema.schemaReference(), targetTable);
+        boolean executed = false;
+        if (execute) {
+            try (Credentials credentials = credentials(profile);
+                    java.sql.Connection connection = DiscoveryConnections.open(profile, credentials)) {
+                connection.setReadOnly(false);
+                connection.setAutoCommit(true);
+                tr.com.innova.akis.postgres.PostgresSchemaProvisioner.execute(connection, plan);
+                executed = true;
+            }
+            catch (java.sql.SQLException exception) {
+                throw DiscoveryConnections.connectionFailed();
+            }
+        }
+        return new ProvisionResult(plan.schema(), plan.table(), plan.ddl(), plan.skippedColumns(), policyView.policy(), executed);
     }
 
     public List<String> listSchemas(UUID connectionUuid) {

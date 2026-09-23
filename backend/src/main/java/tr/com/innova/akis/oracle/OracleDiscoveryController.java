@@ -68,6 +68,24 @@ final class OracleDiscoveryController {
             @Min(1) @Max(200) Integer limit) {
     }
 
+    record ProvisionTargetRequest(
+            @jakarta.validation.constraints.NotNull UUID sourceSnapshotUuid,
+            @jakarta.validation.constraints.NotBlank @Pattern(regexp = "[A-Za-z_][A-Za-z0-9_$]{0,62}") String targetTable,
+            boolean execute) {
+    }
+
+    /** Preview or (policy permitting) run the CREATE SCHEMA/CREATE TABLE DDL for a PostgreSQL target from a pinned Oracle snapshot. */
+    @PostMapping("/physical-schemas/{physicalSchemaUuid}/target-provisioning")
+    OracleDiscoveryService.ProvisionResult provisionTarget(
+            @PathVariable UUID projectUuid,
+            @PathVariable UUID connectionUuid,
+            @PathVariable UUID physicalSchemaUuid,
+            @Valid @RequestBody ProvisionTargetRequest request) {
+        authorization.requireProjectPermission(projectUuid, DISCOVERY_WRITE);
+        return service.provisionTarget(projectUuid, connectionUuid, physicalSchemaUuid,
+                request.sourceSnapshotUuid(), request.targetTable(), request.execute());
+    }
+
     record DiscoveryView(
             UUID connectionUuid,
             UUID physicalSchemaUuid,
