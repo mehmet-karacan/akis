@@ -31,6 +31,8 @@ public final class PermissionCodes {
     public static final String PROJECT_MEMBERSHIP_MANAGE = "UYE_YONET";
     public static final String SCHEMA_METADATA_READ = "SEMA_METADATA_GORUNTULE";
     public static final String SCHEMA_METADATA_WRITE = "SEMA_METADATA_YONET";
+    public static final String SCHEDULE_READ = "ZAMANLAMA_GORUNTULE";
+    public static final String SCHEDULE_WRITE = "ZAMANLAMA_YONET";
 
     private PermissionCodes() {
     }

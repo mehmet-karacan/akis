@@ -54,6 +54,19 @@ public class JdbcExecutionStore implements ExecutionStore {
     }
 
     @Override
+    public Optional<Actor> findActiveActor(long userId) {
+        return jdbc.sql("""
+                        select id, uuid, gorunen_ad as ad from akis.kullanici
+                         where id = :id and devre_disi_birakilma_zamani is null
+                        """)
+                .param("id", userId)
+                .query((rs, rowNum) -> new Actor(
+                        rs.getLong("id"), rs.getObject("uuid", UUID.class),
+                        rs.getString("ad")))
+                .optional();
+    }
+
+    @Override
     public Optional<Actor> findActiveActor(String provider, String subject) {
         return jdbc.sql("""
                         select k.id, k.uuid, k.gorunen_ad as ad
@@ -175,14 +188,31 @@ public class JdbcExecutionStore implements ExecutionStore {
             UUID stateUuid,
             UUID eventUuid,
             Integer batchRows) {
+        return createQueuedRun(publication, actor, requestHash, jobRequestUuid, runUuid, stateUuid, eventUuid, batchRows, null, null);
+    }
+
+    @Override
+    public RunRow createQueuedRun(
+            PublicationContext publication,
+            Actor actor,
+            String requestHash,
+            UUID jobRequestUuid,
+            UUID runUuid,
+            UUID stateUuid,
+            UUID eventUuid,
+            Integer batchRows,
+            Long scheduleId,
+            java.time.OffsetDateTime plannedAt) {
         ObjectNode parameters = objectMapper.createObjectNode();
         if (batchRows != null) parameters.put("batchRows", batchRows);
         long jobRequestId = jdbc.sql("""
                         insert into akis.is_talebi(
                             proje_id, yayin_id, istek_ozeti, is_turu, oncelik,
-                            parametre_sema_surumu, parametre, uuid, olusturan_kullanici_id)
+                            parametre_sema_surumu, parametre, uuid, olusturan_kullanici_id,
+                            zamanlama_id, planlanan_zaman)
                         values (:projectId, :publicationId, :requestHash, 'CALISTIR', 50,
-                                1, cast(:parameters as jsonb), :uuid, :actorId)
+                                1, cast(:parameters as jsonb), :uuid, :actorId,
+                                :scheduleId, :plannedAt)
                         returning id
                         """)
                 .param("parameters", parameters.toString())
@@ -191,6 +221,8 @@ public class JdbcExecutionStore implements ExecutionStore {
                 .param("requestHash", requestHash)
                 .param("uuid", jobRequestUuid)
                 .param("actorId", actor.id())
+                .param("scheduleId", scheduleId)
+                .param("plannedAt", plannedAt)
                 .query(Long.class)
                 .single();
         long runId = jdbc.sql("""

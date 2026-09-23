@@ -35,6 +35,8 @@ akis:
     worker-profile-uuid: ${AKIS_EXECUTION_WORKER_PROFILE_UUID:}
     worker-lease-seconds: ${AKIS_EXECUTION_WORKER_LEASE_SECONDS:60}
     worker-poll-delay-ms: ${AKIS_EXECUTION_WORKER_POLL_DELAY_MS:2000}
+    scheduler-enabled: ${AKIS_EXECUTION_SCHEDULER_ENABLED:false}
+    schedule-poll-delay-ms: ${AKIS_EXECUTION_SCHEDULE_POLL_DELAY_MS:15000}
   security:
     mode: ${AKIS_SECURITY_MODE:fail-closed}
     data-encryption-key: ${AKIS_DATA_ENCRYPTION_KEY:}

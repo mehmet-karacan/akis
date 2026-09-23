@@ -22,6 +22,10 @@ interface ExecutionStore {
 
     Optional<Actor> findActiveActor(String provider, String subject);
 
+    default Optional<Actor> findActiveActor(long userId) {
+        return Optional.empty();
+    }
+
     Optional<PublicationContext> lockPublication(UUID projectUuid, UUID publicationUuid);
 
     boolean reserveIdempotency(
@@ -55,6 +59,21 @@ interface ExecutionStore {
             UUID eventUuid,
             Integer batchRows) {
         return createQueuedRun(publication, actor, requestHash, jobRequestUuid, runUuid, stateUuid, eventUuid);
+    }
+
+    /** Attributes the job request to the schedule occurrence that fired it (see V049); null scheduleId means a manual run. */
+    default RunRow createQueuedRun(
+            PublicationContext publication,
+            Actor actor,
+            String requestHash,
+            UUID jobRequestUuid,
+            UUID runUuid,
+            UUID stateUuid,
+            UUID eventUuid,
+            Integer batchRows,
+            Long scheduleId,
+            java.time.OffsetDateTime plannedAt) {
+        return createQueuedRun(publication, actor, requestHash, jobRequestUuid, runUuid, stateUuid, eventUuid, batchRows);
     }
 
     void completeIdempotency(long reservationId, long jobRequestId, RunRow run);
