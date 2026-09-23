@@ -12,6 +12,8 @@ class OracleColumnCapabilityTest {
         assertClassification("NUMBER", 20, 0, "DECIMAL", "TRANSFER_SUPPORTED");
         assertClassification("NUMBER", null, null, "DECIMAL", "TRANSFER_SUPPORTED");
         assertClassification("VARCHAR2", null, null, "STRING", "TRANSFER_SUPPORTED");
+        assertClassification("CLOB", null, null, "STRING", "TRANSFER_SUPPORTED");
+        assertClassification("NCLOB", null, null, "STRING", "TRANSFER_SUPPORTED");
         assertClassification("NUMBER", 18, -2, "DECIMAL", "CATALOG_ONLY");
         assertClassification("NUMBER", null, 0, "DECIMAL", "CATALOG_ONLY");
     }
@@ -19,7 +21,6 @@ class OracleColumnCapabilityTest {
     @Test
     void keepsObservedLegacyAndLargeValueTypesVisibleWithoutPromisingTransfer() {
         assertClassification("DATE", null, null, "TIMESTAMP", "CATALOG_ONLY");
-        assertClassification("CLOB", null, null, "TEXT", "CATALOG_ONLY");
         assertClassification("LONG RAW", null, null, "BINARY", "CATALOG_ONLY");
     }
 

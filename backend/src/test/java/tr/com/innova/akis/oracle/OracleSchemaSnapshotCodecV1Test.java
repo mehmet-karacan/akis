@@ -97,6 +97,21 @@ class OracleSchemaSnapshotCodecV1Test {
     }
 
     @Test
+    void decodesClobAsAnUnboundedTransferableStringColumn() {
+        Column result = codec.decode(
+                "TTBP", "VALUES_TABLE",
+                List.of(new RawColumn("VALUE", "CLOB", null, null, null, null, 1, true, null)),
+                List.of()).columns().getFirst();
+
+        assertEquals("CLOB", result.producerType());
+        assertEquals("STRING", result.canonicalType());
+        assertNull(result.precision());
+        assertNull(result.scale());
+        assertNull(result.length());
+        assertNull(result.timePrecision());
+    }
+
+    @Test
     void numberIntegerBoundaryIsNineteenDigits() {
         SnapshotDefinition result = codec.decode(
                 "TTBP", "VALUES_TABLE",
@@ -121,7 +136,11 @@ class OracleSchemaSnapshotCodecV1Test {
                 "VALUE", "TIMESTAMP WITH TIME ZONE", null, null, null, 6,
                 1, true, null));
         assertCodecFailure(new RawColumn(
-                "VALUE", "CLOB", null, null, null, null, 1, true, null));
+                "VALUE", "CLOB", 1, null, null, null, 1, true, null));
+        assertCodecFailure(new RawColumn(
+                "VALUE", "CLOB", null, 1, null, null, 1, true, null));
+        assertCodecFailure(new RawColumn(
+                "VALUE", "CLOB", null, null, null, 6, 1, true, null));
     }
 
     @Test

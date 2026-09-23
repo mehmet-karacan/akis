@@ -11,7 +11,7 @@ import tools.jackson.databind.JsonNode;
 /** Streams a single source cursor to an already-owned stage. Never touches the final target. */
 public final class JdbcStagingTransfer implements StagingTransferPort {
     public static final long BUFFER_BYTES = 16L * 1024 * 1024;
-    public enum Type { NUMBER, VARCHAR2, NVARCHAR2, DATE, TIMESTAMP }
+    public enum Type { NUMBER, VARCHAR2, NVARCHAR2, DATE, TIMESTAMP, CLOB }
     public record Column(String sourceObject, String source, String stage, Type type, JsonNode expression, boolean encrypted) {
         public Column(String sourceObject, String source, String stage, Type type, JsonNode expression) { this(sourceObject, source, stage, type, expression, false); }
         public Column(String sourceObject,String source,String stage,Type type) { this(sourceObject,source,stage,type,null); }
@@ -230,7 +230,7 @@ public final class JdbcStagingTransfer implements StagingTransferPort {
         write.clearBatch();
     }
     private static Object read(ResultSet r,int i,Type type) throws SQLException {
-        return switch(type) { case NUMBER -> r.getBigDecimal(i); case VARCHAR2 -> r.getString(i); case NVARCHAR2 -> r.getNString(i); case DATE,TIMESTAMP -> r.getTimestamp(i); };
+        return switch(type) { case NUMBER -> r.getBigDecimal(i); case VARCHAR2,CLOB -> r.getString(i); case NVARCHAR2 -> r.getNString(i); case DATE,TIMESTAMP -> r.getTimestamp(i); };
     }
     private static String canonical(Object value) {
         if (value==null) return null;
@@ -239,16 +239,18 @@ public final class JdbcStagingTransfer implements StagingTransferPort {
         return value.toString();
     }
     private static void bind(PreparedStatement s,int i,Type type,Object value) throws SQLException {
-        if (value==null) { s.setNull(i,switch(type){case NUMBER->Types.NUMERIC;case VARCHAR2->Types.VARCHAR;case NVARCHAR2->Types.NVARCHAR;case DATE,TIMESTAMP->Types.TIMESTAMP;}); return; }
-        switch(type) { case NUMBER -> s.setBigDecimal(i,(BigDecimal)value); case VARCHAR2 -> s.setString(i,(String)value); case NVARCHAR2 -> s.setNString(i,(String)value); case DATE,TIMESTAMP -> s.setTimestamp(i,(Timestamp)value); }
+        if (value==null) { s.setNull(i,switch(type){case NUMBER->Types.NUMERIC;case VARCHAR2->Types.VARCHAR;case NVARCHAR2->Types.NVARCHAR;case DATE,TIMESTAMP->Types.TIMESTAMP;case CLOB->Types.CLOB;}); return; }
+        switch(type) { case NUMBER -> s.setBigDecimal(i,(BigDecimal)value); case VARCHAR2 -> s.setString(i,(String)value); case NVARCHAR2 -> s.setNString(i,(String)value); case DATE,TIMESTAMP -> s.setTimestamp(i,(Timestamp)value); case CLOB -> s.setString(i,(String)value); }
     }
     private static void verifyMetadata(ResultSetMetaData metadata,List<Column> columns) throws SQLException {
         if (metadata.getColumnCount()!=columns.size()) throw new TransferFailure("Kaynak kolonları değişmiş.",false);
         for (int i=0;i<columns.size();i++) {
             String type=metadata.getColumnTypeName(i+1).toUpperCase(Locale.ROOT);
             Type expected=columns.get(i).type();
-            if (expected==Type.TIMESTAMP ? !type.matches("TIMESTAMP(\\([0-9]\\))?") : !type.equals(expected.name()))
-                throw new TransferFailure("Kaynak kolon tipi desteklenmiyor veya değişmiş.",false);
+            boolean matches=expected==Type.TIMESTAMP ? type.matches("TIMESTAMP(\\([0-9]\\))?")
+                    : expected==Type.CLOB ? Set.of("CLOB","NCLOB").contains(type)
+                    : type.equals(expected.name());
+            if (!matches) throw new TransferFailure("Kaynak kolon tipi desteklenmiyor veya değişmiş.",false);
         }
     }
     private static void frame(MessageDigest digest,String value) {

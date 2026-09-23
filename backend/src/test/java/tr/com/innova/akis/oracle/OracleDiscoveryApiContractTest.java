@@ -17,8 +17,8 @@ class OracleDiscoveryApiContractTest {
                         "PAYLOAD", java.sql.Types.CLOB, "CLOB", 1,
                         null, null, true, null));
 
-        assertEquals("TEXT", view.canonicalType());
-        assertEquals("CATALOG_ONLY", view.executionCapability());
+        assertEquals("STRING", view.canonicalType());
+        assertEquals("TRANSFER_SUPPORTED", view.executionCapability());
     }
 
     @Test

@@ -109,8 +109,9 @@ final class JdbcPostgresSchemaPreflight {
             case "DECIMAL" -> sourceType.equals("NUMBER") && targetType.equals("NUMERIC")
                     && (source.scale() == null ? target.scale() == null : Objects.equals(source.scale(), target.scale()))
                     && (source.precision() == null ? target.precision() == null : atLeast(target.precision(), source.precision()));
-            case "STRING" -> sourceType.equals("VARCHAR2") && source.length() != null
-                    && (targetType.equals("TEXT") || targetType.equals("VARCHAR") && atLeast(target.length(), source.length()));
+            case "STRING" -> (sourceType.equals("VARCHAR2") && source.length() != null
+                    && (targetType.equals("TEXT") || targetType.equals("VARCHAR") && atLeast(target.length(), source.length())))
+                    || (sourceType.equals("CLOB") && targetType.equals("TEXT"));
             case "TIMESTAMP" -> sourceType.equals("TIMESTAMP") && targetType.equals("TIMESTAMP")
                     && source.timePrecision() != null && source.timePrecision() <= 6
                     && atLeast(target.timePrecision(), source.timePrecision());

@@ -99,6 +99,7 @@ record StagedColumnLayout(List<WorkTableManagerPort.Column> work,List<JdbcStagin
             case "NVARCHAR2" -> JdbcStagingTransfer.Type.NVARCHAR2;
             case "DATE" -> JdbcStagingTransfer.Type.DATE;
             case "TIMESTAMP" -> JdbcStagingTransfer.Type.TIMESTAMP;
+            case "CLOB" -> JdbcStagingTransfer.Type.CLOB;
             default -> throw new IllegalArgumentException("Kaynak kolon tipi desteklenmiyor.");
         };
     }

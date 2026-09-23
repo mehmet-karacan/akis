@@ -37,7 +37,7 @@ public final class OracleColumnCapability {
         }
         return switch (type) {
             case "DATE" -> new Classification("TIMESTAMP", "CATALOG_ONLY");
-            case "CLOB", "NCLOB" -> new Classification("TEXT", "CATALOG_ONLY");
+            case "CLOB", "NCLOB" -> new Classification("STRING", "TRANSFER_SUPPORTED");
             case "RAW", "LONG RAW", "BLOB" ->
                     new Classification("BINARY", "CATALOG_ONLY");
             case "CHAR", "NCHAR", "NVARCHAR2", "LONG" ->

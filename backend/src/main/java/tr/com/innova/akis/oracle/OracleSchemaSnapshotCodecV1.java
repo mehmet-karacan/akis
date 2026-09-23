@@ -74,6 +74,7 @@ public final class OracleSchemaSnapshotCodecV1 {
                 case "NUMBER" -> number(raw, name);
                 case "VARCHAR2" -> varchar2(raw, name);
                 case "TIMESTAMP" -> timestamp(raw, name);
+                case "CLOB" -> clob(raw, name);
                 default -> throw failure("Unsupported Oracle data type: " + dataType + ".");
             });
         }
@@ -112,6 +113,15 @@ public final class OracleSchemaSnapshotCodecV1 {
         return column(
                 raw, name, "VARCHAR2(" + length + ")", "STRING",
                 null, null, length, null);
+    }
+
+    private Column clob(RawColumn raw, String name) {
+        requireNull(raw.precision(), "CLOB precision");
+        requireNull(raw.scale(), "CLOB scale");
+        requireNull(raw.timePrecision(), "CLOB time precision");
+        // CHAR_LENGTH is not meaningful for a LOB (Oracle reports an internal locator size, not a character count),
+        // so it is deliberately not validated or carried through, unlike VARCHAR2's declared length.
+        return column(raw, name, "CLOB", "STRING", null, null, null, null);
     }
 
     private Column timestamp(RawColumn raw, String name) {
