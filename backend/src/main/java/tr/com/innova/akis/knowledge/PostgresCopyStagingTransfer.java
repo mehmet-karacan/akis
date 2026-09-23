@@ -28,6 +28,7 @@ import tr.com.innova.akis.knowledge.JdbcStagingTransfer.TransferFailure;
  * unquoted {@code \N}) so no value can be mistaken for a delimiter or a null marker.
  */
 public final class PostgresCopyStagingTransfer implements StagingTransferPort {
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(PostgresCopyStagingTransfer.class);
     private static final String NULL_MARKER = "\\N";
     private final boolean verifySourceMetadata;
 
@@ -104,6 +105,7 @@ public final class PostgresCopyStagingTransfer implements StagingTransferPort {
             return new Result(rows, bytes, HexFormat.of().formatHex(digest.digest()));
         } catch (SQLException | java.io.IOException ex) {
             try { transaction.rollback(); } catch (SQLException | RuntimeException ignored) { }
+            LOG.warn("COPY transfer into {} failed after {} row(s): {}", to.sql(), rows, ex.toString());
             throw new TransferFailure(committing ? "Stage commit sonucu belirsiz; otomatik tekrar yasak." : "Stage aktarımı tamamlanamadı; hedef değiştirilmedi.", committing);
         } catch (RuntimeException ex) {
             try { transaction.rollback(); } catch (SQLException | RuntimeException ignored) { }

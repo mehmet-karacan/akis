@@ -65,13 +65,16 @@ public final class PostgresWorkTableManager implements WorkTableManagerPort {
         }
     }
 
+    /**
+     * PostgreSQL needs no grant: a target "owner" is a schema rather than a role, and the publish session connects as the
+     * same runtime role that created the work table, so it can already read it. Only the identity is re-verified here.
+     */
     @Override
     public void grantRead(Connection control, Created created, String targetUser, int timeout, Runnable checkpoint) {
         StagedMappingDefinition.identifier(targetUser);
         try {
             try (var ignored = ddlLocks.acquire(control, lockName(created.databaseIdentity(), created.table()), timeout)) {
                 verify(control, created, timeout); checkpoint.run();
-                if (!targetUser.equals(sessionUser(control))) { execute(control, "GRANT SELECT ON " + created.table().sql() + " TO " + quote(targetUser), timeout); commitIfNeeded(control); }
             }
         } catch (SQLException ex) { rollbackQuietly(control); throw new IllegalStateException("Çalışma tablosu okuma yetkisi doğrulanamadı."); }
     }
@@ -115,12 +118,6 @@ public final class PostgresWorkTableManager implements WorkTableManagerPort {
                 ResultSet result = statement.executeQuery()) {
             if (!result.next()) throw new SQLException("Missing database identity");
             return KmCanonical.hash("POSTGRESQL_DB_V1|" + result.getString(1) + "|" + result.getLong(2));
-        }
-    }
-
-    private static String sessionUser(Connection connection) throws SQLException {
-        try (PreparedStatement statement = connection.prepareStatement("SELECT current_user"); ResultSet result = statement.executeQuery()) {
-            if (!result.next()) throw new SQLException("Missing session identity"); return result.getString(1);
         }
     }
 

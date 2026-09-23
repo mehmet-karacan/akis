@@ -26,10 +26,10 @@ public class WorkAreaPolicyService {
                 select p.id project_id,f.id schema_id from akis.proje p
                 cross join akis.fiziksel_sema f join akis.baglanti b on b.id=f.baglanti_id
                 where p.uuid=:project and f.uuid=:schema and p.arsivlenme_zamani is null
-                  and f.durum='ETKIN' and b.durum='ETKIN' and b.saglayici_turu='ORACLE'
+                  and f.durum='ETKIN' and b.durum='ETKIN' and b.saglayici_turu in ('ORACLE','POSTGRESQL')
                 """+(lock?" for update of f":"")).param("project",project).param("schema",schema)
                 .query((r,n)->new Scope(r.getLong("project_id"),r.getLong("schema_id"))).optional()
-                .orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"NOT_FOUND","Oracle çalışma şeması bulunamadı."));
+                .orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"NOT_FOUND","Çalışma şeması bulunamadı."));
     }
     private View read(Scope scope) {
         return jdbc.sql("select * from akis.km_work_area_policy where proje_id=:p and fiziksel_sema_id=:s")

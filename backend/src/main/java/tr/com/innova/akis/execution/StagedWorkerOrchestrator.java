@@ -101,11 +101,11 @@ final class StagedWorkerOrchestrator {
             gate.checkpoint();
             control=workSessions.open(plan,true);data=workSessions.open(plan,false);
             if(!databaseIdentity.equals(technology.databaseIdentity(control.connection()))
-                    || !databaseIdentity.equals(technology.databaseIdentity(data.connection()))) throw new IllegalStateException();
+                    || !databaseIdentity.equals(technology.databaseIdentity(data.connection()))) throw new IllegalStateException("Çalışma oturumları hedef veritabanına ait değil.");
             targetFence=gate.execute(run->leases.acquireTarget(run,identity.canonicalTargetHash(),identity.targetIdentityVersion()));
             var fence=targetFence;
             var fenceResult=fences.acquire(new OracleTargetFencePort.OracleTargetFenceCommand(plan,context,fence));
-            if(!(fenceResult instanceof OracleTargetFencePort.CommitConfirmed)) throw new IllegalStateException();
+            if(!(fenceResult instanceof OracleTargetFencePort.CommitConfirmed)) throw new IllegalStateException("Hedef çiti alınamadı: "+fenceResult);
             requireAccepted(gate.execute(run->transitions.completePreflight(new ActiveExecutionToken(run,fence))));
             var stage=plan.staging();var prefix=stage.path("prefixes");
             var owner=new WorkObjectStore.Owner(plan.projectUuid(),context.runUuid(),fence.runGeneration(),fence.workerReference());

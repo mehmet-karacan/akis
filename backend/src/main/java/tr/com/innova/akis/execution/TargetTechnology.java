@@ -27,6 +27,9 @@ interface TargetTechnology {
     /** Stable hash of the database this session is connected to; compared between target, work and data sessions. */
     String databaseIdentity(Connection connection) throws SQLException;
 
+    /** Target-local publication ledger of this technology. */
+    TargetLedgerPort ledger();
+
     TargetIdentityPort identity();
 
     WorkTableManagerPort workTables(WorkObjectStore store);

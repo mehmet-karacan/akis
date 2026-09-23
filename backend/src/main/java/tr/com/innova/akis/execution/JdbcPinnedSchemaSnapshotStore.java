@@ -369,9 +369,12 @@ public class JdbcPinnedSchemaSnapshotStore implements PinnedSchemaSnapshotPort {
         }
     }
 
+    /** Sources are Oracle; a target may be any technology with a runtime bundle (its own preflight verifies the live schema). */
     private void validateBinding(DatasetBinding binding, DatasetRole role) {
         if (binding == null || binding.role() != role
-                || binding.databaseType() != PilotRuntimePlan.DatabaseType.ORACLE
+                || (role == DatasetRole.SOURCE
+                    ? binding.databaseType() != PilotRuntimePlan.DatabaseType.ORACLE
+                    : binding.databaseType() == null)
                 || binding.dataObjectType() != PilotRuntimePlan.DataObjectType.TABLE
                 || blank(binding.datasetId()) || binding.definitionDataObjectUuid() == null
                 || binding.dataObjectUuid() == null

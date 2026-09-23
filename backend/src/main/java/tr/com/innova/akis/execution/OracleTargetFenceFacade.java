@@ -93,7 +93,7 @@ final class OracleTargetFenceFacade implements OracleTargetFencePort {
         try {
             Connection connection = session.connection();
             verifyTargetIdentity(connection, command);
-            FenceSession fenceSession = ledger.bindFence(
+            FenceSession fenceSession = ledgerFor(command).bindFence(
                     connection,
                     TargetLedgerContext.from(command.fence(), command.execution()));
             fenceSession.acquireFence();
@@ -189,10 +189,19 @@ final class OracleTargetFenceFacade implements OracleTargetFencePort {
         return closeAndReturn(session, result);
     }
 
+    /** Without a registry (unit fixtures) the Oracle ledger and reader are used; wired, the target's own bundle is. */
+    private TargetLedgerPort ledgerFor(OracleTargetFenceCommand command) {
+        return targets == null ? ledger : targets.of(command.plan().target().databaseType()).ledger();
+    }
+
+    private TargetIdentityReader identityReaderFor(OracleTargetFenceCommand command) {
+        return targets == null ? identityReader : targets.of(command.plan().target().databaseType()).identity()::read;
+    }
+
     private void verifyTargetIdentity(
             Connection connection, OracleTargetFenceCommand command) {
         try {
-            CanonicalTargetIdentity actual = identityReader.read(
+            CanonicalTargetIdentity actual = identityReaderFor(command).read(
                     connection,
                     command.plan().target().owner(),
                     command.plan().target().dataObjectType().name(),

@@ -35,6 +35,8 @@ final class PostgresTargetTechnology implements TargetTechnology {
 
     @Override public String databaseIdentity(Connection connection) throws SQLException { return PostgresWorkTableManager.databaseIdentity(connection); }
 
+    @Override public TargetLedgerPort ledger() { return ledger; }
+
     @Override public TargetIdentityPort identity() { return new JdbcPostgresTargetIdentityReader(); }
 
     @Override public WorkTableManagerPort workTables(WorkObjectStore store) { return new PostgresWorkTableManager(store); }

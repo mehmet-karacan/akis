@@ -31,6 +31,8 @@ final class OracleTargetTechnology implements TargetTechnology {
 
     @Override public String databaseIdentity(Connection connection) throws SQLException { return OracleWorkTableManager.databaseIdentity(connection); }
 
+    @Override public TargetLedgerPort ledger() { return ledger; }
+
     @Override public TargetIdentityPort identity() { return new JdbcOracleTargetIdentityReader(); }
 
     @Override public WorkTableManagerPort workTables(WorkObjectStore store) { return new OracleWorkTableManager(store); }

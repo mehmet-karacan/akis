@@ -172,7 +172,9 @@ final class RuntimeOracleConnectionProvider {
             }
             else {
                 connection.setReadOnly(false);
-                connection.setAutoCommit(false);
+                // PostgreSQL DDL is transactional and the work table must be visible to the separate data session, so the
+                // work-control session commits each statement (Oracle DDL commits implicitly, which is the same effect).
+                connection.setAutoCommit(purpose == SessionPurpose.WORK_CONTROL && POSTGRES_DRIVER.equals(profile.driverReference()));
             }
             return new RuntimeOracleSession(
                     connection, purpose, timeouts.queryTimeoutSeconds());
@@ -572,8 +574,14 @@ final class RuntimeOracleConnectionProvider {
         @Override
         public Object invoke(Object proxy, Method method, Object[] arguments) throws Throwable {
             String name = method.getName();
+            // PGConnection carries no lifecycle methods (no commit/rollback/close), only driver capabilities such as the
+            // COPY API the PostgreSQL staging transfer needs, so it is the one type this guard unwraps.
+            boolean postgresCapability = arguments != null && arguments.length == 1 && arguments[0] == org.postgresql.PGConnection.class;
             if (name.equals("isWrapperFor")) {
-                return false;
+                return postgresCapability && delegate.isWrapperFor(org.postgresql.PGConnection.class);
+            }
+            if (name.equals("unwrap") && postgresCapability) {
+                return delegate.unwrap(org.postgresql.PGConnection.class);
             }
             if (SESSION_CONTROL_METHODS.contains(name)) {
                 throw new SQLException("Session lifecycle is managed by the runtime.");
