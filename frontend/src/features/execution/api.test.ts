@@ -59,6 +59,12 @@ describe('execution API contracts', () => {
     expect(path).toContain('page=2')
   })
 
+  it('loads the project operations overview', async () => {
+    const fetchMock = fetchResponse({ totalRuns: 0, selectedRowsExact: '0' })
+    await executionApi.getOverview('project/id')
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/projects/project%2Fid/runs/overview')
+  })
+
   it('recognizes only the explicit disabled-execution problem and generates the key client-side', () => {
     vi.stubGlobal('crypto', { randomUUID: () => 'client-generated-uuid' })
     const disabled = new ApiProblem({

@@ -6,6 +6,8 @@ import java.util.Objects;
 import java.util.Optional;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 
@@ -24,6 +26,8 @@ import tr.com.innova.akis.execution.RuntimeOracleConnectionProvider.RuntimeOracl
 @Component
 @ConditionalOnProperty(name = "akis.execution.procedure-runtime-enabled", havingValue = "true")
 final class ProcedureWorkerOrchestrator {
+
+    private static final Logger LOG = LoggerFactory.getLogger(ProcedureWorkerOrchestrator.class);
 
     private final WorkerLeaseService leases;
     private final PinnedExecutionContextPort executions;
@@ -66,6 +70,7 @@ final class ProcedureWorkerOrchestrator {
             claimed = leases.claimForPreflight(worker, lease);
         }
         catch (RuntimeException exception) {
+            LOG.warn("Worker claim could not be confirmed: {}", exception.toString());
             return new StoppedFailClosed("CLAIM_UNCONFIRMED");
         }
         if (claimed.isEmpty()) return new Idle();

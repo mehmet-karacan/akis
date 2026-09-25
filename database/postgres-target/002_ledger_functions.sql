@@ -5,16 +5,16 @@
 --   read:  parti_dogrula / yayin_dogrula                                 (reconciliation on a fresh connection)
 -- Transaction guards live in transaction-local settings (set_config(..., true)), so a guard can never outlive the
 -- transaction that prepared it; both the guard and the evidence signature are re-checked at record time.
-SET search_path TO akis_yayin_defteri, public;
+SET search_path TO akis, public;
 
-CREATE OR REPLACE FUNCTION ozet_dogrula(p_deger TEXT, p_ad TEXT) RETURNS VOID LANGUAGE plpgsql IMMUTABLE SET search_path = akis_yayin_defteri, pg_catalog AS $$
+CREATE OR REPLACE FUNCTION ozet_dogrula(p_deger TEXT, p_ad TEXT) RETURNS VOID LANGUAGE plpgsql IMMUTABLE SET search_path = akis, pg_catalog AS $$
 BEGIN
     IF p_deger IS NULL OR p_deger !~ '^[0-9a-f]{64}$' THEN
         RAISE EXCEPTION '% must be lowercase SHA-256', p_ad USING ERRCODE = 'AK001';
     END IF;
 END $$;
 
-CREATE OR REPLACE FUNCTION kod_dogrula(p_deger TEXT, p_ad TEXT) RETURNS VOID LANGUAGE plpgsql IMMUTABLE SET search_path = akis_yayin_defteri, pg_catalog AS $$
+CREATE OR REPLACE FUNCTION kod_dogrula(p_deger TEXT, p_ad TEXT) RETURNS VOID LANGUAGE plpgsql IMMUTABLE SET search_path = akis, pg_catalog AS $$
 BEGIN
     IF p_deger IS NULL OR length(p_deger) > 128 OR p_deger !~ '^[A-Za-z0-9_.:-]+$' THEN
         RAISE EXCEPTION '% is not a canonical code', p_ad USING ERRCODE = 'AK003';
@@ -23,7 +23,7 @@ END $$;
 
 CREATE OR REPLACE FUNCTION sahip_dogrula(
     p_hedef TEXT, p_cit BIGINT, p_is UUID, p_calistirma UUID, p_deneme INTEGER, p_surum TEXT, p_plan TEXT)
-RETURNS VOID LANGUAGE plpgsql IMMUTABLE SET search_path = akis_yayin_defteri, pg_catalog AS $$
+RETURNS VOID LANGUAGE plpgsql IMMUTABLE SET search_path = akis, pg_catalog AS $$
 BEGIN
     PERFORM ozet_dogrula(p_hedef, 'target key hash');
     IF p_cit IS NULL OR p_cit < 1 THEN RAISE EXCEPTION 'fence token must be a positive integer' USING ERRCODE = 'AK006'; END IF;
@@ -37,7 +37,7 @@ END $$;
 -- Locks the fence row and verifies that the caller still owns it.
 CREATE OR REPLACE FUNCTION cit_kilitle_ve_dogrula(
     p_hedef TEXT, p_cit BIGINT, p_is UUID, p_calistirma UUID, p_deneme INTEGER, p_surum TEXT, p_plan TEXT)
-RETURNS VOID LANGUAGE plpgsql SET search_path = akis_yayin_defteri, pg_catalog AS $$
+RETURNS VOID LANGUAGE plpgsql SET search_path = akis, pg_catalog AS $$
 DECLARE v hedef_citi%ROWTYPE;
 BEGIN
     PERFORM sahip_dogrula(p_hedef, p_cit, p_is, p_calistirma, p_deneme, p_surum, p_plan);
@@ -51,7 +51,7 @@ END $$;
 
 CREATE OR REPLACE FUNCTION cit_al(
     p_hedef TEXT, p_cit BIGINT, p_is UUID, p_calistirma UUID, p_deneme INTEGER, p_surum TEXT, p_plan TEXT)
-RETURNS VOID LANGUAGE plpgsql SET search_path = akis_yayin_defteri, pg_catalog AS $$
+RETURNS VOID LANGUAGE plpgsql SET search_path = akis, pg_catalog AS $$
 DECLARE v hedef_citi%ROWTYPE;
 BEGIN
     PERFORM sahip_dogrula(p_hedef, p_cit, p_is, p_calistirma, p_deneme, p_surum, p_plan);
@@ -78,7 +78,7 @@ END $$;
 CREATE OR REPLACE FUNCTION cit_oku(p_hedef TEXT)
 RETURNS TABLE(bulundu BOOLEAN, cit_belirteci BIGINT, is_uuid UUID, calistirma_uuid UUID, deneme_no INTEGER,
               surum_ozeti TEXT, plan_ozeti TEXT, guncellenme_zamani TIMESTAMPTZ)
-LANGUAGE plpgsql STABLE SET search_path = akis_yayin_defteri, pg_catalog AS $$
+LANGUAGE plpgsql STABLE SET search_path = akis, pg_catalog AS $$
 BEGIN
     PERFORM ozet_dogrula(p_hedef, 'target key hash');
     RETURN QUERY
@@ -95,7 +95,7 @@ CREATE OR REPLACE FUNCTION yayin_girdi_dogrula(
     p_hedef TEXT, p_is UUID, p_adim TEXT, p_yayin_anahtar TEXT, p_calistirma UUID, p_deneme INTEGER, p_cit BIGINT,
     p_surum TEXT, p_plan TEXT, p_asama TEXT, p_asama_satir BIGINT, p_yayinlanan BIGINT, p_reddedilen BIGINT,
     p_alt TEXT, p_ust TEXT)
-RETURNS VOID LANGUAGE plpgsql IMMUTABLE SET search_path = akis_yayin_defteri, pg_catalog AS $$
+RETURNS VOID LANGUAGE plpgsql IMMUTABLE SET search_path = akis, pg_catalog AS $$
 BEGIN
     PERFORM sahip_dogrula(p_hedef, p_cit, p_is, p_calistirma, p_deneme, p_surum, p_plan);
     PERFORM kod_dogrula(p_adim, 'step code');
@@ -113,7 +113,7 @@ CREATE OR REPLACE FUNCTION yayin_imzasi(
     p_hedef TEXT, p_is UUID, p_adim TEXT, p_yayin_anahtar TEXT, p_calistirma UUID, p_deneme INTEGER, p_cit BIGINT,
     p_surum TEXT, p_plan TEXT, p_asama TEXT, p_asama_satir BIGINT, p_yayinlanan BIGINT, p_reddedilen BIGINT,
     p_alt TEXT, p_ust TEXT)
-RETURNS TEXT LANGUAGE sql IMMUTABLE SET search_path = akis_yayin_defteri, pg_catalog AS $$
+RETURNS TEXT LANGUAGE sql IMMUTABLE SET search_path = akis, pg_catalog AS $$
     SELECT encode(sha256(convert_to(concat_ws('|', 'YAYIN', p_hedef, p_is::text, p_adim, p_yayin_anahtar, p_calistirma::text, p_deneme::text,
         p_cit::text, p_surum, p_plan, p_asama, p_asama_satir::text, p_yayinlanan::text, p_reddedilen::text,
         coalesce(p_alt, '<null>'), coalesce(p_ust, '<null>')), 'UTF8')), 'hex')
@@ -124,7 +124,7 @@ CREATE OR REPLACE FUNCTION yayin_hazirla(
     p_hedef TEXT, p_is UUID, p_adim TEXT, p_yayin_anahtar TEXT, p_calistirma UUID, p_deneme INTEGER, p_cit BIGINT,
     p_surum TEXT, p_plan TEXT, p_asama TEXT, p_asama_satir BIGINT, p_yayinlanan BIGINT, p_reddedilen BIGINT,
     p_alt TEXT, p_ust TEXT)
-RETURNS TABLE(koruma TEXT, zaten_kayitli BOOLEAN) LANGUAGE plpgsql SET search_path = akis_yayin_defteri, pg_catalog AS $$
+RETURNS TABLE(koruma TEXT, zaten_kayitli BOOLEAN) LANGUAGE plpgsql SET search_path = akis, pg_catalog AS $$
 DECLARE v yayin_defteri%ROWTYPE; v_koruma TEXT;
 BEGIN
     IF coalesce(current_setting('akis_defter.yayin_koruma', true), '') <> '' THEN
@@ -156,7 +156,7 @@ CREATE OR REPLACE FUNCTION yayin_kaydet(
     p_hedef TEXT, p_is UUID, p_adim TEXT, p_yayin_anahtar TEXT, p_calistirma UUID, p_deneme INTEGER, p_cit BIGINT,
     p_surum TEXT, p_plan TEXT, p_asama TEXT, p_asama_satir BIGINT, p_yayinlanan BIGINT, p_reddedilen BIGINT,
     p_alt TEXT, p_ust TEXT)
-RETURNS VOID LANGUAGE plpgsql SET search_path = akis_yayin_defteri, pg_catalog AS $$
+RETURNS VOID LANGUAGE plpgsql SET search_path = akis, pg_catalog AS $$
 BEGIN
     PERFORM yayin_girdi_dogrula(p_hedef, p_is, p_adim, p_yayin_anahtar, p_calistirma, p_deneme, p_cit, p_surum, p_plan, p_asama,
         p_asama_satir, p_yayinlanan, p_reddedilen, p_alt, p_ust);
@@ -182,7 +182,7 @@ CREATE OR REPLACE FUNCTION yayin_dogrula(
     p_hedef TEXT, p_is UUID, p_adim TEXT, p_yayin_anahtar TEXT, p_surum TEXT, p_plan TEXT, p_asama TEXT,
     p_asama_satir BIGINT, p_yayinlanan BIGINT, p_reddedilen BIGINT, p_alt TEXT, p_ust TEXT)
 RETURNS TABLE(eslesti BOOLEAN, calistirma_uuid UUID, deneme_no INTEGER, cit_belirteci BIGINT, kanit_zamani TIMESTAMPTZ)
-LANGUAGE plpgsql STABLE SET search_path = akis_yayin_defteri, pg_catalog AS $$
+LANGUAGE plpgsql STABLE SET search_path = akis, pg_catalog AS $$
 DECLARE v yayin_defteri%ROWTYPE;
 BEGIN
     PERFORM ozet_dogrula(p_hedef, 'target key hash');
@@ -211,7 +211,7 @@ END $$;
 CREATE OR REPLACE FUNCTION parti_girdi_dogrula(
     p_hedef TEXT, p_is UUID, p_adim TEXT, p_bolum TEXT, p_parti_anahtar TEXT, p_parti_no BIGINT, p_calistirma UUID, p_deneme INTEGER,
     p_cit BIGINT, p_surum TEXT, p_plan TEXT, p_yuk TEXT, p_satir BIGINT, p_bayt BIGINT)
-RETURNS VOID LANGUAGE plpgsql IMMUTABLE SET search_path = akis_yayin_defteri, pg_catalog AS $$
+RETURNS VOID LANGUAGE plpgsql IMMUTABLE SET search_path = akis, pg_catalog AS $$
 BEGIN
     PERFORM sahip_dogrula(p_hedef, p_cit, p_is, p_calistirma, p_deneme, p_surum, p_plan);
     PERFORM kod_dogrula(p_adim, 'step code');
@@ -226,7 +226,7 @@ END $$;
 CREATE OR REPLACE FUNCTION parti_imzasi(
     p_hedef TEXT, p_is UUID, p_adim TEXT, p_bolum TEXT, p_parti_anahtar TEXT, p_parti_no BIGINT, p_calistirma UUID, p_deneme INTEGER,
     p_cit BIGINT, p_surum TEXT, p_plan TEXT, p_yuk TEXT, p_satir BIGINT, p_bayt BIGINT)
-RETURNS TEXT LANGUAGE sql IMMUTABLE SET search_path = akis_yayin_defteri, pg_catalog AS $$
+RETURNS TEXT LANGUAGE sql IMMUTABLE SET search_path = akis, pg_catalog AS $$
     SELECT encode(sha256(convert_to(concat_ws('|', 'PARTI', p_hedef, p_is::text, p_adim, p_bolum, p_parti_anahtar, p_parti_no::text,
         p_calistirma::text, p_deneme::text, p_cit::text, p_surum, p_plan, p_yuk, p_satir::text, p_bayt::text), 'UTF8')), 'hex')
 $$;
@@ -234,7 +234,7 @@ $$;
 CREATE OR REPLACE FUNCTION parti_hazirla(
     p_hedef TEXT, p_is UUID, p_adim TEXT, p_bolum TEXT, p_parti_anahtar TEXT, p_parti_no BIGINT, p_calistirma UUID, p_deneme INTEGER,
     p_cit BIGINT, p_surum TEXT, p_plan TEXT, p_yuk TEXT, p_satir BIGINT, p_bayt BIGINT)
-RETURNS TABLE(koruma TEXT, zaten_kayitli BOOLEAN) LANGUAGE plpgsql SET search_path = akis_yayin_defteri, pg_catalog AS $$
+RETURNS TABLE(koruma TEXT, zaten_kayitli BOOLEAN) LANGUAGE plpgsql SET search_path = akis, pg_catalog AS $$
 DECLARE v yukleme_defteri%ROWTYPE; v_koruma TEXT;
 BEGIN
     IF coalesce(current_setting('akis_defter.parti_koruma', true), '') <> '' THEN
@@ -266,7 +266,7 @@ CREATE OR REPLACE FUNCTION parti_kaydet(
     p_koruma TEXT,
     p_hedef TEXT, p_is UUID, p_adim TEXT, p_bolum TEXT, p_parti_anahtar TEXT, p_parti_no BIGINT, p_calistirma UUID, p_deneme INTEGER,
     p_cit BIGINT, p_surum TEXT, p_plan TEXT, p_yuk TEXT, p_satir BIGINT, p_bayt BIGINT)
-RETURNS VOID LANGUAGE plpgsql SET search_path = akis_yayin_defteri, pg_catalog AS $$
+RETURNS VOID LANGUAGE plpgsql SET search_path = akis, pg_catalog AS $$
 BEGIN
     PERFORM parti_girdi_dogrula(p_hedef, p_is, p_adim, p_bolum, p_parti_anahtar, p_parti_no, p_calistirma, p_deneme, p_cit, p_surum, p_plan, p_yuk, p_satir, p_bayt);
     IF p_koruma IS NULL OR coalesce(current_setting('akis_defter.parti_koruma', true), '') = '' OR p_koruma <> current_setting('akis_defter.parti_koruma', true)
@@ -290,7 +290,7 @@ CREATE OR REPLACE FUNCTION parti_dogrula(
     p_hedef TEXT, p_is UUID, p_adim TEXT, p_bolum TEXT, p_parti_anahtar TEXT, p_parti_no BIGINT,
     p_surum TEXT, p_plan TEXT, p_yuk TEXT, p_satir BIGINT, p_bayt BIGINT)
 RETURNS TABLE(eslesti BOOLEAN, calistirma_uuid UUID, deneme_no INTEGER, cit_belirteci BIGINT, kanit_zamani TIMESTAMPTZ)
-LANGUAGE plpgsql STABLE SET search_path = akis_yayin_defteri, pg_catalog AS $$
+LANGUAGE plpgsql STABLE SET search_path = akis, pg_catalog AS $$
 DECLARE v yukleme_defteri%ROWTYPE;
 BEGIN
     PERFORM ozet_dogrula(p_hedef, 'target key hash');

@@ -13,7 +13,7 @@ import { isPackageContent, packageValidation, type PackageContent, type PackageS
 import type { Definition, ProcedureContent, ProcedureTask } from './types'
 import { isProcedureContent } from './defaults'
 import { operationsApi } from '../operations/api'
-import { connectionUses, type PreRunPreview } from './PreRunReport'
+import { connectionUses, type PreRunPlan, type PreRunPreview } from './PreRunReport'
 import { ConnectionsSection, connectionsMarkdown, connectionEndpoint, type ConnectionUse } from './ConnectionsSection'
 import './pre-run-report.css'
 
@@ -225,6 +225,50 @@ export interface PackageSimulation {
 }
 interface VariableContent { query?: string; logicalSchemaUuid?: string; dataType?: string; valueSource?: string; defaultValue?: string }
 const isVariableContent = (value: unknown): value is VariableContent => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+const record = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+
+function mappingChildFromPlan(plan: PreRunPlan, topology: Topology, tr: boolean, issue?: string, sqlPreview: PreRunPreview['sqlPreview'] = []): PackageChildReport {
+  return {
+    kind: 'MAPPING',
+    steps: plan.steps.map((step, index) => ({ index: index + 1, name: step.id, site: step.site, operation: step.operation })),
+    statements: (sqlPreview ?? []).map((statement) => ({ step: statement.step, site: statement.site as SimulationStatement['site'], owner: statement.owner, sql: statement.sql })),
+    connections: connectionUses(plan, topology.connections, topology.physical, tr),
+    issues: issue ? [issue] : [],
+    note: plan.staging?.nonReversibleDdl ? (tr ? 'Geri alınamaz DDL (TRUNCATE)' : 'Non-reversible DDL (TRUNCATE)') : undefined,
+  }
+}
+
+async function mappingKmSteps(projectUuid: string, content: unknown): Promise<PackageChildReport['steps']> {
+  const mapping = record(content)
+  const pins = record(mapping.modules)
+  const optionGroups = record(mapping.moduleOptions)
+  const roles = [['loading', 'LKM'], ['checking', 'CKM'], ['integration', 'IKM']] as const
+  const wanted = new Set(roles.map(([role]) => String(record(pins[role]).versionUuid ?? '')).filter(Boolean))
+  if (!wanted.size) return []
+  const definitions = await definitionsApi.listDefinitions(projectUuid, 'KNOWLEDGE_MODULE')
+  const versions = (await Promise.all(definitions.map((item) => definitionsApi.listVersions(projectUuid, item.uuid)))).flat()
+  const byUuid = new Map(versions.filter((version) => wanted.has(version.uuid)).map((version) => [version.uuid, version]))
+  const steps: PackageChildReport['steps'] = []
+  for (const [role, label] of roles) {
+    const version = byUuid.get(String(record(pins[role]).versionUuid ?? ''))
+    const options = record(optionGroups[role])
+    const source = String(record(version?.content).source ?? '')
+    for (const line of source.split(/\r?\n/)) {
+      const parts = line.trim().split(/\s+/)
+      if (parts[0] !== 'ADIM' || parts.length < 5) continue
+      const condition = parts[5] === 'EGER' ? parts[6] : undefined
+      steps.push({
+        index: steps.length + 1,
+        name: parts[1]!,
+        site: parts[2],
+        operation: parts[3],
+        detail: `${label} · ${parts[4]}${condition ? ` · EGER ${condition}` : ''}`,
+        enabled: condition ? options[condition] === true : true,
+      })
+    }
+  }
+  return steps
+}
 
 /** Resolves the latest version of a called object into its own report; a mapping needs its compiled scenario for the physical plan. */
 async function childReport(projectUuid: string, definition: Definition, environment: Environment, topology: Topology, tr: boolean): Promise<PackageChildReport> {
@@ -253,10 +297,13 @@ async function childReport(projectUuid: string, definition: Definition, environm
       const scenarios = await definitionsApi.listScenarios(projectUuid, definition.uuid, latest.uuid)
       const scenario = scenarios[0]
       if (!scenario) return { kind: 'MAPPING', steps: [], statements: [], connections: [], issues: [...unversioned, tr ? `${definition.name}: senaryosu derlenmemiş.` : `${definition.name}: scenario not compiled.`] }
-      const preview = await operationsApi.previewStagedPlan(projectUuid, scenario.uuid, environment.uuid) as PreRunPreview
-      const uses = connectionUses(preview.plan, topology.connections, topology.physical, tr)
-      return { kind: 'MAPPING', steps: preview.plan.steps.map((step, index) => ({ index: index + 1, name: step.id, site: step.site, operation: step.operation })),
-        statements: (preview.sqlPreview ?? []).map((statement) => ({ step: statement.step, site: statement.site as SimulationStatement['site'], owner: statement.owner, sql: statement.sql })), connections: uses, issues: [], note: preview.plan.staging?.nonReversibleDdl ? (tr ? 'Geri alınamaz DDL (TRUNCATE)' : 'Non-reversible DDL (TRUNCATE)') : undefined }
+      try {
+        const preview = await operationsApi.previewStagedPlan(projectUuid, scenario.uuid, environment.uuid) as PreRunPreview
+        return mappingChildFromPlan(preview.plan, topology, tr, undefined, preview.sqlPreview)
+      } catch (reason) {
+        const issue = `${definition.name}: ${reason instanceof Error ? reason.message : String(reason)}`
+        return { kind: 'MAPPING', steps: await mappingKmSteps(projectUuid, latest.content), statements: [], connections: [], issues: [issue] }
+      }
     } catch (reason) { return { kind: 'MAPPING', steps: [], statements: [], connections: [], issues: [`${definition.name}: ${reason instanceof Error ? reason.message : String(reason)}`] } }
   }
   if (definition.type === 'PACKAGE') return { kind: 'PACKAGE', steps: [], statements: [], connections: [], issues: [], note: tr ? 'İç paket; kendi raporunda ayrıntılanır.' : 'Nested package; detailed in its own report.' }

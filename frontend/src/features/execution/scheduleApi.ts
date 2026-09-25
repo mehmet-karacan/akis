@@ -14,6 +14,9 @@ export const scheduleApi = {
   create(projectUuid: string, input: CreateScheduleInput) {
     return apiRequest<Schedule>(schedulesPath(projectUuid), { method: 'POST', ...jsonBody(input) })
   },
+  update(projectUuid: string, scheduleUuid: string, expectedVersion: number, input: CreateScheduleInput) {
+    return apiRequest<Schedule>(`${schedulesPath(projectUuid)}/${encodeURIComponent(scheduleUuid)}`, { method: 'PUT', ...jsonBody({ ...input, expectedVersion }) })
+  },
   pause(projectUuid: string, scheduleUuid: string, expectedVersion: number) {
     return apiRequest<Schedule>(`${schedulesPath(projectUuid)}/${encodeURIComponent(scheduleUuid)}/pause`, {
       method: 'POST', ...jsonBody({ expectedVersion }),

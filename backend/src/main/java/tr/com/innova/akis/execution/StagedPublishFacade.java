@@ -107,12 +107,19 @@ final class StagedPublishFacade {
     }
     private void requireCompletedSteps(StagedRuntimePlan plan,PinnedExecutionContext execution,TargetFenceToken fence) {
         var recorded=journal.list(plan.projectUuid(),execution.runUuid()).stream().filter(r->r.generation()==fence.runGeneration()).toList();
-        require(recorded.size()==plan.program().steps().size());
+        int publishIndex = -1;
+        for (int i = 0; i < plan.program().steps().size(); i++)
+            if (plan.program().steps().get(i).operation() == AkisKmLanguage.Operation.ATOMIC_REPLACE) publishIndex = i;
+        require(publishIndex >= 0 && recorded.size() == plan.program().steps().size());
+        require(plan.program().steps().subList(publishIndex + 1, plan.program().steps().size()).stream()
+                .allMatch(step -> step.operation() == AkisKmLanguage.Operation.DROP_WORK));
         for(int i=0;i<recorded.size();i++) {
             var actual=recorded.get(i);var expected=plan.program().steps().get(i);
             require(actual.ordinal()==i+1 && actual.stepCode().equals(expected.id()) && actual.operation().equals(expected.operation().name())
                     && actual.site().equals(expected.site().name()) && actual.slot().equals(expected.slot()));
-            require(i==recorded.size()-1?actual.state().equals("RUNNING"):Set.of("SUCCEEDED","SKIPPED").contains(actual.state()));
+            require(i < publishIndex ? Set.of("SUCCEEDED", "SKIPPED").contains(actual.state())
+                    : i == publishIndex ? actual.state().equals("RUNNING")
+                    : actual.state().equals("PENDING"));
         }
     }
     private static void require(boolean valid) { if(!valid) throw new IllegalStateException("KM yayın kanıtı uyuşmuyor."); }

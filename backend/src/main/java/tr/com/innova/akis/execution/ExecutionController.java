@@ -24,6 +24,7 @@ import tr.com.innova.akis.execution.ExecutionModels.RunRow;
 import tr.com.innova.akis.execution.ExecutionModels.RunStepRow;
 import tr.com.innova.akis.execution.ExecutionModels.RunSearch;
 import tr.com.innova.akis.execution.ExecutionModels.RunSummaryRow;
+import tr.com.innova.akis.execution.ExecutionModels.RunOverviewRow;
 import tr.com.innova.akis.execution.ExecutionModels.StartResult;
 import tr.com.innova.akis.security.AuthorizationService;
 import static tr.com.innova.akis.security.PermissionCodes.RUN_CANCEL;
@@ -93,6 +94,12 @@ final class ExecutionController {
         return new RunPageView(
                 result.items().stream().map(row -> RunSummaryView.from(row, featureFlags)).toList(),
                 result.total(), result.page(), result.size());
+    }
+
+    @GetMapping("/overview")
+    RunOverviewView overview(@PathVariable UUID projectUuid) {
+        authorization.requireProjectPermission(projectUuid, RUN_READ);
+        return RunOverviewView.from(service.overview(projectUuid));
     }
 
     @GetMapping("/{runUuid}")
@@ -325,18 +332,32 @@ final class ExecutionController {
             String scheduleCode,
             Long selectedRows,
             Long insertedRows,
+            Long updatedRows,
+            Long deletedRows,
             String selectedRowsExact,
-            String insertedRowsExact) {
+            String insertedRowsExact,
+            String updatedRowsExact,
+            String deletedRowsExact) {
         static RunSummaryView from(RunSummaryRow row, ExecutionFeatureFlags flags) {
             return new RunSummaryView(
                     RunView.from(row.run(), flags), row.definitionUuid(), row.definitionCode(),
                     row.definitionName(), row.definitionType(), row.environmentUuid(),
                     row.environmentCode(), row.environmentName(), row.environmentRisk(),
                     row.initiatorName(), row.scheduleCode(), row.selectedRows(), row.insertedRows(),
-                    exact(row.selectedRows()), exact(row.insertedRows()));
+                    row.updatedRows(), row.deletedRows(), exact(row.selectedRows()), exact(row.insertedRows()),
+                    exact(row.updatedRows()), exact(row.deletedRows()));
         }
 
         private static String exact(Long value) { return value == null ? null : value.toString(); }
+    }
+
+    record RunOverviewView(
+            long totalRuns, long activeRuns, long queuedRuns, long succeededRuns, long failedRuns,
+            String selectedRowsExact, String insertedRowsExact, String updatedRowsExact, String deletedRowsExact) {
+        static RunOverviewView from(RunOverviewRow row) {
+            return new RunOverviewView(row.totalRuns(), row.activeRuns(), row.queuedRuns(), row.succeededRuns(), row.failedRuns(),
+                    Long.toString(row.selectedRows()), Long.toString(row.insertedRows()), Long.toString(row.updatedRows()), Long.toString(row.deletedRows()));
+        }
     }
 
     record RunEventView(

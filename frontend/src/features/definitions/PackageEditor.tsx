@@ -15,7 +15,7 @@ import {
   packageValidation, removePackageStep, withoutPackageLayout, type PackageContent,
   type PackageStep, type PackageStepType, type TransitionOutcome,
 } from './packageGraph'
-import type { Definition } from './types'
+import type { Definition, DefinitionVersionSummary } from './types'
 
 const allowedTypes = new Set(['MAPPING', 'PROCEDURE', 'PACKAGE', 'VARIABLE'])
 const pickerTypes = ['MAPPING', 'PROCEDURE', 'PACKAGE', 'VARIABLE'] as const
@@ -41,8 +41,9 @@ function PackageEditorInner({ projectUuid, definitionUuid, value, onChange, onOp
   const { language, t } = useDefinitionsI18n()
   const rawContent = isPackageContent(value) ? value : { firstStepId: '', steps: [], transitions: [] } satisfies PackageContent
   const content = withoutPackageLayout(rawContent)
-  const storageKey = `akis:package-layout:${projectUuid}:${definitionUuid}`
+  const storageKey = `akis:package-layout:v2:${projectUuid}:${definitionUuid}`
   const [definitions, setDefinitions] = useState<Definition[]>([])
+  const [versionSummaries, setVersionSummaries] = useState<Record<string, DefinitionVersionSummary>>({})
   const [selectedStepId, setSelectedStepId] = useState(content.firstStepId)
   const [inspectorOpen, setInspectorOpen] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -67,11 +68,12 @@ function PackageEditorInner({ projectUuid, definitionUuid, value, onChange, onOp
 
   useEffect(() => {
     let active = true
-    void definitionsApi.listDefinitions(projectUuid).then((items) => {
+    void Promise.all([definitionsApi.listDefinitions(projectUuid), definitionsApi.listDefinitionVersionSummaries(projectUuid)]).then(([items, summaries]) => {
       if (!active) return
       const allowed = items.filter((item) => !['PASIF', 'ARSIVLENDI'].includes(item.status) && allowedTypes.has(item.type) && item.uuid !== definitionUuid)
       setDefinitions(allowed)
-    }).catch(() => { if (active) setDefinitions([]) })
+      setVersionSummaries(Object.fromEntries(summaries.map(summary => [summary.definitionUuid, summary])))
+    }).catch(() => { if (active) { setDefinitions([]); setVersionSummaries({}) } })
     return () => { active = false }
   }, [definitionUuid, projectUuid])
 
@@ -84,11 +86,11 @@ function PackageEditorInner({ projectUuid, definitionUuid, value, onChange, onOp
 
   const nodes: Node[] = useMemo(() => content.steps.map((step, index) => ({
     id: step.id,
-    position: positions[step.id] ?? { x: (index % 3) * 260, y: Math.floor(index / 3) * 150 },
+    position: positions[step.id] ?? { x: (index % 10) * 250, y: Math.floor(index / 10) * 170 },
     className: `package-node package-node--${stepTypeKey(step.type)}${content.firstStepId === step.id ? ' is-start' : ''}`,
-    data: { label: <div className="package-node-label"><DefinitionTypeIcon type={stepDefinitionType(step.type)} size={14} /><div className="package-node-text"><span className={content.firstStepId === step.id ? 'package-start-badge' : ''}>{content.firstStepId === step.id ? <><CirclePlay />{t('firstStep')}</> : definitionCodeLabel(step.type, language)}</span><strong>{step.name || step.id}</strong><small>{definitions.find((item) => item.uuid === step.definitionUuid)?.name ?? t('unlinkedStep')}</small></div></div> },
+    data: { label: <div className="package-node-label"><DefinitionTypeIcon type={stepDefinitionType(step.type)} size={14} /><div className="package-node-text"><span className={content.firstStepId === step.id ? 'package-start-badge' : ''}>{content.firstStepId === step.id ? <><CirclePlay />{t('firstStep')}</> : definitionCodeLabel(step.type, language)}</span><strong title={step.name || step.id}>{step.name || step.id}</strong><small title={definitions.find((item) => item.uuid === step.definitionUuid)?.name ?? t('unlinkedStep')}>{definitions.find((item) => item.uuid === step.definitionUuid)?.name ?? t('unlinkedStep')}</small><div className="package-node-meta"><span>{versionSummaries[step.definitionUuid ?? '']?.latestVersionNumber ? `v${versionSummaries[step.definitionUuid ?? '']?.latestVersionNumber}` : '—'}</span><span>{content.transitions.filter(edge => edge.fromStepId === step.id).length} {language === 'tr' ? 'çıkış' : 'out'}</span></div></div></div> },
     selected: step.id === selectedStepId,
-  })), [content.firstStepId, content.steps, definitions, language, positions, selectedStepId, t])
+  })), [content.firstStepId, content.steps, content.transitions, definitions, language, positions, selectedStepId, t, versionSummaries])
   useEffect(() => {
     if (!instance || nodes.length === 0) return
     const frame = window.requestAnimationFrame(() => { void instance.fitView({ padding: .18 }) })
@@ -144,7 +146,7 @@ function PackageEditorInner({ projectUuid, definitionUuid, value, onChange, onOp
   const transitionCount = selected ? content.transitions.filter((edge) => edge.fromStepId === selected.id || edge.toStepId === selected.id).length : 0
   const autoLayout = () => {
     setUndoPositions(structuredClone(positions))
-    persistPositions(Object.fromEntries(content.steps.map((step, index) => [step.id, { x: (index % 3) * 260, y: Math.floor(index / 3) * 150 }])))
+    persistPositions(Object.fromEntries(content.steps.map((step, index) => [step.id, { x: (index % 10) * 250, y: Math.floor(index / 10) * 170 }])))
   }
   const drop = (event: DragEvent) => {
     event.preventDefault()

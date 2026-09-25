@@ -20,6 +20,7 @@ import tr.com.innova.akis.execution.ExecutionModels.RunEventPage;
 import tr.com.innova.akis.execution.ExecutionModels.RunRow;
 import tr.com.innova.akis.execution.ExecutionModels.RunSearch;
 import tr.com.innova.akis.execution.ExecutionModels.RunSummaryPage;
+import tr.com.innova.akis.execution.ExecutionModels.RunOverviewRow;
 import tr.com.innova.akis.execution.ExecutionModels.RunStepRow;
 import tr.com.innova.akis.execution.ExecutionModels.StartResult;
 import tr.com.innova.akis.execution.ExecutionRecoveryPolicy.RecoveryAction;
@@ -154,6 +155,11 @@ public class ExecutionService {
             throw validation("Çalıştırma görünümü geçersiz.");
         }
         return store.search(projectUuid, search);
+    }
+
+    RunOverviewRow overview(UUID projectUuid) {
+        requireProject(projectUuid);
+        return store.overview(projectUuid);
     }
 
     @Transactional(readOnly = true)

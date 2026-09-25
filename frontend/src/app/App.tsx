@@ -19,7 +19,6 @@ const LogicalSchemasPage = lazy(() => import('../features/schemas').then((module
 const LogicalSchemaDetailPage = lazy(() => import('../features/schemas').then((module) => ({ default: module.LogicalSchemaDetailPage })))
 const EnvironmentDetailPage = lazy(() => import('../features/schemas').then((module) => ({ default: module.EnvironmentDetailPage })))
 const EnvironmentsPage = lazy(() => import('../features/environments').then((module) => ({ default: module.EnvironmentsPage })))
-const RunDetailPage = lazy(() => import('../features/execution').then((module) => ({ default: module.RunDetailPage })))
 const RunsPage = lazy(() => import('../features/execution').then((module) => ({ default: module.RunsPage })))
 const SchedulesPage = lazy(() => import('../features/execution').then((module) => ({ default: module.SchedulesPage })))
 const IdentityUsersPage = lazy(() => import('../features/operations').then((module) => ({ default: module.IdentityUsersPage })))
@@ -64,7 +63,9 @@ export function LegacyDefinitionsRedirect() {
 
 export function LegacyRunsRedirect({ detail = false }: { detail?: boolean }) {
   const { runUuid = '' } = useParams(); const location = useLocation()
-  return <Navigate to={`${projectRoute('/operations')}${detail ? `/runs/${runUuid}` : ''}${location.search}`} replace />
+  const query = new URLSearchParams(location.search)
+  if (detail && runUuid) query.set('run', runUuid)
+  return <Navigate to={`${projectRoute('/operations')}${query.size ? `?${query}` : ''}`} replace />
 }
 
 function LegacyProjectRedirect() {
@@ -112,7 +113,7 @@ export function App() {
         <Route path="/project/operations" element={<RunsPage />} />
         <Route path="/project/schedules" element={<SchedulesPage />} />
         <Route path="/project/runs/:runUuid" element={<LegacyRunsRedirect detail />} />
-        <Route path="/project/operations/runs/:runUuid" element={<RunDetailPage />} />
+        <Route path="/project/operations/runs/:runUuid" element={<LegacyRunsRedirect detail />} />
         <Route path="/project/team" element={<MembershipsPage />} />
         <Route path="/project/connections" element={<ConnectionsPage />} />
         <Route path="/project/connections/new" element={<ProjectPermissionRoute permission="BAGLANTI_YONET" fallback="/project/connections"><ConnectionCreatePage /></ProjectPermissionRoute>} />

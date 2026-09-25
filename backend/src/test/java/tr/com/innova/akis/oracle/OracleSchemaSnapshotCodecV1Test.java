@@ -112,6 +112,23 @@ class OracleSchemaSnapshotCodecV1Test {
     }
 
     @Test
+    void catalogsBlobDateAndFloatWithoutLosingTheirProducerTypes() {
+        List<Column> result = codec.decode(
+                "TTBP", "VALUES_TABLE",
+                List.of(
+                        new RawColumn("PAYLOAD", "BLOB", null, null, null, null, 1, true, null),
+                        new RawColumn("BUSINESS_DATE", "DATE", null, null, null, null, 2, true, null),
+                        new RawColumn("LIMIT_VALUE", "FLOAT", 126, null, null, null, 3, true, null)),
+                List.of()).columns();
+
+        assertEquals("BINARY", result.get(0).canonicalType());
+        assertEquals("TIMESTAMP", result.get(1).canonicalType());
+        assertEquals(0, result.get(1).timePrecision());
+        assertEquals("FLOAT(126)", result.get(2).producerType());
+        assertEquals("FLOAT64", result.get(2).canonicalType());
+    }
+
+    @Test
     void numberIntegerBoundaryIsNineteenDigits() {
         SnapshotDefinition result = codec.decode(
                 "TTBP", "VALUES_TABLE",

@@ -23,6 +23,7 @@ import tr.com.innova.akis.execution.ExecutionModels.RunEventPage;
 import tr.com.innova.akis.execution.ExecutionModels.RunRow;
 import tr.com.innova.akis.execution.ExecutionModels.RunSearch;
 import tr.com.innova.akis.execution.ExecutionModels.RunSummaryPage;
+import tr.com.innova.akis.execution.ExecutionModels.RunOverviewRow;
 import tr.com.innova.akis.execution.ExecutionModels.RunSummaryRow;
 import tr.com.innova.akis.execution.ExecutionModels.RunStepRow;
 
@@ -374,13 +375,20 @@ public class JdbcExecutionStore implements ExecutionStore {
                                o.uuid as environment_uuid, o.kod as environment_code,
                                o.ad as environment_name, o.risk as environment_risk,
                                coalesce(k.gorunen_ad, 'Kaydedilmemiş') as initiator_name, z.kod as schedule_code,
-                               (select sum(ad.satir_sayisi)::bigint
+                               coalesce((select sum(ad.satir_sayisi)::bigint
                                   from akis.calistirma_adimi ca
                                   join akis.prosedur_adim_kaniti ak on ak.calistirma_adimi_id = ca.id
                                   join akis.prosedur_adim_durumu ad on ad.calistirma_adimi_id = ca.id
                                  where ca.calistirma_id = r.id
-                                   and ak.baglanti_rolu = 'SOURCE' and ad.durum = 'BASARILI') as selected_rows,
-                               (select sum(ad.satir_sayisi)::bigint
+                                   and ak.baglanti_rolu = 'SOURCE' and ad.durum = 'BASARILI'),
+                               (select sum(km.affected_rows)::bigint from akis.km_step_journal km
+                                 where km.calistirma_id = r.id and km.operation = 'TRANSFER_JDBC' and km.state = 'SUCCEEDED'
+                                   and km.generation = (select max(latest.generation) from akis.km_step_journal latest where latest.calistirma_id = r.id)),
+                               (select sum(km.affected_rows)::bigint from akis.paket_adim_durumu pd
+                                  join akis.km_step_journal km on km.calistirma_id = pd.alt_calistirma_id
+                                 where pd.calistirma_id = r.id and km.operation = 'TRANSFER_JDBC' and km.state = 'SUCCEEDED'
+                                   and km.generation = (select max(latest.generation) from akis.km_step_journal latest where latest.calistirma_id = km.calistirma_id))) as selected_rows,
+                               coalesce((select sum(ad.satir_sayisi)::bigint
                                   from akis.calistirma_adimi ca
                                   join akis.prosedur_adim_durumu ad on ad.calistirma_adimi_id = ca.id
                                  where ca.calistirma_id = r.id
@@ -390,7 +398,34 @@ public class JdbcExecutionStore implements ExecutionStore {
                                        where task->>'id' = ca.adim_kodu and task->>'logCounter' = 'INSERT'
                                          and (coalesce(task->>'transactionMode', 'AUTOCOMMIT') <> 'TRANSACTION'
                                               or not exists (select 1 from akis.prosedur_adim_durumu failure
-                                                  where failure.calistirma_id = r.id and failure.durum <> 'BASARILI')))) as inserted_rows
+                                                  where failure.calistirma_id = r.id and failure.durum <> 'BASARILI')))),
+                               (select sum(km.affected_rows)::bigint from akis.km_step_journal km
+                                 where km.calistirma_id = r.id and km.operation = 'ATOMIC_REPLACE' and km.state = 'SUCCEEDED'
+                                   and km.generation = (select max(latest.generation) from akis.km_step_journal latest where latest.calistirma_id = r.id)),
+                               (select sum(km.affected_rows)::bigint from akis.paket_adim_durumu pd
+                                  join akis.km_step_journal km on km.calistirma_id = pd.alt_calistirma_id
+                                 where pd.calistirma_id = r.id and km.operation = 'ATOMIC_REPLACE' and km.state = 'SUCCEEDED'
+                                   and km.generation = (select max(latest.generation) from akis.km_step_journal latest where latest.calistirma_id = km.calistirma_id))) as inserted_rows
+                              ,(select sum(ad.satir_sayisi)::bigint
+                                  from akis.calistirma_adimi ca
+                                  join akis.prosedur_adim_durumu ad on ad.calistirma_adimi_id = ca.id
+                                 where ca.calistirma_id = r.id and ad.durum = 'BASARILI'
+                                   and exists (select 1 from jsonb_array_elements(
+                                       coalesce(s.plan#>'{executable,definition,tasks}', '[]'::jsonb)) task
+                                       where task->>'id' = ca.adim_kodu and task->>'logCounter' = 'UPDATE'
+                                         and (coalesce(task->>'transactionMode', 'AUTOCOMMIT') <> 'TRANSACTION'
+                                              or not exists (select 1 from akis.prosedur_adim_durumu failure
+                                                  where failure.calistirma_id = r.id and failure.durum <> 'BASARILI')))) as updated_rows
+                              ,(select sum(ad.satir_sayisi)::bigint
+                                  from akis.calistirma_adimi ca
+                                  join akis.prosedur_adim_durumu ad on ad.calistirma_adimi_id = ca.id
+                                 where ca.calistirma_id = r.id and ad.durum = 'BASARILI'
+                                   and exists (select 1 from jsonb_array_elements(
+                                       coalesce(s.plan#>'{executable,definition,tasks}', '[]'::jsonb)) task
+                                       where task->>'id' = ca.adim_kodu and task->>'logCounter' = 'DELETE'
+                                         and (coalesce(task->>'transactionMode', 'AUTOCOMMIT') <> 'TRANSACTION'
+                                              or not exists (select 1 from akis.prosedur_adim_durumu failure
+                                                  where failure.calistirma_id = r.id and failure.durum <> 'BASARILI')))) as deleted_rows
                         """ + joinsAndFilter + """
                          order by r.olusturulma_zamani desc, r.id desc
                          limit :size offset :offset
@@ -405,9 +440,70 @@ public class JdbcExecutionStore implements ExecutionStore {
                         rs.getString("environment_code"), rs.getString("environment_name"),
                         rs.getString("environment_risk"), rs.getString("initiator_name"), rs.getString("schedule_code"),
                         rs.getObject("selected_rows", Long.class),
-                        rs.getObject("inserted_rows", Long.class)))
+                        rs.getObject("inserted_rows", Long.class),
+                        rs.getObject("updated_rows", Long.class),
+                        rs.getObject("deleted_rows", Long.class)))
                 .list();
         return new RunSummaryPage(items, total, search.page(), search.size());
+    }
+
+    @Override
+    public RunOverviewRow overview(UUID projectUuid) {
+        return jdbc.sql("""
+                with scoped as (
+                    select r.id as run_id, d.durum, s.plan
+                      from akis.calistirma r
+                      join akis.calistirma_durumu d on d.calistirma_id = r.id
+                      join akis.is_talebi j on j.id = r.is_talebi_id
+                      join akis.yayin y on y.id = j.yayin_id
+                      join akis.senaryo s on s.id = y.senaryo_id
+                      join akis.proje p on p.id = r.proje_id
+                     where p.uuid = :projectUuid
+                       and r.olusturulma_zamani >= date_trunc('day', current_timestamp)
+                ), dml as (
+                    select coalesce(task.content->>'logCounter', 'NONE') as counter,
+                           coalesce(sum(ad.satir_sayisi), 0)::bigint as rows
+                      from scoped scope
+                      join akis.calistirma_adimi ca on ca.calistirma_id = scope.run_id
+                      join akis.prosedur_adim_durumu ad on ad.calistirma_adimi_id = ca.id and ad.durum = 'BASARILI'
+                      left join lateral (select item as content from jsonb_array_elements(
+                          coalesce(scope.plan#>'{executable,definition,tasks}', '[]'::jsonb)) item
+                          where item->>'id' = ca.adim_kodu limit 1) task on true
+                     where coalesce(task.content->>'logCounter', 'NONE') in ('INSERT','UPDATE','DELETE')
+                       and (coalesce(task.content->>'transactionMode', 'AUTOCOMMIT') <> 'TRANSACTION'
+                            or not exists (select 1 from akis.prosedur_adim_durumu failure
+                                where failure.calistirma_id = scope.run_id and failure.durum <> 'BASARILI'))
+                     group by task.content->>'logCounter'
+                ), source_rows as (
+                    select coalesce(sum(ad.satir_sayisi), 0)::bigint as rows
+                      from scoped scope
+                      join akis.calistirma_adimi ca on ca.calistirma_id = scope.run_id
+                      join akis.prosedur_adim_kaniti proof on proof.calistirma_adimi_id = ca.id and proof.baglanti_rolu = 'SOURCE'
+                      join akis.prosedur_adim_durumu ad on ad.calistirma_adimi_id = ca.id and ad.durum = 'BASARILI'
+                ), km_rows as (
+                    select coalesce(sum(km.affected_rows) filter (where km.operation = 'TRANSFER_JDBC' and km.state = 'SUCCEEDED'), 0)::bigint as selected_rows,
+                           coalesce(sum(km.affected_rows) filter (where km.operation = 'ATOMIC_REPLACE' and km.state = 'SUCCEEDED'), 0)::bigint as inserted_rows
+                      from scoped scope
+                      join akis.km_step_journal km on km.calistirma_id = scope.run_id
+                     where km.generation = (select max(latest.generation) from akis.km_step_journal latest where latest.calistirma_id = scope.run_id)
+                )
+                select count(*)::bigint as total_runs,
+                       count(*) filter (where durum in ('SAHIPLENILDI','HAZIRLANIYOR','CALISIYOR','YAYINLANIYOR','IPTAL_ISTENDI','MUTABAKAT'))::bigint as active_runs,
+                       count(*) filter (where durum = 'BEKLIYOR')::bigint as queued_runs,
+                       count(*) filter (where durum = 'BASARILI')::bigint as succeeded_runs,
+                       count(*) filter (where durum in ('BASARISIZ','MUDAHALE_GEREKLI','YENIDEN_DENENEBILIR'))::bigint as failed_runs,
+                       (coalesce((select rows from source_rows), 0) + coalesce((select selected_rows from km_rows), 0))::bigint as selected_rows,
+                       (coalesce((select rows from dml where counter = 'INSERT'), 0) + coalesce((select inserted_rows from km_rows), 0))::bigint as inserted_rows,
+                       coalesce((select rows from dml where counter = 'UPDATE'), 0)::bigint as updated_rows,
+                       coalesce((select rows from dml where counter = 'DELETE'), 0)::bigint as deleted_rows
+                  from scoped
+                """)
+                .param("projectUuid", projectUuid)
+                .query((rs, rowNum) -> new RunOverviewRow(
+                        rs.getLong("total_runs"), rs.getLong("active_runs"), rs.getLong("queued_runs"),
+                        rs.getLong("succeeded_runs"), rs.getLong("failed_runs"), rs.getLong("selected_rows"),
+                        rs.getLong("inserted_rows"), rs.getLong("updated_rows"), rs.getLong("deleted_rows")))
+                .single();
     }
 
     private JdbcClient.StatementSpec bindSearch(

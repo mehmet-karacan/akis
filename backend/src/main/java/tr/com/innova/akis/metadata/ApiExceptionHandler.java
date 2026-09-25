@@ -17,6 +17,7 @@ import tr.com.innova.akis.web.CorrelationIdFilter;
 
 @RestControllerAdvice
 final class ApiExceptionHandler {
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(ApiExceptionHandler.class);
 
     @ExceptionHandler(ApiException.class)
     ProblemDetail handleApiException(ApiException exception) {
@@ -39,6 +40,7 @@ final class ApiExceptionHandler {
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     ProblemDetail handleConflict(DataIntegrityViolationException exception) {
+        LOG.warn("Metadata integrity conflict: {}", exception.getMostSpecificCause().getMessage());
         return problem(
                 HttpStatus.CONFLICT,
                 "METADATA_CONFLICT",

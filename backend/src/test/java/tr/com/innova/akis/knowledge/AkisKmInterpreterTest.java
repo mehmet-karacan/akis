@@ -23,9 +23,9 @@ class AkisKmInterpreterTest {
             var results = AkisKmInterpreter.execute(modules, runtime);
             boolean enabled = !Boolean.FALSE.equals(values.get("CHECK_REQUIRED"));
             assertEquals(enabled, runtime.calls.contains("check"));
-            assertEquals(enabled ? 5 : 4, plan.steps().size());
+            assertEquals(enabled ? 7 : 6, plan.steps().size());
             assertEquals(plan.steps().stream().map(Step::id).toList(), results.stream().map(AkisKmInterpreter.StepResult::id).toList());
-            assertEquals("publish", runtime.calls.getLast());
+            assertEquals("drop", runtime.calls.getLast());
         }
     }
 
@@ -70,7 +70,7 @@ class AkisKmInterpreterTest {
         var options = new HashMap<String, Map<String, Object>>(); options.put("checking", values);
         var modules = new AkisKmInterpreter.Modules(example(Kind.LKM), CONDITIONAL_CHECK, example(Kind.IKM), options);
         values.put("CHECK_REQUIRED", true); options.clear();
-        assertEquals(4, AkisKmInterpreter.compile(modules).steps().size());
+        assertEquals(6, AkisKmInterpreter.compile(modules).steps().size());
         assertThrows(UnsupportedOperationException.class, () -> modules.options().get("checking").put("CHECK_REQUIRED", true));
     }
     private AkisKmInterpreter.Modules modules() {
@@ -89,12 +89,13 @@ class AkisKmInterpreterTest {
         }
         public void checkUnique(String slot) { calls.add("unique"); }
         public long atomicReplace(String slot) { calls.add("publish"); return 42; }
+        public void dropWork(String slot) { calls.add("drop"); }
     }
     @Test void interpretsInDependencyOrder() {
         var runtime = new RecordingRuntime();
         var results = AkisKmInterpreter.execute(modules(), runtime);
-        assertEquals(List.of("verify", "create", "transfer", "seal", "check", "publish"), runtime.calls);
-        assertEquals(42, results.getLast().affectedRows());
+        assertEquals(List.of("verify", "create", "transfer", "seal", "check", "publish", "drop"), runtime.calls);
+        assertEquals(42, results.get(results.size() - 2).affectedRows());
     }
     @Test void validatesEntireProgramBeforeFirstEffect() {
         var runtime = new RecordingRuntime();
@@ -124,11 +125,12 @@ class AkisKmInterpreterTest {
             public void skipped(int ordinal, Step step, long rows) { skipped.add(ordinal + ":" + step.operation() + ":" + rows); }
         };
         var results = AkisKmInterpreter.execute(modules, runtime, observer, new AkisKmInterpreter.Resume(sealIndex + 1, 42));
-        assertEquals(List.of("verify", "check", "publish"), runtime.calls);
+        assertEquals(List.of("verify", "check", "publish", "drop"), runtime.calls);
         assertEquals(sealIndex + 1, skipped.size());
-        assertEquals("2:TRANSFER_JDBC:42", skipped.get(1));
+        int transferIndex = plan.steps().stream().map(Step::operation).toList().indexOf(Operation.TRANSFER_JDBC);
+        assertEquals((transferIndex + 1) + ":TRANSFER_JDBC:42", skipped.get(transferIndex));
         assertEquals(plan.steps().size(), results.size());
-        assertEquals(42, results.get(1).affectedRows());
+        assertEquals(42, results.get(transferIndex).affectedRows());
     }
 
     @Test void resumeRejectsPointsBeforeTheSealOrPastThePublication() {

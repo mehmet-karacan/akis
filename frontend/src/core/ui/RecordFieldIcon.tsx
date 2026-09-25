@@ -1,4 +1,4 @@
-import { Cable, Plug, CalendarPlus, Clock3, Database, FileText, Fingerprint, GitBranch, Globe2, Hash, ListOrdered, Network, Play, Server, Settings2, ShieldCheck, Type, UserPlus, UserRound, UserRoundPen, Table2, Columns3, KeyRound, ListTree, Share2, ClipboardList, ShieldAlert, Link2, Star, Mail, Folder, ScanSearch, Rocket, Layers3, Timer, CalendarCheck, Cpu } from 'lucide-react'
+import { Cable, Plug, CalendarPlus, Clock3, Database, FileText, Fingerprint, GitBranch, Globe2, Hash, ListOrdered, Network, Play, Server, Settings2, ShieldCheck, Type, UserPlus, UserRound, UserRoundPen, Table2, Columns3, KeyRound, ListTree, Share2, ClipboardList, ShieldAlert, Link2, Star, Mail, Folder, ScanSearch, Rocket, Layers3, Timer, CalendarCheck, Cpu, PencilLine, Trash2, Zap } from 'lucide-react'
 import { Children, isValidElement, type ReactNode } from 'react'
 
 export function fieldText(node: ReactNode): string {
@@ -27,6 +27,9 @@ const meanings = [
   ['publication', /yayın|publication|^number$|^numara$/i, Rocket],
   ['definition', /^tanım$|^definition$|^tanım adı$/i, Layers3],
   ['duration', /^süre$|^duration$/i, Timer],
+  ['updated', /^g[uü]ncellenen( satır)?$|^updated( rows?)?$/i, PencilLine],
+  ['deleted', /^silinen( satır)?$|^deleted( rows?)?$/i, Trash2],
+  ['trigger', /tetikleyici|trigger/i, Zap],
   ['technology', /teknoloji|technology/i, Cpu],
   ['hash', /özet|hash/i, Hash],
   ['catalog', /^katalog$|^catalog$/i, Table2],

@@ -78,7 +78,8 @@ final class JdbcPostgresSchemaPreflight {
         List<Column> expected = oracle.pinnedTarget(plan.target(), new ExpectedSnapshot(targetSnapshot.schemaSnapshotUuid(), targetSnapshot.body()), DatabaseType.POSTGRESQL);
         List<LiveColumn> live = readColumns(targetConnection, plan.target().owner(), plan.target().objectName());
         compareColumns(expected, live);
-        verifyWriteSafety(targetConnection, plan.target(), live);
+        verifyWriteSafety(targetConnection, plan.target(), live,
+                plan.definition().stringOption("integration", "WRITE_MODE"));
         oracle.validateStagedMappings(plan, sources, expected,
                 live.stream().map(column -> new LiveTarget(column.name(), column.nullable(), column.defaultExpression())).toList(),
                 JdbcPostgresSchemaPreflight::requireCompatible);
@@ -91,8 +92,10 @@ final class JdbcPostgresSchemaPreflight {
     static void requireCompatible(Column source, Column target) {
         String canonical = source.canonicalType().toUpperCase(Locale.ROOT);
         if (!canonical.equals(target.canonicalType().toUpperCase(Locale.ROOT))
-                || !Set.of("INTEGER", "DECIMAL", "STRING", "TIMESTAMP").contains(canonical)
+                || !Set.of("INTEGER", "DECIMAL", "STRING", "TIMESTAMP", "BINARY", "FLOAT64").contains(canonical)
                 || source.nullable() && !target.nullable()) {
+            LOGGER.warn("PostgreSQL mapping rejected for source column {} and target column {}: canonical type/nullability mismatch.",
+                    source.reference(), target.reference());
             throw failure();
         }
         String sourceType = baseType(source.producerType());
@@ -112,16 +115,26 @@ final class JdbcPostgresSchemaPreflight {
             case "STRING" -> (sourceType.equals("VARCHAR2") && source.length() != null
                     && (targetType.equals("TEXT") || targetType.equals("VARCHAR") && atLeast(target.length(), source.length())))
                     || (sourceType.equals("CLOB") && targetType.equals("TEXT"));
-            case "TIMESTAMP" -> sourceType.equals("TIMESTAMP") && targetType.equals("TIMESTAMP")
-                    && source.timePrecision() != null && source.timePrecision() <= 6
-                    && atLeast(target.timePrecision(), source.timePrecision());
+            case "TIMESTAMP" -> Set.of("DATE", "TIMESTAMP").contains(sourceType) && targetType.equals("TIMESTAMP")
+                    && (sourceType.equals("DATE") || source.timePrecision() != null && source.timePrecision() <= 6
+                    && atLeast(target.timePrecision(), source.timePrecision()));
+            case "BINARY" -> sourceType.equals("BLOB") && targetType.equals("BYTEA");
+            case "FLOAT64" -> Set.of("FLOAT", "BINARY_FLOAT", "BINARY_DOUBLE").contains(sourceType)
+                    && targetType.equals("DOUBLE PRECISION");
             default -> false;
         };
-        if (!compatible) throw failure();
+        if (!compatible) {
+            LOGGER.warn("PostgreSQL mapping rejected for source column {} ({}) and target column {} ({}): incompatible type width or precision.",
+                    source.reference(), source.producerType(), target.reference(), target.producerType());
+            throw failure();
+        }
     }
 
     private void compareColumns(List<Column> expected, List<LiveColumn> actual) {
-        if (expected.size() != actual.size()) throw drift();
+        if (expected.size() != actual.size()) {
+            LOGGER.warn("PostgreSQL target drift: expected {} columns but found {}.", expected.size(), actual.size());
+            throw drift();
+        }
         for (int index = 0; index < expected.size(); index++) {
             Column left = expected.get(index);
             LiveColumn right = actual.get(index);
@@ -129,17 +142,24 @@ final class JdbcPostgresSchemaPreflight {
                     || !left.producerType().equalsIgnoreCase(right.producerType())
                     || left.nullable() != right.nullable()
                     || !Objects.equals(trimToNull(left.defaultExpression()), right.defaultExpression())) {
+                LOGGER.warn("PostgreSQL target drift at column {}: pinned metadata no longer matches the live table.", left.reference());
                 throw drift();
             }
         }
     }
 
-    private void verifyWriteSafety(Connection connection, PilotRuntimePlan.DatasetBinding binding, List<LiveColumn> live) {
+    private void verifyWriteSafety(Connection connection, PilotRuntimePlan.DatasetBinding binding, List<LiveColumn> live,
+            String writeMode) {
         if (binding.role() != DatasetRole.TARGET || binding.databaseType() != DatabaseType.POSTGRESQL) throw failure();
         if (live.stream().anyMatch(column -> column.generated() || column.identity())) throw failure();
         requireAbsent(connection, TRIGGER_SQL, binding, "enabled trigger");
-        // TRUNCATE on a referenced table is rejected by PostgreSQL unless CASCADE is used, which AKIS never does.
-        requireAbsent(connection, INBOUND_FK_SQL, binding, "inbound foreign key");
+        // PostgreSQL TRUNCATE_LOAD is explicitly CASCADE and therefore supports dependency-ordered package refreshes.
+        // APPEND/MERGE do not remove rows. ATOMIC_DELETE_INSERT remains fail-closed for inbound foreign keys.
+        if (blocksInboundForeignKeys(writeMode)) requireAbsent(connection, INBOUND_FK_SQL, binding, "inbound foreign key");
+    }
+
+    static boolean blocksInboundForeignKeys(String writeMode) {
+        return !Set.of("APPEND", "MERGE", "TRUNCATE_LOAD").contains(writeMode == null ? "" : writeMode.strip().toUpperCase(Locale.ROOT));
     }
 
     private void requireAbsent(Connection connection, String sql, PilotRuntimePlan.DatasetBinding binding, String what) {

@@ -105,8 +105,8 @@ function DatasetCard({ data }: NodeProps<DatasetNode>) {
     }}>
       <Handle type={data.role === 'SOURCE' ? 'source' : 'target'} position={data.role === 'SOURCE' ? Position.Right : Position.Left} isConnectable={false} className="mapping-flow-handle" />
       <header>
-        <button type="button" className="mapping-node-title nodrag nopan" aria-label={`${data.propertiesLabel}: ${data.name}`} onClick={data.onSelectObject}><span className={`mapping-node-mark mapping-node-mark--${data.role.toLowerCase()}`} aria-hidden="true">{data.role === 'SOURCE' ? <DatabaseZap size={13} /> : <Database size={13} />}</span><strong>{data.name}</strong></button>
-        <span>{data.roleLabel}</span>
+        <button type="button" className="mapping-node-title nodrag nopan" title={data.name} aria-label={`${data.propertiesLabel}: ${data.name}`} onClick={data.onSelectObject}><span className={`mapping-node-mark mapping-node-mark--${data.role.toLowerCase()}`} aria-hidden="true">{data.role === 'SOURCE' ? <DatabaseZap size={13} /> : <Database size={13} />}</span><strong>{data.name}</strong></button>
+        <span>{data.roleLabel} · {data.columns.length}</span>
       </header>
       {data.columns.length ? data.columns.map((column) => {
         const connected = data.connectedColumns.includes(column.reference)

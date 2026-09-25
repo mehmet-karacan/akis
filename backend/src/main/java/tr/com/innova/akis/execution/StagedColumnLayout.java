@@ -100,6 +100,8 @@ record StagedColumnLayout(List<WorkTableManagerPort.Column> work,List<JdbcStagin
             case "DATE" -> JdbcStagingTransfer.Type.DATE;
             case "TIMESTAMP" -> JdbcStagingTransfer.Type.TIMESTAMP;
             case "CLOB" -> JdbcStagingTransfer.Type.CLOB;
+            case "BLOB" -> JdbcStagingTransfer.Type.BLOB;
+            case "FLOAT", "BINARY_FLOAT", "BINARY_DOUBLE" -> JdbcStagingTransfer.Type.FLOAT;
             default -> throw new IllegalArgumentException("Kaynak kolon tipi desteklenmiyor.");
         };
     }

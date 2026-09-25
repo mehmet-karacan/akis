@@ -1,8 +1,10 @@
 /* Domain layout only. Visual tokens and controls are owned by Ant Design. */
 @layer akis-layout {
 .bundle-page {
-  width: min(1120px, 100%);
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  min-height: 100%;
+  margin: 0;
   display: grid;
   gap: 1rem;
 }

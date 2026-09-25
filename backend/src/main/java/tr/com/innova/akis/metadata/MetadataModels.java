@@ -63,4 +63,23 @@ final class MetadataModels {
             String description,
             OffsetDateTime createdAt) {
     }
+
+    record KnowledgeModuleVersionRow(
+            UUID definitionUuid,
+            String definitionName,
+            UUID uuid,
+            int versionNumber,
+            int schemaVersion,
+            String contentHash,
+            JsonNode content,
+            String description,
+            OffsetDateTime createdAt) {
+    }
+
+    record DefinitionVersionSummaryRow(
+            UUID definitionUuid,
+            int latestVersionNumber,
+            int versionCount,
+            OffsetDateTime latestCreatedAt) {
+    }
 }

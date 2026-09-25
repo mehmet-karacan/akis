@@ -4,6 +4,8 @@ import type {
   DefinitionType,
   DefinitionTypeDescriptor,
   DefinitionVersion,
+  DefinitionVersionSummary,
+  KnowledgeModuleVersion,
   Draft,
   Folder,
   NewDefinitionInput,
@@ -88,6 +90,14 @@ export const definitionsApi = {
     apiRequest<DefinitionVersion[]>(
       `${base}/projects/${segment(projectUuid)}/definitions/${segment(definitionUuid)}/versions`,
     ),
+
+  listKnowledgeModuleVersions: (projectUuid: string) =>
+    apiRequest<KnowledgeModuleVersion[]>(
+      `${base}/projects/${segment(projectUuid)}/knowledge-module-versions`,
+    ),
+
+  listDefinitionVersionSummaries: (projectUuid: string) =>
+    apiRequest<DefinitionVersionSummary[]>(`${base}/projects/${segment(projectUuid)}/definition-version-summaries`),
 
   createVersion: (
     projectUuid: string,

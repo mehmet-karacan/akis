@@ -7,11 +7,11 @@ import type { MappingContent } from './types'
 import { useDefinitionsI18n } from './i18n'
 import { knowledgeOptionsForContent, optionDefaults, type KnowledgeOptionDefinition } from './knowledgeModuleOptions'
 
-interface ModuleChoice { uuid: string; hash: string; label: string; kind: string; options: KnowledgeOptionDefinition[] }
+interface ModuleChoice { uuid: string; hash: string; label: string; kind: string; sourceTechnology?: string; targetTechnology?: string; options: KnowledgeOptionDefinition[] }
 interface Pin { versionUuid: string; contentHash: string }
 const record = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
 
-export function MappingKmOptions({ projectUuid, value, onChange }: { projectUuid: string; value: MappingContent; onChange: (value: MappingContent) => void }) {
+export function MappingKmOptions({ projectUuid, value, sourceTechnologies = [], targetTechnology, onChange }: { projectUuid: string; value: MappingContent; sourceTechnologies?: string[]; targetTechnology?: string; onChange: (value: MappingContent) => void }) {
   const { language } = useDefinitionsI18n()
   const tr = language === 'tr'
   const id = useId()
@@ -20,10 +20,9 @@ export function MappingKmOptions({ projectUuid, value, onChange }: { projectUuid
   useEffect(() => {
     let active = true
     setModules([]); setError(false)
-    void definitionsApi.listDefinitions(projectUuid, 'KNOWLEDGE_MODULE').then(async definitions =>
-      (await Promise.all(definitions.map(async definition => (await definitionsApi.listVersions(projectUuid, definition.uuid))
-        .filter(version => version.schemaVersion === 2 && ['AKIS_KM/1', 'AKIS_KM/2'].includes(String(record(version.content).language)))
-        .map(version => { const content = record(version.content); return { uuid: version.uuid, hash: version.contentHash, label: `${definition.name} · v${version.versionNumber}`, kind: String(content.kmType), options: knowledgeOptionsForContent(content) } })))) .flat())
+    void definitionsApi.listKnowledgeModuleVersions(projectUuid).then(versions => versions
+      .filter(version => version.schemaVersion === 2 && ['AKIS_KM/1', 'AKIS_KM/2', 'AKIS_KM/3'].includes(String(record(version.content).language)))
+      .map(version => { const content = record(version.content); const technology = record(content.technology); return { uuid: version.uuid, hash: version.contentHash, label: `${version.definitionName} · v${version.versionNumber}`, kind: String(content.kmType), sourceTechnology: typeof technology.source === 'string' ? technology.source : undefined, targetTechnology: typeof technology.target === 'string' ? technology.target : undefined, options: knowledgeOptionsForContent(content) } }))
       .then(nextModules => { if (active) setModules(nextModules) })
       .catch(() => { if (active) setError(true) })
     return () => { active = false }
@@ -46,6 +45,11 @@ export function MappingKmOptions({ projectUuid, value, onChange }: { projectUuid
     onChange({ ...value, moduleOptions: { ...moduleOptions, [role]: values } })
   }
   const roles = [['loading', 'LKM', tr ? 'Kaynak → Staging' : 'Source → Staging'], ['checking', 'CKM', tr ? 'Staging Kontrolü' : 'Staging Check'], ['integration', 'IKM', tr ? 'Staging → Hedef' : 'Staging → Target']] as const
+  const compatible = (module: ModuleChoice, role: string) => {
+    const expectedSources = role === 'loading' ? sourceTechnologies : targetTechnology ? [targetTechnology] : []
+    return (!module.sourceTechnology || expectedSources.length === 0 || expectedSources.every(type => type === module.sourceTechnology))
+      && (!module.targetTechnology || !targetTechnology || module.targetTechnology === targetTechnology)
+  }
   return <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
     <section className="mapping-execution-flow" aria-label={tr ? 'Kaynak staging hedef akışı' : 'Source staging target flow'}>
       <article><Database aria-hidden="true" /><span><small>{tr ? 'Kaynak' : 'Source'}</small><strong>{sourceNames.join(', ') || (tr ? 'Kaynak seçilmedi' : 'No source selected')}</strong></span></article><ArrowRight className="mapping-flow-arrow" aria-hidden="true" />
@@ -55,7 +59,7 @@ export function MappingKmOptions({ projectUuid, value, onChange }: { projectUuid
     <Alert type="info" showIcon title={tr ? 'Yazma Davranışı IKM’den Gelir' : 'Write Behavior Comes From the IKM'} description={tr ? 'APPEND, MERGE, TRUNCATE_LOAD veya atomik yenileme davranışı ile gerekli anahtar kolonlar seçilen IKM’nin seçenek sözleşmesine göre belirlenir. Seçilen KM sürümleri ve değerler yayın planında sabitlenir.' : 'APPEND, MERGE, TRUNCATE_LOAD or atomic refresh behavior and required key columns are determined by the selected IKM option contract. KM versions and values are pinned into the publication plan.'} />
     {error && <Alert type="error" title={tr ? 'Şemalar veya KM sürümleri yüklenemedi.' : 'Could not load schemas or KM versions.'} />}
     <Form layout="vertical" component="div"><Row gutter={[16, 8]}>
-      {roles.map(([role, kind, route]) => <Col key={role} xs={24} lg={6}><Form.Item label={`${kind} · ${route}${role === 'checking' ? (tr ? ' (İsteğe Bağlı)' : ' (Optional)') : ''}`} htmlFor={`${id}-${role}`}><Select id={`${id}-${role}`} allowClear={role === 'checking'} value={pins[role]?.versionUuid} showSearch optionFilterProp="label" options={modules.filter(module => module.kind === kind).map(module => ({ value: module.uuid, label: module.label }))} onChange={uuid => chooseModule(role, uuid)} /></Form.Item></Col>)}
+      {roles.map(([role, kind, route]) => <Col key={role} xs={24} lg={8}><Form.Item label={`${kind} · ${route}${role === 'checking' ? (tr ? ' (İsteğe Bağlı)' : ' (Optional)') : ''}`} htmlFor={`${id}-${role}`}><Select id={`${id}-${role}`} allowClear={role === 'checking'} value={pins[role]?.versionUuid} showSearch optionFilterProp="label" placeholder={tr ? 'Uyumlu modül seçin' : 'Select a compatible module'} options={modules.filter(module => module.kind === kind && compatible(module, role)).map(module => ({ value: module.uuid, label: `${module.label} · ${module.sourceTechnology ?? '*'} → ${module.targetTechnology ?? '*'}` }))} onChange={uuid => chooseModule(role, uuid)} /></Form.Item></Col>)}
     </Row></Form>
     <section className="mapping-km-runtime-options" aria-labelledby={`${id}-runtime-options`}>
       <header><SlidersHorizontal size={17} /><span><strong id={`${id}-runtime-options`}>{tr ? 'KM Çalıştırma Seçenekleri' : 'KM Runtime Options'}</strong><small>{tr ? 'Alanlar seçilen KM sürümünden dinamik üretilir.' : 'Fields are generated dynamically from the selected KM version.'}</small></span></header>

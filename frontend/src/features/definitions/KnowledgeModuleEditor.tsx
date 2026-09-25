@@ -34,7 +34,7 @@ export function KnowledgeModuleEditor({ value, onChange, projectUuid }: { value:
   const labels = tr
     ? ['Tersine Mühendislik', 'Yükleme', 'Veri Kontrolü', 'Entegrasyon', 'Değişiklik Yakalama', 'Servis', 'Dönüştürme']
     : ['Reverse Engineering', 'Loading', 'Data Check', 'Integration', 'Change Data Capture', 'Service', 'Transformation']
-  if (['AKIS_KM/1', 'AKIS_KM/2'].includes(String(value.language)) && projectUuid) return <KnowledgeLanguageEditor projectUuid={projectUuid} value={value} onChange={onChange} />
+  if (['AKIS_KM/1', 'AKIS_KM/2', 'AKIS_KM/3'].includes(String(value.language)) && projectUuid) return <KnowledgeLanguageEditor projectUuid={projectUuid} value={value} onChange={onChange} />
   return <div className="km-editor">
     {projectUuid && tasks.length === 0 && options.length === 0 && ['LKM', 'IKM', 'CKM'].includes(String(value.kmType ?? 'IKM')) && <AntActionButton type="button" tone="secondary" onClick={() => {
       update(createKnowledgeModule(String(value.kmType ?? 'IKM') as ExecutableKnowledgeKind))

@@ -2,7 +2,7 @@ import { Button as AntActionButton } from '../core/ui/Button'
 import { LanguageSwitcher } from '../core/ui/LanguageSwitcher'
 import { ThemeSwitcher } from '../core/ui/ThemeSwitcher'
 import {
-  CircleUserRound, DatabaseZap, LogOut, PanelLeft,
+  CircleUserRound, DatabaseZap, LogOut, PanelLeft, PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react'
 import { useCallback, useEffect, useState, type CSSProperties } from 'react'
 import { Grid } from 'antd'
@@ -32,10 +32,16 @@ export function AppShell() {
   const screens = Grid.useBreakpoint()
   const compact = screens.lg === false
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false)
-  const [explorerWidth, setExplorerWidth] = useState(() => {
-    try { return clampExplorerWidth(Number(localStorage.getItem('akis.explorer.width')) || 264, window.innerWidth) } catch { return 264 }
+  const [navigationCollapsed, setNavigationCollapsed] = useState(() => {
+    try { return localStorage.getItem('akis.navigation.collapsed.v1') === 'true' } catch { return false }
   })
-  useEffect(() => { try { localStorage.setItem('akis.explorer.width', String(explorerWidth)) } catch { /* Storage is optional. */ } }, [explorerWidth])
+  useEffect(() => {
+    try { localStorage.setItem('akis.navigation.collapsed.v1', String(navigationCollapsed)) } catch { /* Storage is optional. */ }
+  }, [navigationCollapsed])
+  const [explorerWidth, setExplorerWidth] = useState(() => {
+    try { return clampExplorerWidth(Number(localStorage.getItem('akis.explorer.width.v2')) || 240, window.innerWidth) } catch { return 240 }
+  })
+  useEffect(() => { try { localStorage.setItem('akis.explorer.width.v2', String(explorerWidth)) } catch { /* Storage is optional. */ } }, [explorerWidth])
   useEffect(() => {
     const resize = () => setExplorerWidth(width => clampExplorerWidth(width, window.innerWidth))
     window.addEventListener('resize', resize)
@@ -99,19 +105,20 @@ export function AppShell() {
   if (!projectUuid) return <Navigate to="/project/select" replace />
 
   return (
-    <CurrentProjectProvider projectUuid={projectUuid}><ProjectAccessProvider value={projectAccess}><PendingChangesContext.Provider value={{ pendingChanges, setPendingChanges }}><DocumentTabsProvider projectUuid={projectUuid}><ShellBody compact={compact} mobileNavigationOpen={mobileNavigationOpen} setMobileNavigationOpen={setMobileNavigationOpen} explorerWidth={explorerWidth} setExplorerWidth={setExplorerWidth} project={project} projectUuid={projectUuid} username={username} pendingChanges={pendingChanges} requestNavigation={requestNavigation} activeWorkspace={activeWorkspace} pendingPath={pendingPath} setPendingPath={setPendingPath} savingBeforeLeave={savingBeforeLeave} setSavingBeforeLeave={setSavingBeforeLeave} completeNavigation={completeNavigation} setPendingChangesState={setPendingChangesState} /></DocumentTabsProvider></PendingChangesContext.Provider></ProjectAccessProvider></CurrentProjectProvider>
+    <CurrentProjectProvider projectUuid={projectUuid}><ProjectAccessProvider value={projectAccess}><PendingChangesContext.Provider value={{ pendingChanges, setPendingChanges }}><DocumentTabsProvider projectUuid={projectUuid}><ShellBody compact={compact} mobileNavigationOpen={mobileNavigationOpen} setMobileNavigationOpen={setMobileNavigationOpen} navigationCollapsed={navigationCollapsed} setNavigationCollapsed={setNavigationCollapsed} explorerWidth={explorerWidth} setExplorerWidth={setExplorerWidth} project={project} projectUuid={projectUuid} username={username} pendingChanges={pendingChanges} requestNavigation={requestNavigation} activeWorkspace={activeWorkspace} pendingPath={pendingPath} setPendingPath={setPendingPath} savingBeforeLeave={savingBeforeLeave} setSavingBeforeLeave={setSavingBeforeLeave} completeNavigation={completeNavigation} setPendingChangesState={setPendingChangesState} /></DocumentTabsProvider></PendingChangesContext.Provider></ProjectAccessProvider></CurrentProjectProvider>
   )
 }
 
 interface ShellBodyProps {
   compact: boolean; mobileNavigationOpen: boolean; setMobileNavigationOpen(value: boolean | ((current: boolean) => boolean)): void
+  navigationCollapsed: boolean; setNavigationCollapsed(value: boolean | ((current: boolean) => boolean)): void
   explorerWidth: number; setExplorerWidth(value: number): void; project: Project | null; projectUuid: string; username: string | null | undefined
   pendingChanges: PendingChanges | null; requestNavigation(path: string): void; activeWorkspace: string
   pendingPath: string | null; setPendingPath(value: string | null): void; savingBeforeLeave: boolean; setSavingBeforeLeave(value: boolean): void
   completeNavigation(path: string): void; setPendingChangesState(value: PendingChanges | null): void
 }
 
-function ShellBody({ compact, mobileNavigationOpen, setMobileNavigationOpen, explorerWidth, setExplorerWidth, project, projectUuid, username, pendingChanges, requestNavigation, activeWorkspace, pendingPath, setPendingPath, savingBeforeLeave, setSavingBeforeLeave, completeNavigation, setPendingChangesState }: ShellBodyProps) {
+function ShellBody({ compact, mobileNavigationOpen, setMobileNavigationOpen, navigationCollapsed, setNavigationCollapsed, explorerWidth, setExplorerWidth, project, projectUuid, username, pendingChanges, requestNavigation, activeWorkspace, pendingPath, setPendingPath, savingBeforeLeave, setSavingBeforeLeave, completeNavigation, setPendingChangesState }: ShellBodyProps) {
   const { t } = useTranslation()
   const { maximized } = useDocumentTabs()
   const location = useLocation()
@@ -130,18 +137,22 @@ function ShellBody({ compact, mobileNavigationOpen, setMobileNavigationOpen, exp
             </div>
           </div>
         </header>
-        <div className={`shell-body ${compact ? 'is-compact' : ''}${maximized ? ' is-maximized' : ''}`} style={{ '--explorer-width': `${explorerWidth}px` } as CSSProperties}>
-          {(!compact || mobileNavigationOpen) && <div className="shell-navigation-pane"><aside className="shell-navigation" aria-label={t('nav.workspaces')}>
-            <WorkspaceNavigation hasPendingChanges={Boolean(pendingChanges)} onNavigate={requestNavigation} />
-            {activeWorkspace === 'connections' && <ConnectionsSubnavigation hasPendingChanges={Boolean(pendingChanges)} onNavigate={requestNavigation} />}
-            {activeWorkspace === 'operations' && <OperationsSubnavigation hasPendingChanges={Boolean(pendingChanges)} onNavigate={requestNavigation} />}
-            {activeWorkspace === 'development' && <DesignWorkspace key={projectUuid} projectUuid={projectUuid} onNavigate={requestNavigation} explorerOnly />}
-          </aside>{!compact && <ExplorerResizeHandle width={explorerWidth} onChange={setExplorerWidth} />}</div>}
+        <div className={`shell-body ${compact ? 'is-compact' : ''}${maximized ? ' is-maximized' : ''}${!compact && navigationCollapsed ? ' is-navigation-collapsed' : ''}`} style={{ '--explorer-width': `${explorerWidth}px` } as CSSProperties}>
+          {(!compact || mobileNavigationOpen) && <div className="shell-navigation-pane"><aside className={`shell-navigation${!compact && navigationCollapsed ? ' is-collapsed' : ''}`} aria-label={t('nav.workspaces')}>
+            <div className="shell-navigation-content">
+              <WorkspaceNavigation collapsed={!compact && navigationCollapsed} hasPendingChanges={Boolean(pendingChanges)} onNavigate={requestNavigation} />
+              {(!navigationCollapsed || compact) && activeWorkspace === 'connections' && <ConnectionsSubnavigation hasPendingChanges={Boolean(pendingChanges)} onNavigate={requestNavigation} />}
+              {(!navigationCollapsed || compact) && activeWorkspace === 'operations' && <OperationsSubnavigation hasPendingChanges={Boolean(pendingChanges)} onNavigate={requestNavigation} />}
+              {(!navigationCollapsed || compact) && activeWorkspace === 'development' && <DesignWorkspace key={projectUuid} projectUuid={projectUuid} onNavigate={requestNavigation} explorerOnly />}
+            </div>
+            {!compact && <footer className="shell-navigation-footer"><AntActionButton type="button" tone="ghost" className="shell-navigation-toggle" aria-label={navigationCollapsed ? t('nav.expand') : t('nav.collapse')} title={navigationCollapsed ? t('nav.expand') : t('nav.collapse')} onClick={() => setNavigationCollapsed(value => !value)} icon={navigationCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}>{!navigationCollapsed && <span>{t('nav.collapse')}</span>}</AntActionButton></footer>}
+          </aside>{!compact && !navigationCollapsed && <ExplorerResizeHandle width={explorerWidth} onChange={setExplorerWidth} />}</div>}
           <main id="main-content" className="main-content" tabIndex={-1}>
             <DocumentTabBar onNavigate={requestNavigation} dirtyPath={pendingChanges ? location.pathname : null} />
             {activeWorkspace === 'development' ? <div className="design-workspace definitions-workspace"><div className="design-content"><Outlet /></div></div> : <Outlet />}
           </main>
         </div>
+        <footer className="app-copyright">© 2026 Mehmet KARACAN</footer>
       </div>
       <Dialog open={pendingPath !== null} title={t('pendingChanges.title')} eyebrow={t('pendingChanges.eyebrow')} closeLabel={t('common.close')} busy={savingBeforeLeave} onClose={() => setPendingPath(null)}>
         <p className="dialog-description">{t('pendingChanges.description')}</p>

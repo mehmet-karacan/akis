@@ -10,14 +10,14 @@ import tr.com.innova.akis.execution.TargetIdentityPort.CanonicalTargetIdentity;
 
 /**
  * PostgreSQL adapter of {@link TargetIdentityPort}: reads the ledger installation uuid and the relation's catalog identity
- * on the given session. Requires the target ledger (akis_yayin_defteri) to be installed; without it there is no stable
+ * on the given session. Requires the target ledger in the akis schema to be installed; without it there is no stable
  * installation identity and the target cannot be fenced anyway.
  */
 final class JdbcPostgresTargetIdentityReader implements TargetIdentityPort {
     private static final String IDENTITY_SQL = """
             SELECT k.kurulum_uuid::text AS installation_uuid, current_database() AS database_name, d.oid AS database_oid,
                    n.nspname AS schema_name, n.oid AS schema_oid, c.relname AS relation_name, c.oid AS relation_oid, c.relkind::text AS relkind
-              FROM akis_yayin_defteri.kurulum_kimligi k
+              FROM akis.kurulum_kimligi k
               CROSS JOIN pg_catalog.pg_database d
               JOIN pg_catalog.pg_namespace n ON n.nspname = ?
               JOIN pg_catalog.pg_class c ON c.relnamespace = n.oid AND c.relname = ? AND c.relkind IN ('r', 'p')

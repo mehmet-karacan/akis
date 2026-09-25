@@ -31,6 +31,7 @@ public final class AkisKmInterpreter {
     public interface Runtime {
         /** Verify published plan, ownership and fencing before performing any effect. */
         void verify(Plan plan);
+        default void dropWorkIfExists(String slot) { }
         void createWork(String slot);
         long transferJdbc(String slot);
         void sealWork(String slot, long transferredRows);
@@ -38,6 +39,8 @@ public final class AkisKmInterpreter {
         void checkUnique(String slot);
         /** Target DML and existing target ledger must commit in the same transaction. */
         long atomicReplace(String slot);
+        /** Drop the sealed work table only after target publication is durably committed. */
+        void dropWork(String slot);
     }
     private AkisKmInterpreter() { }
 
@@ -126,6 +129,7 @@ public final class AkisKmInterpreter {
             try {
             long rows = 0;
             switch (step.operation()) {
+                case DROP_WORK_IF_EXISTS -> runtime.dropWorkIfExists(step.slot());
                 case CREATE_WORK -> runtime.createWork(step.slot());
                 case TRANSFER_JDBC -> {
                     rows = runtime.transferJdbc(step.slot());
@@ -136,6 +140,7 @@ public final class AkisKmInterpreter {
                 case CHECK_NOT_NULL -> runtime.checkNotNull(step.slot());
                 case CHECK_UNIQUE -> runtime.checkUnique(step.slot());
                 case ATOMIC_REPLACE -> rows = runtime.atomicReplace(step.slot());
+                case DROP_WORK -> runtime.dropWork(step.slot());
             }
             var result=new StepResult(step.id(), step.operation(), step.slot(), rows);
             observer.succeeded(ordinal,result);

@@ -16,7 +16,7 @@ describe('KM run evidence', () => {
     render(<KmRunDetails data={{ ...data, reconciliation: { outcome: 'PUBLISHED', rows: 1201 } }} />)
     expect(screen.getByText(/Target publication confirmed|Hedef yayını mutabakat/)).toBeInTheDocument()
     expect(screen.getByText(/Original step records|İlk çalıştırmanın adım/)).toBeInTheDocument()
-    expect(screen.getByText(/Outcome Unknown|Sonuç Belirsiz/)).toBeInTheDocument()
+    expect(screen.getAllByText(/Outcome Unknown|Sonuç Belirsiz/).length).toBeGreaterThan(0)
     expect(screen.queryByText(/The target outcome must|Hedef sonucu doğrulanmalı/)).not.toBeInTheDocument()
   })
 })

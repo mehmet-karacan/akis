@@ -20,7 +20,12 @@ public class KnowledgeModuleRegistry {
         this.jdbc = jdbc; this.mapper = mapper; this.validator = validator;
     }
     public record Module(long id, UUID versionUuid, String contentHash, String source, String kind,
+            String sourceTechnology, String targetTechnology,
             JsonNode optionSchema, Map<String, Object> options) {
+        public Module(long id, UUID versionUuid, String contentHash, String source, String kind,
+                JsonNode optionSchema, Map<String, Object> options) {
+            this(id, versionUuid, contentHash, source, kind, null, null, optionSchema, options);
+        }
         public Module { optionSchema = optionSchema.deepCopy(); options = Map.copyOf(options); }
         @Override public JsonNode optionSchema() { return optionSchema.deepCopy(); }
     }
@@ -45,11 +50,14 @@ public class KnowledgeModuleRegistry {
                     validator.validate(DefinitionType.KNOWLEDGE_MODULE, 2, content);
                     if (!kind.equals(content.path("kmType").asText())) throw rejected();
                     String source = content.path("source").asText();
+                    JsonNode technology = content.path("technology");
                     return new Module(rs.getLong("id"), pin.versionUuid(), hash, source, kind,
+                            technology.path("source").textValue(), technology.path("target").textValue(),
                             optionSchema(mapper, source, content.path("optionSchema")), Map.of());
                 }).optional().orElseThrow(KnowledgeModuleRegistry::rejected);
             Map<String, Object> values = validateOptions(kind, loaded.optionSchema(), definition.optionsFor(entry.getKey()));
-            Module module = new Module(loaded.id(), loaded.versionUuid(), loaded.contentHash(), loaded.source(), loaded.kind(), loaded.optionSchema(), values);
+            Module module = new Module(loaded.id(), loaded.versionUuid(), loaded.contentHash(), loaded.source(), loaded.kind(),
+                    loaded.sourceTechnology(), loaded.targetTechnology(), loaded.optionSchema(), values);
             modules.put(entry.getKey(), module);
         }
         var checking = modules.get("checking");
@@ -59,6 +67,20 @@ public class KnowledgeModuleRegistry {
                 checking == null ? null : checking.source(), modules.get("integration").source(), resolvedOptions));
         if (!plan.slots().equals(Set.of("WORK_SOURCE_1"))) throw rejected();
         return new Bundle(modules, plan);
+    }
+
+    public static void requireCompatible(Bundle bundle, Set<String> sourceTechnologies, String targetTechnology) {
+        requireCompatible(bundle.modules().get("loading"), sourceTechnologies, targetTechnology);
+        requireCompatible(bundle.modules().get("checking"), Set.of(targetTechnology), targetTechnology);
+        requireCompatible(bundle.modules().get("integration"), Set.of(targetTechnology), targetTechnology);
+    }
+
+    private static void requireCompatible(Module module, Set<String> sourceTechnologies, String targetTechnology) {
+        if (module == null) return;
+        boolean sourceMatches = module.sourceTechnology() == null || sourceTechnologies.stream().allMatch(module.sourceTechnology()::equals);
+        boolean targetMatches = module.targetTechnology() == null || module.targetTechnology().equals(targetTechnology);
+        if (!sourceMatches || !targetMatches) throw new ApiException(HttpStatus.UNPROCESSABLE_CONTENT, "KM_TECHNOLOGY_MISMATCH",
+                "Seçilen " + module.kind() + " sürümü " + String.join(",", sourceTechnologies) + " → " + targetTechnology + " teknoloji akışıyla uyumlu değildir.");
     }
     @Transactional
     public void link(long projectId, UUID mappingVersionUuid, Bundle bundle) {
@@ -75,7 +97,7 @@ public class KnowledgeModuleRegistry {
 
     private static JsonNode optionSchema(ObjectMapper mapper, String source, JsonNode legacy) {
         var program = AkisKmLanguage.parse(source);
-        if (!AkisKmLanguage.VERSION.equals(program.language())) return legacy;
+        if (AkisKmLanguage.LEGACY_VERSION.equals(program.language())) return legacy;
         var result = mapper.createArrayNode();
         for (var option : program.options()) {
             var item = result.addObject();

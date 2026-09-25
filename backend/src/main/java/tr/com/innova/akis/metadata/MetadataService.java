@@ -27,6 +27,8 @@ import tr.com.innova.akis.metadata.MetadataModels.DraftRow;
 import tr.com.innova.akis.metadata.MetadataModels.FolderRow;
 import tr.com.innova.akis.metadata.MetadataModels.ProjectRow;
 import tr.com.innova.akis.metadata.MetadataModels.VersionRow;
+import tr.com.innova.akis.metadata.MetadataModels.KnowledgeModuleVersionRow;
+import tr.com.innova.akis.metadata.MetadataModels.DefinitionVersionSummaryRow;
 import tr.com.innova.akis.projectbundle.SecretValueSanitizer;
 
 @Service
@@ -411,6 +413,14 @@ public class MetadataService {
 
     List<VersionRow> listVersions(UUID projectUuid, UUID definitionUuid) {
         return repository.listVersions(definition(projectUuid, definitionUuid).id());
+    }
+
+    List<KnowledgeModuleVersionRow> listKnowledgeModuleVersions(UUID projectUuid) {
+        return repository.listKnowledgeModuleVersions(project(projectUuid).id());
+    }
+
+    List<DefinitionVersionSummaryRow> listDefinitionVersionSummaries(UUID projectUuid) {
+        return repository.listDefinitionVersionSummaries(project(projectUuid).id());
     }
 
     List<VersionRow> listGlobalVersions(UUID definitionUuid) {

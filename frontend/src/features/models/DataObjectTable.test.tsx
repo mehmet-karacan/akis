@@ -18,3 +18,17 @@ it('shows native database types and temporal precision without canonical type or
   expect(screen.queryByText('STRING')).not.toBeInTheDocument()
   expect(screen.queryByText(/^[PL]:/)).not.toBeInTheDocument()
 })
+
+it('summarizes and filters the column catalog', async () => {
+  await i18n.changeLanguage('tr')
+  render(<DataObjectTable columns={[
+    { reference: 'ID', producerType: 'NUMBER(19)', canonicalType: 'INTEGER', ordinal: 1, precision: 19, nullable: false },
+    { reference: 'ACIKLAMA', producerType: 'VARCHAR2(255)', canonicalType: 'STRING', ordinal: 2, length: 255, nullable: true },
+  ]} />)
+  expect(screen.getByRole('heading', { name: 'Kolon Kataloğu' })).toBeInTheDocument()
+  expect(screen.getByLabelText('Kolon özeti')).toHaveTextContent('Toplam Kolon2')
+  expect(screen.getByLabelText('Kolon özeti')).toHaveTextContent('Zorunlu1')
+  fireEvent.change(screen.getByPlaceholderText('Kolon adı veya veri tipi ara'), { target: { value: 'varchar' } })
+  expect(screen.getByText('ACIKLAMA')).toBeInTheDocument()
+  expect(screen.queryByText('ID')).not.toBeInTheDocument()
+})

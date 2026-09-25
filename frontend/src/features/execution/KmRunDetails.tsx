@@ -1,54 +1,53 @@
-import { Alert, Descriptions, Space, Table, Tag } from 'antd'
+import { Alert, Popconfirm } from 'antd'
+import { CalendarClock, CheckCircle2, Circle, CircleStop, Clock3, Code2, Database, MapPin, Rows3, ShieldAlert, Timer, Trash2 } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { apiRequest } from '../../core/api/client'
+import { SqlEditor } from '../../core/ui'
+import { Button } from '../../core/ui/Button'
+import { formatOperationalDateTime, formatOperationalDuration } from '../../core/i18n/formatters'
+import { knowledgeStepLabel } from '../definitions/knowledgeModuleSteps'
 
+export interface SqlEvidence { step: string; site: string; owner: string; sql: string }
 export interface KmRunData {
   reconciliation?: { outcome: string; rows: number | null } | null
-  steps: { generation: number; ordinal: number; stepCode: string; operation: string; site: string; slot: string; state: string; affectedRows: number | null; errorCode: string | null; startedAt: string | null; completedAt: string | null }[]
+  steps: { generation: number; ordinal: number; stepCode: string; operation: string; site: string; slot: string; state: string; affectedRows: number | null; errorCode: string | null; startedAt: string | null; completedAt: string | null; executedSql?: SqlEvidence[] | null }[]
   workObjects: { uuid: string; owner: string; name: string; state: string; rows: number | null; bytes: number | null }[]
 }
-const operations: Record<string, [string, string]> = {
-  CREATE_WORK: ['Çalışma Tablosunu Hazırla', 'Prepare Work Table'], TRANSFER_JDBC: ['Kaynağı Çalışma Alanına Aktar', 'Load Source into Work Area'],
-  SEAL_WORK: ['Aktarımı Doğrula', 'Verify Transfer'], CHECK_NOT_NULL: ['Zorunlu Alanları Kontrol Et', 'Check Required Columns'],
-  CHECK_UNIQUE: ['Benzersiz Anahtarları Kontrol Et', 'Check Unique Keys'], ATOMIC_REPLACE: ['Hedefi Atomik Yenile', 'Refresh Target Atomically'],
-}
-const states: Record<string, [string, string, string]> = {
-  PENDING: ['Bekliyor', 'Pending', 'default'], RUNNING: ['Çalışıyor', 'Running', 'processing'], SUCCEEDED: ['Başarılı', 'Succeeded', 'success'],
-  FAILED: ['Başarısız', 'Failed', 'error'], UNKNOWN: ['Sonuç Belirsiz', 'Outcome Unknown', 'warning'], SKIPPED: ['Devralındı', 'Adopted', 'cyan'],
-  RECONCILED_PUBLISHED: ['Mutabakat: hedefe yazıldı', 'Reconciled: published', 'success'], RECONCILED_NOT_PUBLISHED: ['Mutabakat: yazılmadı', 'Reconciled: not published', 'error'],
-  ALLOCATED: ['Tahsis Edildi', 'Allocated', 'default'], CREATING: ['Oluşturuluyor', 'Creating', 'processing'], READY: ['Hazır', 'Ready', 'default'],
-  LOADING: ['Yükleniyor', 'Loading', 'processing'], SEALED: ['Doğrulandı', 'Sealed', 'success'], CONSUMED: ['Hedefe Uygulandı', 'Published', 'success'],
-  CLEANUP_PENDING: ['Temizleme Bekliyor', 'Cleanup Pending', 'warning'], DROPPED: ['Temizlendi', 'Cleaned', 'default'], REVIEW_REQUIRED: ['İnceleme Gerekli', 'Review Required', 'warning'],
-}
-export function KmRunDetails({ data }: { data: KmRunData }) {
-  const { i18n } = useTranslation()
-  const language = i18n.language.startsWith('tr') ? 0 : 1
-  const tr = language === 0
-  const state = (value: string) => <Tag color={states[value]?.[2] ?? 'default'}>{states[value]?.[language] ?? value}</Tag>
-  const latest = Math.max(0, ...data.steps.map(step => step.generation))
-  const current = data.steps.filter(step => step.generation === latest)
-  const reads = current.find(step => step.operation === 'TRANSFER_JDBC' && step.state === 'SUCCEEDED')?.affectedRows
-  const writes = data.reconciliation?.outcome === 'PUBLISHED' ? data.reconciliation.rows : current.find(step => step.operation === 'ATOMIC_REPLACE' && step.state === 'SUCCEEDED')?.affectedRows
-  return <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
-    <Descriptions size="small" bordered column={{ xs: 1, sm: 2 }} items={[
-      { key: 'read', label: tr ? 'Kaynak Satır' : 'Source Rows', children: reads ?? (tr ? 'Kaydedilmedi' : 'Not recorded') },
-      { key: 'write', label: tr ? 'Hedefe Eklenen Satır' : 'Inserted Rows', children: writes ?? (tr ? 'Kaydedilmedi' : 'Not recorded') },
-    ]} />
-    {data.reconciliation && <Alert type={data.reconciliation.outcome === 'PUBLISHED' ? 'success' : 'warning'} showIcon title={data.reconciliation.outcome === 'PUBLISHED' ? (tr ? 'Hedef yayını mutabakat ile doğrulandı.' : 'Target publication confirmed by reconciliation.') : data.reconciliation.outcome === 'NOT_PUBLISHED' ? (tr ? 'Hedefe yazılmadığı doğrulandı.' : 'Confirmed that no target publication occurred.') : (tr ? 'Yayın kanıtında çakışma var.' : 'Publication evidence conflict.')} description={tr ? 'İlk çalıştırmanın adım kayıtları korunur. Çalışma tabloları inceleme için saklanır; işlem tekrar çalıştırılmaz.' : 'Original step records are preserved. Work tables remain available for review; the operation is not replayed.'} />}
-    {!data.reconciliation && current.some(step => step.state === 'UNKNOWN') && <Alert type="warning" showIcon title={tr ? 'Hedef sonucu doğrulanmalı. Aynı işlem otomatik tekrar edilmez.' : 'The target outcome must be reconciled. The operation is not automatically retried.'} />}
-    <Table size="small" pagination={false} dataSource={data.steps} rowKey={row => `${row.generation}-${row.ordinal}`} scroll={{ x: 'max-content' }} columns={[
-      { title: '#', dataIndex: 'ordinal', width: 48 },
-      { title: tr ? 'Adım' : 'Step', dataIndex: 'operation', render: value => operations[value]?.[language] ?? value },
-      { title: tr ? 'Konum' : 'Location', dataIndex: 'site', render: value => value === 'STAGING' ? (tr ? 'Çalışma Alanı' : 'Work Area') : (tr ? 'Hedef' : 'Target') },
-      // An UNKNOWN publish step takes the outcome reconciliation later proved; the journal row itself stays as written.
-      { title: tr ? 'Durum' : 'Status', dataIndex: 'state', render: (value: string, row) => <>{state(value)}{value === 'UNKNOWN' && row.operation === 'ATOMIC_REPLACE' && data.reconciliation && ['PUBLISHED', 'NOT_PUBLISHED'].includes(data.reconciliation.outcome) && state(data.reconciliation.outcome === 'PUBLISHED' ? 'RECONCILED_PUBLISHED' : 'RECONCILED_NOT_PUBLISHED')}</> },
-      { title: tr ? 'Satır' : 'Rows', dataIndex: 'affectedRows', render: (value, row) => ['TRANSFER_JDBC', 'ATOMIC_REPLACE'].includes(row.operation) ? value ?? (tr ? 'Kaydedilmedi' : 'Not recorded') : '' },
-      { title: tr ? 'Hata' : 'Error', dataIndex: 'errorCode', render: (value, row) => row.state === 'UNKNOWN' && row.operation === 'ATOMIC_REPLACE' && data.reconciliation?.outcome === 'PUBLISHED' ? (tr ? 'Bulunmuyor' : 'None') : value ?? (tr ? 'Bulunmuyor' : 'None') },
-    ]} />
-    {data.workObjects.length > 0 && <Table size="small" pagination={false} dataSource={data.workObjects} rowKey="uuid" scroll={{ x: 'max-content' }} columns={[
-      { title: tr ? 'Çalışma Şeması' : 'Work Schema', dataIndex: 'owner' },
-      { title: tr ? 'Çalışma Tablosu' : 'Work Table', dataIndex: 'name' },
-      { title: tr ? 'Durum' : 'Status', dataIndex: 'state', render: state },
-      { title: tr ? 'Satır' : 'Rows', dataIndex: 'rows', render: value => value ?? (tr ? 'Kaydedilmedi' : 'Not recorded') },
-    ]} />}
-  </Space>
+
+const stateLabel: Record<string, [string, string]> = { PENDING: ['Bekliyor', 'Pending'], RUNNING: ['Çalışıyor', 'Running'], SUCCEEDED: ['Tamamlandı', 'Completed'], FAILED: ['Başarısız', 'Failed'], UNKNOWN: ['Sonuç Belirsiz', 'Outcome Unknown'], SKIPPED: ['Devralındı', 'Adopted'] }
+
+export function KmRunDetails({ data, projectUuid, runUuid, onChanged }: { data: KmRunData; projectUuid?: string; runUuid?: string; onChanged?(): void | Promise<unknown> }) {
+  const { i18n } = useTranslation(); const tr = i18n.language.startsWith('tr'); const lang = tr ? 0 : 1
+  const generation = Math.max(0, ...data.steps.map(step => step.generation))
+  const steps = useMemo(() => data.steps.filter(step => step.generation === generation), [data.steps, generation])
+  const preferred = steps.find(step => ['FAILED', 'UNKNOWN', 'RUNNING'].includes(step.state)) ?? steps.find(step => step.operation === 'TRANSFER_JDBC') ?? steps[0]
+  const [selectedKey, setSelectedKey] = useState(() => preferred ? `${preferred.generation}:${preferred.ordinal}` : '')
+  const selected = steps.find(step => `${step.generation}:${step.ordinal}` === selectedKey) ?? preferred
+  const [cleaning, setCleaning] = useState<string | null>(null)
+  const cleanup = async (uuid: string) => { if (!projectUuid || !runUuid) return; setCleaning(uuid); try { await apiRequest(`/api/v1/projects/${encodeURIComponent(projectUuid)}/runs/${encodeURIComponent(runUuid)}/knowledge-modules/work-objects/${encodeURIComponent(uuid)}:cleanup-reviewed`, { method: 'POST' }); await onChanged?.() } finally { setCleaning(null) } }
+  const statusIcon = (state: string) => state === 'SUCCEEDED' ? <CheckCircle2 /> : state === 'FAILED' || state === 'UNKNOWN' ? <ShieldAlert /> : state === 'RUNNING' ? <Clock3 /> : <Circle />
+  return <div className="km-run-workbench">
+    <nav className="km-run-flow" aria-label={tr ? 'Çalıştırma adımları' : 'Execution steps'}>
+      <header><span>{tr ? 'İŞ AKIŞI' : 'FLOW'}</span><strong>{steps.length} {tr ? 'adım' : 'steps'}</strong></header>
+      {steps.map(step => { const key = `${step.generation}:${step.ordinal}`; return <button type="button" key={key} className={key === `${selected?.generation}:${selected?.ordinal}` ? 'is-selected' : ''} data-state={step.state.toLowerCase()} onClick={() => setSelectedKey(key)}>
+        <span className="km-step-index">{step.ordinal}</span><span className="km-step-copy"><strong>{knowledgeStepLabel(step.stepCode, tr ? 'tr-TR' : 'en-US')}</strong><small>{stateLabel[step.state]?.[lang] ?? step.state}{step.affectedRows != null ? ` · ${step.affectedRows.toLocaleString(i18n.language)} ${tr ? 'satır' : 'rows'}` : ''}</small></span><span className="km-step-state">{statusIcon(step.state)}</span>
+      </button> })}
+    </nav>
+    {selected && <article className="km-step-inspector">
+      {data.reconciliation ? <Alert type={data.reconciliation.outcome === 'PUBLISHED' ? 'success' : 'warning'} showIcon title={data.reconciliation.outcome === 'PUBLISHED' ? (tr ? 'Hedef yayını mutabakat ile doğrulandı.' : 'Target publication confirmed by reconciliation.') : (tr ? 'Hedef sonucu mutabakat ile doğrulandı.' : 'Target outcome confirmed by reconciliation.')} description={tr ? 'İlk çalıştırmanın adım kayıtları değiştirilmeden korunur.' : 'Original step records are preserved without modification.'} /> : steps.some(step => step.state === 'UNKNOWN') ? <Alert type="warning" showIcon title={tr ? 'Hedef sonucu doğrulanmalı. Aynı işlem otomatik tekrar edilmez.' : 'The target outcome must be reconciled. The operation is not automatically retried.'} /> : null}
+      <header><div><span>{tr ? 'SEÇİLİ ADIM' : 'SELECTED STEP'}</span><h3>{knowledgeStepLabel(selected.stepCode, tr ? 'tr-TR' : 'en-US')}</h3><small>{selected.stepCode} · {selected.operation}</small></div><span className={`km-state-signal km-state-signal--${selected.state.toLowerCase()}`}>{statusIcon(selected.state)} {stateLabel[selected.state]?.[lang] ?? selected.state}</span></header>
+      <div className="km-step-facts">
+        <div data-fact="start"><CalendarClock /><span>{tr ? 'Başlangıç Zamanı' : 'Start Time'}</span><strong>{formatOperationalDateTime(selected.startedAt, tr ? 'Kaydedilmedi' : 'Not recorded')}</strong></div>
+        <div data-fact="end"><CircleStop /><span>{tr ? 'Bitiş Zamanı' : 'End Time'}</span><strong>{formatOperationalDateTime(selected.completedAt, tr ? 'Kaydedilmedi' : 'Not recorded')}</strong></div>
+        <div data-fact="duration"><Timer /><span>{tr ? 'Süre' : 'Duration'}</span><strong>{formatOperationalDuration(selected.startedAt, selected.completedAt, i18n.language, tr ? 'Kaydedilmedi' : 'Not recorded')}</strong></div>
+        <div data-fact="rows"><Rows3 /><span>{tr ? 'Etkilenen Satır' : 'Affected Rows'}</span><strong>{selected.affectedRows?.toLocaleString(i18n.language) ?? (tr ? 'Uygulanmaz' : 'Not applicable')}</strong></div>
+      </div>
+      {selected.errorCode && <Alert type="error" showIcon title={selected.errorCode} />}
+      <section className="km-sql-evidence"><header><div><Code2 /><span><strong>{tr ? 'Çalıştırılan SQL' : 'Executed SQL'}</strong><small>{tr ? 'Bu çalıştırmayla birlikte değişmez kanıt olarak saklanır.' : 'Stored as immutable evidence with this run.'}</small></span></div><em>{selected.executedSql?.length ?? 0} SQL</em></header>
+        {selected.executedSql?.length ? <div className="km-sql-list">{selected.executedSql.map((entry, index) => <article key={`${entry.site}:${index}`}><div className="km-sql-site"><span><MapPin />{entry.site}</span><span><Database />{entry.owner || '—'}</span></div><SqlEditor value={entry.sql} onChange={() => undefined} label={`${tr ? 'Çalıştırılan SQL' : 'Executed SQL'} ${index + 1}`} readOnly wrapLines showToolbar={false} /></article>)}</div> : <div className="km-sql-empty"><Code2 /><strong>{tr ? 'Bu çalıştırmada SQL kaydedilmemiş.' : 'SQL was not recorded for this run.'}</strong><p>{tr ? 'Eski kayıtlar için SQL tahmin edilmez. Yeni çalıştırmalar SQL kanıtını adımla birlikte saklar.' : 'SQL is not guessed for historical rows. New runs store SQL evidence with each step.'}</p></div>}
+      </section>
+      {!!data.workObjects.length && <details className="km-technical-evidence"><summary>{tr ? 'Teknik çalışma nesneleri' : 'Technical work objects'} ({data.workObjects.length})</summary>{data.workObjects.map(item => <div key={item.uuid}><span><Database />{item.owner}.{item.name}</span><small>{item.state}{item.rows != null ? ` · ${item.rows.toLocaleString(i18n.language)} ${tr ? 'satır' : 'rows'}` : ''}</small>{item.state === 'REVIEW_REQUIRED' && projectUuid && runUuid ? <Popconfirm title={tr ? 'Kimliği ve yapısı doğrulanırsa çalışma tablosu silinsin mi?' : 'Delete after identity and structure verification?'} onConfirm={() => void cleanup(item.uuid)}><Button tone="danger" busy={cleaning === item.uuid} icon={<Trash2 />}>{tr ? 'Doğrula ve Temizle' : 'Verify and Clean'}</Button></Popconfirm> : null}</div>)}</details>}
+    </article>}
+  </div>
 }

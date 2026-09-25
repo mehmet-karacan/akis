@@ -46,6 +46,9 @@ final class StagedMappingPlanner {
             if (!binding.role().equals(expectedRole)) throw rejected("Kaynak/hedef rolü uyuşmuyor.");
         }
         var target=bindings.stream().filter(b->"HEDEF".equals(b.role())).findFirst().orElseThrow();
+        KnowledgeModuleRegistry.requireCompatible(bundle,
+                bindings.stream().filter(b -> "KAYNAK".equals(b.role())).map(ResolvedBinding::databaseType).collect(java.util.stream.Collectors.toSet()),
+                target.databaseType());
         var staging = jdbc.sql("""
             select p.uuid project_uuid,fs.uuid physical_uuid,fs.calisma_sema_adi,b.uuid connection_uuid,
                    se.uuid binding_uuid,ms.uuid logical_uuid,
@@ -76,12 +79,11 @@ final class StagedMappingPlanner {
         WorkAreaPolicyService.requireAllowed(workPolicy,definition.options(),staging.path("owner").asText().equals(target.physicalSchemaReference()));
         staging.set("workAreaPolicy",mapper.valueToTree(workPolicy));
         var integrationOptions = bundle.modules().get("integration").options();
-        // PostgreSQL publishes TRUNCATE_LOAD or MERGE (Faz B: INSERT ... ON CONFLICT) in one transaction; APPEND and
-        // ATOMIC_DELETE_INSERT are not yet supported.
+        // PostgreSQL publishes APPEND, TRUNCATE_LOAD or MERGE in one transaction.
         if ("POSTGRESQL".equals(target.databaseType())) {
             Object writeMode = integrationOptions.get("WRITE_MODE");
-            if (writeMode != null && !Set.of("TRUNCATE_LOAD", "MERGE").contains(String.valueOf(writeMode)))
-                throw rejected("PostgreSQL hedefi TRUNCATE_LOAD veya MERGE yazma modunu destekler: " + writeMode);
+            if (writeMode != null && !Set.of("APPEND", "TRUNCATE_LOAD", "MERGE").contains(String.valueOf(writeMode)))
+                throw rejected("PostgreSQL hedefi APPEND, TRUNCATE_LOAD veya MERGE yazma modunu destekler: " + writeMode);
         }
         staging.put("nonReversibleDdl", "TRUNCATE_LOAD".equals(integrationOptions.get("WRITE_MODE"))
                 && Boolean.TRUE.equals(integrationOptions.get("TRUNCATE_TARGET")));
@@ -95,6 +97,7 @@ final class StagedMappingPlanner {
         bundle.modules().forEach((role,module) -> {
             var pin=mapper.createObjectNode(); pin.put("versionUuid",module.versionUuid().toString());
             pin.put("contentHash",module.contentHash()); pin.put("source",module.source()); pin.put("kind",module.kind());
+            pin.set("commands", mapper.valueToTree(AkisKmLanguage.parse(module.source()).commands()));
             pin.set("options", mapper.valueToTree(module.options()));
             pin.set("optionSchema", module.optionSchema());
             pins.set(role,pin);
@@ -111,6 +114,7 @@ final class StagedMappingPlanner {
             node.put("schemaSnapshotFingerprint",binding.targetSnapshotFingerprint()); resolved.add(node);
         });
         plan.set("bindings",resolved);
+        plan.set("compiledCommands",StagedSqlPreview.render(mapper,jdbc,definition,plan));
         plan.put("physicalPlanHash",KmCanonical.hash(mapper,plan));
         return KmCanonical.normalize(mapper,plan);
     }
@@ -120,7 +124,7 @@ final class StagedMappingPlanner {
         StagedMappingDefinition definition;
         try { definition = StagedMappingDefinition.parse(content); }
         catch (IllegalArgumentException invalid) { throw rejected(invalid.getMessage()); }
-        return StagedSqlPreview.render(mapper, jdbc, definition, plan);
+        return plan.path("compiledCommands").isArray() ? plan.path("compiledCommands") : StagedSqlPreview.render(mapper, jdbc, definition, plan);
     }
     private static ApiException rejected(String message) { return new ApiException(HttpStatus.UNPROCESSABLE_CONTENT,"STAGED_PLAN_REJECTED",message); }
 }

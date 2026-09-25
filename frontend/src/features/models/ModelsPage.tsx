@@ -22,6 +22,7 @@ import { connectionStatusTagStyles } from '../connections/presentation'
 import '../connections/connections.css'
 import '../connections/catalog-layout.css'
 import './models.css'
+import { modelPath } from './modelRoutes'
 
 type FormState = {
   name: string; code: string; description: string; technologyCode: string
@@ -140,7 +141,7 @@ export function ModelsPage() {
         <td>{model.reverseMode === 'CUSTOM_RKM' ? 'RKM' : tr ? 'Standart' : 'Standard'}</td>
         <td>{model.dataObjectCount ?? 0}</td><td>{formatDate(model.lastMetadataUpdate)}</td>
         <td><Tag className={`connection-status-tag connection-status-tag--${tone}`} style={connectionStatusTagStyles[tone]} icon={active ? <CheckCircle2 size={12} /> : <CircleAlert size={12} />}><span className="connection-status-tag-label">{active ? t('models.statusActive') : t('models.statusInactive')}</span></Tag></td>
-        <td className="row-actions"><div className="connection-row-actions"><Tooltip title="Reverse Engineer"><Button aria-label={`Reverse Engineer: ${model.name}`} icon={<ScanSearch size={15} />} onClick={() => navigate(`/project/models/${model.uuid}/import`)} /></Tooltip><RecordActionButton name={model.name} editable={canManage} onClick={() => showEdit(model)} /></div></td>
+        <td className="row-actions"><div className="connection-row-actions"><Tooltip title="Reverse Engineer"><Button aria-label={`Reverse Engineer: ${model.name}`} icon={<ScanSearch size={15} />} onClick={() => navigate(`${modelPath(model)}/import`)} /></Tooltip><RecordActionButton name={model.name} editable={canManage} onClick={() => showEdit(model)} /></div></td>
       </tr> })}</tbody></DataGrid>}</ProgressiveRecords>}
     </section>
     <RecordDetailDialog open={open} title={editing ? <span className="connection-dialog-title"><Layers3 size={17} aria-hidden="true" />{editing.name}<small className="sr-only">{canManage ? (tr ? 'Modeli Düzenle' : 'Edit Model') : (tr ? 'Modeli Görüntüle' : 'View Model')}</small></span> : t('models.create')} busy={busy} readOnly={!canManage} onClose={closeEditor} className="connection-catalog-dialog">

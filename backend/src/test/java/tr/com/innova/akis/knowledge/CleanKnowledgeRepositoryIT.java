@@ -24,7 +24,7 @@ class CleanKnowledgeRepositoryIT {
         long c=jdbc.sql("insert into akis.calistirma(proje_id,is_talebi_id,uuid,deneme_no,yayin_ozeti,plan_ozeti,baslatma_turu) values(:p,:j,:u,1,:h,:h,'ILK') returning id").param("p",p).param("j",job).param("u",run).param("h",hash).query(Long.class).single();
         jdbc.sql("insert into akis.calistirma_durumu(proje_id,calistirma_id,durum,nesil_no,isleyici_referansi,kiralama_bitis_zamani) values(:p,:c,'CALISIYOR',1,'km-test',clock_timestamp()+interval '5 minutes')").param("p",p).param("c",c).update();
         var owner=new WorkObjectStore.Owner(project,run,1,"km-test");
-        var journal=new KmStepJournal(jdbc);
+        var journal=new KmStepJournal(jdbc,new tools.jackson.databind.ObjectMapper());
         var plan=AkisKmInterpreter.compile(new AkisKmInterpreter.Modules(AkisKmLanguage.example(AkisKmLanguage.Kind.LKM),null,AkisKmLanguage.example(AkisKmLanguage.Kind.IKM)));
         assertThrows(IllegalStateException.class,()->journal.prepare(owner,"b".repeat(64),plan));
         journal.prepare(owner,hash,plan);

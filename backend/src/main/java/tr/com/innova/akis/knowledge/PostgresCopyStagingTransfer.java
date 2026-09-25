@@ -75,7 +75,8 @@ public final class PostgresCopyStagingTransfer implements StagingTransferPort {
                             values[i] = JdbcStagingTransfer.readCell(cursor, i + 1, columns.get(i).type());
                             String value = JdbcStagingTransfer.canonicalText(values[i]);
                             long cellBytes = value == null ? 4 : 4L + value.getBytes(StandardCharsets.UTF_8).length;
-                            if (cellBytes > 1_048_576) throw new TransferFailure("Tek hücre sınırı aşıldı.", false);
+                            if (cellBytes > JdbcStagingTransfer.MAX_CELL_BYTES || cellBytes > options.maxBytes())
+                                throw new TransferFailure("Tek hücre aktarım kotası aşıldı; stage mühürlenmedi.", false);
                             rowBytes += cellBytes;
                         }
                         if (rowBytes > JdbcStagingTransfer.BUFFER_BYTES || bytes > options.maxBytes() - rowBytes) throw new TransferFailure("Aktarım byte kotası aşıldı; stage mühürlenmedi.", false);

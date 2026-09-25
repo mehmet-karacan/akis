@@ -3,6 +3,8 @@ package tr.com.innova.akis.knowledge;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -71,7 +73,8 @@ class KnowledgeModuleRegistryTest {
 
     @Test void legacyOptionSchemaAcceptsExactDecimalStringsWithoutAllowingDecimals() {
         var content = mapper.createObjectNode().put("kmType", "LKM").put("language", "AKIS_KM/1")
-                .put("source", AkisKmLanguage.example(AkisKmLanguage.Kind.LKM).replace("AKIS_KM/2", "AKIS_KM/1").replaceAll("(?m)^SECENEK.*\\R", ""));
+                .put("source", AkisKmLanguage.example(AkisKmLanguage.Kind.LKM).replace(AkisKmLanguage.VERSION, AkisKmLanguage.LEGACY_VERSION)
+                        .replaceAll("(?m)^SECENEK.*\\R", "").replaceAll("(?ms)^KOMUT.*?^>>>\\R?", ""));
         content.putArray("tasks"); content.putArray("options");
         var option = content.putArray("optionSchema").addObject().put("key", "LIMIT").put("label", "Limit").put("type", "INTEGER").put("defaultValue", "9223372036854775807");
         assertDoesNotThrow(() -> new DefinitionContentValidator().validate(DefinitionType.KNOWLEDGE_MODULE, 2, content));
@@ -79,8 +82,8 @@ class KnowledgeModuleRegistryTest {
         assertThrows(ApiException.class, () -> new DefinitionContentValidator().validate(DefinitionType.KNOWLEDGE_MODULE, 2, content));
     }
     @Test void pinnedRuntimeValidatesExactIntegersAndUsesDeclarationsNotDisplayMetadata() {
-        String source=AkisKmLanguage.example(AkisKmLanguage.Kind.LKM).replace("ADIM HAZIRLA",
-                "SECENEK LIMIT INTEGER ZORUNLU YOK YOK\nADIM HAZIRLA");
+        String source=AkisKmLanguage.example(AkisKmLanguage.Kind.LKM).replace("ADIM ONCEKI_CALISMAYI_TEMIZLE",
+                "SECENEK LIMIT INTEGER ZORUNLU YOK YOK\nADIM ONCEKI_CALISMAYI_TEMIZLE");
         var fakeSchema=schema("LIMIT","STRING");
         assertDoesNotThrow(()->KnowledgeModuleRegistry.validatePinnedOptions(mapper,"LKM",source,fakeSchema,
                 Map.of("DISTINCT",false,"LIMIT","9223372036854775807")));
@@ -90,7 +93,8 @@ class KnowledgeModuleRegistryTest {
         assertThrows(ApiException.class,()->KnowledgeModuleRegistry.validatePinnedOptions(mapper,"IKM",source,fakeSchema,Map.of()));
     }
     @Test void legacyRuntimeRequiresDeclarationsForNonemptyOptionsButPreservesOptionlessPlans() {
-        String source=AkisKmLanguage.example(AkisKmLanguage.Kind.LKM).replace("AKIS_KM/2","AKIS_KM/1").replaceAll("(?m)^SECENEK.*\\R","");
+        String source=AkisKmLanguage.example(AkisKmLanguage.Kind.LKM).replace(AkisKmLanguage.VERSION,AkisKmLanguage.LEGACY_VERSION)
+                .replaceAll("(?m)^SECENEK.*\\R","").replaceAll("(?ms)^KOMUT.*?^>>>\\R?","");
         var missing=mapper.createObjectNode().path("absent");
         assertDoesNotThrow(()->KnowledgeModuleRegistry.validatePinnedOptions(mapper,"LKM",source,missing,Map.of()));
         assertThrows(ApiException.class,()->KnowledgeModuleRegistry.validatePinnedOptions(mapper,"LKM",source,missing,Map.of("LIMIT",5L)));
@@ -104,5 +108,14 @@ class KnowledgeModuleRegistryTest {
         ((tools.jackson.databind.node.ObjectNode)schema.get(0)).remove("defaultValue");
         schema.add(schema.get(0).deepCopy());
         assertThrows(ApiException.class,()->KnowledgeModuleRegistry.validateOptions("LKM",schema,Map.of("LIMIT",1L)));
+    }
+
+    @Test void rejectsKnowledgeModulesForAnotherDatabaseRoute() {
+        var module = new KnowledgeModuleRegistry.Module(1, UUID.randomUUID(), "hash", "source", "LKM",
+                "ORACLE", "POSTGRESQL", mapper.createArrayNode(), Map.of());
+        var bundle = new KnowledgeModuleRegistry.Bundle(Map.of("loading", module), null);
+        assertDoesNotThrow(() -> KnowledgeModuleRegistry.requireCompatible(bundle, Set.of("ORACLE"), "POSTGRESQL"));
+        assertThrows(ApiException.class, () -> KnowledgeModuleRegistry.requireCompatible(bundle, Set.of("POSTGRESQL"), "POSTGRESQL"));
+        assertThrows(ApiException.class, () -> KnowledgeModuleRegistry.requireCompatible(bundle, Set.of("ORACLE"), "ORACLE"));
     }
 }

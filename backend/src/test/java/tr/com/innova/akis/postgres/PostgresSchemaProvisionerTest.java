@@ -31,13 +31,13 @@ class PostgresSchemaProvisionerTest {
         assertEquals("akis_pg_target", plan.schema());
         assertEquals("STG_DENEME", plan.table());
         assertTrue(plan.skippedColumns().isEmpty());
-        assertTrue(plan.ddl().contains("CREATE SCHEMA IF NOT EXISTS \"akis_pg_target\";"));
-        assertTrue(plan.ddl().contains("CREATE TABLE \"akis_pg_target\".\"STG_DENEME\""));
-        assertTrue(plan.ddl().contains("\"ID\" bigint NOT NULL"), plan.ddl());
-        assertTrue(plan.ddl().contains("\"EMAIL\" varchar(120)"), plan.ddl());
-        assertTrue(plan.ddl().contains("\"UZUN_SAYI\" numeric(19,0)"), plan.ddl());
-        assertTrue(plan.ddl().contains("\"SON_GIRIS\" timestamp(3)"), plan.ddl());
-        assertTrue(plan.ddl().contains("PRIMARY KEY (\"ID\")"), plan.ddl());
+        assertTrue(plan.ddl().contains("CREATE SCHEMA IF NOT EXISTS akis_pg_target;"));
+        assertTrue(plan.ddl().contains("CREATE TABLE akis_pg_target.stg_deneme"));
+        assertTrue(plan.ddl().contains("id bigint NOT NULL"), plan.ddl());
+        assertTrue(plan.ddl().contains("email varchar(120)"), plan.ddl());
+        assertTrue(plan.ddl().contains("uzun_sayi numeric(19,0)"), plan.ddl());
+        assertTrue(plan.ddl().contains("son_giris timestamp(3)"), plan.ddl());
+        assertTrue(plan.ddl().contains("PRIMARY KEY (id)"), plan.ddl());
     }
 
     @Test
@@ -50,7 +50,7 @@ class PostgresSchemaProvisionerTest {
         var plan = PostgresSchemaProvisioner.plan(snapshot, "akis_pg_target", "STG_X");
 
         assertEquals(List.of("PAYLOAD"), plan.skippedColumns());
-        assertTrue(plan.ddl().contains("\"ID\" bigint"));
+        assertTrue(plan.ddl().contains("id bigint"));
         assertTrue(!plan.ddl().contains("PAYLOAD"));
         assertTrue(!plan.ddl().contains("PRIMARY KEY"), "PK references a skipped column, so it must be dropped");
     }

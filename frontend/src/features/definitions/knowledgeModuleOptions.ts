@@ -36,7 +36,7 @@ export function optionDefaults(definitions: KnowledgeOptionDefinition[], current
 }
 
 export function readKnowledgeOptionsFromSource(source: unknown): KnowledgeOptionDefinition[] {
-  if (typeof source !== 'string' || !source.startsWith('AKIS_KM/2')) return []
+  if (typeof source !== 'string' || !/^AKIS_KM\/(2|3)/.test(source)) return []
   return source.split(/\r?\n/).flatMap(line => {
     const lexical = tokenizeKnowledgeLine(line)
     if (!lexical) return []
@@ -90,14 +90,14 @@ export function knowledgeOptionToken(value: string): string {
 // lines must remain available for correction and server-side diagnostics.
 export function replaceKnowledgeOptionLines(source: string, declarations: string[], previousFormLines: string[] = []): string {
   const generated = new Set(previousFormLines.map(line => line.trim()))
-  const lines = source.split(/\r?\n/).filter(line => !generated.has(line.trim()) && readKnowledgeOptionsFromSource(`AKIS_KM/2\n${line}`).length === 0)
+  const lines = source.split(/\r?\n/).filter(line => !generated.has(line.trim()) && readKnowledgeOptionsFromSource(`AKIS_KM/3\n${line}`).length === 0)
   const moduleIndex = lines.findIndex(line => /^MODUL\s/.test(line.trim()))
   lines.splice(moduleIndex + 1, 0, ...declarations)
   return lines.join('\n')
 }
 
 export function knowledgeOptionsForContent(content: Record<string, unknown>): KnowledgeOptionDefinition[] {
-  const definitions = String(content.language ?? '') === 'AKIS_KM/2'
+  const definitions = ['AKIS_KM/2', 'AKIS_KM/3'].includes(String(content.language ?? ''))
     ? readKnowledgeOptionsFromSource(content.source)
     : readKnowledgeOptionDefinitions(content.optionSchema)
   const presentation = record(record(content.ui).optionPresentation)

@@ -48,7 +48,7 @@ export function PublicationDetailPage() {
     try {
       const batch = Number.parseInt(batchRows, 10)
       const run = await executionApi.startRun(projectUuid, publication.uuid, crypto.randomUUID(), Number.isFinite(batch) && batch > 0 ? { batchRows: Math.min(batch, 5000) } : undefined)
-      navigate(`/project/operations/runs/${encodeURIComponent(run.runUuid)}`)
+      navigate(`/project/operations?run=${encodeURIComponent(run.runUuid)}`)
     } catch (error) { setStartError(apiErrorMessage(error, t('requestFailed'))) }
     finally { setStarting(false) }
   }

@@ -12,6 +12,7 @@ import tr.com.innova.akis.execution.ExecutionModels.RunEventPage;
 import tr.com.innova.akis.execution.ExecutionModels.RunRow;
 import tr.com.innova.akis.execution.ExecutionModels.RunSearch;
 import tr.com.innova.akis.execution.ExecutionModels.RunSummaryPage;
+import tr.com.innova.akis.execution.ExecutionModels.RunOverviewRow;
 import tr.com.innova.akis.execution.ExecutionModels.RunStepRow;
 
 interface ExecutionStore {
@@ -87,6 +88,8 @@ interface ExecutionStore {
     List<RunRow> list(UUID projectUuid);
 
     RunSummaryPage search(UUID projectUuid, RunSearch search);
+
+    default RunOverviewRow overview(UUID projectUuid) { return RunOverviewRow.empty(); }
 
     List<RunEventRow> listEvents(UUID projectUuid, UUID runUuid);
 

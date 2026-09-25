@@ -14,7 +14,7 @@ describe('legacy route compatibility', () => {
     expect(await renderRoute('/projects/p1/definitions?definition=d1&tab=versions', '/projects/:projectUuid/definitions', <LegacyDefinitionsRedirect />)).toHaveTextContent('/project/objects/definitions/d1?tab=versions')
   })
   it('redirects old run detail URLs without losing the query', async () => {
-    expect(await renderRoute('/projects/p1/runs/r1?tab=events', '/projects/:projectUuid/runs/:runUuid', <LegacyRunsRedirect detail />)).toHaveTextContent('/project/operations/runs/r1?tab=events')
+    expect(await renderRoute('/projects/p1/runs/r1?tab=events', '/projects/:projectUuid/runs/:runUuid', <LegacyRunsRedirect detail />)).toHaveTextContent('/project/operations?tab=events&run=r1')
   })
   it('redirects topology to the connection workspace', async () => {
     expect(await renderRoute('/projects/p1/topology', '/projects/:projectUuid/topology', <LegacyTopologyRedirect />)).toHaveTextContent('/project/connections')

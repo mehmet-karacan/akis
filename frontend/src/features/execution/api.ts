@@ -1,5 +1,5 @@
 import { ApiProblem, apiRequest, jsonBody } from '../../core/api/client'
-import type { ProjectCapabilities, RecoveryPlan, RunEvent, RunEventPage, RunPage, RunRecord, RunSearchInput, RunStep, TransferChunkPage } from './types'
+import type { ProjectCapabilities, RecoveryPlan, RunEvent, RunEventPage, RunOverview, RunPage, RunRecord, RunSearchInput, RunStep, TransferChunkPage } from './types'
 import type { KmRunData } from './KmRunDetails'
 
 const runsPath = (projectUuid: string) =>
@@ -22,6 +22,9 @@ export const executionApi = {
     const query = new URLSearchParams()
     for (const [key, value] of Object.entries(input)) if (value !== undefined && value !== '') query.set(key, String(value))
     return apiRequest<RunPage>(`${runsPath(projectUuid)}/search?${query.toString()}`)
+  },
+  getOverview(projectUuid: string) {
+    return apiRequest<RunOverview>(`${runsPath(projectUuid)}/overview`)
   },
   getRun(projectUuid: string, runUuid: string) {
     return apiRequest<RunRecord>(`${runsPath(projectUuid)}/${encodeURIComponent(runUuid)}`)

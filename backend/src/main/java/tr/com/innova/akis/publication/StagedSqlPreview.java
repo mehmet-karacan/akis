@@ -5,6 +5,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
+import tr.com.innova.akis.knowledge.AkisKmTemplate;
 import tr.com.innova.akis.knowledge.JdbcStagingTransfer;
 import tr.com.innova.akis.knowledge.StagedMappingDefinition;
 
@@ -12,10 +13,19 @@ import tr.com.innova.akis.knowledge.StagedMappingDefinition;
  * Renders the statements the KM runtime will issue, for the pre-run report only. Nothing here touches a source or
  * target database: work-table names are run-specific, so the loading name is shown as a placeholder.
  */
-final class StagedSqlPreview {
+public final class StagedSqlPreview {
     private StagedSqlPreview() { }
 
     static ArrayNode render(ObjectMapper mapper, JdbcClient jdbc, StagedMappingDefinition definition, JsonNode plan) {
+        return render(mapper, jdbc, definition, plan, null);
+    }
+
+    /** Runtime evidence uses the resolved per-run work-table name instead of the design-time placeholder. */
+    public static ArrayNode renderRuntime(ObjectMapper mapper, JdbcClient jdbc, StagedMappingDefinition definition, JsonNode plan, String workName) {
+        return render(mapper, jdbc, definition, plan, Objects.requireNonNull(workName));
+    }
+
+    private static ArrayNode render(ObjectMapper mapper, JdbcClient jdbc, StagedMappingDefinition definition, JsonNode plan, String resolvedWorkName) {
         ArrayNode statements = mapper.createArrayNode();
         var bindings = new LinkedHashMap<String, JsonNode>();
         plan.path("bindings").forEach(binding -> bindings.put(binding.path("nodeCode").asText(), binding));
@@ -24,7 +34,7 @@ final class StagedSqlPreview {
         String stagingOwner = plan.path("staging").path("owner").asText();
         String loadingPrefix = plan.path("staging").path("prefixes").path("loading").asText("C$_");
         String marker = loadingPrefix.endsWith("_") ? loadingPrefix : loadingPrefix + "_";
-        String workName = "AKIS_" + marker + "RUN_HASH"; // gerçek ad çalıştırmada üretilir
+        String workName = resolvedWorkName == null ? "AKIS_" + marker + "RUN_HASH" : resolvedWorkName;
         String workTable = quote(stagingOwner) + "." + quote(workName);
         String targetTable = quote(target.path("owner").asText()) + "." + quote(target.path("objectName").asText());
 
@@ -43,12 +53,21 @@ final class StagedSqlPreview {
                 case "NUMBER" -> precision == null ? "NUMBER" : "NUMBER(" + precision + "," + (scale == null ? 0 : scale) + ")";
                 case "VARCHAR2" -> "VARCHAR2(" + length + " CHAR)";
                 case "NVARCHAR2" -> "NVARCHAR2(" + length + ")";
+                case "NUMERIC", "DECIMAL" -> precision == null ? "NUMERIC" : "NUMERIC(" + precision + "," + (scale == null ? 0 : scale) + ")";
+                case "VARCHAR", "CHARACTER VARYING" -> length == null ? null : "VARCHAR(" + length + ")";
+                case "TEXT", "SMALLINT", "INTEGER", "BIGINT" -> type;
                 case "DATE" -> "DATE";
-                case "TIMESTAMP" -> "TIMESTAMP(" + timePrecision + ")";
+                case "TIMESTAMP", "TIMESTAMP WITHOUT TIME ZONE" -> "TIMESTAMP(" + (timePrecision == null ? 6 : timePrecision) + ")";
                 default -> null;
             };
             ddlTypes.put(rs.getString("kolon_referansi"), ddl);
-            try { transferTypes.put(rs.getString("kolon_referansi"), JdbcStagingTransfer.Type.valueOf(type)); } catch (IllegalArgumentException unsupported) { /* reported below */ }
+            JdbcStagingTransfer.Type transfer = switch (type) {
+                case "NUMERIC", "DECIMAL", "SMALLINT", "INTEGER", "BIGINT" -> JdbcStagingTransfer.Type.NUMBER;
+                case "VARCHAR", "CHARACTER VARYING", "TEXT" -> JdbcStagingTransfer.Type.VARCHAR2;
+                case "TIMESTAMP WITHOUT TIME ZONE" -> JdbcStagingTransfer.Type.TIMESTAMP;
+                default -> { try { yield JdbcStagingTransfer.Type.valueOf(type); } catch (IllegalArgumentException unsupported) { yield null; } }
+            };
+            if (transfer != null) transferTypes.put(rs.getString("kolon_referansi"), transfer);
         });
 
         List<JdbcStagingTransfer.Column> columns = new ArrayList<>();
@@ -96,7 +115,10 @@ final class StagedSqlPreview {
         if ("ATOMIC_DELETE_INSERT".equals(mode)) add(statements, "ATOMIC_REPLACE", "TARGET", targetOwner, "DELETE FROM " + targetTable);
         if ("MERGE".equals(mode)) {
             List<String> keys = new ArrayList<>();
-            integration.path("KEY_COLUMNS").forEach(key -> keys.add(key.asText()));
+            JsonNode keyColumns = integration.path("KEY_COLUMNS");
+            if (keyColumns.isArray()) keyColumns.forEach(key -> keys.add(key.asText()));
+            else if (keyColumns.isTextual()) Arrays.stream(keyColumns.asText().split(","))
+                    .map(String::strip).filter(key -> !key.isEmpty()).forEach(keys::add);
             String on = keys.isEmpty() ? "<KEY_COLUMNS>" : String.join("\n\tAND ", keys.stream().map(key -> "T." + quote(key) + " = S." + quote(key)).toList());
             List<String> mutable = columns.stream().map(JdbcStagingTransfer.Column::stage).filter(name -> !keys.contains(name)).toList();
             String update = mutable.isEmpty() ? "" : "\nWHEN MATCHED THEN UPDATE SET\n\t" + String.join(",\n\t", mutable.stream().map(name -> "T." + quote(name) + " = S." + quote(name)).toList());
@@ -106,9 +128,121 @@ final class StagedSqlPreview {
             add(statements, "ATOMIC_REPLACE", "TARGET", targetOwner, "INSERT" + hint + " INTO " + targetTable + " (\n\t" + targetColumns + "\n)\nSELECT\n\t" + targetColumns + "\nFROM " + workTable);
         }
         add(statements, "ATOMIC_REPLACE", "TARGET", targetOwner, "COMMIT");
-        add(statements, "CLEANUP", "STAGING", stagingOwner, "DROP TABLE " + workTable + " -- çalışma politikası saklama süresi sonunda");
+        boolean dropWork = false;
+        for (JsonNode step : plan.path("steps")) if ("DROP_WORK".equals(step.path("operation").asText())) dropWork = true;
+        if (dropWork) add(statements, "DROP_WORK", "STAGING", stagingOwner, "DROP TABLE " + workTable + " -- hedef yazımı başarıyla tamamlandıktan sonra");
         if (!unsupported.isEmpty()) add(statements, "CREATE_WORK", "STAGING", stagingOwner, "-- Desteklenmeyen hedef kolon tipi: " + String.join(", ", unsupported));
-        return statements;
+        return compileKm3(mapper, plan, statements, workTable, targetTable, ddlColumns, columns);
+    }
+
+    /**
+     * AKIS_KM/3 turns the pinned command templates into immutable SQL evidence. Older publications deliberately keep
+     * using the finite built-in statement generator above. Operations are still executed by trusted runtime adapters;
+     * templates describe and pin the exact SQL shape, they never become an arbitrary script engine.
+     */
+    private static ArrayNode compileKm3(ObjectMapper mapper, JsonNode plan, ArrayNode baseline, String workTable,
+            String targetTable, List<String> ddlColumns, List<JdbcStagingTransfer.Column> columns) {
+        Map<String, List<JsonNode>> commands = new LinkedHashMap<>();
+        Map<String, JsonNode> moduleByStep = new HashMap<>();
+        plan.path("modules").properties().forEach(entry -> entry.getValue().path("commands").forEach(command -> {
+            commands.computeIfAbsent(command.path("stepId").asText(), ignored -> new ArrayList<>()).add(command);
+            moduleByStep.put(command.path("stepId").asText(), entry.getValue());
+        }));
+        if (commands.isEmpty()) return baseline;
+
+        Map<String, List<JsonNode>> baselineByOperation = new LinkedHashMap<>();
+        baseline.forEach(statement -> baselineByOperation.computeIfAbsent(statement.path("step").asText(), ignored -> new ArrayList<>()).add(statement));
+        ArrayNode compiled = mapper.createArrayNode();
+        for (JsonNode step : plan.path("steps")) {
+            String stepId = step.path("id").asText();
+            String operation = step.path("operation").asText();
+            List<JsonNode> templates = commands.get(stepId);
+            if (templates == null || templates.isEmpty()) {
+                baselineByOperation.getOrDefault(operation, List.of()).forEach(statement -> compiled.add(statement.deepCopy()));
+                continue;
+            }
+            JsonNode module = moduleByStep.get(stepId);
+            for (JsonNode command : templates) {
+                String channel = command.path("channel").asText();
+                String site = switch (channel) {
+                    case "SOURCE_SQL" -> "SOURCE";
+                    case "TARGET_SQL" -> "STAGING";
+                    default -> step.path("site").asText();
+                };
+                String owner = ownerFor(site, baselineByOperation.getOrDefault(operation, List.of()));
+                String sql = AkisKmTemplate.render(command.path("template").asText(), (function, arguments) -> switch (function) {
+                    case "table" -> table(arguments, workTable, targetTable);
+                    case "columns" -> columns(arguments, ddlColumns, columns);
+                    case "context" -> context(arguments, baselineByOperation.getOrDefault(operation, List.of()));
+                    case "integration" -> integration(arguments, baselineByOperation.getOrDefault(operation, List.of()));
+                    case "option" -> option(arguments, module.path("options"));
+                    case "tables", "filters" -> throw new IllegalArgumentException("Bu akisRef fonksiyonu henüz bu KM bağlamında desteklenmiyor: " + function);
+                    case "check" -> check(arguments, workTable);
+                    default -> throw new IllegalArgumentException("Desteklenmeyen akisRef fonksiyonu: " + function);
+                });
+                add(compiled, operation, site, owner, sql.strip());
+            }
+        }
+        return compiled;
+    }
+
+    private static String ownerFor(String site, List<JsonNode> statements) {
+        return statements.stream().filter(node -> site.equals(node.path("site").asText())).map(node -> node.path("owner").asText()).findFirst()
+                .orElseGet(() -> statements.stream().map(node -> node.path("owner").asText()).findFirst().orElse(""));
+    }
+
+    private static String table(List<String> arguments, String workTable, String targetTable) {
+        requireArguments("table", arguments, 2);
+        if (!"QUALIFIED".equals(arguments.get(1))) throw new IllegalArgumentException("table yalnız QUALIFIED biçimini destekler.");
+        return switch (arguments.get(0)) { case "WORK" -> workTable; case "TARGET" -> targetTable; default -> throw new IllegalArgumentException("Bilinmeyen tablo rolü: " + arguments.get(0)); };
+    }
+
+    private static String columns(List<String> arguments, List<String> ddlColumns, List<JdbcStagingTransfer.Column> columns) {
+        requireArguments("columns", arguments, 3);
+        if (!"TARGET".equals(arguments.get(0))) throw new IllegalArgumentException("columns yalnız TARGET rolünü destekler.");
+        String separator = arguments.get(2);
+        return switch (arguments.get(1)) {
+            case "DDL" -> String.join(separator, ddlColumns);
+            case "NAME" -> String.join(separator, columns.stream().map(column -> quote(column.stage())).toList());
+            case "BIND" -> String.join(separator, columns.stream().map(column -> ":" + column.stage()).toList());
+            default -> throw new IllegalArgumentException("Bilinmeyen kolon görünümü: " + arguments.get(1));
+        };
+    }
+
+    private static String context(List<String> arguments, List<JsonNode> statements) {
+        requireArguments("context", arguments, 1);
+        String site = switch (arguments.get(0)) { case "SOURCE_SELECT" -> "SOURCE"; case "STAGING_INSERT" -> "STAGING"; default -> throw new IllegalArgumentException("Bilinmeyen çalışma bağlamı: " + arguments.get(0)); };
+        return statements.stream().filter(node -> site.equals(node.path("site").asText())).map(node -> node.path("sql").asText()).findFirst()
+                .orElseGet(() -> statements.stream().map(node -> node.path("sql").asText()).findFirst()
+                        .orElseThrow(() -> new IllegalArgumentException("KM çalışma bağlamı üretilemedi: " + arguments.get(0))));
+    }
+
+    private static String integration(List<String> arguments, List<JsonNode> statements) {
+        requireArguments("integration", arguments, 1);
+        if (!"WRITE_MODE".equals(arguments.get(0))) throw new IllegalArgumentException("Bilinmeyen entegrasyon bağlamı: " + arguments.get(0));
+        if (statements.isEmpty()) throw new IllegalArgumentException("Entegrasyon SQL'i üretilemedi.");
+        return String.join(";\n", statements.stream().map(node -> node.path("sql").asText()).toList());
+    }
+
+    private static String option(List<String> arguments, JsonNode options) {
+        requireArguments("option", arguments, 1);
+        JsonNode value = options.path(arguments.get(0));
+        if (value.isMissingNode() || value.isNull()) return "";
+        if (!value.isValueNode()) throw new IllegalArgumentException("KM seçeneği skaler olmalıdır: " + arguments.get(0));
+        return value.asText();
+    }
+
+    private static String check(List<String> arguments, String workTable) {
+        requireArguments("check", arguments, 1);
+        return switch (arguments.get(0)) {
+            case "NOT_NULL" -> "SELECT COUNT(*) AS violation_count FROM " + workTable + " /* sabitlenmiş zorunlu kolon sözleşmesi runtime tarafından uygulanır */";
+            case "UNIQUE" -> "SELECT COUNT(*) AS violation_count FROM " + workTable + " /* sabitlenmiş benzersiz anahtar sözleşmesi runtime tarafından uygulanır */";
+            default -> throw new IllegalArgumentException("Bilinmeyen kalite kontrolü: " + arguments.get(0));
+        };
+    }
+
+    private static void requireArguments(String function, List<String> arguments, int count) {
+        if (arguments.size() != count) throw new IllegalArgumentException(function + " " + count + " argüman bekler.");
     }
 
     private static void add(ArrayNode statements, String step, String site, String owner, String sql) {

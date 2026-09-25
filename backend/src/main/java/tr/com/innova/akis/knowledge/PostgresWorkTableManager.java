@@ -28,6 +28,19 @@ public final class PostgresWorkTableManager implements WorkTableManagerPort {
         this.store = Objects.requireNonNull(store); this.ddlLocks = Objects.requireNonNull(ddlLocks);
     }
 
+    @Override public void dropIfExists(Connection control, String targetDatabaseIdentity, JdbcStagingTransfer.Table table, int timeout) {
+        try {
+            if (!databaseIdentity(control).equals(targetDatabaseIdentity)) return;
+            try (var ignored = ddlLocks.acquire(control, lockName(targetDatabaseIdentity, table), timeout)) {
+                execute(control, "DROP TABLE IF EXISTS " + table.sql(), timeout);
+                commitIfNeeded(control);
+            }
+        } catch (SQLException | RuntimeException ignored) {
+            rollbackQuietly(control);
+            LOG.warn("Restart cleanup for PostgreSQL work table {} was ignored.", table.sql());
+        }
+    }
+
     @Override
     public Created create(Connection control, WorkObjectStore.Owner owner, String targetDatabaseIdentity, JdbcStagingTransfer.Table table,
             List<Column> columns, int timeout, Runnable checkpoint, WorkObjectStore.WorkArea workArea) {
@@ -110,6 +123,16 @@ public final class PostgresWorkTableManager implements WorkTableManagerPort {
             LOG.warn("PostgreSQL work table {} cleanup failed: {}", table.sql(), failure.toString());
             throw new IllegalStateException("Çalışma tablosu temizliği doğrulanamadı; tekrar DROP yapılmadı.");
         }
+    }
+    @Override public void cleanupReviewed(Connection control,UUID projectUuid,UUID runUuid,UUID object,int timeout) {
+        if(timeout<1 || timeout>3600) throw new IllegalArgumentException("Temizleme zaman sınırı geçersiz.");
+        var claim=store.claimReviewedCleanup(projectUuid,runUuid,object);var row=claim.object();var table=new JdbcStagingTransfer.Table(row.owner(),row.name());
+        try { try(var ignored=ddlLocks.acquire(control,lockName(row.databaseIdentity(),table),timeout)) {
+            Long actualId=objectId(control,table);if(actualId==null) throw new IllegalStateException("Fiziksel nesne bulunamadı.");
+            WorkObjectLifecycle.requireDrop(row.state(),row.databaseIdentity(),databaseIdentity(control),row.owner(),row.owner(),row.objectId(),actualId,row.structureHash(),PostgresWorkStructure.read(control,table,timeout),true);
+            execute(control,"DROP TABLE "+table.sql(),timeout);commitIfNeeded(control);if(objectId(control,table)!=null) throw new IllegalStateException("DROP doğrulanamadı.");
+            store.finishReviewedCleanup(claim.owner(),object,true);
+        }} catch(SQLException|RuntimeException failure) { rollbackQuietly(control);try{store.finishReviewedCleanup(claim.owner(),object,false);}catch(RuntimeException ignored){} throw new IllegalStateException("İncelenmiş çalışma tablosu kimliği doğrulanamadı; silinmedi."); }
     }
 
     /** Same identity the discovery adapter pins on the connection: database name + pg_database oid. */

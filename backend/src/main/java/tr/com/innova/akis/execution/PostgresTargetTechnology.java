@@ -21,9 +21,9 @@ import tr.com.innova.akis.knowledge.WorkObjectStore;
 import tr.com.innova.akis.knowledge.WorkTableManagerPort;
 
 /**
- * PostgreSQL bundle: work tables and COPY staging on the target database, the target-local akis_yayin_defteri ledger,
- * and TRUNCATE_LOAD or MERGE (Faz B: {@code INSERT ... ON CONFLICT (KEY_COLUMNS) DO UPDATE}) published in a single
- * transaction. Other write modes (APPEND, ATOMIC_DELETE_INSERT) are not yet supported.
+ * PostgreSQL bundle: work tables and COPY staging on the target database, the target-local akis ledger,
+ * and APPEND, TRUNCATE_LOAD or MERGE ({@code INSERT ... ON CONFLICT (KEY_COLUMNS) DO UPDATE}) published in a single
+ * transaction. ATOMIC_DELETE_INSERT is not supported.
  */
 @Component
 final class PostgresTargetTechnology implements TargetTechnology {
@@ -74,7 +74,7 @@ final class PostgresTargetTechnology implements TargetTechnology {
         catch (SQLException | RuntimeException failure) { throw new IllegalStateException("KM çalışma nesnesi doğrulanamadı."); }
     }
 
-    @Override public boolean supportsWriteMode(WriteMode mode) { return mode == WriteMode.TRUNCATE_LOAD || mode == WriteMode.MERGE; }
+    @Override public boolean supportsWriteMode(WriteMode mode) { return mode == WriteMode.APPEND || mode == WriteMode.TRUNCATE_LOAD || mode == WriteMode.MERGE; }
 
     @Override
     public Result publish(Connection connection, TargetLedgerContext context, PublishEvidence evidence, JdbcStagingTransfer.Table stage,

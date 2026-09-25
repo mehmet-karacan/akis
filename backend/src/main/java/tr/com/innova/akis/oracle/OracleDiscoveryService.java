@@ -4,6 +4,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Locale;
+import java.sql.Clob;
+import java.sql.SQLException;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -132,6 +134,47 @@ public class OracleDiscoveryService {
         }
     }
 
+    /** Reads the authoritative Oracle table DDL through DBMS_METADATA.GET_DDL. */
+    public DdlResult getTableDdl(UUID connectionUuid, UUID physicalSchemaUuid, String tableName) {
+        ConnectionProfile profile = discoverableProfile(connectionUuid);
+        if (!"ORACLE".equals(profile.databaseType())) {
+            throw validation("DBMS_METADATA yalnız Oracle bağlantılarında kullanılabilir.");
+        }
+        PhysicalSchemaProfile physicalSchema = physicalSchema(profile, physicalSchemaUuid);
+        String owner = identifier(profile, physicalSchema.schemaReference(), "Fiziksel şema referansı");
+        String normalizedTableName = identifier(profile, tableName, "Tablo adı");
+        try (Credentials credentials = credentials(profile);
+                java.sql.Connection connection = DiscoveryConnections.open(profile, credentials);
+                java.sql.PreparedStatement statement = connection.prepareStatement(
+                        "select dbms_metadata.get_ddl('TABLE', ?, ?) from dual")) {
+            statement.setString(1, normalizedTableName);
+            statement.setString(2, owner);
+            try (java.sql.ResultSet result = statement.executeQuery()) {
+                if (!result.next()) {
+                    throw notFound("Oracle DDL sonucu bulunamadı.");
+                }
+                Clob ddl = result.getClob(1);
+                if (ddl == null) {
+                    throw notFound("Oracle DDL sonucu boş döndü.");
+                }
+                return new DdlResult(owner, normalizedTableName, readClob(ddl));
+            }
+        }
+        catch (SQLException exception) {
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "ORACLE_DDL_READ_FAILED",
+                    "Oracle DBMS_METADATA.GET_DDL çağrısı başarısız oldu: " + exception.getMessage());
+        }
+    }
+
+    public record DdlResult(String owner, String table, String ddl) { }
+
+    public tr.com.innova.akis.postgres.OracleDdlToPostgresConverter.Result convertTableDdl(
+            UUID connectionUuid, UUID physicalSchemaUuid, String tableName,
+            String targetSchema, String targetTable) {
+        DdlResult source = getTableDdl(connectionUuid, physicalSchemaUuid, tableName);
+        return tr.com.innova.akis.postgres.OracleDdlToPostgresConverter.convert(source.ddl(), targetSchema, targetTable);
+    }
+
     /** DDL preview/execution for a PostgreSQL target table, from a pinned Oracle snapshot; governed by V048 policy. */
     public record ProvisionResult(String schema, String table, String ddl, java.util.List<String> skippedColumns,
             tr.com.innova.akis.topology.TargetProvisioningPolicyService.Policy policy, boolean executed) { }
@@ -231,6 +274,14 @@ public class OracleDiscoveryService {
         return validatedProfile(profile);
     }
 
+    private String readClob(Clob clob) throws SQLException {
+        long length = clob.length();
+        if (length > Integer.MAX_VALUE) {
+            throw new SQLException("Oracle DDL çıktısı çok büyük.");
+        }
+        return clob.getSubString(1, (int) length);
+    }
+
     private ConnectionProfile validatedProfile(ConnectionProfile profile) {
         if ("JNDI".equals(profile.mode())) {
             if (profile.jndiName() == null || !JNDI_NAME.matcher(profile.jndiName()).matches()) {
@@ -295,7 +346,9 @@ public class OracleDiscoveryService {
             if (!POSTGRES_IDENTIFIER.matcher(normalized).matches()) {
                 throw validation(field + " geçersiz.");
             }
-            return normalized;
+            // PostgreSQL unquoted identifiers are folded to lower case. Keep discovery,
+            // provisioning and the physical-schema catalog on the same convention.
+            return normalized.toLowerCase(Locale.ROOT);
         }
         return identifier(value, field);
     }

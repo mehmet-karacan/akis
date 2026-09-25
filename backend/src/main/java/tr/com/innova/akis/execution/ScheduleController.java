@@ -40,6 +40,17 @@ final class ScheduleController {
                 request.misfirePolicy() == null ? ScheduleService.MisfirePolicy.SKIP : request.misfirePolicy());
     }
 
+    @PutMapping("/{scheduleUuid}")
+    ScheduleService.View update(@PathVariable UUID projectUuid, @PathVariable UUID scheduleUuid, @RequestBody UpdateRequest request) {
+        return schedules.update(projectUuid, scheduleUuid, request.expectedVersion(), request.kod(), request.ad(), request.publicationUuid(),
+                request.cronExpression(), request.timeZone(), request.conflictPolicy(), request.misfirePolicy());
+    }
+
+    record UpdateRequest(
+            long expectedVersion, String kod, String ad, UUID publicationUuid, String cronExpression, String timeZone,
+            ScheduleService.ConflictPolicy conflictPolicy, ScheduleService.MisfirePolicy misfirePolicy) {
+    }
+
     @PostMapping("/{scheduleUuid}/pause")
     ScheduleService.View pause(@PathVariable UUID projectUuid, @PathVariable UUID scheduleUuid, @RequestBody VersionedRequest request) {
         return schedules.pause(projectUuid, scheduleUuid, request.expectedVersion());

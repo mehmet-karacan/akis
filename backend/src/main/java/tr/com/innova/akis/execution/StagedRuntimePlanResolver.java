@@ -47,7 +47,7 @@ public final class StagedRuntimePlanResolver {
         String physicalHash=text(physical,"physicalPlanHash");
         require(hash(physicalHash) && physicalHash.equals(KmCanonical.hash(mapper,unsignedPhysical))
                 && physicalHash.equals(text(manifest,"runtimePlanHash")) && physical.path("planVersion").asInt()==1
-                && AkisKmLanguage.VERSION.equals(text(physical,"language")) && scenarioHash.equals(text(physical,"scenarioPlanHash"))
+                && Set.of(AkisKmLanguage.VERSION, AkisKmLanguage.VERSION_2).contains(text(physical,"language")) && scenarioHash.equals(text(physical,"scenarioPlanHash"))
                 && versionUuid.equals(uuid(physical,"definitionVersionUuid"))
                 && uuid(physical,"environmentUuid").equals(uuid(manifest.path("environment"),"environmentUuid"))
                 && content.path("columnMappings").equals(physical.path("columns"))
@@ -67,10 +67,13 @@ public final class StagedRuntimePlanResolver {
             String kind=switch(role) { case "loading"->"LKM";case "integration"->"IKM";case "checking"->"CKM";default->throw new IllegalArgumentException(); };
             require(pin.versionUuid().equals(uuid(module,"versionUuid")) && pin.contentHash().equals(text(module,"contentHash")) && kind.equals(text(module,"kind")));
             Map<String,Object> resolved=scalarOptions(module.path("options"));
-            KnowledgeModuleRegistry.validatePinnedOptions(mapper,kind,text(module,"source"),module.path("optionSchema"),resolved);
+            String moduleSource=text(module,"source");
+            KnowledgeModuleRegistry.validatePinnedOptions(mapper,kind,moduleSource,module.path("optionSchema"),resolved);
+            var parsedModule=AkisKmLanguage.parse(moduleSource);
+            if (AkisKmLanguage.VERSION.equals(parsedModule.language())) require(mapper.valueToTree(parsedModule.commands()).equals(module.path("commands")));
             originalSemantic.optionsFor(role).forEach((key,value)->require(Objects.equals(value,resolved.get(key))));
             resolvedModuleOptions.put(role,resolved);
-            programs.put(role,text(module,"source"));
+            programs.put(role,moduleSource);
         });
         semantic=new StagedMappingDefinition(originalSemantic.logicalSchemaUuid(),originalSemantic.modules(),resolvedModuleOptions,originalSemantic.options(),originalSemantic.sources(),originalSemantic.target(),originalSemantic.joins(),originalSemantic.filters());
         var modules=new AkisKmInterpreter.Modules(programs.get("loading"),programs.get("checking"),programs.get("integration"),resolvedModuleOptions);

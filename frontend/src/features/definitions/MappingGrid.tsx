@@ -106,12 +106,13 @@ export function MappingGrid({ projectUuid, value, onChange, schemaVersion = 4, o
   useEffect(() => { let active = true; setCatalogError(false); setCatalogLoading(true); setCatalog([]); setLogicalSchemas([]); setSelectedColumn(null); void Promise.all([topologyApi.listModels(projectUuid), topologyApi.listLogicalSchemas(projectUuid)]).then(async ([models, schemas]) => {
     const modelCatalogs = await Promise.all(models.map(async (model) => {
       const [objects, folders] = await Promise.all([topologyApi.listDataObjects(projectUuid, model.uuid), topologyApi.listSubmodels(projectUuid, model.uuid)])
-      return Promise.all(objects.map(async (object) => {
-        const snapshots = await topologyApi.listSchemaSnapshots(projectUuid, object.uuid)
-        return { model, object, folderPath: folderPathFor(object.submodelUuid, folders), snapshot: snapshots[0], snapshots }
-      }))
+      return objects.map(object => ({ model, object, folderPath: folderPathFor(object.submodelUuid, folders) }))
     }))
-    if (active) { setCatalog(modelCatalogs.flat()); setLogicalSchemas(schemas) }
+    const baseCatalog: CatalogEntry[] = modelCatalogs.flat()
+    const referenced = [...new Set([...value.sources, value.target].map(item => item.dataObjectUuid).filter((uuid): uuid is string => Boolean(uuid)))]
+    const captured = await Promise.all(referenced.map(async uuid => [uuid, await topologyApi.listSchemaSnapshots(projectUuid, uuid)] as const))
+    const snapshotsByObject = new Map(captured)
+    if (active) { setCatalog(baseCatalog.map(entry => { const snapshots = snapshotsByObject.get(entry.object.uuid); return snapshots ? { ...entry, snapshot: snapshots[0], snapshots } : entry })); setLogicalSchemas(schemas) }
   }).catch(() => { if (active) setCatalogError(true) }).finally(() => { if (active) setCatalogLoading(false) }); return () => { active = false } }, [projectUuid, catalogRevision])
   const filteredRows = useMemo(
     () => filterMappingRows(value.columnMappings, query),
@@ -137,6 +138,12 @@ export function MappingGrid({ projectUuid, value, onChange, schemaVersion = 4, o
   const entryFor = (objectId: string) => mappingCatalogEntry(objects.find(item => item.id === objectId), catalog)
   const columnsFor = (objectId: string) => entryFor(objectId)?.snapshot?.columns ?? []
   const diagramColumns = useMemo(() => Object.fromEntries(objects.map(object => [object.id, columnsFor(object.id)])), [catalog, value.sources, value.target])
+  const technologyFor = (objectId: string) => {
+    const model = entryFor(objectId)?.model
+    return logicalSchemas.find(schema => schema.uuid === model?.logicalSchemaUuid)?.databaseType ?? model?.technologyCode ?? undefined
+  }
+  const sourceTechnologies = [...new Set(value.sources.map(source => technologyFor(source.id)).filter((type): type is string => Boolean(type)))]
+  const targetTechnology = technologyFor(value.target.id)
   const inspectorContext = useMemo<MappingInspectorContext | null>(() => {
     if (!selectedColumn) return null
     const entry = entryFor(selectedColumn.datasetId)
@@ -165,13 +172,21 @@ export function MappingGrid({ projectUuid, value, onChange, schemaVersion = 4, o
     onChange({ ...value, sources: value.sources.map(source => source.id === objectId ? { ...source, ...patch } : source), target: value.target.id === objectId ? { ...value.target, ...patch } : value.target })
   }
 
-  const assignDataObject = useCallback((objectId: string, objectUuid: string) => {
+  const assignDataObject = useCallback(async (objectId: string, objectUuid: string) => {
     const entry = catalog.find(item => item.object.uuid === objectUuid)
     if (!entry) return
+    let resolved = entry
+    if (!entry.snapshot) {
+      try {
+        const snapshots = await topologyApi.listSchemaSnapshots(projectUuid, objectUuid)
+        resolved = { ...entry, snapshot: snapshots[0], snapshots }
+        setCatalog(current => current.map(item => item.object.uuid === objectUuid ? resolved : item))
+      } catch { setCatalogError(true); return }
+    }
     setUndoValue(structuredClone(value))
     setSelectedColumn(null)
-    onChange(assignDataObjectToMapping(value, objectId, entry))
-  }, [catalog, onChange, value])
+    onChange(assignDataObjectToMapping(value, objectId, resolved))
+  }, [catalog, onChange, projectUuid, value])
 
   const removeObject = (objectId: string) => {
     setUndoValue(structuredClone(value))
@@ -187,9 +202,27 @@ export function MappingGrid({ projectUuid, value, onChange, schemaVersion = 4, o
       ),
     })
   }
+  const assignedSources = value.sources.filter(source => source.dataObjectUuid).length
+  const targetColumns = columnsFor(value.target.id).length
+  const mappedTargets = new Set(value.columnMappings.map(row => `${row.target.object}:${row.target.column}`)).size
+  const mappedPercent = targetColumns ? Math.round((mappedTargets / targetColumns) * 100) : 0
 
   return (
     <div className="mapping-editor">
+      <section className="mapping-orientation" aria-label={language === 'tr' ? 'Arayüz tasarım özeti' : 'Interface design summary'}>
+        <div className="mapping-orientation-copy"><span>{language === 'tr' ? 'Arayüz tasarım akışı' : 'Interface design flow'}</span><strong>{language === 'tr' ? 'Kaynağı seçin, kolonları eşleştirin, çalışma davranışını belirleyin.' : 'Choose the source, map columns, and define runtime behavior.'}</strong></div>
+        <ol className="mapping-quick-steps">
+          <li className={assignedSources > 0 && value.target.dataObjectUuid ? 'is-ready' : ''}><span>1</span><div><strong>{language === 'tr' ? 'Kaynak ve hedef' : 'Source and target'}</strong><small>{language === 'tr' ? 'Model ağacından sürükleyin' : 'Drag from the model tree'}</small></div></li>
+          <li className={mappedTargets > 0 ? 'is-ready' : ''}><span>2</span><div><strong>{language === 'tr' ? 'Kolon eşleme' : 'Column mapping'}</strong><small>{language === 'tr' ? 'Sürükleyin veya önerin' : 'Drag or use suggestions'}</small></div></li>
+          <li><span>3</span><div><strong>{language === 'tr' ? 'Fiziksel ayarlar' : 'Physical settings'}</strong><small>{language === 'tr' ? 'LKM ve IKM davranışını seçin' : 'Choose LKM and IKM behavior'}</small></div></li>
+        </ol>
+        <div className="mapping-live-summary">
+          <span><small>{language === 'tr' ? 'Kaynak' : 'Sources'}</small><strong>{assignedSources}/{value.sources.length}</strong></span>
+          <span><small>{language === 'tr' ? 'Hedef kolon' : 'Target columns'}</small><strong>{targetColumns}</strong></span>
+          <span><small>{language === 'tr' ? 'Eşlenen' : 'Mapped'}</small><strong>{mappedTargets} · %{mappedPercent}</strong></span>
+          <span><small>{language === 'tr' ? 'Kural' : 'Rules'}</small><strong>{value.joins.length + value.filters.length}</strong></span>
+        </div>
+      </section>
       <div className="procedure-detail-body mapping-editor-body">
       <div className="procedure-command-tabs procedure-command-tabs--vertical mapping-view-rail" role="tablist" aria-orientation="vertical" aria-label={language === 'tr' ? 'Arayüz Görünümleri' : 'Interface Views'}>
         {([
@@ -355,7 +388,7 @@ export function MappingGrid({ projectUuid, value, onChange, schemaVersion = 4, o
       <section hidden={view !== 'execution'} className="mapping-section mapping-strategy" aria-labelledby="strategy-title">
         <h3 id="strategy-title">{language === 'tr' ? 'Yürütme Modülleri ve Seçenekler' : 'Execution Modules and Options'}</h3>
         <p className="definition-help">{language === 'tr' ? 'Yazma davranışı seçilen IKM tarafından belirlenir. Anahtar kolonlar ve diğer ayarlar modül seçeneklerinden gelir.' : 'The selected IKM determines write behavior. Key columns and other settings come from module options.'}</p>
-        {schemaVersion >= 3 ? <MappingKmOptions projectUuid={projectUuid} value={value} onChange={onChange} /> : <MappingDesignAssessment projectUuid={projectUuid} value={value} schemaVersion={schemaVersion} onUpgrade={onUpgrade} />}
+        {schemaVersion >= 3 ? <MappingKmOptions projectUuid={projectUuid} value={value} sourceTechnologies={sourceTechnologies} targetTechnology={targetTechnology} onChange={onChange} /> : <MappingDesignAssessment projectUuid={projectUuid} value={value} schemaVersion={schemaVersion} onUpgrade={onUpgrade} />}
       </section>
       </div></div>
     </div>

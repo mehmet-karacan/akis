@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next'
 import { topologyApi, type Model, type DataObject, type Submodel } from '../features/topology/api'
 import { projectRoute } from '../features/projects/CurrentProjectContext'
 import { encodeModelObjectDrag, MODEL_OBJECT_DRAG_TYPE } from '../features/models/modelObjectDrag'
+import { modelRouteSegment } from '../features/models/modelRoutes'
 
 interface Props { projectUuid: string; onNavigate(path: string): void }
 type RoutedTreeDataNode = TreeDataNode & { route?: string }
@@ -93,15 +94,17 @@ function ProjectModelTreeSession({ projectUuid, onNavigate }: Props) {
     const catalog = catalogs[model.uuid]
     if (!catalog) return undefined
     const object = (item: DataObject): RoutedTreeDataNode => {
-      const route = '/models/' + model.uuid + '?object=' + encodeURIComponent(item.uuid)
+      const modelSegment = modelRouteSegment(model)
+      const route = '/models/' + modelSegment + '?object=' + encodeURIComponent(item.code)
       return { key: 'object:' + model.uuid + ':' + item.uuid, isLeaf: true, route,
         title: title(item.name, item.type === 'VIEW' ? <span className="definition-type-icon definition-type-icon--view" aria-hidden="true"><Eye size={14} /></span> : <span className="definition-type-icon definition-type-icon--table" aria-hidden="true"><Table2 size={14} /></span>,
-          route, '/models/' + model.uuid + '/import?object=' + encodeURIComponent(item.uuid), { item, model }, { kind: 'object', name: item.name, run: () => topologyApi.deleteDataObject(projectUuid, model.uuid, item.uuid, item.version) }) }
+          route, '/models/' + modelSegment + '/import?object=' + encodeURIComponent(item.code), { item, model }, { kind: 'object', name: item.name, run: () => topologyApi.deleteDataObject(projectUuid, model.uuid, item.uuid, item.version) }) }
     }
     const folder = (item: Submodel, seen: Set<string>): RoutedTreeDataNode => {
-      const route = '/models/' + model.uuid + '?folder=' + encodeURIComponent(item.uuid)
+      const modelSegment = modelRouteSegment(model)
+      const route = '/models/' + modelSegment + '?folder=' + encodeURIComponent(item.code)
       return { key: 'folder:' + item.uuid, route,
-        title: title(item.name, <ProjectFolderIcon open={expanded.includes('folder:' + item.uuid)} size={14} />, route, '/models/' + model.uuid + '/import?folder=' + encodeURIComponent(item.uuid), undefined, { kind: 'folder', name: item.name, run: () => topologyApi.deleteSubmodel(projectUuid, model.uuid, item.uuid, item.version) }), children: [
+        title: title(item.name, <ProjectFolderIcon open={expanded.includes('folder:' + item.uuid)} size={14} />, route, '/models/' + modelSegment + '/import?folder=' + encodeURIComponent(item.code), undefined, { kind: 'folder', name: item.name, run: () => topologyApi.deleteSubmodel(projectUuid, model.uuid, item.uuid, item.version) }), children: [
           ...catalog.folders.filter(child => child.parentUuid === item.uuid && !seen.has(child.uuid)).map(child => folder(child, new Set([...seen, child.uuid]))),
           ...catalog.objects.filter(child => child.submodelUuid === item.uuid).map(object),
         ] }
@@ -115,7 +118,7 @@ function ProjectModelTreeSession({ projectUuid, onNavigate }: Props) {
       loadData={node => load(String(node.key))}
       treeData={[{ key: 'models', className: 'project-tree-section-node', title: <span className="akis-tree-title--section">{title(t('nav.models'), <Database size={15} className="model-tree-model-icon" aria-hidden="true" />)}</span>, isLeaf: false,
         children: models?.map(model => {
-          const route = '/models/' + model.uuid
+          const route = '/models/' + modelRouteSegment(model)
           return { key: 'model:' + model.uuid, route, title: title(model.name, <span className="definition-type-icon definition-type-icon--model" aria-hidden="true"><Database size={14} /></span>, route, route + '/import', undefined, { kind: 'model', name: model.name, run: () => topologyApi.deleteModel(projectUuid, model.uuid, model.version) }), isLeaf: false, children: metadata(model) }
         }) }] as RoutedTreeDataNode[]}
       onDoubleClick={(_event, node) => { const routed = node as RoutedTreeDataNode; if (routed.route) open(routed.route) }} />

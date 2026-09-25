@@ -57,8 +57,24 @@ export interface RunSummary {
   scheduleCode: string | null
   selectedRows: number | null
   insertedRows: number | null
+  updatedRows: number | null
+  deletedRows: number | null
   selectedRowsExact?: string | null
   insertedRowsExact?: string | null
+  updatedRowsExact?: string | null
+  deletedRowsExact?: string | null
+}
+
+export interface RunOverview {
+  totalRuns: number
+  activeRuns: number
+  queuedRuns: number
+  succeededRuns: number
+  failedRuns: number
+  selectedRowsExact: string
+  insertedRowsExact: string
+  updatedRowsExact: string
+  deletedRowsExact: string
 }
 
 export interface RunPage {
@@ -82,7 +98,7 @@ export interface RunEventPage { items: RunEvent[]; nextCursor: number | null; ha
 
 export interface RunStep {
   logCounter?: string | null
-  transactionState?: 'COMMITTED' | 'UNCONFIRMED' | 'NOT_APPLICABLE'
+  transactionState?: 'COMMITTED' | 'COMMIT_CONFIRMED' | 'ROLLBACK_CONFIRMED' | 'NOT_ATTEMPTED' | 'UNCONFIRMED' | 'NOT_APPLICABLE'
   uuid: string
   parentUuid: string | null
   code: string

@@ -77,7 +77,8 @@ public final class PostgresSchemaProvisioner {
         return value;
     }
 
-    private static String quote(String name) { return "\"" + name.replace("\"", "\"\"") + "\""; }
+    /** PostgreSQL convention: unquoted identifiers are folded to lower case; do not freeze Oracle uppercase names. */
+    private static String quote(String name) { return name.toLowerCase(java.util.Locale.ROOT); }
 
     private static ApiException validation(String message) {
         return new ApiException(HttpStatus.UNPROCESSABLE_CONTENT, "TARGET_PROVISIONING_REJECTED", message);

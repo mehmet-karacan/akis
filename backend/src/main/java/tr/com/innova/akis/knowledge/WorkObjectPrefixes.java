@@ -23,8 +23,10 @@ public record WorkObjectPrefixes(String loading, String integration, String erro
      * a 4-hex tail keeps the name unique.
      */
     public String targetObjectName(String role, String targetTable, int sequence, int maxLength) {
-        if (targetTable == null || !targetTable.matches("[A-Z][A-Z0-9_$#]{0,127}") || sequence < 0 || maxLength < 20)
+        String normalizedTarget = targetTable == null ? null : targetTable.toUpperCase(java.util.Locale.ROOT);
+        if (normalizedTarget == null || !normalizedTarget.matches("[A-Z][A-Z0-9_$#]{0,127}") || sequence < 0 || maxLength < 20)
             throw new IllegalArgumentException("Çalışma nesnesi hedef adı geçersiz.");
+        targetTable = normalizedTarget;
         String prefix = switch (role) { case "LOADING" -> loading; case "INTEGRATION" -> integration; case "ERROR" -> error;
             default -> throw new IllegalArgumentException("Çalışma nesnesi rolü geçersiz."); };
         String marker = "AKIS_" + (prefix.endsWith("_") ? prefix : prefix + "_");
@@ -45,10 +47,13 @@ public record WorkObjectPrefixes(String loading, String integration, String erro
      */
     public String patternObjectName(String role, String pattern, String targetTable, String sourceTable, String slot, int sequence, int maxLength) {
         if (pattern == null || pattern.isBlank()) return targetObjectName(role, targetTable, sequence, maxLength);
+        String normalizedTarget = targetTable == null ? "" : targetTable.toUpperCase(java.util.Locale.ROOT);
+        String normalizedSource = sourceTable == null ? "" : sourceTable.toUpperCase(java.util.Locale.ROOT);
+        String normalizedSlot = slot == null ? "" : slot.toUpperCase(java.util.Locale.ROOT);
         String resolved = pattern.trim().toUpperCase(java.util.Locale.ROOT)
-                .replace("{HEDEF}", targetTable).replace("{TARGET}", targetTable)
-                .replace("{KAYNAK}", sourceTable == null ? "" : sourceTable).replace("{SOURCE}", sourceTable == null ? "" : sourceTable)
-                .replace("{SLOT}", slot == null ? "" : slot);
+                .replace("{HEDEF}", normalizedTarget).replace("{TARGET}", normalizedTarget)
+                .replace("{KAYNAK}", normalizedSource).replace("{SOURCE}", normalizedSource)
+                .replace("{SLOT}", normalizedSlot);
         if (!resolved.matches("[A-Z][A-Z0-9_$#]{0,127}")) throw new IllegalArgumentException("Çalışma tablosu deseni geçersiz bir ad üretti: " + resolved);
         String suffix = sequence == 0 ? "" : "_" + sequence;
         String name = "AKIS_" + resolved + suffix;

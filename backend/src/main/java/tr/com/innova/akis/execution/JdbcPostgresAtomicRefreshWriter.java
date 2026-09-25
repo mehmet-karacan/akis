@@ -50,7 +50,7 @@ final class JdbcPostgresAtomicRefreshWriter {
         if (columns.isEmpty() || columns.size() > 256 || timeoutSeconds < 1 || timeoutSeconds > 3600 || evidence.stageRowCount() < 0
                 || columns.stream().map(Column::target).distinct().count() != columns.size()
                 || invalidKey
-                || mode != WriteMode.TRUNCATE_LOAD && mode != WriteMode.MERGE
+                || mode != WriteMode.APPEND && mode != WriteMode.TRUNCATE_LOAD && mode != WriteMode.MERGE
                 || mode == WriteMode.MERGE && keyColumns.isEmpty()
                 || evidence.stageRowCount() != evidence.publishedRowCount() || evidence.rejectedRowCount() != 0 || stage.equals(target))
             throw new IllegalArgumentException("Atomik stage yayın sözleşmesi geçersiz.");
@@ -71,15 +71,17 @@ final class JdbcPostgresAtomicRefreshWriter {
             lockedPreflight.run();
             leaseCheckpoint.run();
             if (count(connection, stage, timeoutSeconds) != evidence.stageRowCount()) throw new IllegalStateException("Mühürlü stage satır sayısı değişmiş.");
+            long before = mode == WriteMode.APPEND ? count(connection, target, timeoutSeconds) : 0L;
             targetChanged = true;
-            if (mode == WriteMode.TRUNCATE_LOAD) command(connection, "TRUNCATE TABLE ONLY " + target.sql(), timeoutSeconds);
+            if (mode == WriteMode.TRUNCATE_LOAD) command(connection, "TRUNCATE TABLE " + target.sql() + " RESTART IDENTITY CASCADE", timeoutSeconds);
             String targetColumns = String.join(",", columns.stream().map(c -> quote(c.target())).toList());
             String stageColumns = String.join(",", columns.stream().map(c -> quote(c.stage())).toList());
             String sql = mode == WriteMode.MERGE
                     ? upsertSql(stage, target, columns, keyColumns)
                     : "INSERT INTO " + target.sql() + " (" + targetColumns + ") SELECT " + stageColumns + " FROM " + stage.sql();
             long inserted = update(connection, sql, timeoutSeconds);
-            if (inserted != evidence.stageRowCount() || mode != WriteMode.MERGE && count(connection, target, timeoutSeconds) != inserted)
+            long expectedTarget = mode == WriteMode.APPEND ? before + inserted : inserted;
+            if (inserted != evidence.stageRowCount() || mode != WriteMode.MERGE && count(connection, target, timeoutSeconds) != expectedTarget)
                 throw new IllegalStateException("Hedef satır doğrulaması başarısız.");
             leaseCheckpoint.run();
             session.recordPublish(preparation);

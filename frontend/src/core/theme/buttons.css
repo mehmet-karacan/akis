@@ -10,6 +10,10 @@ body .ant-btn.akis-button[data-tone="warning"] svg { color: var(--schema-color-w
 body .ant-btn.akis-button[data-tone="danger"] svg { color: var(--schema-color-danger); }
 body .ant-btn.akis-button[data-tone="danger"]:not(:disabled):hover { color: var(--schema-color-danger); background: color-mix(in srgb, var(--schema-color-danger) 10%, var(--surface)); }
 body .ant-btn.akis-button:disabled svg { opacity: .45; }
+body .ant-btn.akis-button--icon-only { width: 32px; min-width: 32px; height: 32px; padding: 0; border-radius: 8px; }
+body .ant-btn.akis-button--icon-only[data-tone="secondary"] { border-color: color-mix(in srgb, var(--schema-color-info) 34%, var(--line)); background: color-mix(in srgb, var(--schema-color-info) 7%, var(--surface)); }
+body .ant-btn.akis-button--icon-only[data-tone="secondary"]:not(:disabled):hover { border-color: var(--schema-color-info); background: color-mix(in srgb, var(--schema-color-info) 13%, var(--surface)); }
+body .ant-btn.akis-button--icon-only[data-tone="danger"] { background: color-mix(in srgb, var(--schema-color-danger) 10%, var(--surface)); }
 
 /* Icon spacing standard: an icon never touches its text — 8px between icon and label in buttons, chips, headings and tree rows. */
 body .ant-btn.akis-button { gap: 8px; }

@@ -45,6 +45,8 @@ body [data-field-icon="logicalSchema"], body [data-field-icon="updatedBy"], body
 body [data-field-icon="user"], body [data-field-icon="createdBy"], body [data-field-icon="sequences"], body [data-field-icon="status"], body [data-field-icon="default"], body [data-field-icon="publishedAt"], body [data-field-icon="roles"] { color: var(--schema-color-success) !important; }
 body [data-field-icon="updatedAt"], body [data-field-icon="testTime"], body [data-field-icon="constraints"], body [data-field-icon="time"], body [data-field-icon="duration"], body [data-field-icon="environment"] { color: var(--schema-color-warning) !important; }
 body [data-field-icon="risk"] { color: var(--schema-color-danger) !important; }
+body [data-field-icon="updated"], body [data-field-icon="trigger"] { color: var(--schema-color-warning) !important; }
+body [data-field-icon="deleted"] { color: var(--schema-color-danger) !important; }
 body [data-field-icon="relationships"], body [data-field-icon="email"], body [data-field-icon="publication"] { color: var(--schema-color-pink) !important; }
 body [data-field-icon="code"], body [data-field-icon="hash"], body [data-field-icon="subject"], body [data-field-icon="count"], body [data-field-icon="number"] { color: var(--schema-color-neutral) !important; }
 

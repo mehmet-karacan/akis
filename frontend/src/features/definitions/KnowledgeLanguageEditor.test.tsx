@@ -26,7 +26,7 @@ it('shows the declared run condition without claiming the language check execute
   expect(await screen.findByText('CHECK_ROWS = true')).toBeVisible()
   expect(screen.getByText('Always')).toBeVisible()
   expect(screen.getByText('Syntax valid; not executed')).toBeVisible()
-  expect(screen.getByText(/TRUNCATE requires both/)).toBeVisible()
+  expect(screen.getByText(/TRUNCATE requires WRITE_MODE/)).toBeVisible()
 })
 it('opens the executable editor immediately and requires confirmation before replacing a template', async () => {
   render(<Harness />)
@@ -58,14 +58,14 @@ it('preserves names, descriptions, enum choices and quoted defaults without losi
   expect((screen.getByLabelText('KM Language Source') as HTMLTextAreaElement).value).toContain('"FULL(T) PARALLEL(4)"')
   const latest = changed.mock.calls.at(-1)![0] as Record<string, unknown>
   expect(knowledgeOptionsForContent(latest)[0]).toMatchObject({ label: 'Write Strategy', description: 'Choose how target rows are written', values: ['APPEND', 'MERGE', 'ATOMIC_DELETE_INSERT'] })
-  const key = screen.getAllByLabelText('Key')[3]!
+  const key = screen.getAllByLabelText('Key').find(input => (input as HTMLInputElement).value === 'ORACLE_HINT')!
   key.focus()
   fireEvent.change(key, { target: { value: '' } })
   expect(key).toHaveFocus()
-  expect(screen.getAllByLabelText('Key')).toHaveLength(4)
+  expect(screen.getAllByLabelText('Key')).toHaveLength(5)
   fireEvent.change(key, { target: { value: 'ORACLE_HINT' } })
   expect(key).toHaveValue('ORACLE_HINT')
   const finalSource = (screen.getByLabelText('KM Language Source') as HTMLTextAreaElement).value
-  expect(finalSource.match(/^SECENEK /gm)).toHaveLength(4)
+  expect(finalSource.match(/^SECENEK /gm)).toHaveLength(5)
   expect(finalSource).not.toContain('SECENEK  ')
 })

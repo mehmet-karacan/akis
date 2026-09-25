@@ -8,7 +8,7 @@ import { createKnowledgeModule } from './knowledgeModuleTemplates'
 import { DEFAULT_MAPPING } from './defaults'
 import type { MappingContent } from './types'
 
-vi.mock('./api', () => ({ definitionsApi: { listDefinitions: vi.fn(), listVersions: vi.fn() } }))
+vi.mock('./api', () => ({ definitionsApi: { listKnowledgeModuleVersions: vi.fn() } }))
 const changed = vi.fn()
 const content = { ...createKnowledgeModule('LKM'), source: createKnowledgeModule('LKM').source
   .replace('ISTEGE_BAGLI false', 'ISTEGE_BAGLI true')
@@ -16,8 +16,7 @@ const content = { ...createKnowledgeModule('LKM'), source: createKnowledgeModule
   ui: { optionPresentation: { LIMIT: { label: 'Row Limit', description: 'Exact integer option' } } } }
 beforeEach(async () => {
   vi.clearAllMocks(); await i18n.changeLanguage('en')
-  vi.mocked(definitionsApi.listDefinitions).mockResolvedValue([{ uuid: 'load', folderUuid: null, type: 'KNOWLEDGE_MODULE', code: 'LOAD', status: 'ACTIVE', name: 'Load', description: null, version: 1 }])
-  vi.mocked(definitionsApi.listVersions).mockResolvedValue([{ uuid: 'v1', versionNumber: 1, schemaVersion: 2, contentHash: 'hash', content, description: null, createdAt: '' }])
+  vi.mocked(definitionsApi.listKnowledgeModuleVersions).mockResolvedValue([{ definitionUuid: 'load', definitionName: 'Load', uuid: 'v1', versionNumber: 1, schemaVersion: 2, contentHash: 'hash', content, description: null, createdAt: '' }])
 })
 function Harness() {
   const [value, setValue] = useState<MappingContent>({ ...DEFAULT_MAPPING, modules: { loading: { versionUuid: 'v1', contentHash: 'hash' } }, moduleOptions: {} })

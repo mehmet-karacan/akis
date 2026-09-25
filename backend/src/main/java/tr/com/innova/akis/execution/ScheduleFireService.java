@@ -49,12 +49,22 @@ class ScheduleFireService {
     @Transactional
     void tryFire(UUID scheduleUuid) {
         Optional<Due> due = jdbc.sql("""
-                        select z.id, p.uuid project_uuid, y.uuid publication_uuid, z.olusturan_kullanici_id,
+                        select z.id, p.uuid project_uuid, latest.uuid publication_uuid, z.olusturan_kullanici_id,
                                z.cron_ifadesi, z.zaman_dilimi, z.cakisma_politikasi, z.kacirma_politikasi,
                                z.sonraki_tetikleme_zamani
                           from akis.zamanlama z
                           join akis.proje p on p.id = z.proje_id
-                          join akis.yayin y on y.id = z.yayin_id
+                          join akis.yayin configured on configured.id = z.yayin_id
+                          join lateral (
+                              select candidate.uuid
+                                from akis.yayin candidate
+                               where candidate.proje_id = configured.proje_id
+                                 and candidate.senaryo_id = configured.senaryo_id
+                                 and candidate.ortam_id = configured.ortam_id
+                                 and candidate.durum = 'AKTIF'
+                               order by candidate.yayin_no desc, candidate.id desc
+                               limit 1
+                          ) latest on true
                          where z.uuid = :schedule and z.durum_kodu = 'AKTIF' and z.sonraki_tetikleme_zamani <= now()
                          for update of z
                         """)

@@ -16,6 +16,8 @@ import tr.com.innova.akis.metadata.MetadataModels.DraftRow;
 import tr.com.innova.akis.metadata.MetadataModels.FolderRow;
 import tr.com.innova.akis.metadata.MetadataModels.ProjectRow;
 import tr.com.innova.akis.metadata.MetadataModels.VersionRow;
+import tr.com.innova.akis.metadata.MetadataModels.KnowledgeModuleVersionRow;
+import tr.com.innova.akis.metadata.MetadataModels.DefinitionVersionSummaryRow;
 
 @Repository
 public class MetadataRepository {
@@ -627,6 +629,50 @@ public class MetadataRepository {
                         json(rs.getString("icerik")),
                         rs.getString("aciklama"),
                         rs.getObject("olusturulma_zamani", OffsetDateTime.class)))
+                .list();
+    }
+
+    List<KnowledgeModuleVersionRow> listKnowledgeModuleVersions(long projectId) {
+        return jdbc.sql("""
+                        select t.uuid definition_uuid, t.ad definition_name,
+                               v.uuid, v.surum_no, v.sema_surumu, v.icerik_ozeti,
+                               v.icerik, v.aciklama, v.olusturulma_zamani
+                          from akis.tanim t
+                          join akis.tanim_surumu v on v.tanim_id = t.id and v.proje_id = t.proje_id
+                         where t.proje_id = :projectId
+                           and t.tur = 'KNOWLEDGE_MODULE'
+                           and t.arsivlenme_zamani is null
+                         order by t.ad, v.surum_no desc
+                        """)
+                .param("projectId", projectId)
+                .query((rs, rowNum) -> new KnowledgeModuleVersionRow(
+                        rs.getObject("definition_uuid", UUID.class),
+                        rs.getString("definition_name"),
+                        rs.getObject("uuid", UUID.class),
+                        rs.getInt("surum_no"),
+                        rs.getInt("sema_surumu"),
+                        rs.getString("icerik_ozeti"),
+                        json(rs.getString("icerik")),
+                        rs.getString("aciklama"),
+                        rs.getObject("olusturulma_zamani", OffsetDateTime.class)))
+                .list();
+    }
+
+    List<DefinitionVersionSummaryRow> listDefinitionVersionSummaries(long projectId) {
+        return jdbc.sql("""
+                        select t.uuid definition_uuid, max(v.surum_no) latest_version_number,
+                               count(v.id) version_count, max(v.olusturulma_zamani) latest_created_at
+                          from akis.tanim t
+                          left join akis.tanim_surumu v on v.tanim_id = t.id and v.proje_id = t.proje_id
+                         where t.proje_id = :projectId and t.arsivlenme_zamani is null
+                         group by t.uuid
+                        """)
+                .param("projectId", projectId)
+                .query((rs, rowNum) -> new DefinitionVersionSummaryRow(
+                        rs.getObject("definition_uuid", UUID.class),
+                        rs.getInt("latest_version_number"),
+                        rs.getInt("version_count"),
+                        rs.getObject("latest_created_at", OffsetDateTime.class)))
                 .list();
     }
 

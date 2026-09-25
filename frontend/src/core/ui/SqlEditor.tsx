@@ -1,6 +1,7 @@
 import { PLSQL, sql, keywordCompletionSource } from '@codemirror/lang-sql'
 import { autocompletion } from '@codemirror/autocomplete'
 import CodeMirror from '@uiw/react-codemirror'
+import { EditorView } from '@codemirror/view'
 import { AlertTriangle, CheckCircle2, CircleEllipsis, WandSparkles } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useResolvedTheme } from '../theme/ThemeContext'
@@ -11,11 +12,12 @@ import { Button } from './Button'
 export interface SqlEditorError { line: number; column?: number; message: string }
 const NO_PROJECT_VARIABLES: string[] = []
 
-export function SqlEditor({ value, onChange, label, readOnly = false, errors = [], validLabel = 'No basic SQL errors detected', invalidLabel = 'SQL needs attention', emptyLabel = 'Enter SQL to validate', formatLabel = 'Format SQL', validateSql, checkLabel = 'Check SQL', checkedLabel = 'SQL policy checked', toolbar, formatSql, projectVariables = NO_PROJECT_VARIABLES, showToolbar = true }: {
+export function SqlEditor({ value, onChange, label, readOnly = false, wrapLines = false, errors = [], validLabel = 'No basic SQL errors detected', invalidLabel = 'SQL needs attention', emptyLabel = 'Enter SQL to validate', formatLabel = 'Format SQL', validateSql, checkLabel = 'Check SQL', checkedLabel = 'SQL policy checked', toolbar, formatSql, projectVariables = NO_PROJECT_VARIABLES, showToolbar = true }: {
   value: string
   onChange: (value: string) => void
   label: string
   readOnly?: boolean
+  wrapLines?: boolean
   errors?: SqlEditorError[]
   validLabel?: string
   invalidLabel?: string
@@ -31,11 +33,11 @@ export function SqlEditor({ value, onChange, label, readOnly = false, errors = [
 }) {
   const extensions = useMemo(() => {
     const language = sql({ dialect: PLSQL, upperCaseKeywords: true })
-    return [language, projectVariableHighlight, autocompletion({ override: [context => {
+    return [language, projectVariableHighlight, ...(wrapLines ? [EditorView.lineWrapping] : []), autocompletion({ override: [context => {
       const match = context.matchBefore(/(?<![\w"$#])@[A-Za-z0-9_]*|\$\{[A-Za-z0-9_]*/)
       return match ? { from: match.from, options: projectVariables.map(name => ({ label: '@' + name, type: 'variable' })) } : keywordCompletionSource(PLSQL, true)(context)
     }] })]
-  }, [projectVariables])
+  }, [projectVariables, wrapLines])
   const theme = useResolvedTheme()
   const revision = useRef(0)
   const [checking, setChecking] = useState(false)
@@ -81,7 +83,7 @@ export function SqlEditor({ value, onChange, label, readOnly = false, errors = [
       </Button>
       {toolbar}
     </div>}
-    <CodeMirror theme={theme} value={value} onChange={onChange} extensions={extensions} basicSetup={{ lineNumbers: true, foldGutter: true, highlightActiveLine: true, highlightSelectionMatches: true, searchKeymap: true }} readOnly={readOnly} minHeight="240px" aria-label={label} />
+    <CodeMirror theme={theme} value={value} onChange={onChange} extensions={extensions} basicSetup={{ lineNumbers: true, foldGutter: true, highlightActiveLine: !readOnly, highlightActiveLineGutter: !readOnly, highlightSelectionMatches: true, searchKeymap: true }} readOnly={readOnly} width="100%" minHeight="240px" aria-label={label} />
     {invalid && showErrors ? <ul className="ui-sql-errors" aria-label={`${label} errors`}>{allErrors.map((error, index) => <li key={`${error.line}:${error.column ?? 0}:${index}`}><span>{error.line}:{error.column ?? 1}</span><span>{error.message}</span></li>)}</ul> : null}
   </div>
 }

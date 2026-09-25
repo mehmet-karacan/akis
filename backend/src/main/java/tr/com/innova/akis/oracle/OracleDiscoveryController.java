@@ -10,6 +10,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -66,6 +67,29 @@ final class OracleDiscoveryController {
     record DiscoveryRequest(
             @Pattern(regexp = "[A-Za-z][A-Za-z0-9_$#]{0,127}") String tableName,
             @Min(1) @Max(200) Integer limit) {
+    }
+
+    /** Returns the raw, authoritative Oracle DBMS_METADATA DDL for preview/conversion. */
+    @GetMapping("/physical-schemas/{physicalSchemaUuid}/ddl")
+    OracleDiscoveryService.DdlResult getTableDdl(
+            @PathVariable UUID projectUuid,
+            @PathVariable UUID connectionUuid,
+            @PathVariable UUID physicalSchemaUuid,
+            @RequestParam String tableName) {
+        authorization.requireProjectPermission(projectUuid, DISCOVERY_WRITE);
+        return service.getTableDdl(connectionUuid, physicalSchemaUuid, tableName);
+    }
+
+    @GetMapping("/physical-schemas/{physicalSchemaUuid}/ddl/postgresql")
+    tr.com.innova.akis.postgres.OracleDdlToPostgresConverter.Result getPostgresDdl(
+            @PathVariable UUID projectUuid,
+            @PathVariable UUID connectionUuid,
+            @PathVariable UUID physicalSchemaUuid,
+            @RequestParam String tableName,
+            @RequestParam String targetSchema,
+            @RequestParam String targetTable) {
+        authorization.requireProjectPermission(projectUuid, DISCOVERY_WRITE);
+        return service.convertTableDdl(connectionUuid, physicalSchemaUuid, tableName, targetSchema, targetTable);
     }
 
     record ProvisionTargetRequest(

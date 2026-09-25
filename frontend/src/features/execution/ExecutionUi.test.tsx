@@ -110,6 +110,8 @@ describe('execution UI states', () => {
     vi.mocked(executionApi.listSteps).mockResolvedValue([
       { uuid: 'read', parentUuid: null, code: 'READ_SOURCE', type: 'PROCEDURE', ordinal: 1, name: 'Read rows', status: 'BASARILI', connectionRole: 'SOURCE', risk: 'READ_ONLY', startedAt: null, finishedAt: null, rowCount: 33, byteCount: 1200, errorCode: null },
       { uuid: 'insert', parentUuid: null, code: 'STEP_A', type: 'PROCEDURE', ordinal: 2, name: 'Write rows', status: 'BASARILI', connectionRole: 'TARGET', risk: 'DML', startedAt: null, finishedAt: null, rowCount: 33, byteCount: 0, errorCode: null, logCounter: 'INSERT', transactionState: 'COMMITTED' },
+      { uuid: 'update', parentUuid: null, code: 'STEP_B', type: 'PROCEDURE', ordinal: 3, name: 'Update rows', status: 'BASARILI', connectionRole: 'TARGET', risk: 'DML', startedAt: null, finishedAt: null, rowCount: 5, byteCount: 0, errorCode: null, logCounter: 'UPDATE', transactionState: 'COMMITTED' },
+      { uuid: 'delete', parentUuid: null, code: 'STEP_C', type: 'PROCEDURE', ordinal: 4, name: 'Delete rows', status: 'BASARILI', connectionRole: 'TARGET', risk: 'DML', startedAt: null, finishedAt: null, rowCount: 2, byteCount: 0, errorCode: null, logCounter: 'DELETE', transactionState: 'COMMITTED' },
     ])
     const close = vi.fn()
     render(<MemoryRouter initialEntries={['/projects/project-id/runs/run-id']}><Routes><Route path="/projects/:projectUuid/runs/:runUuid" element={<RunDetailPage runUuidOverride="run-id" panel onClose={close} objectName="Customer Load" />} /></Routes></MemoryRouter>)
@@ -120,6 +122,9 @@ describe('execution UI states', () => {
     expect(await screen.findByText('1. Read rows')).toBeInTheDocument()
     expect(screen.getAllByText('Rows Selected').length).toBeGreaterThan(0)
     expect(screen.getByText('Rows Inserted')).toBeInTheDocument()
+    expect(screen.getByText('Updated')).toBeInTheDocument()
+    expect(screen.getByText('Deleted')).toBeInTheDocument()
+    expect(screen.getAllByText('Duration').length).toBeGreaterThanOrEqual(2)
     expect(screen.getAllByText('33').length).toBeGreaterThanOrEqual(2)
 
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))

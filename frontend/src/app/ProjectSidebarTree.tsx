@@ -99,7 +99,7 @@ export function ProjectSidebarTree({ folders, definitions, selectedUuid, loading
       if (!active) throw new Error(shellT('nav.runNeedsActivePublication'))
       const started = await executionApi.startRun(projectUuid, active.uuid, crypto.randomUUID())
       setNotice({ tone: 'success', text: shellT('nav.runStarted', { name: definition.name, environment: active.environmentCode }) })
-      navigate(`/operations/runs/${started.runUuid}`)
+      navigate(`/operations?run=${encodeURIComponent(started.runUuid)}`)
     } catch (error) { setNotice({ tone: 'error', text: error instanceof Error ? error.message : shellT('nav.actionFailed') }) }
     finally { setStarting(null) }
   }

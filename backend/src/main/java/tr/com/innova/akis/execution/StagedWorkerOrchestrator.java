@@ -5,9 +5,11 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tr.com.innova.akis.knowledge.*;
+import tr.com.innova.akis.publication.StagedSqlPreview;
 import static tr.com.innova.akis.execution.ProcedureWorkerOrchestrator.*;
 import static tr.com.innova.akis.execution.RunExecutionTransitionPort.*;
 import static tr.com.innova.akis.execution.RuntimeOracleConnectionProvider.RuntimeOracleSession;
@@ -27,17 +29,18 @@ final class StagedWorkerOrchestrator {
     private final WorkObjectStore objects;
     private final WorkAreaPolicyService policies;
     private final ObjectMapper mapper;
+    private final JdbcClient jdbc;
     private final boolean enabled;
     private final KmStepJournal journal;
     private final PinnedExecutionContextPort contexts;
     private final TargetTechnologyRegistry targets;
     StagedWorkerOrchestrator(StagedRuntimePlanResolver plans,JdbcPinnedSchemaSnapshotStore snapshots,RuntimeOracleConnectionProvider connections,
             StagedWorkSessionFactory workSessions,WorkerLeaseService leases,OracleTargetFencePort fences,RunExecutionTransitionPort transitions,
-            StagedPublishFacade publisher,WorkObjectStore objects,WorkAreaPolicyService policies,ObjectMapper mapper,KmStepJournal journal,
+            StagedPublishFacade publisher,WorkObjectStore objects,WorkAreaPolicyService policies,ObjectMapper mapper,JdbcClient jdbc,KmStepJournal journal,
             PinnedExecutionContextPort contexts,TargetTechnologyRegistry targets,@Value("${akis.execution.staged-runtime-enabled:false}") boolean enabled,
             @Value("${akis.execution.staged-fault-injection:}") String faultInjection) {
         this.plans=plans;this.snapshots=snapshots;this.connections=connections;this.workSessions=workSessions;this.leases=leases;
-        this.fences=fences;this.transitions=transitions;this.publisher=publisher;this.objects=objects;this.policies=policies;this.mapper=mapper;this.enabled=enabled;this.journal=journal;
+        this.fences=fences;this.transitions=transitions;this.publisher=publisher;this.objects=objects;this.policies=policies;this.mapper=mapper;this.jdbc=jdbc;this.enabled=enabled;this.journal=journal;
         this.contexts=contexts;this.targets=targets;this.faultInjection=faultInjection==null?"":faultInjection.trim();
     }
     /**
@@ -176,7 +179,8 @@ final class StagedWorkerOrchestrator {
                         if("PUBLISH".equals(faultInjection) && contexts.resumeOrigin(context.runUuid()).isEmpty()) throw new IllegalStateException("Test hatası: hedef yayını kasıtlı olarak başarısız.");
                         return publisher.publish(plan,context,fence,object,seal,()->gate.checkpoint());
                     });
-            journal.prepare(owner,plan.runtimePlanHash(),plan.program());
+            var sqlEvidence=StagedSqlPreview.renderRuntime(mapper,jdbc,plan.definition(),context.physicalManifest().path("stagedPlan"),workName);
+            journal.prepare(owner,plan.runtimePlanHash(),plan.program(),sqlEvidence);
             var resumeFrom=AkisKmInterpreter.Resume.NONE;
             if(resume.isPresent()) {
                 var point=resume.get();
@@ -191,8 +195,10 @@ final class StagedWorkerOrchestrator {
             var evidence=Objects.requireNonNull(intent.get());
             requireAccepted(gate.completeTerminal(run->transitions.completeSuccessfully(new ActiveExecutionToken(run,fence),evidence),StagedWorkerOrchestrator::accepted));
             int warnings=0;
-            try { manager.cleanup(control.connection(),owner,created.get().uuid(),30); }
-            catch(RuntimeException cleanupFailure) { warnings=1; }
+            if (plan.program().steps().stream().noneMatch(step -> step.operation() == AkisKmLanguage.Operation.DROP_WORK)) {
+                try { manager.cleanup(control.connection(),owner,created.get().uuid(),30); }
+                catch(RuntimeException cleanupFailure) { warnings=1; }
+            }
             return new Succeeded(results.size(),warnings,evidence.rowCount(),evidence.byteCount());
         } catch(SQLException | RuntimeException failure) {
             var fence=targetFence;

@@ -43,7 +43,8 @@ class StagedKmRuntimeTest {
     }
     @Test void interpreterRunsLoadingQualityAndPublicationInOrder() throws Exception {
         var results = AkisKmInterpreter.execute(modules, runtime());
-        assertEquals(5, results.size()); assertEquals(1201, results.getLast().affectedRows());
+        assertEquals(7, results.size());
+        assertEquals(1201, results.stream().filter(result -> result.id().equals("HEDEFE_YAZ")).findFirst().orElseThrow().affectedRows());
         var order = inOrder(guard, tables, store, transfer, checks, publisher);
         order.verify(guard).preflight();
         order.verify(tables).create(eq(control), eq(owner), anyString(), eq(work), anyList(), eq(30), any(),any());

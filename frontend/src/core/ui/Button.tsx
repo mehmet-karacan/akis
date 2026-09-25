@@ -12,10 +12,13 @@ export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement
 }
 
 export function Button({ tone = 'secondary', busy = false, busyLabel, icon, children, className = '', disabled, type = 'button', ...props }: ButtonProps) {
+  const iconOnly = Boolean(icon && children == null && !busyLabel)
   return (
     <AntButton
       {...props}
-      className={`akis-button ${className}`.trim()}
+      className={`akis-button${iconOnly ? ' akis-button--icon-only' : ''} ${className}`.trim()}
+      data-icon-only={iconOnly || undefined}
+      data-tone={tone}
       type={tone === 'primary' || tone === 'danger' ? 'primary' : tone === 'ghost' ? 'text' : 'default'}
       danger={tone === 'danger'}
       htmlType={type}

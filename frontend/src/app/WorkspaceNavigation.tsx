@@ -22,14 +22,15 @@ export function resolveWorkspace(pathname: string): WorkspaceId {
   return 'project'
 }
 
-export function WorkspaceNavigation({ hasPendingChanges, onNavigate }: {
+export function WorkspaceNavigation({ hasPendingChanges, onNavigate, collapsed = false }: {
   hasPendingChanges: boolean
   onNavigate: (path: string) => void
+  collapsed?: boolean
 }) {
   const { t } = useTranslation()
   const location = useLocation()
   void hasPendingChanges // The shell guards every onNavigate request.
-  return <Menu mode="inline" className="workspace-navigation" aria-label={t('nav.workspaces')}
+  return <Menu mode="inline" inlineCollapsed={collapsed} className="workspace-navigation" aria-label={t('nav.workspaces')}
     selectedKeys={[resolveWorkspace(location.pathname)]}
     onClick={({ key }) => {
       const workspace = workspaces.find(item => item.id === key)!

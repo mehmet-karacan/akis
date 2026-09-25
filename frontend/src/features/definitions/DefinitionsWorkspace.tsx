@@ -285,7 +285,7 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
         projectUuid,
         selectedDefinition.uuid,
         draft?.version ?? 0,
-        selectedDefinition.type === 'MAPPING' ? 4 : selectedDefinition.type === 'KNOWLEDGE_MODULE' && content && typeof content === 'object' && 'language' in content && ['AKIS_KM/1', 'AKIS_KM/2'].includes(String(content.language)) ? 2 : schemaVersion,
+        selectedDefinition.type === 'MAPPING' ? 4 : selectedDefinition.type === 'KNOWLEDGE_MODULE' && content && typeof content === 'object' && 'language' in content && ['AKIS_KM/1', 'AKIS_KM/2', 'AKIS_KM/3'].includes(String(content.language)) ? 2 : schemaVersion,
         selectedDefinition.type === 'MAPPING' && isMappingContent(content) ? storeMapping(content) : content,
       )
       setDraft(saved)

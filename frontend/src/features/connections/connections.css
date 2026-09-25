@@ -95,11 +95,13 @@ body .connections-page .provider-cell .database-provider-icon > img.postgres-mar
 }
 .connection-name-link { display: grid; gap: 1px; min-width: 140px; }
 .connection-endpoint { display: block; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.row-actions { width: 206px; min-width: 206px; }
-.row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; white-space: nowrap; }
-.connection-row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; white-space: nowrap; }
+.row-actions { width: 1%; min-width: 0; }
+.row-actions { display: table-cell; text-align: right; white-space: nowrap; }
+.connection-row-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; white-space: nowrap; }
 .row-actions .connection-inline-test { display: block; }
 .row-actions .connection-inline-test small { display: none; }
+.row-actions .connection-inline-test .connection-test-label { display: none; }
+.row-actions .connection-inline-test .akis-button { width: 32px; min-width: 32px; height: 32px; padding: 0; }
 .connection-card-action { min-width: 32px; width: 32px; height: 32px; padding: 0; display: inline-grid; place-items: center; }
 .connection-last-test { min-width: 140px; white-space: nowrap; }
 .connections-pagination { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }

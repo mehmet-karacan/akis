@@ -52,6 +52,7 @@ final class JdbcOracleSchemaPreflight {
                        WHEN data_type = 'RAW' THEN data_length
                    END AS declared_length,
                    CASE
+                       WHEN data_type = 'DATE' THEN 0
                        WHEN data_type LIKE 'TIMESTAMP%'
                          OR data_type LIKE 'INTERVAL%'
                        THEN data_scale
@@ -418,10 +419,14 @@ final class JdbcOracleSchemaPreflight {
             }
             boolean knownType = Set.of("PK", "UK", "FK", "CHECK")
                     .contains(constraint.type());
-            if (!knownType || role == DatasetRole.TARGET
-                    && (!constraint.details().isEmpty()
-                        || !(constraint.type().equals("PK")
-                            || constraint.type().equals("UK")))) {
+            boolean verifiableTargetDetails = constraint.details().isEmpty()
+                    || technology == PilotRuntimePlan.DatabaseType.POSTGRESQL
+                    && constraint.details().size() == 1
+                    && "NOT_DEFERRABLE".equals(constraint.details().path("deferrability").asText());
+            boolean supportedTargetConstraint = technology == PilotRuntimePlan.DatabaseType.POSTGRESQL
+                    || verifiableTargetDetails
+                        && (constraint.type().equals("PK") || constraint.type().equals("UK"));
+            if (!knownType || role == DatasetRole.TARGET && !supportedTargetConstraint) {
                 throw failure(OracleSchemaPreflightFailure.UNSUPPORTED_SCHEMA);
             }
         }

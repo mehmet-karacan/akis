@@ -22,13 +22,13 @@ it('loads on expansion, single-selects and opens objects on double-click or Ente
   fireEvent.dragStart(await screen.findByText('Hakedis'), { dataTransfer: { effectAllowed: 'none', setData } })
   expect(setData).toHaveBeenCalledWith(MODEL_OBJECT_DRAG_TYPE, expect.stringContaining('"objectUuid":"o1"'))
   fireEvent.click(await screen.findByText('Hakedis'))
-  expect(navigate).not.toHaveBeenCalledWith('/project/models/m1?object=o1')
+  expect(navigate).not.toHaveBeenCalledWith('/project/models/SOURCE?object=TABLE')
   expect(screen.queryByRole('button', { name: 'Edit: Hakedis' })).not.toBeInTheDocument()
   fireEvent.doubleClick(screen.getByText('Hakedis'))
-  expect(navigate).toHaveBeenCalledWith('/project/models/m1?object=o1')
+  expect(navigate).toHaveBeenCalledWith('/project/models/SOURCE?object=TABLE')
   navigate.mockClear()
   fireEvent.keyDown(screen.getByText('Hakedis').closest('[tabindex="0"]')!, { key: 'Enter' })
-  expect(navigate).toHaveBeenCalledWith('/project/models/m1?object=o1')
+  expect(navigate).toHaveBeenCalledWith('/project/models/SOURCE?object=TABLE')
   act(() => window.dispatchEvent(new Event('akis:models-changed')))
   expand('Models')
   await waitFor(() => expect(models).toHaveBeenCalledTimes(2))
@@ -58,13 +58,13 @@ it('acceptance item 9: model/folder/datastore open with double-click or Enter, M
   expand('Models')
   await screen.findByText('Source Model')
   fireEvent.doubleClick(screen.getByText('Source Model'))
-  expect(navigate).toHaveBeenCalledWith('/project/models/m1')
+  expect(navigate).toHaveBeenCalledWith('/project/models/SOURCE')
   navigate.mockClear()
 
   expand('Source Model')
   const folder = await screen.findByText('Sales')
   fireEvent.doubleClick(folder)
-  expect(navigate).toHaveBeenCalledWith('/project/models/m1?folder=f1')
+  expect(navigate).toHaveBeenCalledWith('/project/models/SOURCE?folder=SALES')
   navigate.mockClear()
 
   const salesNode = folder.closest('[role="treeitem"]')!
@@ -76,14 +76,14 @@ it('acceptance item 9: model/folder/datastore open with double-click or Enter, M
   fireEvent.click(table)
   expect(navigate).not.toHaveBeenCalled()
   fireEvent.doubleClick(screen.getByText('Sales Table'))
-  expect(navigate).toHaveBeenCalledWith('/project/models/m1?object=o1')
+  expect(navigate).toHaveBeenCalledWith('/project/models/SOURCE?object=T')
   navigate.mockClear()
   fireEvent.keyDown(screen.getByText('Sales Table').closest('[tabindex="0"]')!, { key: 'Enter' })
-  expect(navigate).toHaveBeenCalledWith('/project/models/m1?object=o1')
+  expect(navigate).toHaveBeenCalledWith('/project/models/SOURCE?object=T')
 
   const view = screen.getByText('Global View')
   fireEvent.doubleClick(view)
-  expect(navigate).toHaveBeenLastCalledWith('/project/models/m1?object=v1')
+  expect(navigate).toHaveBeenLastCalledWith('/project/models/SOURCE?object=V')
 })
 
 it('opens nested folders and views in context, with Models as a grouping only', async () => {
@@ -94,9 +94,9 @@ it('opens nested folders and views in context, with Models as a grouping only', 
   render(<ProjectModelTree projectUuid="p1" onNavigate={navigate} />)
   expand('Models'); await screen.findByText('Source Model'); expand('Source Model')
   fireEvent.doubleClick(await screen.findByText('Sales'))
-  expect(navigate).toHaveBeenLastCalledWith('/project/models/m1?folder=f1')
+  expect(navigate).toHaveBeenLastCalledWith('/project/models/SOURCE?folder=SALES')
   expand('Sales'); fireEvent.doubleClick(await screen.findByText('Sales View'))
-  expect(navigate).toHaveBeenLastCalledWith('/project/models/m1?object=v1')
+  expect(navigate).toHaveBeenLastCalledWith('/project/models/SOURCE?object=V')
 })
 
 it('does not carry another project catalog or a delayed response into the active tree', async () => {

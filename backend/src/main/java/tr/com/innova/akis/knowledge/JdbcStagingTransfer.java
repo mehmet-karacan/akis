@@ -11,7 +11,9 @@ import tools.jackson.databind.JsonNode;
 /** Streams a single source cursor to an already-owned stage. Never touches the final target. */
 public final class JdbcStagingTransfer implements StagingTransferPort {
     public static final long BUFFER_BYTES = 16L * 1024 * 1024;
-    public enum Type { NUMBER, VARCHAR2, NVARCHAR2, DATE, TIMESTAMP, CLOB }
+    /** Protects the worker from unbounded LOB allocation while allowing ordinary document payloads. */
+    public static final long MAX_CELL_BYTES = 64L * 1024 * 1024;
+    public enum Type { NUMBER, FLOAT, VARCHAR2, NVARCHAR2, DATE, TIMESTAMP, CLOB, BLOB }
     public record Column(String sourceObject, String source, String stage, Type type, JsonNode expression, boolean encrypted) {
         public Column(String sourceObject, String source, String stage, Type type, JsonNode expression) { this(sourceObject, source, stage, type, expression, false); }
         public Column(String sourceObject,String source,String stage,Type type) { this(sourceObject,source,stage,type,null); }
@@ -102,7 +104,8 @@ public final class JdbcStagingTransfer implements StagingTransferPort {
                             values[i]=read(cursor,i+1,columns.get(i).type());
                             String value=canonical(values[i]);
                             long cellBytes=value==null?4:4L+value.getBytes(StandardCharsets.UTF_8).length;
-                            if (cellBytes>1_048_576) throw new TransferFailure("Tek hücre sınırı aşıldı.",false);
+                            if (cellBytes>MAX_CELL_BYTES || cellBytes>options.maxBytes())
+                                throw new TransferFailure("Tek hücre aktarım kotası aşıldı; stage mühürlenmedi.",false);
                             rowBytes+=cellBytes;
                         }
                         if (rowBytes>BUFFER_BYTES || bytes>options.maxBytes()-rowBytes) throw new TransferFailure("Aktarım byte kotası aşıldı; stage mühürlenmedi.",false);
@@ -230,17 +233,20 @@ public final class JdbcStagingTransfer implements StagingTransferPort {
         write.clearBatch();
     }
     private static Object read(ResultSet r,int i,Type type) throws SQLException {
-        return switch(type) { case NUMBER -> r.getBigDecimal(i); case VARCHAR2,CLOB -> r.getString(i); case NVARCHAR2 -> r.getNString(i); case DATE,TIMESTAMP -> r.getTimestamp(i); };
+        if (type==Type.FLOAT) { double value=r.getDouble(i); return r.wasNull()?null:value; }
+        return switch(type) { case NUMBER -> r.getBigDecimal(i); case VARCHAR2,CLOB -> r.getString(i); case NVARCHAR2 -> r.getNString(i); case DATE,TIMESTAMP -> r.getTimestamp(i); case BLOB -> r.getBytes(i); case FLOAT -> throw new AssertionError(); };
     }
     private static String canonical(Object value) {
         if (value==null) return null;
         if (value instanceof BigDecimal n) return n.signum()==0?"0":n.stripTrailingZeros().toPlainString();
+        if (value instanceof Double n) return Double.toString(n);
         if (value instanceof Timestamp t) return t.toLocalDateTime().toString();
+        if (value instanceof byte[] bytes) return Base64.getEncoder().encodeToString(bytes);
         return value.toString();
     }
     private static void bind(PreparedStatement s,int i,Type type,Object value) throws SQLException {
-        if (value==null) { s.setNull(i,switch(type){case NUMBER->Types.NUMERIC;case VARCHAR2->Types.VARCHAR;case NVARCHAR2->Types.NVARCHAR;case DATE,TIMESTAMP->Types.TIMESTAMP;case CLOB->Types.CLOB;}); return; }
-        switch(type) { case NUMBER -> s.setBigDecimal(i,(BigDecimal)value); case VARCHAR2 -> s.setString(i,(String)value); case NVARCHAR2 -> s.setNString(i,(String)value); case DATE,TIMESTAMP -> s.setTimestamp(i,(Timestamp)value); case CLOB -> s.setString(i,(String)value); }
+        if (value==null) { s.setNull(i,switch(type){case NUMBER->Types.NUMERIC;case FLOAT->Types.DOUBLE;case VARCHAR2->Types.VARCHAR;case NVARCHAR2->Types.NVARCHAR;case DATE,TIMESTAMP->Types.TIMESTAMP;case CLOB->Types.CLOB;case BLOB->Types.BINARY;}); return; }
+        switch(type) { case NUMBER -> s.setBigDecimal(i,(BigDecimal)value); case FLOAT -> s.setDouble(i,(Double)value); case VARCHAR2 -> s.setString(i,(String)value); case NVARCHAR2 -> s.setNString(i,(String)value); case DATE,TIMESTAMP -> s.setTimestamp(i,(Timestamp)value); case CLOB -> s.setString(i,(String)value); case BLOB -> s.setBytes(i,(byte[])value); }
     }
     private static void verifyMetadata(ResultSetMetaData metadata,List<Column> columns) throws SQLException {
         if (metadata.getColumnCount()!=columns.size()) throw new TransferFailure("Kaynak kolonları değişmiş.",false);
@@ -249,6 +255,8 @@ public final class JdbcStagingTransfer implements StagingTransferPort {
             Type expected=columns.get(i).type();
             boolean matches=expected==Type.TIMESTAMP ? type.matches("TIMESTAMP(\\([0-9]\\))?")
                     : expected==Type.CLOB ? Set.of("CLOB","NCLOB").contains(type)
+                    // Oracle JDBC exposes dictionary FLOAT columns as NUMBER in ResultSetMetaData.
+                    : expected==Type.FLOAT ? Set.of("FLOAT","NUMBER","BINARY_FLOAT","BINARY_DOUBLE").contains(type)
                     : type.equals(expected.name());
             if (!matches) throw new TransferFailure("Kaynak kolon tipi desteklenmiyor veya değişmiş.",false);
         }

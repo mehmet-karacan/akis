@@ -75,6 +75,9 @@ public final class OracleSchemaSnapshotCodecV1 {
                 case "VARCHAR2" -> varchar2(raw, name);
                 case "TIMESTAMP" -> timestamp(raw, name);
                 case "CLOB" -> clob(raw, name);
+                case "BLOB" -> blob(raw, name);
+                case "DATE" -> date(raw, name);
+                case "FLOAT" -> floating(raw, name);
                 default -> throw failure("Unsupported Oracle data type: " + dataType + ".");
             });
         }
@@ -122,6 +125,32 @@ public final class OracleSchemaSnapshotCodecV1 {
         // CHAR_LENGTH is not meaningful for a LOB (Oracle reports an internal locator size, not a character count),
         // so it is deliberately not validated or carried through, unlike VARCHAR2's declared length.
         return column(raw, name, "CLOB", "STRING", null, null, null, null);
+    }
+
+    private Column blob(RawColumn raw, String name) {
+        requireNull(raw.precision(), "BLOB precision");
+        requireNull(raw.scale(), "BLOB scale");
+        requireNull(raw.timePrecision(), "BLOB time precision");
+        return column(raw, name, "BLOB", "BINARY", null, null, null, null);
+    }
+
+    private Column date(RawColumn raw, String name) {
+        requireNull(raw.precision(), "DATE precision");
+        requireNull(raw.scale(), "DATE scale");
+        requireNull(raw.charLength(), "DATE char length");
+        requireNull(raw.timePrecision(), "DATE time precision");
+        return column(raw, name, "DATE", "TIMESTAMP", null, null, null, 0);
+    }
+
+    private Column floating(RawColumn raw, String name) {
+        requireNull(raw.scale(), "FLOAT scale");
+        requireNull(raw.charLength(), "FLOAT char length");
+        requireNull(raw.timePrecision(), "FLOAT time precision");
+        Integer precision = raw.precision();
+        if (precision == null || precision < 1 || precision > 126) {
+            throw failure("Oracle FLOAT binary precision is outside the supported range.");
+        }
+        return column(raw, name, "FLOAT(" + precision + ")", "FLOAT64", precision, null, null, null);
     }
 
     private Column timestamp(RawColumn raw, String name) {

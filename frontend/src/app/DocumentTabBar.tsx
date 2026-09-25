@@ -1,8 +1,7 @@
 import { Dropdown, type MenuProps } from 'antd'
-import { Database, Layers3, Maximize2, Minimize2, X } from 'lucide-react'
+import { Database, Layers3, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router-dom'
-import { Button } from '../core/ui/Button'
 import { DefinitionTypeIcon } from '../features/definitions/DefinitionTypeIcon'
 import { DEFINITION_TYPES, type DefinitionType } from '../features/definitions/types'
 import { useDocumentTabs } from './DocumentTabsContext'
@@ -18,7 +17,8 @@ function TabIcon({ kind }: { kind: string }) {
 export function DocumentTabBar({ onNavigate, dirtyPath }: { onNavigate(path: string): void; dirtyPath?: string | null }) {
   const { t } = useTranslation()
   const { pathname } = useLocation()
-  const { tabs, maximized, close, closeOthers, setMaximized } = useDocumentTabs()
+  const { tabs, close, closeOthers } = useDocumentTabs()
+  if (!tabs.length) return null
   const closeTab = (path: string) => {
     const next = close(path)
     if (pathname === path) onNavigate(next ?? '/project/objects')
@@ -27,7 +27,7 @@ export function DocumentTabBar({ onNavigate, dirtyPath }: { onNavigate(path: str
     { key: 'close', label: t('tabs.close'), onClick: () => closeTab(path) },
     { key: 'others', label: t('tabs.closeOthers'), onClick: () => { closeOthers(path); if (pathname !== path) onNavigate(path) } },
   ]
-  return <div className={`document-tabbar${tabs.length ? '' : ' is-empty'}`} role="tablist" aria-label={t('tabs.openDocuments')}>
+  return <div className="document-tabbar" role="tablist" aria-label={t('tabs.openDocuments')}>
     <div className="document-tabs">
       {tabs.map((tab) => {
         const active = pathname === tab.path
@@ -42,6 +42,5 @@ export function DocumentTabBar({ onNavigate, dirtyPath }: { onNavigate(path: str
         </Dropdown>
       })}
     </div>
-    <Button type="button" tone="ghost" className="document-tabbar-maximize" data-tone="info" icon={maximized ? <Minimize2 size={15} /> : <Maximize2 size={15} />} aria-pressed={maximized} aria-label={maximized ? t('tabs.restore') : t('tabs.maximize')} title={maximized ? t('tabs.restore') : t('tabs.maximize')} onClick={() => setMaximized(!maximized)} />
   </div>
 }

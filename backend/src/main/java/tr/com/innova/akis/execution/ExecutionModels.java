@@ -75,7 +75,22 @@ final class ExecutionModels {
             /** The schedule that fired this run (V049); null means it was started manually. */
             String scheduleCode,
             Long selectedRows,
-            Long insertedRows) {
+            Long insertedRows,
+            Long updatedRows,
+            Long deletedRows) {
+    }
+
+    record RunOverviewRow(
+            long totalRuns,
+            long activeRuns,
+            long queuedRuns,
+            long succeededRuns,
+            long failedRuns,
+            long selectedRows,
+            long insertedRows,
+            long updatedRows,
+            long deletedRows) {
+        static RunOverviewRow empty() { return new RunOverviewRow(0, 0, 0, 0, 0, 0, 0, 0, 0); }
     }
 
     record RunSearch(

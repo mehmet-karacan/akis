@@ -23,7 +23,7 @@ public final class PostgresWorkStructure {
 
     private PostgresWorkStructure() { }
 
-    /** Accepted work DDL types: NUMERIC[(p,s)], SMALLINT, INTEGER, BIGINT, VARCHAR(n), TEXT, TIMESTAMP(p), DATE. */
+    /** Accepted work DDL types: NUMERIC[(p,s)], SMALLINT, INTEGER, BIGINT, FLOAT8, VARCHAR(n), TEXT, BYTEA, TIMESTAMP(p), DATE. */
     public static boolean supported(String ddlType) {
         try { shape(new WorkTableManagerPort.Column("c", ddlType)); return true; }
         catch (IllegalArgumentException unsupported) { return false; }
@@ -77,6 +77,8 @@ public final class PostgresWorkStructure {
             case "bigint" -> "BIGINT";
             case "text" -> "TEXT";
             case "date" -> "DATE";
+            case "bytea" -> "BYTEA";
+            case "double precision" -> "DOUBLE PRECISION";
             default -> type.toUpperCase(Locale.ROOT);
         };
     }
@@ -91,7 +93,8 @@ public final class PostgresWorkStructure {
         if (text.matches()) return new Shape(column.name(), "VARCHAR", null, null, Long.valueOf(text.group(1)));
         if (time.matches()) return new Shape(column.name(), "TIMESTAMP", null, Integer.valueOf(time.group(1)), null);
         return switch (ddl) {
-            case "SMALLINT", "INTEGER", "BIGINT", "TEXT", "DATE" -> new Shape(column.name(), ddl, null, null, null);
+            case "SMALLINT", "INTEGER", "BIGINT", "TEXT", "BYTEA", "DATE" -> new Shape(column.name(), ddl, null, null, null);
+            case "DOUBLEPRECISION", "FLOAT8" -> new Shape(column.name(), "DOUBLE PRECISION", null, null, null);
             default -> throw new IllegalArgumentException("Çalışma kolonu tipi desteklenmiyor.");
         };
     }

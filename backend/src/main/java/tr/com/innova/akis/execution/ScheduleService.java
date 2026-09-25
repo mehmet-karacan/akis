@@ -95,6 +95,31 @@ public class ScheduleService {
         return get(projectUuid, scheduleUuid);
     }
 
+    @Transactional
+    public View update(UUID projectUuid, UUID scheduleUuid, long expectedVersion, String kod, String ad, UUID publicationUuid,
+            String cronExpression, String timeZone, ConflictPolicy conflictPolicy, MisfirePolicy misfirePolicy) {
+        var current = get(projectUuid, scheduleUuid);
+        requireWriteAccess(projectUuid, publicationUuid);
+        if (current.version() != expectedVersion) throw staleVersion();
+        requireKod(kod);
+        if (ad == null || ad.isBlank()) throw validation("Ad gereklidir.");
+        CronExpression cron = requireValidCron(cronExpression);
+        ZoneId zone = requireValidZone(timeZone);
+        OffsetDateTime next = current.status() == Status.AKTIF ? nextFireTime(cron, zone.getId()) : null;
+        jdbc.sql("""
+                        update akis.zamanlama set yayin_id = (select y.id from akis.yayin y join akis.proje p on p.id = y.proje_id where y.uuid = :publication and p.uuid = :project),
+                               kod = :kod, ad = :ad, cron_ifadesi = :cron, zaman_dilimi = :zone,
+                               cakisma_politikasi = :conflict, kacirma_politikasi = :misfire,
+                               sonraki_tetikleme_zamani = :next, guncellenme_zamani = clock_timestamp(), versiyon_no = versiyon_no + 1
+                         where uuid = :schedule
+                        """)
+                .param("project", projectUuid).param("publication", publicationUuid).param("schedule", scheduleUuid)
+                .param("kod", kod).param("ad", ad).param("cron", cronExpression).param("zone", zone.getId())
+                .param("conflict", (conflictPolicy == null ? ConflictPolicy.SKIP : conflictPolicy).name())
+                .param("misfire", (misfirePolicy == null ? MisfirePolicy.SKIP : misfirePolicy).name()).param("next", next).update();
+        return get(projectUuid, scheduleUuid);
+    }
+
     /** Pausing always succeeds (it only narrows what the poller may do); resuming re-validates run authorization. */
     @Transactional
     public View pause(UUID projectUuid, UUID scheduleUuid, long expectedVersion) {

@@ -24,6 +24,8 @@ import tr.com.innova.akis.execution.TargetLedgerPort.TargetLedgerContext;
  */
 class PostgresTargetLedgerIT {
 
+    private static final String TARGET_SCHEMA = "akis";
+
     @Test
     void fencePublishAndReconcileOnRealPostgres() throws Exception {
         String url = System.getenv("AKIS_POSTGRES_RUNTIME_URL");
@@ -37,10 +39,10 @@ class PostgresTargetLedgerIT {
             writer.setAutoCommit(false);
             reader.setAutoCommit(false);
             try (Statement ddl = writer.createStatement()) {
-                ddl.execute("create table public." + table + "(id bigint primary key, ad text)");
+                ddl.execute("create table " + TARGET_SCHEMA + "." + table + "(id bigint primary key, ad text)");
             }
             writer.commit();
-            var identity = new JdbcPostgresTargetIdentityReader().read(writer, "public", "TABLE", table);
+            var identity = new JdbcPostgresTargetIdentityReader().read(writer, TARGET_SCHEMA, "TABLE", table);
             assertEquals(64, identity.canonicalTargetHash().length());
             assertEquals(table, identity.objectName());
             assertTrue(identity.container().matches("[0-9a-f-]{36}"), "installation uuid is the container");
@@ -61,8 +63,8 @@ class PostgresTargetLedgerIT {
             PublishPreparation preparation = data.preparePublish(evidence);
             assertFalse(preparation.alreadyRecorded());
             try (Statement dml = writer.createStatement()) {
-                dml.execute("truncate table only public." + table);
-                dml.execute("insert into public." + table + " values (1,'a'),(2,'b'),(3,'c')");
+                dml.execute("truncate table only " + TARGET_SCHEMA + "." + table);
+                dml.execute("insert into " + TARGET_SCHEMA + "." + table + " values (1,'a'),(2,'b'),(3,'c')");
             }
             data.recordPublish(preparation);
             // Not visible to a fresh connection before commit.
@@ -97,7 +99,7 @@ class PostgresTargetLedgerIT {
             reader.rollback();
 
             try (Statement ddl = writer.createStatement()) {
-                ddl.execute("drop table public." + table);
+                ddl.execute("drop table " + TARGET_SCHEMA + "." + table);
             }
             writer.commit();
         }

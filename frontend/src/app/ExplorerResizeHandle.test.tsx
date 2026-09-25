@@ -3,10 +3,10 @@ import { expect, it, vi } from 'vitest'
 import { clampExplorerWidth, ExplorerResizeHandle } from './ExplorerResizeHandle'
 
 it('keeps space for both explorer and editor at narrow and wide sizes', () => {
-  expect(clampExplorerWidth(800, 1440)).toBe(520)
-  expect(clampExplorerWidth(800, 1000)).toBe(450)
-  expect(clampExplorerWidth(10, 1440)).toBe(224)
-  expect(clampExplorerWidth(Number.NaN, 1440)).toBe(264)
+  expect(clampExplorerWidth(800, 1440)).toBe(360)
+  expect(clampExplorerWidth(800, 1000)).toBe(360)
+  expect(clampExplorerWidth(10, 1440)).toBe(216)
+  expect(clampExplorerWidth(Number.NaN, 1440)).toBe(240)
 })
 it('supports keyboard sizing and resetting without a mouse', () => {
   const onChange = vi.fn()
@@ -15,7 +15,7 @@ it('supports keyboard sizing and resetting without a mouse', () => {
   fireEvent.keyDown(separator, { key: 'ArrowRight' })
   expect(onChange).toHaveBeenLastCalledWith(316)
   fireEvent.keyDown(separator, { key: 'Home' })
-  expect(onChange).toHaveBeenLastCalledWith(224)
+  expect(onChange).toHaveBeenLastCalledWith(216)
   fireEvent.doubleClick(separator)
-  expect(onChange).toHaveBeenLastCalledWith(264)
+  expect(onChange).toHaveBeenLastCalledWith(240)
 })

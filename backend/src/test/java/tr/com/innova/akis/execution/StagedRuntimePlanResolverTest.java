@@ -26,8 +26,9 @@ class StagedRuntimePlanResolverTest {
             String role=kind==AkisKmLanguage.Kind.LKM?"loading":"integration",id=UUID.randomUUID().toString();
             pins.putObject(role).put("versionUuid",id).put("contentHash","a".repeat(64));
             var module=modules.putObject(role).put("versionUuid",id).put("contentHash","a".repeat(64)).put("kind",kind.name()).put("source",AkisKmLanguage.example(kind));
+            module.set("commands", mapper.valueToTree(AkisKmLanguage.parse(AkisKmLanguage.example(kind)).commands()));
             if(kind==AkisKmLanguage.Kind.LKM) module.putObject("options").put("DISTINCT",false);
-            else module.putObject("options").put("WRITE_MODE","ATOMIC_DELETE_INSERT").put("TRUNCATE_TARGET",false);
+            else module.putObject("options").put("WRITE_MODE","ATOMIC_DELETE_INSERT").put("TRUNCATE_TARGET",false).put("DROP_WORK_TABLE",true);
         }
         scenario=mapper.createObjectNode().put("compiler","AKIS").put("compilerVersion",2);
         scenario.putObject("executable").put("kind","MAPPING").set("definition",content);
@@ -88,7 +89,7 @@ class StagedRuntimePlanResolverTest {
             physical.set("steps", mapper.valueToTree(expected.steps()));
             signPhysical();
             var resolved = resolve();
-            assertEquals(enabled ? 5 : 4, resolved.program().steps().size());
+            assertEquals(enabled ? 7 : 6, resolved.program().steps().size());
             assertEquals(resolved.program(), AkisKmInterpreter.compile(resolved.modules()));
             ((ObjectNode) module.path("options")).put("CHECK_ROWS", !enabled);
             signPhysical();
@@ -98,7 +99,7 @@ class StagedRuntimePlanResolverTest {
     private void signPhysical() { var physical=(ObjectNode)manifest.path("stagedPlan");physical.remove("physicalPlanHash");String hash=KmCanonical.hash(mapper,physical);physical.put("physicalPlanHash",hash);manifest.put("runtimePlanHash",hash);sign(); }
     private StagedRuntimePlan resolve() { return resolver.resolve(manifest.path("releaseHash").asText(),scenarioHash,mapper.readTree(scenario.toString()),mapper.readTree(manifest.toString())); }
     @Test void resolvesRoundTrippedPlanWithoutLegacyRowLimit() {
-        fixture();var plan=resolve();assertEquals(1201,plan.definition().options().maxRows());assertEquals(4,plan.program().steps().size());
+        fixture();var plan=resolve();assertEquals(1201,plan.definition().options().maxRows());assertEquals(6,plan.program().steps().size());
     }
     @Test void roundTripsSchemaFourExpressionThroughSignedPublicationWithoutFabricatingSourceColumn() {
         fixture();var content=(ObjectNode)scenario.path("executable").path("definition");

@@ -102,6 +102,10 @@ public final class StagedKmRuntime implements AkisKmInterpreter.Runtime {
                 contract.workColumns(), contract.timeoutSeconds(), guard::checkpoint,contract.workArea());
         state = State.READY;
     }
+    @Override public void dropWorkIfExists(String slot) {
+        require(slot, null);
+        tables.dropIfExists(workControl, contract.targetDatabaseIdentity(), contract.work(), contract.timeoutSeconds());
+    }
     /** RESUME: take over the sealed work table of the previous attempt instead of creating, loading and sealing a new one. */
     public void adopt(WorkTableManagerPort.Created adopted, JdbcStagingTransfer.Result adoptedSeal) {
         if (verified || state != null || object != null) throw new IllegalStateException("Devralma yalnız ilk adımdan önce yapılabilir.");
@@ -176,6 +180,15 @@ public final class StagedKmRuntime implements AkisKmInterpreter.Runtime {
         try { change(State.CONSUMED, null); }
         catch (RuntimeException failure) { throw new PublishFailure(PublishOutcome.UNKNOWN); }
         return result.insertedRows();
+    }
+    @Override public void dropWork(String slot) {
+        require(slot, State.CONSUMED);
+        // Seal/quality SELECTs can leave an ACCESS SHARE lock on PostgreSQL until the work-data transaction ends.
+        // End that read transaction before the control connection attempts DROP TABLE.
+        try { transaction.commit(); }
+        catch (SQLException failure) { throw new IllegalStateException("Çalışma tablosu okuma transaction'ı kapatılamadı."); }
+        tables.cleanup(workControl, contract.owner(), object.uuid(), contract.timeoutSeconds());
+        state = State.DROPPED;
     }
     private void require(String slot, State expected) {
         if (!verified || !"WORK_SOURCE_1".equals(slot) || state != expected)

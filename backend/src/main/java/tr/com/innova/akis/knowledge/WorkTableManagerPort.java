@@ -20,9 +20,13 @@ public interface WorkTableManagerPort {
     /** The created (or adopted) work table with the identity the adapter will re-verify: database, catalog object id and structure hash. */
     record Created(UUID uuid, String databaseIdentity, JdbcStagingTransfer.Table table, long objectId, String structureHash) { }
 
+    default void dropIfExists(Connection control, String targetDatabaseIdentity, JdbcStagingTransfer.Table table, int timeout) {
+        throw new UnsupportedOperationException("Restart cleanup is not supported by this work-table manager.");
+    }
     Created create(Connection control, WorkObjectStore.Owner owner, String targetDatabaseIdentity, JdbcStagingTransfer.Table table,
             List<Column> columns, int timeout, Runnable checkpoint, WorkObjectStore.WorkArea workArea);
     void grantRead(Connection control, Created created, String targetUser, int timeout, Runnable checkpoint);
     void verify(Connection control, Created created, int timeout) throws SQLException;
     void cleanup(Connection control, WorkObjectStore.Owner owner, UUID object, int timeout);
+    void cleanupReviewed(Connection control, UUID projectUuid, UUID runUuid, UUID object, int timeout);
 }

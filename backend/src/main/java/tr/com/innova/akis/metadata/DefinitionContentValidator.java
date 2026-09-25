@@ -104,18 +104,25 @@ public final class DefinitionContentValidator {
                 requireArray(content, "nodes");
             }
             case KNOWLEDGE_MODULE -> {
-                if (schemaVersion == 2 && !Set.of("AKIS_KM/1", "AKIS_KM/2").contains(content.path("language").asText())) fail("KM sürüm 2 için desteklenen AKIS_KM dili zorunludur.");
+                if (schemaVersion == 2 && !Set.of("AKIS_KM/1", "AKIS_KM/2", "AKIS_KM/3").contains(content.path("language").asText())) fail("KM sürüm 2 için desteklenen AKIS_KM dili zorunludur.");
                 requireAllowed(content, "kmType", Set.of(
                         "RKM", "CKM", "LKM", "IKM", "XKM", "JKM", "SKM"));
                 requireArray(content, "tasks");
                 requireArray(content, "options");
+                if (content.has("technology")) {
+                    JsonNode technology = content.path("technology");
+                    requireObject(technology, "technology");
+                    Set<String> providers = Set.of("ORACLE", "POSTGRESQL", "MYSQL", "SQLSERVER");
+                    requireAllowed(technology, "source", providers, "technology");
+                    requireAllowed(technology, "target", providers, "technology");
+                }
                 if (content.has("language")) {
-                    if (!Set.of("AKIS_KM/1", "AKIS_KM/2").contains(content.path("language").asText())) fail("Desteklenmeyen KM dili.");
+                    if (!Set.of("AKIS_KM/1", "AKIS_KM/2", "AKIS_KM/3").contains(content.path("language").asText())) fail("Desteklenmeyen KM dili.");
                     try {
                         var program = tr.com.innova.akis.knowledge.AkisKmLanguage.parse(requireText(content, "source"));
                         if (!program.kind().name().equals(content.path("kmType").asText())) fail("KM türü ile MODUL bildirimi uyuşmuyor.");
                         if (!content.path("tasks").isEmpty() || !content.path("options").isEmpty()) fail("AKIS_KM görevleri ve seçenekleri dil kaynağından alınır.");
-                        if ("AKIS_KM/2".equals(program.language()) && content.has("optionSchema") && !content.path("optionSchema").isEmpty()) fail("AKIS_KM/2 seçeneklerinin tek kaynağı SECENEK bildirimleridir.");
+                        if (Set.of("AKIS_KM/2", "AKIS_KM/3").contains(program.language()) && content.has("optionSchema") && !content.path("optionSchema").isEmpty()) fail("AKIS_KM seçeneklerinin tek kaynağı SECENEK bildirimleridir.");
                         if ("AKIS_KM/1".equals(program.language())) validateKnowledgeOptionSchema(content.path("optionSchema"));
                     } catch (IllegalArgumentException invalid) { fail(invalid.getMessage()); }
                 }

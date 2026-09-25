@@ -56,7 +56,7 @@ describe('persistent project sidebar tree', () => {
     vi.spyOn(operationsApi, 'listPublications').mockResolvedValue([{ uuid: 'pub-1', definitionUuid: 'procedure-1', status: 'AKTIF', publicationNumber: 2, environmentCode: 'TEST' } as never])
     vi.spyOn(executionApi, 'startRun').mockResolvedValue({ runUuid: 'run-1' } as never)
     fireEvent.click(screen.getByRole('menuitem', { name: 'Run' }))
-    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/project/operations/runs/run-1'))
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/project/operations?run=run-1'))
     expect(executionApi.startRun).toHaveBeenCalledWith('project-1', 'pub-1', expect.any(String))
 
     fireEvent.click(await screen.findByRole('button', { name: /Actions for Load Daily/i }))

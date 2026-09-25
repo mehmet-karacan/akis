@@ -28,6 +28,8 @@ import tr.com.innova.akis.metadata.MetadataModels.DefinitionRow;
 import tr.com.innova.akis.metadata.MetadataModels.DraftRow;
 import tr.com.innova.akis.metadata.MetadataModels.FolderRow;
 import tr.com.innova.akis.metadata.MetadataModels.ProjectRow;
+import tr.com.innova.akis.metadata.MetadataModels.KnowledgeModuleVersionRow;
+import tr.com.innova.akis.metadata.MetadataModels.DefinitionVersionSummaryRow;
 import tr.com.innova.akis.metadata.MetadataModels.VersionRow;
 import tr.com.innova.akis.security.AuthorizationService;
 import static tr.com.innova.akis.security.PermissionCodes.*;
@@ -274,6 +276,18 @@ final class MetadataController {
             @PathVariable UUID definitionUuid) {
         authorization.requireProjectPermission(projectUuid, DEFINITION_READ);
         return service.listVersions(projectUuid, definitionUuid);
+    }
+
+    @GetMapping("/projects/{projectUuid}/knowledge-module-versions")
+    List<KnowledgeModuleVersionRow> listKnowledgeModuleVersions(@PathVariable UUID projectUuid) {
+        authorization.requireProjectPermission(projectUuid, DEFINITION_READ);
+        return service.listKnowledgeModuleVersions(projectUuid);
+    }
+
+    @GetMapping("/projects/{projectUuid}/definition-version-summaries")
+    List<DefinitionVersionSummaryRow> listDefinitionVersionSummaries(@PathVariable UUID projectUuid) {
+        authorization.requireProjectPermission(projectUuid, DEFINITION_READ);
+        return service.listDefinitionVersionSummaries(projectUuid);
     }
 
     record CreateProjectRequest(@NotBlank String code, @NotBlank String name, String description) {

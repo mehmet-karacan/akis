@@ -1,7 +1,7 @@
 import type { DefinitionType, MappingContent } from './types'
 
 export function initialSchemaVersion(type: DefinitionType, content?: unknown): number {
-  if (type === 'KNOWLEDGE_MODULE' && content && typeof content === 'object' && 'language' in content && ['AKIS_KM/1', 'AKIS_KM/2'].includes(String(content.language))) return 2
+  if (type === 'KNOWLEDGE_MODULE' && content && typeof content === 'object' && 'language' in content && ['AKIS_KM/1', 'AKIS_KM/2', 'AKIS_KM/3'].includes(String(content.language))) return 2
   return type === 'MAPPING' ? 4 : type === 'PROCEDURE' ? 2 : 1
 }
 

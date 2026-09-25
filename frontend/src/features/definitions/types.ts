@@ -58,6 +58,18 @@ export interface DefinitionVersion {
   createdAt: string
 }
 
+export interface KnowledgeModuleVersion extends DefinitionVersion {
+  definitionUuid: string
+  definitionName: string
+}
+
+export interface DefinitionVersionSummary {
+  definitionUuid: string
+  latestVersionNumber: number
+  versionCount: number
+  latestCreatedAt: string | null
+}
+
 export interface Scenario {
   uuid: string
   definitionUuid: string

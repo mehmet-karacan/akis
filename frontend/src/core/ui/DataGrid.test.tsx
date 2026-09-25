@@ -79,3 +79,8 @@ it('maps every schema metadata heading to its stable semantic icon', () => {
     'createdBy', 'createdAt', 'updatedBy', 'updatedAt', 'action',
   ])
 })
+
+it('uses distinct operational icons for updated, deleted and trigger columns', () => {
+  const { container } = render(<DataGrid viewControls={false}><thead><tr><th>Updated</th><th>Deleted</th><th>Trigger</th></tr></thead><tbody><tr><td>5</td><td>2</td><td>Manual</td></tr></tbody></DataGrid>)
+  expect([...container.querySelectorAll('.ui-data-grid thead [data-field-icon]')].map(icon => icon.getAttribute('data-field-icon'))).toEqual(['updated', 'deleted', 'trigger'])
+})

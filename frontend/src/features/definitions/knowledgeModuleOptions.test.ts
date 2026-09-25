@@ -17,9 +17,9 @@ describe('knowledge module options', () => {
   })
   it('creates executable defaults and independent editable templates', () => {
     const content = createDefaultContent('KNOWLEDGE_MODULE') as Record<string, unknown>
-    expect(content).toMatchObject({ kmType: 'IKM', language: 'AKIS_KM/2', tasks: [], options: [] })
+    expect(content).toMatchObject({ kmType: 'IKM', language: 'AKIS_KM/3', tasks: [], options: [] })
     expect(initialSchemaVersion('KNOWLEDGE_MODULE', content)).toBe(2)
-    expect(knowledgeOptionsForContent(content).map(option => option.key)).toEqual(['WRITE_MODE', 'KEY_COLUMNS', 'TRUNCATE_TARGET', 'ORACLE_HINT'])
+    expect(knowledgeOptionsForContent(content).map(option => option.key)).toEqual(['WRITE_MODE', 'KEY_COLUMNS', 'TRUNCATE_TARGET', 'DROP_WORK_TABLE', 'ORACLE_HINT'])
     expect(createKnowledgeModule('LKM').source).toContain('TRANSFER_JDBC')
     expect(createKnowledgeModule('CKM').source).toContain('CHECK_NOT_NULL')
     content.source = 'changed'

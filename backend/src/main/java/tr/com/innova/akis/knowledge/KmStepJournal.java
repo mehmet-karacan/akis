@@ -5,13 +5,22 @@ import java.util.*;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
 
 @Service
 public class KmStepJournal {
     private final JdbcClient jdbc;
-    public KmStepJournal(JdbcClient jdbc) { this.jdbc=jdbc; }
+    private final ObjectMapper mapper;
+    public KmStepJournal(JdbcClient jdbc,ObjectMapper mapper) { this.jdbc=jdbc;this.mapper=mapper; }
     public record Row(long generation,int ordinal,String stepCode,String operation,String site,String slot,String state,
-            Long affectedRows,String errorCode,OffsetDateTime startedAt,OffsetDateTime completedAt) { }
+            Long affectedRows,String errorCode,OffsetDateTime startedAt,OffsetDateTime completedAt,JsonNode executedSql) {
+        public Row(long generation,int ordinal,String stepCode,String operation,String site,String slot,String state,
+                Long affectedRows,String errorCode,OffsetDateTime startedAt,OffsetDateTime completedAt) {
+            this(generation,ordinal,stepCode,operation,site,slot,state,affectedRows,errorCode,startedAt,completedAt,null);
+        }
+    }
     public record Reconciliation(String outcome,Long rows) { }
     @Transactional(readOnly=true)
     public Reconciliation reconciliation(UUID project,UUID run) {
@@ -24,12 +33,12 @@ public class KmStepJournal {
                 .query((r,n)->new Reconciliation(r.getString("sonuc"),r.getObject("satir_sayisi",Long.class))).optional().orElse(null);
     }
     @Transactional
-    public void prepare(WorkObjectStore.Owner owner,String planHash,AkisKmInterpreter.Plan plan) {
+    public void prepare(WorkObjectStore.Owner owner,String planHash,AkisKmInterpreter.Plan plan,ArrayNode sqlEvidence) {
         int ordinal=0;
         for(var step:plan.steps()) {
             int written=jdbc.sql("""
-                    insert into akis.km_step_journal(proje_id,calistirma_id,generation,worker_reference,ordinal,step_code,operation,site,slot,runtime_plan_hash)
-                    select p.id,c.id,:generation,:worker,:ordinal,:code,:operation,:site,:slot,:hash
+                    insert into akis.km_step_journal(proje_id,calistirma_id,generation,worker_reference,ordinal,step_code,operation,site,slot,runtime_plan_hash,calistirilan_sql)
+                    select p.id,c.id,:generation,:worker,:ordinal,:code,:operation,:site,:slot,:hash,cast(:sql as jsonb)
                     from akis.proje p join akis.calistirma c on c.proje_id=p.id
                     join akis.calistirma_durumu d on d.proje_id=p.id and d.calistirma_id=c.id
                     join akis.is_talebi t on t.proje_id=p.id and t.id=c.is_talebi_id
@@ -40,9 +49,18 @@ public class KmStepJournal {
                       and y.fiziksel_manifesto->>'runtimeCapability'='ORACLE_STAGED_MAPPING_V1'
                     """).param("project",owner.projectUuid()).param("run",owner.runUuid()).param("generation",owner.generation())
                     .param("worker",owner.worker()).param("ordinal",++ordinal).param("code",step.id()).param("operation",step.operation().name())
-                    .param("site",step.site().name()).param("slot",step.slot()).param("hash",planHash).update();
+                    .param("site",step.site().name()).param("slot",step.slot()).param("hash",planHash)
+                    .param("sql",sqlFor(sqlEvidence,step.operation().name()).toString()).update();
             if(written!=1) throw new IllegalStateException("KM adım kaydı için geçerli çalışma yetkisi yok.");
         }
+    }
+    void prepare(WorkObjectStore.Owner owner,String planHash,AkisKmInterpreter.Plan plan) {
+        prepare(owner,planHash,plan,mapper.createArrayNode());
+    }
+    private ArrayNode sqlFor(ArrayNode evidence,String operation) {
+        ArrayNode selected=mapper.createArrayNode();
+        if(evidence!=null) evidence.forEach(item->{ if(operation.equals(item.path("step").asText())) selected.add(item.deepCopy()); });
+        return selected;
     }
     @Transactional
     public void transition(WorkObjectStore.Owner owner,int ordinal,String next,Long rows,String error) {
@@ -97,6 +115,7 @@ public class KmStepJournal {
                 where p.uuid=:project and c.uuid=:run order by j.generation,j.ordinal
                 """).param("project",project).param("run",run).query((r,n)->new Row(r.getLong("generation"),r.getInt("ordinal"),r.getString("step_code"),
                         r.getString("operation"),r.getString("site"),r.getString("slot"),r.getString("state"),r.getObject("affected_rows",Long.class),
-                        r.getString("error_code"),r.getObject("started_at",OffsetDateTime.class),r.getObject("completed_at",OffsetDateTime.class))).list();
+                        r.getString("error_code"),r.getObject("started_at",OffsetDateTime.class),r.getObject("completed_at",OffsetDateTime.class),
+                        mapper.readTree(r.getString("calistirilan_sql")))).list();
     }
 }

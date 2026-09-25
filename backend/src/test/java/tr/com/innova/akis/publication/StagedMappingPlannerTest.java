@@ -83,7 +83,7 @@ class StagedMappingPlannerTest {
     }
     @Test void stillRejectsUnsupportedPostgresWriteModes() {
         var exception = assertThrows(tr.com.innova.akis.metadata.ApiException.class,
-                () -> plan(Map.of("WRITE_MODE", "APPEND"), Map.of(), "POSTGRESQL"));
+                () -> plan(Map.of("WRITE_MODE", "ATOMIC_DELETE_INSERT"), Map.of(), "POSTGRESQL"));
         assertEquals("STAGED_PLAN_REJECTED", exception.code());
     }
 }

@@ -17,6 +17,16 @@ public final class OracleWorkTableManager implements WorkTableManagerPort {
     OracleWorkTableManager(WorkObjectStore store,OracleDdlLockPort ddlLocks) {
         this.store=Objects.requireNonNull(store);this.ddlLocks=Objects.requireNonNull(ddlLocks);
     }
+    @Override public void dropIfExists(Connection control,String targetDatabaseIdentity,JdbcStagingTransfer.Table table,int timeout) {
+        try {
+            if(!databaseIdentity(control).equals(targetDatabaseIdentity) || !sessionUser(control).equals(table.owner())) return;
+            try(var ignored=ddlLocks.acquire(control,lockName(targetDatabaseIdentity,table),timeout)) {
+                if(objectId(control,table)!=null) execute(control,"DROP TABLE "+table.sql(),timeout);
+            }
+        } catch(SQLException | RuntimeException ignored) {
+            LOG.warn("Restart cleanup for Oracle work table {} was ignored.",table.sql());
+        }
+    }
     @Override
     public Created create(Connection control,WorkObjectStore.Owner owner,String targetDatabaseIdentity,
             JdbcStagingTransfer.Table table,List<Column> columns,int timeout,Runnable checkpoint,WorkObjectStore.WorkArea workArea) {
@@ -88,6 +98,16 @@ public final class OracleWorkTableManager implements WorkTableManagerPort {
             try { store.transition(owner,object,State.CLEANUP_PENDING,State.REVIEW_REQUIRED,null,null); } catch(RuntimeException ignored) { }
             throw new IllegalStateException("Çalışma tablosu temizliği doğrulanamadı; tekrar DROP yapılmadı.");
         }
+    }
+    @Override public void cleanupReviewed(Connection control,UUID projectUuid,UUID runUuid,UUID object,int timeout) {
+        if(timeout<1 || timeout>3600) throw new IllegalArgumentException("Temizleme zaman sınırı geçersiz.");
+        var claim=store.claimReviewedCleanup(projectUuid,runUuid,object);var row=claim.object();var table=new JdbcStagingTransfer.Table(row.owner(),row.name());
+        try { try(var ignored=ddlLocks.acquire(control,lockName(row.databaseIdentity(),table),timeout)) {
+            Long actualId=objectId(control,table);if(actualId==null) throw new IllegalStateException("Fiziksel nesne bulunamadı.");
+            WorkObjectLifecycle.requireDrop(row.state(),row.databaseIdentity(),databaseIdentity(control),row.owner(),sessionUser(control),row.objectId(),actualId,row.structureHash(),OracleWorkStructure.read(control,table,timeout),true);
+            execute(control,"DROP TABLE "+table.sql(),timeout);if(objectId(control,table)!=null) throw new IllegalStateException("DROP doğrulanamadı.");
+            store.finishReviewedCleanup(claim.owner(),object,true);
+        }} catch(SQLException|RuntimeException failure) { try{store.finishReviewedCleanup(claim.owner(),object,false);}catch(RuntimeException ignored){} throw new IllegalStateException("İncelenmiş çalışma tablosu kimliği doğrulanamadı; silinmedi."); }
     }
     public static String databaseIdentity(Connection connection) throws SQLException {
         try(PreparedStatement statement=connection.prepareStatement("SELECT SYS_CONTEXT('USERENV','DB_UNIQUE_NAME'), SYS_CONTEXT('USERENV','CON_NAME') FROM DUAL");ResultSet result=statement.executeQuery()) {

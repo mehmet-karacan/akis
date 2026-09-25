@@ -22,7 +22,7 @@ import tr.com.innova.akis.execution.TargetLedgerPort.RecordedEvidence;
 import tr.com.innova.akis.execution.TargetLedgerPort.TargetLedgerContext;
 
 /**
- * PostgreSQL adapter of {@link TargetLedgerPort} over the target-local {@code akis_yayin_defteri} functions
+ * PostgreSQL adapter of {@link TargetLedgerPort} over the target-local {@code akis} ledger functions
  * (database/postgres-target). Same protocol as the Oracle adapter: a bound session never commits, prepare and record
  * share one transaction (the guard is a transaction-local setting on the server), reconciliation reads a fresh
  * connection. Ledger errors arrive as SQLSTATE AK0nn and map onto the shared {@link OracleLedgerFailure} vocabulary.
@@ -60,7 +60,7 @@ final class JdbcPostgresTargetLedgerAdapter implements TargetLedgerPort {
         @Override
         public void acquireFence() {
             ensureTransactionConnection(connection);
-            try (PreparedStatement statement = connection.prepareStatement("select akis_yayin_defteri.cit_al(?,?,?,?,?,?,?)")) {
+            try (PreparedStatement statement = connection.prepareStatement("select akis.cit_al(?,?,?,?,?,?,?)")) {
                 owner(statement, 1, context);
                 statement.execute();
             }
@@ -71,10 +71,10 @@ final class JdbcPostgresTargetLedgerAdapter implements TargetLedgerPort {
     }
 
     private static final class PgDataLedgerSession implements DataLedgerSession {
-        private static final String PREPARE_BATCH = "select koruma, zaten_kayitli from akis_yayin_defteri.parti_hazirla(?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-        private static final String RECORD_BATCH = "select akis_yayin_defteri.parti_kaydet(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-        private static final String PREPARE_PUBLISH = "select koruma, zaten_kayitli from akis_yayin_defteri.yayin_hazirla(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-        private static final String RECORD_PUBLISH = "select akis_yayin_defteri.yayin_kaydet(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+        private static final String PREPARE_BATCH = "select koruma, zaten_kayitli from akis.parti_hazirla(?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+        private static final String RECORD_BATCH = "select akis.parti_kaydet(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+        private static final String PREPARE_PUBLISH = "select koruma, zaten_kayitli from akis.yayin_hazirla(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+        private static final String RECORD_PUBLISH = "select akis.yayin_kaydet(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
 
         private final Connection connection;
         private final TargetLedgerContext context;
@@ -213,9 +213,9 @@ final class JdbcPostgresTargetLedgerAdapter implements TargetLedgerPort {
     }
 
     private static final class PgReconciliationSession implements ReconciliationSession {
-        private static final String READ_FENCE = "select bulundu, cit_belirteci, is_uuid, calistirma_uuid, deneme_no, surum_ozeti, plan_ozeti, guncellenme_zamani from akis_yayin_defteri.cit_oku(?)";
-        private static final String VERIFY_BATCH = "select eslesti, calistirma_uuid, deneme_no, cit_belirteci, kanit_zamani from akis_yayin_defteri.parti_dogrula(?,?,?,?,?,?,?,?,?,?,?)";
-        private static final String VERIFY_PUBLISH = "select eslesti, calistirma_uuid, deneme_no, cit_belirteci, kanit_zamani from akis_yayin_defteri.yayin_dogrula(?,?,?,?,?,?,?,?,?,?,?,?)";
+        private static final String READ_FENCE = "select bulundu, cit_belirteci, is_uuid, calistirma_uuid, deneme_no, surum_ozeti, plan_ozeti, guncellenme_zamani from akis.cit_oku(?)";
+        private static final String VERIFY_BATCH = "select eslesti, calistirma_uuid, deneme_no, cit_belirteci, kanit_zamani from akis.parti_dogrula(?,?,?,?,?,?,?,?,?,?,?)";
+        private static final String VERIFY_PUBLISH = "select eslesti, calistirma_uuid, deneme_no, cit_belirteci, kanit_zamani from akis.yayin_dogrula(?,?,?,?,?,?,?,?,?,?,?,?)";
 
         private final Connection connection;
         private final TargetLedgerContext context;

@@ -25,7 +25,7 @@ export function DocumentTabsProvider({ projectUuid, children }: { projectUuid: s
   const [tabs, setTabs] = useState<DocumentTab[]>(() => {
     try { return JSON.parse(sessionStorage.getItem(storageKey(projectUuid)) ?? '[]') as DocumentTab[] } catch { return [] }
   })
-  const [maximized, setMaximized] = useState(() => { try { return localStorage.getItem('akis.workbench.maximized') === '1' } catch { return false } })
+  const [maximized, setMaximized] = useState(false)
   useEffect(() => { try { sessionStorage.setItem(storageKey(projectUuid), JSON.stringify(tabs)) } catch { /* Tabs are a convenience; storage is optional. */ } }, [projectUuid, tabs])
   useEffect(() => { try { localStorage.setItem('akis.workbench.maximized', maximized ? '1' : '0') } catch { /* optional */ } }, [maximized])
   const open = useCallback((tab: DocumentTab) => setTabs((current) => {

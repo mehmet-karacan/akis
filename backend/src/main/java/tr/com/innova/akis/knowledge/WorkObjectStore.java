@@ -16,6 +16,7 @@ public class WorkObjectStore {
     }
     public record ObjectRow(UUID uuid,String slot,String databaseIdentity,String owner,String name,Long objectId,
             String structureHash,State state,Long rows,Long bytes,String payloadHash) { }
+    public record ReviewedClaim(Owner owner,ObjectRow object) { }
     @Transactional
     public UUID allocate(Owner token,String slot,String databaseIdentity,String owner,String name,String structureHash,WorkArea workArea) {
         Objects.requireNonNull(token); StagedMappingDefinition.identifier(owner); StagedMappingDefinition.identifier(name);
@@ -121,11 +122,44 @@ public class WorkObjectStore {
             join akis.calistirma_durumu d on d.proje_id=p.id and d.calistirma_id=c.id
             where w.uuid=:object and w.proje_id=p.id and w.calistirma_id=c.id
               and p.uuid=:project and c.uuid=:run and w.generation=:generation and w.worker_reference=:worker
-              and d.nesil_no=:generation and d.isleyici_referansi=:worker and d.durum='BASARILI'
+              and d.nesil_no=:generation and d.isleyici_referansi=:worker
+              and ((d.durum='BASARILI') or (d.durum='YAYINLANIYOR' and d.kiralama_bitis_zamani>clock_timestamp()))
               and w.state='CONSUMED' and w.object_id is not null and w.payload_hash is not null
             """).param("object",object).param("project",token.projectUuid()).param("run",token.runUuid())
             .param("generation",token.generation()).param("worker",token.worker()).update();
         if(count!=1) throw new IllegalStateException("Temizleme için doğrulanmış başarılı çalışma/sahiplik bulunamadı.");
         return list(token.projectUuid(),token.runUuid()).stream().filter(row->row.uuid().equals(object)).findFirst().orElseThrow();
+    }
+
+    /** Explicit operator cleanup: only a terminal run and a review object with a captured physical object id may be claimed. */
+    @Transactional
+    public ReviewedClaim claimReviewedCleanup(UUID project, UUID run, UUID object) {
+        return jdbc.sql("""
+            update akis.km_work_object w set state='CLEANUP_PENDING',updated_at=clock_timestamp()
+            from akis.calistirma c join akis.proje p on p.id=c.proje_id
+            join akis.calistirma_durumu d on d.proje_id=p.id and d.calistirma_id=c.id
+            where w.uuid=:object and w.proje_id=p.id and w.calistirma_id=c.id
+              and p.uuid=:project and c.uuid=:run and w.state='REVIEW_REQUIRED' and w.object_id is not null
+              and d.durum in ('BASARILI','BASARISIZ','IPTAL','SONUCU_BILINMIYOR','MUDAHALE_GEREKLI','YENIDEN_DENENEBILIR')
+            returning w.uuid,w.slot,w.database_identity,w.owner_name,w.object_name,w.object_id,w.structure_hash,
+                      w.state,w.row_count,w.logical_bytes,w.payload_hash,w.generation,w.worker_reference
+            """).param("object",object).param("project",project).param("run",run).query((rs,n)->{
+                var row=new ObjectRow(rs.getObject("uuid",UUID.class),rs.getString("slot"),rs.getString("database_identity"),
+                        rs.getString("owner_name"),rs.getString("object_name"),rs.getObject("object_id",Long.class),rs.getString("structure_hash"),
+                        State.valueOf(rs.getString("state")),rs.getObject("row_count",Long.class),rs.getObject("logical_bytes",Long.class),rs.getString("payload_hash"));
+                return new ReviewedClaim(new Owner(project,run,rs.getLong("generation"),rs.getString("worker_reference")),row);
+            }).optional().orElseThrow(()->new IllegalStateException("İncelenmiş çalışma nesnesi temizleme için güvenle sahiplenilemedi."));
+    }
+
+    @Transactional
+    public void finishReviewedCleanup(Owner token,UUID object,boolean dropped) {
+        int count=jdbc.sql("""
+            update akis.km_work_object w set state=:next,updated_at=clock_timestamp()
+            from akis.calistirma c join akis.proje p on p.id=c.proje_id
+            where w.uuid=:object and w.proje_id=p.id and w.calistirma_id=c.id and p.uuid=:project and c.uuid=:run
+              and w.generation=:generation and w.worker_reference=:worker and w.state='CLEANUP_PENDING'
+            """).param("next",dropped?"DROPPED":"REVIEW_REQUIRED").param("object",object).param("project",token.projectUuid())
+                .param("run",token.runUuid()).param("generation",token.generation()).param("worker",token.worker()).update();
+        if(count!=1) throw new IllegalStateException("İncelenmiş çalışma nesnesi sonucu kaydedilemedi.");
     }
 }

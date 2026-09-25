@@ -68,6 +68,27 @@ class JdbcStagingTransferTest {
         assertThrows(JdbcStagingTransfer.TransferFailure.class,()->fixture.run(10));
         verify(fixture.stage,never()).commit();
     }
+    @Test void transfersBlobLargerThanLegacyOneMegabyteLimit() throws Exception {
+        var source=mock(Connection.class); var stage=mock(Connection.class);
+        var read=mock(PreparedStatement.class); var write=mock(PreparedStatement.class);
+        var cursor=mock(ResultSet.class); var metadata=mock(ResultSetMetaData.class);
+        byte[] payload=new byte[2 * 1024 * 1024]; Arrays.fill(payload,(byte)7);
+        when(source.prepareStatement(anyString())).thenReturn(read); when(stage.prepareStatement(anyString())).thenReturn(write);
+        when(read.executeQuery()).thenReturn(cursor); when(cursor.getMetaData()).thenReturn(metadata);
+        when(metadata.getColumnCount()).thenReturn(1); when(metadata.getColumnTypeName(1)).thenReturn("BLOB");
+        when(cursor.next()).thenReturn(true,false); when(cursor.getBytes(1)).thenReturn(payload);
+        when(write.executeBatch()).thenReturn(new int[]{1});
+        var result=new JdbcStagingTransfer().transfer(source,stage,new JdbcStagingTransfer.Table("SRC","DOCS"),
+                new JdbcStagingTransfer.Table("WORK","AKIS_C_DOCS"),List.of(new JdbcStagingTransfer.Column("PAYLOAD","PAYLOAD",JdbcStagingTransfer.Type.BLOB)),
+                new StagedMappingDefinition.Options(100,100,10,10L * 1024 * 1024,false),30,()->{});
+        assertEquals(1,result.rows()); verify(write).setBytes(1,payload); verify(stage).commit();
+    }
+    @Test void acceptsOracleJdbcNumberMetadataForDictionaryFloat() throws Exception {
+        var metadata=mock(ResultSetMetaData.class);
+        when(metadata.getColumnCount()).thenReturn(1); when(metadata.getColumnTypeName(1)).thenReturn("NUMBER");
+        assertDoesNotThrow(() -> JdbcStagingTransfer.verifySourceMetadata(metadata,
+                List.of(new JdbcStagingTransfer.Column("RATIO","RATIO",JdbcStagingTransfer.Type.FLOAT))));
+    }
     @Test void identifiersCannotInjectSql() {
         assertThrows(IllegalArgumentException.class,()->new JdbcStagingTransfer.Table("WORK","A;DROP TABLE TARGET"));
     }

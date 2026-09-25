@@ -57,18 +57,45 @@ label { color: var(--ink); }
 body .connection-management-panel { padding: 0; }
 body .shell-content { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
 body .topbar { flex: 0 0 auto; position: relative; top: auto; }
-body .shell-body { display: grid; grid-template-columns: var(--explorer-width, 264px) minmax(0, 1fr); flex: 1; min-height: 0; }
+body .shell-body { display: grid; grid-template-columns: var(--explorer-width, 240px) minmax(0, 1fr); flex: 1; min-height: 0; }
+body .app-copyright { flex: 0 0 24px; display: flex; align-items: center; justify-content: center; min-width: 0; padding-inline: 12px; border-top: 1px solid var(--line); background: var(--surface); color: var(--ink-soft); font-size: 11px; letter-spacing: .02em; }
+body .shell-body.is-navigation-collapsed { grid-template-columns: 64px minmax(0, 1fr); }
 body .shell-navigation-pane { position: relative; min-width: 0; min-height: 0; }
 body .shell-navigation-pane > .shell-navigation { height: 100%; }
 body .explorer-resize-handle { position: absolute; right: -3px; top: 0; bottom: 0; width: 6px; z-index: 5; cursor: col-resize; touch-action: none; }
 body .explorer-resize-handle:hover, body .explorer-resize-handle:focus-visible { background: var(--accent); outline: 0; }
-body .shell-navigation { min-width: 0; min-height: 0; overflow: auto; background: var(--surface); border-right: 1px solid var(--line); }
-body .shell-navigation .workspace-navigation { border-inline-end: 0; position: static; padding: 8px; margin: 0; width: 100%; }
-body .shell-navigation .workspace-subnavigation { display: grid; padding: 12px; gap: 4px; border-top: 1px solid var(--line); }
+body .shell-navigation { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--surface); border-right: 1px solid var(--line); }
+body .shell-navigation-content { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; }
+body .shell-navigation .workspace-navigation { border-inline-end: 0; position: static; padding: 8px; margin: 0; width: 100%; background: transparent; }
+body .shell-navigation .workspace-navigation .ant-menu-item { position: relative; height: 36px; margin: 2px 0; padding-inline: 9px !important; border-radius: 7px; font-size: 12.5px; font-weight: 600; }
+body .shell-navigation .workspace-navigation .ant-menu-item::after { display: none; }
+body .shell-navigation .workspace-navigation .ant-menu-item-selected { background: var(--accent-soft); }
+body .shell-navigation .workspace-navigation .ant-menu-item-selected::before { content: ''; position: absolute; inset: 7px auto 7px 0; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent); }
+body .shell-navigation .workspace-navigation .ant-menu-item-icon { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 6px; background: color-mix(in srgb, currentColor 9%, transparent); }
+body .shell-navigation.is-collapsed .workspace-navigation { width: 64px; padding: 8px; }
+body .shell-navigation.is-collapsed .workspace-navigation .ant-menu-item { width: 48px; padding-inline: 12px !important; }
+body .shell-navigation.is-collapsed .workspace-navigation .ant-menu-item-selected::before { inset-block: 7px; }
+body .shell-navigation-footer { flex: 0 0 auto; padding: 8px; border-top: 1px solid var(--line); background: var(--surface); }
+body .shell-navigation-toggle { width: 100%; min-height: 36px; justify-content: flex-start; gap: 9px; color: var(--ink-soft); }
+body .shell-navigation-toggle:hover { color: var(--ink); background: var(--surface-subtle); }
+body .shell-navigation.is-collapsed .shell-navigation-toggle { width: 48px; justify-content: center; padding-inline: 0; }
+body .shell-navigation .workspace-subnavigation { display: grid; padding: 8px; gap: 2px; border-top: 1px solid var(--line); }
 body .shell-navigation .workspace-subnavigation .nav-label { margin: 0 0 8px; }
-body .shell-navigation .workspace-subnav-link { min-width: 0; }
-body .shell-project-explorer { border-top: 1px solid var(--line); padding: 8px; min-width: 0; }
-body .shell-body > .main-content { min-width: 0; min-height: 0; overflow: auto; }
+body .shell-navigation .workspace-subnav-link { min-width: 0; min-height: 32px; padding-inline: 9px; font-size: 12.5px; }
+body .shell-project-explorer { border-top: 1px solid var(--line); padding: 4px; min-width: 0; }
+body .shell-body > .main-content { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+body .main-content > .page-stack,
+body .design-content > .page-stack { width: 100%; max-width: none; min-width: 0; margin-inline: 0; }
+body .main-content > .document-tabbar { flex: 0 0 auto; }
+body .main-content > .page-stack { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+body .main-content > .page-stack:has(.definition-workbench),
+body .design-content > .page-stack:has(.definition-workbench),
+body .design-content > .definitions-workspace { width: 100%; max-width: none; }
+
+/* Every catalog keeps actions compact. Content determines the width; old feature CSS cannot reserve a wide empty column. */
+body .ui-data-grid :is(th, td).row-actions,
+body .ui-data-grid :is(th, td).ui-grid-actions-column { width: 1% !important; min-width: 0 !important; max-width: none !important; padding-inline: 8px !important; white-space: nowrap !important; }
+body .ui-data-grid .connection-row-actions { display: inline-flex; gap: 6px; }
 body .shell-body .design-workspace { grid-template-columns: minmax(0, 1fr); height: 100%; min-height: 0; }
 body .shell-body.is-compact { grid-template-columns: minmax(0, 1fr); position: relative; }
 body .shell-body.is-compact > .shell-navigation-pane { position: absolute; top: 0; left: 0; bottom: 0; width: min(300px, 90vw); z-index: 30; box-shadow: 8px 0 24px #0003; }

@@ -52,7 +52,7 @@ class StagedPublishGuardTest {
     }
     private List<KmStepJournal.Row> rows(String priorState) {
         var rows=new ArrayList<KmStepJournal.Row>();
-        for(int i=0;i<program.steps().size();i++) { var s=program.steps().get(i);rows.add(new KmStepJournal.Row(1,i+1,s.id(),s.operation().name(),s.site().name(),s.slot(),i==program.steps().size()-1?"RUNNING":priorState,1201L,null,null,null)); }
+        for(int i=0;i<program.steps().size();i++) { var s=program.steps().get(i);rows.add(new KmStepJournal.Row(1,i+1,s.id(),s.operation().name(),s.site().name(),s.slot(),s.operation()==AkisKmLanguage.Operation.ATOMIC_REPLACE?"RUNNING":s.operation()==AkisKmLanguage.Operation.DROP_WORK?"PENDING":priorState,1201L,null,null,null)); }
         return rows;
     }
     @Test void missingJournalPreventsOpeningTarget() {

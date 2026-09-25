@@ -1,8 +1,8 @@
--- AKIS PostgreSQL target ledger (akis_yayin_defteri), installed once per TARGET database by a DBA.
+-- AKIS PostgreSQL target ledger, installed in the shared akis schema once per TARGET database by a DBA.
 -- Mirrors the Oracle ETL_KANIT_PKG tables: one fence row per canonical target, append-only batch and publish evidence.
 -- Idempotent: re-running keeps existing rows and the installation identity.
-CREATE SCHEMA IF NOT EXISTS akis_yayin_defteri;
-SET search_path TO akis_yayin_defteri, public;
+CREATE SCHEMA IF NOT EXISTS akis;
+SET search_path TO akis, public;
 
 -- Installation identity: generated once, never regenerated; part of every canonical target identity read on this database.
 CREATE TABLE IF NOT EXISTS kurulum_kimligi (
