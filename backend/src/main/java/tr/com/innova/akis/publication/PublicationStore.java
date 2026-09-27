@@ -42,7 +42,7 @@ interface PublicationStore {
 
     Optional<PublicationRow> lockPublication(UUID projectUuid, UUID publicationUuid);
 
-    Optional<ApprovalActor> findActiveActor(String provider, String subject);
+    Optional<ApprovalActor> findActiveActor(long userId);
 
     Optional<ApprovalRow> findLatestApproval(
             long publicationId, long actorId, String decision);

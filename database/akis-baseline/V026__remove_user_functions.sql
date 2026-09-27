@@ -1,6 +1,10 @@
 SET search_path TO akis, public;
 
-CREATE TEMP TABLE legacy_user_function_versions ON COMMIT DROP AS
+-- Keep the temporary lookup table for the whole psql session.  Some bounded
+-- migration runners execute each migration without an explicit transaction;
+-- ON COMMIT DROP would remove the table before the validation and cleanup
+-- statements below run.
+CREATE TEMP TABLE legacy_user_function_versions AS
 SELECT ts.id
   FROM tanim_surumu ts
   JOIN tanim t ON t.id = ts.tanim_id

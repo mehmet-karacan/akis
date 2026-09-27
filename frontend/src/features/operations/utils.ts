@@ -1,3 +1,6 @@
+import { ApiProblem } from '../../core/api/client'
+import { formatDateTime } from '../../core/i18n/formatters'
+
 const sensitiveKey = /(?:password|passwd|secret|token|credential|private.?key|client.?secret)/i
 
 export function redactSensitiveText(value: string) {
@@ -28,10 +31,12 @@ export const isUuid = (value: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.trim())
 
 export function apiErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof ApiProblem && error.status === 403 && (!error.message || /^Request failed \(403\)$/i.test(error.message))) {
+    return 'Erişim reddedildi (403). Bu ekran veya işlem için yetkiniz yok; oturumu yenileyip tekrar deneyin.'
+  }
   return error instanceof Error && error.message ? redactSensitiveText(error.message) : fallback
 }
 
 export function toOffsetDateTime(value: string) {
   return value ? new Date(value).toISOString() : null
 }
-import { formatDateTime } from '../../core/i18n/formatters'

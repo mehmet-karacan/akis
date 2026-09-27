@@ -163,7 +163,6 @@ label { display: grid; gap: 7px; }
 .topbar { height: 56px; position: sticky; z-index: 10; top: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; }
 .topbar-identity { min-width: 0; display: flex; align-items: center; gap: 16px; }
 .compact-brand { display: flex; align-items: center; gap: 7px; }
-.compact-brand svg { width: 23px; height: 23px; }
 .compact-brand::after { content: ''; width: 1px; height: 25px; margin-left: 2px; background: var(--line-strong); }
 .project-switcher { min-width: 200px; height: 38px; display: flex; align-items: center; gap: 10px; padding: 0 10px; text-align: left; cursor: pointer; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-subtle); }
 .project-switcher:hover, .project-switcher:focus-visible { border-color: var(--accent); background: var(--surface-strong); }
@@ -347,9 +346,7 @@ label { display: grid; gap: 7px; }
 .connection-card-counts { display: flex; gap: 24px; margin: 0; }
 .connection-card-counts dt { display: flex; align-items: center; gap: 6px; }
 .connection-card-counts dd { margin: 5px 0 0 22px; }
-.ui-collection--list .ui-collection-card { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(200px, 2fr) auto; align-items: center; }
-.ui-collection--list .ui-collection-card-body { padding: 12px 16px; }
-@media (max-width: 760px) { .ui-collection--list .ui-collection-card { grid-template-columns: 1fr; } .ui-view-toggle { justify-content: flex-start; } }
+@media (max-width: 760px) { .ui-view-toggle { justify-content: flex-start; } }
 .ui-filter-bar { gap: 12px; flex-wrap: wrap; }
 .ui-view-toggle.ui-view-toggle { display: inline-flex; width: max-content; gap: 0; overflow: hidden; }
 .ui-page-header h1 { margin: 0; line-height: 1.3; }

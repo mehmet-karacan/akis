@@ -1,6 +1,6 @@
 import { Descriptions, Input } from 'antd'
-import { Database, DatabaseZap, Maximize2, Minimize2, Trash2, X } from 'lucide-react'
-import { Button } from '../../core/ui'
+import { Maximize2, Minimize2, Trash2, X } from 'lucide-react'
+import { Button, SourceTargetCard } from '../../core/ui'
 import { useDefinitionsI18n } from './i18n'
 
 export function MappingObjectProperties({ name, alias, role, model, schema, folder, onAlias, onRemove, onClose, onMaximize, maximized }: {
@@ -11,7 +11,7 @@ export function MappingObjectProperties({ name, alias, role, model, schema, fold
   const tr = language === 'tr'
   const missing = tr ? 'Model ağacından veri nesnesi bırakın' : 'Drop a data object from the model tree'
   return <section className="mapping-column-inspector mapping-object-properties" aria-label={tr ? 'Nesne Özellikleri' : 'Object Properties'}>
-    <header><div className="mapping-inspector-identity"><span className={`procedure-heading-icon procedure-heading-icon--${role.toLowerCase()}`} aria-hidden="true">{role === 'SOURCE' ? <DatabaseZap size={17} /> : <Database size={17} />}</span><div><span>{role === 'SOURCE' ? (tr ? 'Kaynak' : 'Source') : (tr ? 'Hedef' : 'Target')}</span><strong>{name || alias}</strong></div></div>
+    <header><SourceTargetCard role={role} label={role === 'SOURCE' ? (tr ? 'Kaynak' : 'Source') : (tr ? 'Hedef' : 'Target')} name={name || alias} technicalAlias={alias} />
       <div className="mapping-inspector-actions">
         <Button tone="ghost" icon={maximized ? <Minimize2 size={16} /> : <Maximize2 size={16} />} aria-label={maximized ? (tr ? 'Önceki boyuta dön' : 'Restore panel') : (tr ? 'Paneli büyüt' : 'Maximize panel')} onClick={onMaximize} />
         <Button tone="ghost" icon={<X size={16} />} aria-label={tr ? 'Özellikleri daralt' : 'Collapse properties'} onClick={onClose} />

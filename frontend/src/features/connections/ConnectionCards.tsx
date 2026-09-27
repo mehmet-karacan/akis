@@ -11,10 +11,10 @@ import { RecordActionButton } from '../../core/ui'
 import { memo } from 'react'
 import { createConnectionPresentation } from './presentation'
 
-export const ConnectionCards = memo(function ConnectionCards({ items, view, onOpen, audit, editable = true }: { audit?: ReturnType<typeof useRecordAudit>; items: ConnectionCatalogItem[]; view: 'card' | 'list'; onOpen: (uuid: string) => void; editable?: boolean }) {
+export const ConnectionCards = memo(function ConnectionCards({ items, onOpen, audit, editable = true }: { audit?: ReturnType<typeof useRecordAudit>; items: ConnectionCatalogItem[]; onOpen: (uuid: string) => void; editable?: boolean }) {
   const { i18n } = useTranslation()
   const tr = i18n.language === 'tr'
-  return <div className={`ui-collection ui-collection--${view}`}>{items.map((item) => {
+  return <div className="ui-collection ui-collection--card">{items.map((item) => {
     const { connection } = item
     const presentation = createConnectionPresentation(item, audit?.records[connection.uuid], i18n.language, audit?.state)
     const tested = presentation.status.tested

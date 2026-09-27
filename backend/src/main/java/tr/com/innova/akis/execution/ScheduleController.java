@@ -1,10 +1,11 @@
 package tr.com.innova.akis.execution;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.*;
 
-/** CRUD + pause/resume for cron schedules (V049, {@link ScheduleService}). */
+/** CRUD + pause/resume + preview for cron schedules (V049/V058, {@link ScheduleService}). */
 @RestController
 @RequestMapping("/api/v1/projects/{projectUuid}/schedules")
 final class ScheduleController {
@@ -15,10 +16,22 @@ final class ScheduleController {
 
     record CreateRequest(
             String kod, String ad, UUID publicationUuid, String cronExpression, String timeZone,
-            ScheduleService.ConflictPolicy conflictPolicy, ScheduleService.MisfirePolicy misfirePolicy) {
+            ScheduleService.ConflictPolicy conflictPolicy, ScheduleService.MisfirePolicy misfirePolicy,
+            SchedulePublicationPolicy publicationPolicy, ScheduleService.Status desiredStatus,
+            Instant startsAt, Instant endsAt) {
+    }
+
+    record UpdateRequest(
+            long expectedVersion, String kod, String ad, UUID publicationUuid, String cronExpression, String timeZone,
+            ScheduleService.ConflictPolicy conflictPolicy, ScheduleService.MisfirePolicy misfirePolicy,
+            SchedulePublicationPolicy publicationPolicy, ScheduleService.Status desiredStatus,
+            Instant startsAt, Instant endsAt) {
     }
 
     record VersionedRequest(long expectedVersion) {
+    }
+
+    record PreviewRequest(String cronExpression, String timeZone, Instant startsAt, Instant endsAt) {
     }
 
     @GetMapping
@@ -31,24 +44,30 @@ final class ScheduleController {
         return schedules.get(projectUuid, scheduleUuid);
     }
 
+    @GetMapping("/{scheduleUuid}/events")
+    List<ScheduleService.TriggerEvent> triggerEvents(@PathVariable UUID projectUuid, @PathVariable UUID scheduleUuid) {
+        return schedules.triggerEvents(projectUuid, scheduleUuid);
+    }
+
     @PostMapping
     ScheduleService.View create(@PathVariable UUID projectUuid, @RequestBody CreateRequest request) {
         return schedules.create(
                 projectUuid, request.kod(), request.ad(), request.publicationUuid(),
                 request.cronExpression(), request.timeZone(),
                 request.conflictPolicy() == null ? ScheduleService.ConflictPolicy.SKIP : request.conflictPolicy(),
-                request.misfirePolicy() == null ? ScheduleService.MisfirePolicy.SKIP : request.misfirePolicy());
+                request.misfirePolicy() == null ? ScheduleService.MisfirePolicy.SKIP : request.misfirePolicy(),
+                request.publicationPolicy() == null ? SchedulePublicationPolicy.LATEST_ACTIVE : request.publicationPolicy(),
+                request.desiredStatus() == null ? ScheduleService.Status.ASKIDA : request.desiredStatus(),
+                request.startsAt(), request.endsAt());
     }
 
     @PutMapping("/{scheduleUuid}")
     ScheduleService.View update(@PathVariable UUID projectUuid, @PathVariable UUID scheduleUuid, @RequestBody UpdateRequest request) {
         return schedules.update(projectUuid, scheduleUuid, request.expectedVersion(), request.kod(), request.ad(), request.publicationUuid(),
-                request.cronExpression(), request.timeZone(), request.conflictPolicy(), request.misfirePolicy());
-    }
-
-    record UpdateRequest(
-            long expectedVersion, String kod, String ad, UUID publicationUuid, String cronExpression, String timeZone,
-            ScheduleService.ConflictPolicy conflictPolicy, ScheduleService.MisfirePolicy misfirePolicy) {
+                request.cronExpression(), request.timeZone(), request.conflictPolicy(), request.misfirePolicy(),
+                request.publicationPolicy() == null ? SchedulePublicationPolicy.LATEST_ACTIVE : request.publicationPolicy(),
+                request.desiredStatus() == null ? ScheduleService.Status.ASKIDA : request.desiredStatus(),
+                request.startsAt(), request.endsAt());
     }
 
     @PostMapping("/{scheduleUuid}/pause")
@@ -64,5 +83,10 @@ final class ScheduleController {
     @DeleteMapping("/{scheduleUuid}")
     void delete(@PathVariable UUID projectUuid, @PathVariable UUID scheduleUuid, @RequestParam long expectedVersion) {
         schedules.delete(projectUuid, scheduleUuid, expectedVersion);
+    }
+
+    @PostMapping("/preview")
+    ScheduleService.Preview preview(@PathVariable UUID projectUuid, @RequestBody PreviewRequest request) {
+        return schedules.preview(projectUuid, request.cronExpression(), request.timeZone(), request.startsAt(), request.endsAt());
     }
 }

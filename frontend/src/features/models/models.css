@@ -1,6 +1,11 @@
 /* Domain layout only. Visual tokens and controls are owned by Ant Design. */
 @layer akis-layout {
 .models-page { width: 100%; max-width: none; min-height: 100%; margin: 0; gap: 12px; }
+.model-data-object-type-icon { display: inline-grid; flex: none; place-items: center; }
+.model-data-object-type-icon--table { color: var(--ant-color-info); }
+.model-data-object-type-icon--view { color: var(--ant-color-purple); }
+.model-data-object-type-icon--materialized-view { color: var(--ant-color-warning); }
+.model-data-object-type-icon--synonym { color: var(--ant-color-success); }
 .model-detail-page > .connections-records { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 320px; }
 .model-detail-page > .connections-records > .ant-empty,
 .model-detail-page > .connections-records > .ui-async-state { flex: 1 1 auto; align-content: center; }

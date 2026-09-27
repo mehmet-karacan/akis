@@ -3,11 +3,15 @@ param()
 $ErrorActionPreference = 'Stop'
 $kmDocker = 'C:\Program Files\Docker\Docker\resources\bin\docker.exe'
 $kmContainer = 'akis-metadata-db-1'
+$kmJavaHome = 'C:\Program Files\Eclipse Adoptium\jdk-25.0.3.9-hotspot'
 $kmDatabase = 'akis_km_test_' + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
 $kmCreated = $false
 $kmSavedEnvironment = @{}
 foreach ($kmKey in @('SPRING_DATASOURCE_URL','SPRING_DATASOURCE_USERNAME','SPRING_DATASOURCE_PASSWORD')) { $kmSavedEnvironment[$kmKey] = [Environment]::GetEnvironmentVariable($kmKey, 'Process') }
 if ($kmDatabase -notmatch '^akis_km_test_[0-9]+$') { throw 'Unsafe temporary database name.' }
+if (-not (Test-Path -LiteralPath (Join-Path $kmJavaHome 'bin\java.exe'))) { throw 'Java 25 is required for the KM integration test.' }
+$env:JAVA_HOME = $kmJavaHome
+$env:Path = "$kmJavaHome\bin;$env:Path"
 $kmRunning = & $kmDocker inspect --format '{{.State.Running}}' $kmContainer
 if ($LASTEXITCODE -ne 0 -or $kmRunning -ne 'true') { throw 'Local PostgreSQL container is not running.' }
 $kmUser = (& $kmDocker exec $kmContainer sh -lc 'printf %s "$POSTGRES_USER"').Trim()
@@ -23,7 +27,9 @@ try {
         & $kmDocker exec $kmContainer psql -v ON_ERROR_STOP=1 -U $kmUser -d $kmDatabase -f $kmRemote
         if ($LASTEXITCODE -ne 0) { throw "Migration failed: $($kmFile.Name)" }
     }
-    & $kmDocker exec $kmContainer psql -v ON_ERROR_STOP=1 -U $kmUser -d $kmDatabase -c "SELECT count(*) FROM akis.calisma_nesnesi_prefix; SELECT count(*) FROM akis.km_work_object;"
+    # V033+ stores the authoritative work-table prefixes on fiziksel_sema;
+    # calisma_nesnesi_prefix is intentionally removed during the topology cutover.
+    & $kmDocker exec $kmContainer psql -v ON_ERROR_STOP=1 -U $kmUser -d $kmDatabase -c "SELECT count(*) FROM akis.fiziksel_sema; SELECT count(*) FROM akis.km_work_object;"
     if ($LASTEXITCODE -ne 0) { throw 'KM tables are unavailable.' }
     $kmRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     $kmSettings = @{}

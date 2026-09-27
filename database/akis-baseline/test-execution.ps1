@@ -20,6 +20,10 @@ $databaseUser = if ($null -eq $databaseUserOutput) { '' } else { ($databaseUserO
 if ($dockerExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($databaseUser)) {
     throw "PostgreSQL container '$container' is unavailable. Docker output: $databaseUser"
 }
+$javaHome = 'C:\Program Files\Eclipse Adoptium\jdk-25.0.3.9-hotspot'
+if (-not (Test-Path -LiteralPath (Join-Path $javaHome 'bin\java.exe'))) {
+    throw "Java 25 is required for the execution integration test: $javaHome"
+}
 if ($testDatabase -notmatch '^akis_execution_test_[0-9]+$') { throw 'Unsafe test database name.' }
 $previous = @{}
 foreach ($name in @('SPRING_DATASOURCE_URL', 'SPRING_DATASOURCE_USERNAME', 'SPRING_DATASOURCE_PASSWORD')) {
@@ -48,6 +52,8 @@ try {
     $env:SPRING_DATASOURCE_URL = "jdbc:postgresql://localhost:$($settings['POSTGRES_PORT'])/$testDatabase"
     $env:SPRING_DATASOURCE_USERNAME = $databaseUser
     $env:SPRING_DATASOURCE_PASSWORD = $settings['POSTGRES_PASSWORD']
+    $env:JAVA_HOME = $javaHome
+    $env:Path = "$javaHome\bin;$env:Path"
     & (Join-Path $taskRoot 'mvnw.cmd') -pl backend '-Dtest=CleanExecutionRepositoryIT,CleanVariableHistoryIT' test
     if ($LASTEXITCODE -ne 0) { throw 'Execution repository integration test failed.' }
     Write-Output 'Clean execution control-plane repository tests: PASS'

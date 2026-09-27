@@ -1,4 +1,5 @@
 import { DataGrid } from '../../core/ui/DataGrid'
+import { ExportMenu } from '../../core/ui/ExportMenu'
 import { Select as FormSelect } from '../../core/ui/Select'
 import { Input as AntInput, Popconfirm, Tabs, Tag, Tooltip } from 'antd'
 import { Boxes, CheckCircle2, CircleAlert, Database, FileText, Layers3, Plus, ScanSearch, Trash2 } from 'lucide-react'
@@ -130,7 +131,7 @@ export function ModelsPage() {
     ]} />
     <section className="connections-records">
     {loading ? <AsyncState state="loading" title={t('common.loading')} /> : filtered.length === 0 ? <AsyncState state="empty" title={t('models.empty')} description={t('models.emptyHint')} action={addButton} /> :
-      <ProgressiveRecords key={query} items={filtered}>{(visible) => <DataGrid auditKind="models" auditInFooter collectionTitle={tr ? 'Model Kataloğu' : 'Model Catalog'} collectionIcon={<Layers3 />} toolbarActions={addButton} cardHeaderLeadingField="provider" cardHeaderField="status" cardHiddenFields={['provider', 'status']} headerFieldsInList view={view} onViewChange={setView}>
+      <ProgressiveRecords key={query} items={filtered}>{(visible) => <DataGrid auditKind="models" auditInFooter collectionTitle={tr ? 'Model Kataloğu' : 'Model Catalog'} collectionIcon={<Layers3 />} toolbarActions={<>{addButton}<ExportMenu projectUuid={projectUuid} dataset="models" resourceId="data-objects" filters={query ? [{ field: 'query', operator: 'contains', value: query }] : []} label={tr ? 'Dışa Aktar' : 'Export'} /></>} cardHeaderLeadingField="provider" cardHeaderField="status" cardHiddenFields={['provider', 'status']} view={view} onViewChange={setView}>
       <thead><tr><th data-field-key="provider">{tr ? 'Teknoloji' : 'Technology'}</th><th data-field-key="name">{t('models.name')}</th><th data-field-key="description">{t('models.descriptionField')}</th><th data-field-key="schema">{t('models.logicalSchema')}</th><th data-field-key="environment">{tr ? 'Reverse Ortamı' : 'Reverse Context'}</th><th data-field-key="mode">{tr ? 'Reverse Modu' : 'Reverse Mode'}</th><th data-field-key="objects">{t('models.objectCount')}</th><th data-field-key="updated">{t('models.lastMetadataUpdate')}</th><th data-field-key="status">{t('models.status')}</th><th data-field-key="actions" className="ui-grid-actions-column"><span className="sr-only">{tr ? 'İşlemler' : 'Actions'}</span></th></tr></thead>
       <tbody>{visible.map(model => { const active = model.status === 'AKTIF'; const tone = active ? 'success' : 'neutral'; const technology = schemaOf(model)?.databaseType ?? model.technologyCode ?? ''; return <tr key={model.uuid} data-connection-uuid={model.uuid}>
         <td><span className="provider-cell"><DatabaseProviderIcon databaseType={technology} /><span>{databaseProviderVisual(technology).label}</span></span></td>

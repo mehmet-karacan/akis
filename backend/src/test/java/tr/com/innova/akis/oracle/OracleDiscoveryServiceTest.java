@@ -25,6 +25,7 @@ import tr.com.innova.akis.oracle.OracleDiscoveryModels.DraftConnection;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.GovernedSnapshotCapture;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.PhysicalSchemaProfile;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.SnapshotCapture;
+import tr.com.innova.akis.oracle.OracleDiscoveryModels.TableMetadata;
 import tr.com.innova.akis.security.ConnectionCredentialCipher;
 
 class OracleDiscoveryServiceTest {
@@ -49,7 +50,7 @@ class OracleDiscoveryServiceTest {
     void connectionTestDecryptsTheTableStoredCredential() {
         String encrypted = CIPHER.encrypt("{\"username\":\"reader\",\"password\":\"" + PASSWORD + "\"}");
         StubRepository repository = new StubRepository(
-                OracleDiscoveryTestFixtures.profile(7L, "TABLO", encrypted, "AKTIF"), physical(7L));
+                OracleDiscoveryTestFixtures.profile(7L, "TABLO", encrypted, "AKTIF"), physical(7L), "TABLO");
         CapturingGateway gateway = new CapturingGateway();
         gateway.probe = oracle19c();
 
@@ -123,7 +124,7 @@ class OracleDiscoveryServiceTest {
                 "java:comp/env/jdbc/OracleMain", null, null, null, null,
                 "DISABLED", 0, new ObjectMapper().createObjectNode(),
                 null, null, null, "ACTIVE", 1L, null, null, null);
-        StubRepository repository = new StubRepository(profile, physical(7L));
+        StubRepository repository = new StubRepository(profile, physical(7L), "TABLO");
         CapturingGateway gateway = new CapturingGateway();
         gateway.probe = oracle19c();
 
@@ -149,7 +150,7 @@ class OracleDiscoveryServiceTest {
     @Test
     void discoveryRequiresAnActiveConnection() {
         StubRepository repository = new StubRepository(
-                OracleDiscoveryTestFixtures.profile(7L, "ENV", ENVIRONMENT_NAME, "AKTIF", "DISABLED"), physical(7L));
+                OracleDiscoveryTestFixtures.profile(7L, "ENV", ENVIRONMENT_NAME, "AKTIF", "DISABLED"), physical(7L), "TABLO");
         CapturingGateway gateway = new CapturingGateway();
 
         ApiException error = assertThrows(ApiException.class, () -> service(repository, gateway).discover(
@@ -196,6 +197,42 @@ class OracleDiscoveryServiceTest {
         assertArrayEquals(new char[PASSWORD.length()], gateway.passwordReference);
     }
 
+    @Test
+    void snapshotCaptureAcceptsTableLikeObjectTypes() {
+        for (String unsupported : List.of("VIEW", "MATERIALIZED_VIEW", "SYNONYM")) {
+            StubRepository repository = repository(7L, unsupported);
+            CapturingGateway gateway = new CapturingGateway();
+            gateway.probe = oracle19c();
+            gateway.capture = new SnapshotCapture(
+                    OffsetDateTime.now(ZoneOffset.UTC),
+                    new OracleSchemaSnapshotCodecV1.SnapshotDefinition(
+                            "ORACLE_19C", 1, new ObjectMapper().createObjectNode(), List.of(), List.of()));
+
+            GovernedSnapshotCapture result = service(repository, gateway).captureSchemaSnapshot(
+                    OracleDiscoveryTestFixtures.PROJECT_UUID, OracleDiscoveryTestFixtures.CONNECTION_UUID,
+                    OracleDiscoveryTestFixtures.PHYSICAL_SCHEMA_UUID, UUID.randomUUID());
+
+            assertEquals("ORACLE_19C", result.capture().definition().engineVersion());
+            assertEquals(1, gateway.captureCalls);
+        }
+    }
+
+    @Test
+    void discoveryPreservesProviderNeutralObjectTypesFromGateway() {
+        StubRepository repository = repository(7L);
+        CapturingGateway gateway = new CapturingGateway();
+        TableMetadata view = new TableMetadata("APP_OWNER", "V_SALES", "VIEW", List.of(), List.of());
+        TableMetadata materialized = new TableMetadata("APP_OWNER", "MV_SALES", "MATERIALIZED_VIEW", List.of(), List.of());
+        TableMetadata synonym = new TableMetadata("APP_OWNER", "S_SALES", "SYNONYM", List.of(), List.of());
+        gateway.discovery = new DiscoveryResult("APP_OWNER", OffsetDateTime.now(ZoneOffset.UTC), false, List.of(view, materialized, synonym));
+
+        DiscoveryResult result = service(repository, gateway).discover(
+                OracleDiscoveryTestFixtures.CONNECTION_UUID, OracleDiscoveryTestFixtures.PHYSICAL_SCHEMA_UUID, null, 50);
+
+        assertEquals(List.of("VIEW", "MATERIALIZED_VIEW", "SYNONYM"),
+                result.tables().stream().map(TableMetadata::type).toList());
+    }
+
     private OracleDiscoveryService service(StubRepository repository, CapturingGateway gateway) {
         ObjectMapper objectMapper = new ObjectMapper();
         EnvironmentCredentialResolver resolver = new EnvironmentCredentialResolver(
@@ -206,13 +243,28 @@ class OracleDiscoveryServiceTest {
     }
 
     private StubRepository repository(long physicalConnectionId) {
+        return repository(physicalConnectionId, "TABLO");
+    }
+
+    private StubRepository repository(long physicalConnectionId, String dataObjectType) {
         return new StubRepository(
                 OracleDiscoveryTestFixtures.profile(7L, "ENV", ENVIRONMENT_NAME, "AKTIF"),
-                physical(physicalConnectionId));
+                physical(physicalConnectionId), dataObjectType);
     }
 
     private static PhysicalSchemaProfile physical(long connectionId) {
         return new PhysicalSchemaProfile(OracleDiscoveryTestFixtures.PHYSICAL_SCHEMA_UUID, connectionId, "app_owner", "AKTIF");
+    }
+
+    @Test
+    void postgresqlIdentifierFoldsUnquotedNamesAndPreservesQuotedNames() {
+        OracleDiscoveryService service = service(new StubRepository(
+                OracleDiscoveryTestFixtures.profile(7L, "ENV", ENVIRONMENT_NAME, "AKTIF"),
+                physical(7L), "TABLO"), new CapturingGateway());
+
+        assertEquals("musteri_tablo", service.postgresIdentifier("MUSTERI_TABLO", "ad"));
+        assertEquals("MusteriTablo", service.postgresIdentifier("\"MusteriTablo\"", "ad"));
+        assertThrows(ApiException.class, () -> service.postgresIdentifier("musteri;drop", "ad"));
     }
 
     private ConnectionProbe oracle19c() {
@@ -224,11 +276,11 @@ class OracleDiscoveryServiceTest {
         private final PhysicalSchemaProfile physicalSchema;
         private final DataObjectCaptureProfile dataObject;
 
-        private StubRepository(ConnectionProfile profile, PhysicalSchemaProfile physicalSchema) {
+        private StubRepository(ConnectionProfile profile, PhysicalSchemaProfile physicalSchema, String dataObjectType) {
             super(null, null);
             this.profile = profile;
             this.physicalSchema = physicalSchema;
-            this.dataObject = new DataObjectCaptureProfile(UUID.randomUUID(), "hakedis_tipi", "TABLO", "AKTIF");
+            this.dataObject = new DataObjectCaptureProfile(UUID.randomUUID(), "hakedis_tipi", dataObjectType, "AKTIF");
         }
 
         @Override

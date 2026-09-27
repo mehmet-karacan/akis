@@ -32,17 +32,18 @@ class IdentityServiceTest {
     private static final UUID USER_UUID = UUID.randomUUID();
 
     @Test
-    void provisionsNormalizedOidcUserWithoutExposingNumericIdentity() {
+    void createsNormalizedApplicationUserWithoutExposingNumericIdentity() {
         FakeStore store = new FakeStore();
         IdentityService service = service(store);
 
-        UserRow created = service.createOidcUser(
-                " https://id.example/realms/akis ", " subject-42 ", " Mehmet ",
+        UserRow created = service.createUser(
+                "MEHMET.KARACAN", " Mehmet ", " Karacan ", " 12345 ",
                 " mehmet@example.com ");
 
-        assertEquals("https://id.example/realms/akis", created.issuer());
-        assertEquals("subject-42", created.subject());
-        assertEquals("Mehmet", created.name());
+        assertEquals("mehmet.karacan", created.userCode());
+        assertEquals("PAROLA_BEKLIYOR", created.status());
+        assertEquals("Mehmet Karacan", created.name());
+        assertEquals("12345", created.employeeNumber());
         assertEquals("mehmet@example.com", created.email());
         assertTrue(store.createdUserUuid != null);
         assertFalse(hasNumericIdentifier(IdentityController.UserView.class));
@@ -50,30 +51,20 @@ class IdentityServiceTest {
     }
 
     @Test
-    void provisionsLocalDevelopmentPrincipalForAuditedActions() {
+    void rejectsDuplicateUserCodeAndInvalidEmail() {
         FakeStore store = new FakeStore();
-
-        UserRow created = service(store).createOidcUser(
-                "LOCAL_BASIC", "developer", "Local Developer", null);
-
-        assertEquals("LOCAL_BASIC", created.issuer());
-        assertEquals("developer", created.subject());
-    }
-
-    @Test
-    void rejectsDuplicateOidcIdentityAndInvalidIssuer() {
-        FakeStore store = new FakeStore();
-        store.userByIdentity = Optional.of(store.user);
+        store.userByCode = Optional.of(store.user);
         IdentityService service = service(store);
 
-        ApiException duplicate = assertThrows(ApiException.class, () -> service.createOidcUser(
-                "https://id.example", "subject-42", "Mehmet", null));
-        ApiException invalidIssuer = assertThrows(ApiException.class, () -> service.createOidcUser(
-                "id.example?tenant=x", "subject-42", "Mehmet", null));
+        ApiException duplicate = assertThrows(ApiException.class, () -> service.createUser(
+                "mehmet", "Mehmet", "Karacan", null, null));
+        store.userByCode = Optional.empty();
+        ApiException invalidEmail = assertThrows(ApiException.class, () -> service.createUser(
+                "ayse", "Ayşe", null, null, "gecersiz"));
 
         assertEquals(HttpStatus.CONFLICT, duplicate.status());
-        assertEquals("OIDC_USER_EXISTS", duplicate.code());
-        assertEquals(HttpStatus.UNPROCESSABLE_CONTENT, invalidIssuer.status());
+        assertEquals("USER_CODE_EXISTS", duplicate.code());
+        assertEquals(HttpStatus.UNPROCESSABLE_CONTENT, invalidEmail.status());
     }
 
     @Test
@@ -158,8 +149,8 @@ class IdentityServiceTest {
 
     private static UserRow user(String status) {
         return new UserRow(
-                20, USER_UUID, "https://id.example", "subject-42", status,
-                "Mehmet", "mehmet@example.com", OffsetDateTime.ofInstant(NOW, ZoneOffset.UTC));
+                20, USER_UUID, "mehmet", status, "Mehmet", "Karacan", "12345",
+                "mehmet@example.com", OffsetDateTime.ofInstant(NOW, ZoneOffset.UTC));
     }
 
     private boolean hasNumericIdentifier(Class<?> type) {
@@ -176,7 +167,7 @@ class IdentityServiceTest {
         private UserRow user = user("AKTIF");
         private ProjectRoleRef role = new ProjectRoleRef(
                 30, UUID.randomUUID(), "GELISTIRICI", true);
-        private Optional<UserRow> userByIdentity = Optional.empty();
+        private Optional<UserRow> userByCode = Optional.empty();
         private Optional<MembershipRow> membership = Optional.empty();
         private UUID createdUserUuid;
         private long createdProjectId;
@@ -187,10 +178,12 @@ class IdentityServiceTest {
 
         @Override
         public UserRow createUser(
-                UUID uuid, String issuer, String subject, String name, String email) {
+                UUID uuid, String userCode, String firstName, String lastName,
+                String employeeNumber, String email) {
             createdUserUuid = uuid;
             user = new UserRow(
-                    20, uuid, issuer, subject, "AKTIF", name, email,
+                    20, uuid, userCode, "PAROLA_BEKLIYOR", firstName, lastName,
+                    employeeNumber, email,
                     OffsetDateTime.ofInstant(NOW, ZoneOffset.UTC));
             return user;
         }
@@ -206,8 +199,8 @@ class IdentityServiceTest {
         }
 
         @Override
-        public Optional<UserRow> findUser(String issuer, String subject) {
-            return userByIdentity;
+        public Optional<UserRow> findUser(String userCode) {
+            return userByCode;
         }
 
         @Override

@@ -64,10 +64,15 @@ export const operationsApi = {
   listUsers() {
     return apiRequest<IdentityUser[]>('/api/v1/identity/users')
   },
-  createUser(input: Pick<IdentityUser, 'issuer' | 'subject' | 'name' | 'email'>) {
+  createUser(input: Pick<IdentityUser, 'kullaniciKodu' | 'ad' | 'soyad' | 'sicilNumarasi' | 'eposta'>) {
     return apiRequest<IdentityUser>('/api/v1/identity/users', {
       method: 'POST',
       ...jsonBody(input),
+    })
+  },
+  issuePasswordSetupToken(userUuid: string) {
+    return apiRequest<{ token: string; expiresAt: string }>(`/api/v1/identity/users/${userUuid}/password-setup-token`, {
+      method: 'POST',
     })
   },
   listMemberships(projectUuid: string) {

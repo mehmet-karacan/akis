@@ -10,7 +10,9 @@ test('KM run evidence fits desktop and mobile in both themes', async ({ page }) 
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
     for (const width of [1366, 390]) {
       await page.setViewportSize({ width, height: 768 })
-      await expect(page.getByText('AKIS_LOAD_EXAMPLE')).toBeVisible()
+      const technical = page.locator('.km-technical-evidence')
+      await technical.locator('summary').click()
+      await expect(technical).toContainText('AKIS_LOAD_EXAMPLE')
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
       await page.screenshot({ path: `test-results/km-run-${theme}-${width}.png`, fullPage: true })
     }

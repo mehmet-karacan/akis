@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AsyncState, Button, RecordActionButton } from '../../core/ui'
 import { DataGrid } from '../../core/ui/DataGrid'
+import { ExportMenu } from '../../core/ui/ExportMenu'
 import { topologyApi, type Connection, type PhysicalSchema, type SchemaBinding } from '../topology/api'
 import '../schemas/schemas.css'
 import { PhysicalSchemaDetailDialog } from './PhysicalSchemaDetailDialog'
@@ -23,7 +24,7 @@ export function PhysicalSchemaManager({ projectUuid, connection, items, bindings
 
   return <div className="physical-schema-manager">
     {canManage && <div className="physical-schema-toolbar"><Button type="button" tone="primary" icon={<Plus size={14} />} onClick={() => setDialog({})}>{t('schemas.addPhysical')}</Button></div>}
-    {items.length ? <div className="physical-schema-table"><DataGrid auditKind="physical-schemas" viewControls={false}>
+    {items.length ? <div className="physical-schema-table"><DataGrid auditKind="physical-schemas" viewControls={false} toolbarActions={<ExportMenu projectUuid={projectUuid} dataset="topology" resourceId="physical-schemas" label={tr ? 'Dışa Aktar' : 'Export'} />}>
       <thead><tr>
         <th>{tr ? 'Şema' : 'Schema'}</th>
         <th>{tr ? 'Çalışma Şeması' : 'Work Schema'}</th>

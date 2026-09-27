@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { login, expectNoHorizontalOverflow } from './fixtures'
 
-test('record icons and attribution remain visible in cards list table and mobile', async ({ page }) => {
+test('record icons and attribution remain visible in cards, table and mobile', async ({ page }) => {
   test.setTimeout(90_000)
   await page.setViewportSize({ width: 1440, height: 1000 })
   await login(page)
@@ -13,7 +13,7 @@ test('record icons and attribution remain visible in cards list table and mobile
   expect(records.length).toBeGreaterThan(0)
   await page.route('**/record-audit/connections', route => route.fulfill({ json: records.map((record: { uuid: string }) => ({ ...record, createdBy: 'Audit Creator', updatedBy: 'Audit Editor', createdAt: '2026-09-15T09:00:00Z', updatedAt: '2026-09-15T10:00:00Z' })) }))
   await page.reload()
-  for (const name of ['Cards', 'List', 'Table']) {
+  for (const name of ['Cards', 'Table']) {
     await page.getByRole('radio', { name, exact: true }).locator('..').click()
     await expect(page.getByText('Audit Creator', { exact: true }).first()).toBeVisible()
     await expect(page.getByText('Audit Editor', { exact: true }).first()).toBeVisible()

@@ -16,13 +16,27 @@ spring:
     schemas: akis
     create-schemas: true
     validate-migration-naming: true
+  session:
+    timeout: 30m
+    jdbc:
+      initialize-schema: never
+      table-name: akis.spring_session
 
 server:
   address: ${AKIS_SERVER_ADDRESS:127.0.0.1}
   port: ${AKIS_SERVER_PORT:8080}
   shutdown: graceful
+  servlet:
+    session:
+      cookie:
+        http-only: true
+        same-site: lax
+        secure: ${AKIS_SESSION_COOKIE_SECURE:false}
 
 akis:
+  export:
+    maintenance-enabled: ${AKIS_EXPORT_MAINTENANCE_ENABLED:true}
+    maintenance-delay-ms: ${AKIS_EXPORT_MAINTENANCE_DELAY_MS:300000}
   execution:
     accept-manual-requests: ${AKIS_EXECUTION_ACCEPT_MANUAL_REQUESTS:false}
     worker-enabled: ${AKIS_EXECUTION_WORKER_ENABLED:false}
@@ -38,14 +52,16 @@ akis:
     scheduler-enabled: ${AKIS_EXECUTION_SCHEDULER_ENABLED:false}
     schedule-poll-delay-ms: ${AKIS_EXECUTION_SCHEDULE_POLL_DELAY_MS:15000}
   security:
-    mode: ${AKIS_SECURITY_MODE:fail-closed}
+    mode: ${AKIS_SECURITY_MODE:local}
     data-encryption-key: ${AKIS_DATA_ENCRYPTION_KEY:}
-    development:
-      username: ${AKIS_DEV_USERNAME:}
-      password: ${AKIS_DEV_PASSWORD:}
-    oidc:
-      issuer-uri: ${AKIS_OIDC_ISSUER_URI:}
-      audience: ${AKIS_OIDC_AUDIENCE:}
+    session:
+      absolute-timeout: ${AKIS_SESSION_ABSOLUTE_TIMEOUT:8h}
+    login:
+      account-attempt-limit: ${AKIS_LOGIN_ACCOUNT_ATTEMPT_LIMIT:5}
+      account-window: ${AKIS_LOGIN_ACCOUNT_WINDOW:15m}
+      account-lock: ${AKIS_LOGIN_ACCOUNT_LOCK:15m}
+      ip-attempt-limit: ${AKIS_LOGIN_IP_ATTEMPT_LIMIT:60}
+      ip-window: ${AKIS_LOGIN_IP_WINDOW:1m}
 
 management:
   endpoints:

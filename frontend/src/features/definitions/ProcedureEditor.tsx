@@ -79,6 +79,16 @@ export function pageProcedureTasks(
   };
 }
 
+export function filterProcedureUnits(units: ProcedureStepUnit[], query: string) {
+  const normalized = query.trim().toLocaleLowerCase();
+  if (!normalized) return units;
+  return units.filter((unit) => unit.tasks.some((task) => {
+    const name = (task.name || task.id).toLocaleLowerCase();
+    const command = (task.command || "").toLocaleLowerCase();
+    return name.includes(normalized) || command.includes(normalized);
+  }));
+}
+
 function nextId(tasks: ProcedureTask[]) {
   let number = tasks.length + 1;
   while (tasks.some((task) => task.id === `STEP_${number}`)) number += 1;
@@ -343,10 +353,12 @@ export function ProcedureEditor({
   };
   const [stepFilter, setStepFilter] = useState("");
   const units = useMemo(() => groupProcedureTasks(value.tasks), [value.tasks]);
-  const pages = Math.max(1, Math.ceil(units.length / PAGE_SIZE));
+  const normalizedStepFilter = stepFilter.trim().toLocaleLowerCase();
+  const filteredUnits = useMemo(() => filterProcedureUnits(units, normalizedStepFilter), [normalizedStepFilter, units]);
+  const pages = Math.max(1, Math.ceil(filteredUnits.length / PAGE_SIZE));
   const safePage = Math.min(Math.max(0, page), pages - 1);
-  const visible = units.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE)
-    .filter((unit) => !stepFilter.trim() || ((unit.target ?? unit.source)?.name ?? "").toLocaleLowerCase().includes(stepFilter.trim().toLocaleLowerCase()));
+  const visible = filteredUnits.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
+  useEffect(() => { setPage(0); }, [normalizedStepFilter]);
   const commandPreview = (task?: ProcedureTask) => task?.command ? task.command.replace(/\s+/g, " ").trim().slice(0, 48) : "";
   const roleTechnology = (role: ProcedureConnectionRole) => (role === "SOURCE" ? value.technology?.source : value.technology?.target)
     ?? value.tasks.filter((task) => task.connectionRole === role).map((task) => logicalSchemas.find((item) => item.uuid === task.logicalSchemaUuid)?.databaseType).find((type): type is string => Boolean(type))

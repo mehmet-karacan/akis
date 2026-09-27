@@ -103,7 +103,7 @@ function ProjectModelTreeSession({ projectUuid, onNavigate }: Props) {
     const folder = (item: Submodel, seen: Set<string>): RoutedTreeDataNode => {
       const modelSegment = modelRouteSegment(model)
       const route = '/models/' + modelSegment + '?folder=' + encodeURIComponent(item.code)
-      return { key: 'folder:' + item.uuid, route,
+      return { key: 'folder:' + item.uuid, route, isLeaf: false,
         title: title(item.name, <ProjectFolderIcon open={expanded.includes('folder:' + item.uuid)} size={14} />, route, '/models/' + modelSegment + '/import?folder=' + encodeURIComponent(item.code), undefined, { kind: 'folder', name: item.name, run: () => topologyApi.deleteSubmodel(projectUuid, model.uuid, item.uuid, item.version) }), children: [
           ...catalog.folders.filter(child => child.parentUuid === item.uuid && !seen.has(child.uuid)).map(child => folder(child, new Set([...seen, child.uuid]))),
           ...catalog.objects.filter(child => child.submodelUuid === item.uuid).map(object),
@@ -121,7 +121,13 @@ function ProjectModelTreeSession({ projectUuid, onNavigate }: Props) {
           const route = '/models/' + modelRouteSegment(model)
           return { key: 'model:' + model.uuid, route, title: title(model.name, <span className="definition-type-icon definition-type-icon--model" aria-hidden="true"><Database size={14} /></span>, route, route + '/import', undefined, { kind: 'model', name: model.name, run: () => topologyApi.deleteModel(projectUuid, model.uuid, model.version) }), isLeaf: false, children: metadata(model) }
         }) }] as RoutedTreeDataNode[]}
-      onDoubleClick={(_event, node) => { const routed = node as RoutedTreeDataNode; if (routed.route) open(routed.route) }} />
+      onDoubleClick={(_event, node) => {
+        const routed = node as RoutedTreeDataNode
+        if (String(routed.key).startsWith('folder:')) {
+          setExpanded((current) => current.includes(routed.key) ? current : [...current, routed.key])
+        }
+        if (routed.route) open(routed.route)
+      }} />
     {error && <Alert type="error" title={t('common.loadError')} action={<Button onClick={() => void load(error).catch(() => undefined)}>{t('common.retry')}</Button>} />}
     <FeedbackToast message={notice?.text ?? ''} tone={notice?.tone} onClose={() => setNotice(null)} />
     <Dialog open={pendingDelete !== null} title={t('nav.deleteObject')} closeLabel={t('common.cancel')} busy={deleting} onClose={() => setPendingDelete(null)} className="akis-modal">

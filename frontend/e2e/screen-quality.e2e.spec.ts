@@ -22,7 +22,26 @@ async function assertNoRuntimeFailure(page: Page, failures: string[]) {
 }
 
 test.describe('all-screen quality gates', () => {
+  test('login and application shell show the supplied brand and topbar corporate mark', async ({ page }) => {
+    const copyright = '2025 - 2026 İnnova Bilişim Çözümleri A.Ş.'
+    await page.goto('/login')
+    await expect(page.locator('.login-brand .brand-product-logo')).toBeVisible()
+    await expect(page.locator('.login-brand .brand-product-logo')).toHaveAttribute('alt', 'AKIŞ')
+    await expect(page.locator('.brand-corporate-footer')).toContainText(copyright)
+    await expect(page.locator('.brand-corporate-footer .brand-innova-logo')).toHaveAttribute('aria-label', 'İnnova Bilişim Çözümleri A.Ş.')
+
+    await login(page)
+    await expect(page.locator('.topbar .brand-product-logo')).toBeVisible()
+    await expect(page.locator('.topbar .brand-product-logo')).toHaveAttribute('alt', 'AKIŞ')
+    await expect(page.locator('.topbar .topbar-innova-logo')).toBeVisible()
+    await expect(page.locator('.topbar .topbar-innova-logo')).toHaveAttribute('aria-label', 'İnnova Bilişim Çözümleri A.Ş.')
+  })
+
   test('every primary screen is responsive and free of uncaught runtime failures', async ({ page }) => {
+    // This gate intentionally visits every primary screen at two viewports.
+    // Keep the application assertions strict, but allow the complete deep-link
+    // tour to finish on slower local databases and CI runners.
+    test.setTimeout(180_000)
     const failures: string[] = []
     page.on('pageerror', (error) => failures.push(`pageerror: ${error.message}`))
 
@@ -44,6 +63,8 @@ test.describe('all-screen quality gates', () => {
     await page.evaluate(() => localStorage.setItem('akis.theme', 'dark'))
     await page.reload()
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+    await expect(page.locator('.app-shell .brand-innova-logo--dark')).toBeVisible()
+    await expect(page.locator('.app-shell .brand-innova-logo--light')).toBeHidden()
 
     for (const path of primaryScreens) {
       await test.step(path, async () => {
@@ -60,7 +81,12 @@ test.describe('all-screen quality gates', () => {
     await page.getByRole('menuitem', { name: /Connections|Bağlantılar/i }).click()
     await expect(page).toHaveURL(/\/project\/connections$/)
     await expectHealthyScreen(page)
-    await page.route('**/api/v2/projects/*/connections/*/versions/*/tests', async (route) => {
+    await page.route('**/api/v1/projects/**/connections/**', async (route) => {
+      const url = route.request().url()
+      if (route.request().method() !== 'POST' || !/\/connections\/(?:test|[^/]+\/tests)(?:\?|$)/.test(url)) {
+        await route.continue()
+        return
+      }
       await route.fulfill({
         status: 503,
         contentType: 'application/problem+json',
@@ -71,6 +97,6 @@ test.describe('all-screen quality gates', () => {
     const dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible()
     await dialog.getByRole('button', { name: /Test Connection|Bağlantıyı Test Et/i }).click()
-    await expect(page.locator('.ui-feedback-toast')).toContainText(/erişilemiyor|test ağı|başarısız|failed|cannot reach|could not complete/i)
+    await expect(dialog.locator('.topology-inline-error')).toContainText(/erişilemiyor|test ağı|başarısız|failed|cannot reach|could not complete/i)
   })
 })

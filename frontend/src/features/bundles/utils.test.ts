@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BUNDLE_FORMAT, isBundleDocument, safeBundleFileName } from './utils'
+import { BUNDLE_FORMAT, isBundleDocument, isV3Bundle, safeBundleFileName } from './utils'
 
 function bundle() {
   return {
@@ -18,7 +18,7 @@ function bundle() {
 describe('bundle file safety', () => {
   it('creates a bounded filename without path separators or control characters', () => {
     const name = safeBundleFileName('../Müşteri / \u0000 Projesi')
-    expect(name).toBe('Musteri-Projesi-bundle-v2.json')
+    expect(name).toBe('Musteri-Projesi-bundle-v3.json')
     expect(name).not.toMatch(/[\\/\u0000-\u001f]/)
   })
 
@@ -26,5 +26,10 @@ describe('bundle file safety', () => {
     expect(isBundleDocument(bundle())).toBe(true)
     expect(isBundleDocument({ ...bundle(), formatVersion: 1 })).toBe(false)
     expect(isBundleDocument({ ...bundle(), definitions: null })).toBe(false)
+  })
+
+  it('detects v3 bundles by formatVersion', () => {
+    expect(isV3Bundle(bundle())).toBe(false)
+    expect(isV3Bundle({ ...bundle(), formatVersion: 3, schemaVersion: 3 })).toBe(true)
   })
 })

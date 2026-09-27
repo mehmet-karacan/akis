@@ -48,9 +48,7 @@ public class MetadataRepository {
             String code,
             String name,
             String description,
-            String actorProvider,
-            String actorSubject) {
-        Long actorId = findActorId(actorProvider, actorSubject).orElse(null);
+            Long actorId) {
         ProjectRow project = jdbc.sql("""
                         insert into akis.proje(
                             uuid, kod, ad, aciklama, olusturan_kullanici_id)
@@ -73,32 +71,8 @@ public class MetadataRepository {
                         rs.getLong("versiyon_no"),
                         rs.getObject("olusturulma_zamani", OffsetDateTime.class)))
                 .single();
-        if (actorId != null) {
-            assignProjectManager(project.id(), actorId);
-        }
+        if (actorId != null) assignProjectManager(project.id(), actorId);
         return project;
-    }
-
-    private Optional<Long> findActorId(String provider, String subject) {
-        if (provider == null || provider.isBlank() || subject == null || subject.isBlank()) {
-            return Optional.empty();
-        }
-        return jdbc.sql("""
-                        select k.id
-                          from akis.kullanici k
-                          join akis.harici_kimlik hk on hk.kullanici_id = k.id
-                         where k.devre_disi_birakilma_zamani is null
-                           and hk.harici_kullanici_anahtari = :subject
-                           and ((:provider = 'LOCAL_BASIC'
-                                 and hk.saglayici_turu = 'YEREL'
-                                 and hk.yayinlayici is null)
-                                or (hk.saglayici_turu = 'OIDC'
-                                    and hk.yayinlayici = :provider))
-                        """)
-                .param("provider", provider)
-                .param("subject", subject)
-                .query(Long.class)
-                .optional();
     }
 
     private void assignProjectManager(long projectId, long actorId) {

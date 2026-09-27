@@ -32,7 +32,7 @@ class CleanProcedureExecutionJournalIT {
         String url=required("SPRING_DATASOURCE_URL");if(!url.matches(".*(/akis_worker_test_[0-9]+)(?:\\?.*)?$"))throw new IllegalStateException("Generated worker DB required.");
         DataSource ds=new DriverManagerDataSource(url,required("SPRING_DATASOURCE_USERNAME"),required("SPRING_DATASOURCE_PASSWORD"));jdbc=JdbcClient.create(ds);leases=new JdbcRunLeaseStore(jdbc);journals=new JdbcProcedureExecutionJournalStore(jdbc,new DataSourceTransactionManager(ds));
         long p=jdbc.sql("insert into akis.proje(kod,ad) values ('PROC_IT','Procedure IT') returning id").query(Long.class).single();
-        long o=jdbc.sql("insert into akis.ortam(proje_id,kod,ad) values (:p,'TEST','Test') returning id").param("p",p).query(Long.class).single();
+        long o=jdbc.sql("insert into akis.ortam(kod,ad,uretim_mi,risk) values ('TEST','Test',false,'DUSUK') returning id").query(Long.class).single();
         long f=jdbc.sql("insert into akis.klasor(proje_id,kod,ad) values (:p,'ROOT','Root') returning id").param("p",p).query(Long.class).single();
         long t=jdbc.sql("insert into akis.tanim(proje_id,klasor_id,tur,kod,ad) values (:p,:f,'PROSEDUR','JOURNAL','Journal') returning id").param("p",p).param("f",f).query(Long.class).single();
         String content="{\"tasks\":[{\"id\":\"INSERT_TARGET\",\"name\":\"Insert target\",\"type\":\"SQL\",\"connectionRole\":\"TARGET\",\"riskClass\":\"DML\",\"onError\":\"STOP\",\"command\":\""+COMMAND+"\"}]}";

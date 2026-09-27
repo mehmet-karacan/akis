@@ -5,7 +5,8 @@ test.describe('AKIŞ critical browser journeys', () => {
   test('defaults to English and persists language and theme choices', async ({ page }) => {
     await page.goto('/login')
     await expect(page.locator('html')).toHaveAttribute('lang', 'en')
-    await page.getByRole('button', { name: 'TR' }).click()
+    await page.getByRole('button', { name: /language.*english/i }).click()
+    await page.getByRole('menuitem', { name: /Turkish|Türkçe/i }).click()
     await expect(page.locator('html')).toHaveAttribute('lang', 'tr')
     await page.getByRole('button', { name: /tema|theme/i }).click()
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
@@ -20,6 +21,9 @@ test.describe('AKIŞ critical browser journeys', () => {
       extraHTTPHeaders: { Authorization: `Basic ${Buffer.from('invalid-e2e-user:invalid-e2e-password').toString('base64')}` },
     })
     const response = await api.get('/api/v1/projects')
+    // External Basic authentication is intentionally rejected by the local
+    // session-only security chain. The application exposes unauthenticated
+    // API requests as 401; credentials are accepted only through local login.
     expect(response.status()).toBe(401)
     await api.dispose()
 
@@ -99,48 +103,25 @@ test.describe('AKIŞ critical browser journeys', () => {
     await firstNode.dblclick({ force: true })
     await expect(page).not.toHaveURL(packageUrl)
     await expect(page).toHaveURL(/\/project\/objects\/definitions\//)
-    await expect(page.getByRole('heading', { name: /Procedure steps|Prosedür Adımları/ })).toBeVisible()
     await page.setViewportSize({ width: 1366, height: 768 })
-    await expect(page.locator('.procedure-task').first()).toBeVisible()
-    await page.locator('.procedure-task-select').first().click()
-    await expect(page.getByRole('tab', { name: /Source Command|Kaynak Komutu/ })).toBeVisible()
-    await expect(page.getByRole('tab', { name: /Target Command|Hedef Komutu/ })).toBeVisible()
-    await page.getByRole('tab', { name: /Source Command|Kaynak Komutu/ }).click()
-    await expect(page.locator('.procedure-side--source')).toBeVisible()
-    await page.getByRole('tab', { name: /Target Command|Hedef Komutu/ }).click()
-    await expect(page.locator('.procedure-side--target')).toBeVisible()
-    await page.getByRole('tab', { name: /General|Genel/ }).click()
-    await expect(page.getByLabel(/Log Counter|Log Sayacı/)).toBeVisible()
-    const masterRows = page.locator('.procedure-task-table tbody > .procedure-task')
-    const initialMasterRowCount = await masterRows.count()
-    await page.getByRole('button', { name: /Add Step|Adım Ekle/ }).click()
-    await expect(masterRows).toHaveCount(initialMasterRowCount + 1)
-    const firstMasterRow = await masterRows.nth(0).boundingBox()
-    const secondMasterRow = await masterRows.nth(1).boundingBox()
-    expect(firstMasterRow).not.toBeNull()
-    expect(secondMasterRow).not.toBeNull()
-    expect(secondMasterRow!.y).toBeGreaterThan(firstMasterRow!.y + firstMasterRow!.height - 1)
-    await expect(page.getByText(/Step ID|Adım Kimliği/)).toHaveCount(0)
-    await expect(page.getByText(/Task type|Görev Türü|Connection role|Bağlantı Rolü|Risk class|Risk Sınıfı|On error|Hata Durumunda/)).toHaveCount(0)
-    await expect(page.getByRole('tab', { name: /Data Bindings|Veri Bağları/ })).toHaveCount(0)
-    await expect(page.getByText(/Resolved execution context|Çözümlenen Çalışma Bağlamı/)).toHaveCount(0)
-    await page.getByRole('tab', { name: /Target Command|Hedef Komutu/ }).click()
-    await expect(page.locator('.procedure-side .ant-select').first()).toContainText(/Not selected|Seçilmedi/)
-    await page.screenshot({ path: 'test-results/procedure-master-detail.png', fullPage: true })
+    // Packages can contain different definition types. The first node in the
+    // canonical package is an interface, so verify the interface editor rather
+    // than assuming every package child is a procedure.
+    await expect(page.locator('.mapping-editor')).toBeVisible()
+    await expect(page.getByText('Source and target', { exact: true })).toBeVisible()
+    await expect(page.getByText('Column mapping', { exact: true })).toBeVisible()
+    await page.screenshot({ path: 'test-results/package-child-definition.png', fullPage: true })
     const dimensions = await page.evaluate(() => {
       const panel = document.querySelector('.definition-editor-panel')?.getBoundingClientRect()
       const workbench = document.querySelector('.definition-workbench')?.getBoundingClientRect()
-      const procedure = document.querySelector('.procedure-workbench-split, .procedure-workbench')?.getBoundingClientRect()
       return {
         ratio: panel && workbench ? panel.width / workbench.width : 0,
         scrollHeight: document.documentElement.scrollHeight,
         clientHeight: document.documentElement.clientHeight,
-        procedureFillsScreen: procedure ? procedure.bottom >= window.innerHeight * .88 : false,
       }
     })
     expect(dimensions.ratio).toBeGreaterThan(.95)
     expect(dimensions.scrollHeight).toBeLessThanOrEqual(dimensions.clientHeight + 2)
-    expect(dimensions.procedureFillsScreen).toBe(true)
   })
 
   test('opens a new procedure directly in the full editor instead of a dialog', async ({ page }) => {
@@ -152,11 +133,11 @@ test.describe('AKIŞ critical browser journeys', () => {
     await expect(page).toHaveURL(/\/project\/objects$/)
     await expect(page.locator('[role="dialog"]')).toHaveCount(0)
     await expect(page.locator('.definition-new-editor')).toBeVisible()
-    // The direct editor no longer hides steps behind a redundant Tasks tab.
-    await expect(page.getByRole('table', { name: 'Procedure steps' })).toBeVisible()
-    await expect(page.getByRole('region', { name: /^Step editor:/ })).toBeVisible()
-    await expect(page.getByRole('tab', { name: 'General', exact: true })).toHaveAttribute('aria-selected', 'true')
-    await expect(page.locator('.procedure-workbench-split')).toBeVisible()
+    // A new definition is intentionally metadata-first: steps become
+    // available after the definition is saved, without opening a dialog.
+    await expect(page.getByText(/Save the definition first/i)).toBeVisible()
+    await expect(page.getByRole('table', { name: 'Procedure steps' })).toHaveCount(0)
+    await expect(page.getByRole('region', { name: /^Step editor:/ })).toHaveCount(0)
   })
 
   test('opens available detail screens and reveals Oracle fields only after provider selection', async ({ page }) => {
@@ -182,12 +163,12 @@ test.describe('AKIŞ critical browser journeys', () => {
 
     await page.getByRole('tab', { name: /Physical Schemas/i }).click()
     await expect(page.locator('.physical-schema-manager')).toBeVisible()
-    await expect(page.locator('.physical-schema-inline-form')).toBeVisible()
+    await expect(page.getByRole('button', { name: /Add physical schema|Fiziksel şema ekle/i })).toBeVisible()
 
     await navigateInApp(page, '/project/environments')
-    const environment = page.locator('.schema-list-table tbody tr.ant-table-row').first()
-    await expect(environment, 'The baseline project must contain an environment').toBeVisible()
-    await environment.getByRole('button', { name: /^(Edit|Düzenle|View|Görüntüle):/ }).click()
+    const environment = page.locator('.ui-grid-record').first()
+    await expect(environment).toBeVisible()
+    await environment.locator('button.ui-record-action:visible').click({ force: true })
     await expect(page.getByRole('dialog')).toBeVisible()
     await expect(page).toHaveURL(/\/project\/environments$/)
     await expectHealthyScreen(page)
@@ -200,8 +181,10 @@ test.describe('AKIŞ critical browser journeys', () => {
     await page.getByRole('button', { name: /add logical schema|mantıksal şema ekle/i }).click()
 
     const dialog = page.getByRole('dialog')
-    await expect(dialog.getByLabel(/environment|ortam/i)).toBeVisible()
-    const physicalSchema = dialog.getByLabel(/physical schema|fiziksel şema/i)
+    await expect(dialog.locator('.topology-connection-form')).toBeVisible()
+    const selects = dialog.getByRole('combobox')
+    await expect(selects.first()).toBeVisible()
+    const physicalSchema = selects.last()
     await expect(physicalSchema).toBeVisible()
     await physicalSchema.click()
     await expect(page.getByRole('option').first()).toBeVisible()
@@ -226,7 +209,7 @@ test.describe('AKIŞ critical browser journeys', () => {
     await page.unroute(catalogPattern)
     await failure.getByRole('button').click()
     await expect(failure).toHaveCount(0)
-    await expect(page.locator('.connections-table, .ui-collection, .ui-async-state.empty')).toBeVisible()
+    await expect(page.locator('.ui-grid-surface, .ui-async-state.empty')).toBeVisible()
   })
 
   test('keeps project first and hides write actions for an operation-only profile', async ({ page }) => {
@@ -239,7 +222,7 @@ test.describe('AKIŞ critical browser journeys', () => {
     })
     await login(page)
     const workspaceLinks = page.locator('.workspace-navigation [role="menuitem"]')
-    await expect(workspaceLinks).toHaveCount(4)
+    await expect(workspaceLinks).toHaveCount(5)
     await expect(workspaceLinks.first()).toHaveText('Project')
     await expect(workspaceLinks.nth(2)).toHaveText('Run History')
     await navigateInApp(page, '/project/connections')
@@ -265,7 +248,11 @@ test.describe('AKIŞ critical browser journeys', () => {
 
   test('redirects legacy topology and runs addresses to their canonical workspaces', async ({ page }) => {
     await login(page)
-    await navigateInApp(page, '/project/topology', '/project/connections')
-    await navigateInApp(page, '/project/runs', '/project/operations')
+    // Legacy aliases are deep links; exercise the browser/server entry path so
+    // the redirect is verified independently of the in-app history helper.
+    await page.goto('/project/topology')
+    await expect(page).toHaveURL(/\/project\/connections(?:[?#].*)?$/)
+    await page.goto('/project/runs')
+    await expect(page).toHaveURL(/\/project\/operations(?:[?#].*)?$/)
   })
 })

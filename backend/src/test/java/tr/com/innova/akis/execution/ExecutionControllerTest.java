@@ -28,6 +28,7 @@ import tr.com.innova.akis.execution.ExecutionModels.RunSummaryPage;
 import tr.com.innova.akis.execution.ExecutionModels.RunStepRow;
 import tr.com.innova.akis.execution.ExecutionModels.StartResult;
 import tr.com.innova.akis.security.AuthorizationService;
+import tr.com.innova.akis.security.ApplicationUserPrincipal;
 
 class ExecutionControllerTest {
 
@@ -39,7 +40,8 @@ class ExecutionControllerTest {
     void authenticate() {
         SecurityContextHolder.getContext().setAuthentication(
                 UsernamePasswordAuthenticationToken.authenticated(
-                        "runner", "ignored", List.of()));
+                        new ApplicationUserPrincipal(1L, UUID.randomUUID(), "runner", "Runner", "{noop}ignored", true),
+                        null, List.of()));
     }
 
     @AfterEach
@@ -178,7 +180,7 @@ class ExecutionControllerTest {
     private static final class ActorOnlyStore implements ExecutionStore {
 
         @Override
-        public Optional<Actor> findActiveActor(String provider, String subject) {
+        public Optional<Actor> findActiveActor(long userId) {
             return Optional.of(new Actor(1, UUID.randomUUID(), "Runner"));
         }
 

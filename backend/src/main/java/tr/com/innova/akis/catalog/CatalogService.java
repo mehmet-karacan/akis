@@ -25,7 +25,7 @@ public class CatalogService {
     private static final Pattern CODE = Pattern.compile("[A-Z][A-Z0-9_]{0,99}");
     private static final Pattern FORBIDDEN_QUERY_TOKEN = Pattern.compile(
             "(?i)\\b(INSERT|UPDATE|DELETE|MERGE|DROP|ALTER|TRUNCATE|GRANT|REVOKE|CALL|BEGIN|DECLARE|EXECUTE)\\b");
-    private static final Set<String> DATA_OBJECT_TYPES = Set.of("TABLO", "VIEW", "SORGU");
+    private static final Set<String> DATA_OBJECT_TYPES = Set.of("TABLO", "VIEW", "SORGU", "MATERIALIZED_VIEW", "SYNONYM");
 
     private final CatalogRepository repository;
 
@@ -160,7 +160,7 @@ public class CatalogService {
             submodelId = submodel.id();
         }
 
-        String normalizedType = allowed(type, DATA_OBJECT_TYPES, "veri nesnesi türü");
+        String normalizedType = databaseDataObjectType(allowed(type, DATA_OBJECT_TYPES, "veri nesnesi türü"));
         validateQueryDefinition(normalizedType, querySchemaVersion, queryDefinition);
         return repository.createDataObject(
                 project.id(), model.id(), submodelId, UUID.randomUUID(), normalizeCode(code),
@@ -350,6 +350,10 @@ public class CatalogService {
 
     private String defaultValue(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private static String databaseDataObjectType(String type) {
+        return "VIEW".equals(type) ? "GORUNUM" : type;
     }
 
     private ApiException notFound(String message) {

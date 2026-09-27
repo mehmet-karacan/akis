@@ -7,20 +7,21 @@ for (const theme of ['light', 'dark']) for (const language of ['en', 'tr']) {
       localStorage.setItem('akis.theme', mode)
       localStorage.setItem('akis.language', locale)
       localStorage.setItem('akis.lastProjectUuid', 'fixture')
-      sessionStorage.setItem('akis.localSession', JSON.stringify({ username: 'Fixture User', authorization: 'Basic Zml4dHVyZTpmaXh0dXJl' }))
     }, { mode: theme, locale: language })
     await page.route(/\/api\/v\d+\//, async route => {
       expect(route.request().method()).toBe('GET')
       const path = new URL(route.request().url()).pathname
       let json: unknown = []
+      if (path === '/api/v1/auth/me') json = { id: 1, uuid: 'fixture-user', kullaniciKodu: 'fixture', gorunenAd: 'Fixture User' }
+      if (path === '/api/v1/auth/csrf') json = { token: 'fixture-csrf', headerName: 'X-XSRF-TOKEN', parameterName: '_csrf' }
       if (path === '/api/v1/projects/fixture') json = { uuid: 'fixture', name: 'Fixture Project', code: 'FIXTURE', status: 'AKTIF', version: 1 }
       if (path.endsWith('/access')) json = { roles: [], permissions: ['BAGLANTI_YONET', 'KATALOG_GORUNTULE'] }
       await route.fulfill({ json })
     })
     await page.setViewportSize({ width: 1366, height: 900 })
     await page.goto('/project/connections')
-    const fields = page.locator('.connection-management-panel .ui-filter-bar > label')
-    await expect(fields).toHaveCount(3)
+    const fields = page.locator('.connection-management-panel .ui-query-fields > label')
+    await expect(fields).toHaveCount(1)
     for (const width of [1366, 768, 390]) {
       await page.setViewportSize({ width, height: 900 })
       const rectangles = await fields.evaluateAll(labels => labels.map(label => {

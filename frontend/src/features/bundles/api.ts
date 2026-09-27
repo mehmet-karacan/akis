@@ -1,8 +1,11 @@
 import { apiRequest, jsonBody } from '../../core/api/client'
 import type {
   ConflictPolicy,
+  GlobalBinding,
   ImportResult,
   ProjectBundleDocument,
+  TargetImportPlan,
+  TargetImportResult,
   ValidationReport,
 } from './types'
 
@@ -26,5 +29,39 @@ export const bundleApi = {
       method: 'POST',
       ...jsonBody(document),
     })
+  },
+
+  planTargetImport(
+    targetProjectUuid: string,
+    document: ProjectBundleDocument,
+    globalBindings: GlobalBinding[],
+  ) {
+    return apiRequest<TargetImportPlan>(
+      `/api/v1/projects/${encodeURIComponent(targetProjectUuid)}/bundle/plan`,
+      {
+        method: 'POST',
+        ...jsonBody({ bundle: document, globalBindings }),
+      },
+    )
+  },
+
+  importIntoTarget(
+    targetProjectUuid: string,
+    payload: {
+      bundle: ProjectBundleDocument
+      globalBindings: GlobalBinding[]
+      planDigest: string
+      targetVersion: number
+    },
+    idempotencyKey: string,
+  ) {
+    return apiRequest<TargetImportResult>(
+      `/api/v1/projects/${encodeURIComponent(targetProjectUuid)}/bundle/import`,
+      {
+        method: 'POST',
+        headers: { 'Idempotency-Key': idempotencyKey },
+        ...jsonBody(payload),
+      },
+    )
   },
 }

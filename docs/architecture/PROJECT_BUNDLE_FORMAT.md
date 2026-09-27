@@ -1,4 +1,12 @@
-# Akış portable proje bundle formatı v2
+# Akış portable proje bundle formatı v2 (eski sözleşme)
+
+> Bu belge yalnız v2 uyumluluk biçimini açıklar. Güncel backend varsayılanı
+> `formatVersion: 3` üretir; v3 yapısal şeması
+> [`project-bundle-v3.schema.json`](../schemas/project-bundle-v3.schema.json)
+> dosyasındadır. Aşağıdaki v2 import/export örnekleri, hedefli v3
+> `plan`/`import` akışının veya proje-yayın-zamanlama tarifi kapsamının
+> tamamlandığını kanıtlamaz. Yeni entegrasyonlarda v2 kurallarını v3'e
+> genellemeyin.
 
 ## Kapsam
 

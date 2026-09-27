@@ -11,6 +11,7 @@ import java.util.regex.Pattern;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
+import tr.com.innova.akis.oracle.OracleDiscoveryModels;
 import tr.com.innova.akis.oracle.OracleSchemaSnapshotCodecException;
 import tr.com.innova.akis.oracle.OracleSchemaSnapshotCodecV1.Column;
 import tr.com.innova.akis.oracle.OracleSchemaSnapshotCodecV1.Constraint;
@@ -34,6 +35,11 @@ public final class PostgresSchemaSnapshotCodecV1 {
     public static final int DETAIL_VERSION = 1;
     static final String CODEC = "POSTGRESQL_SCHEMA_V1";
     private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_$]{0,62}");
+    private static final Set<String> SUPPORTED_OBJECT_TYPES = Set.of(
+            OracleDiscoveryModels.TABLE,
+            OracleDiscoveryModels.PARTITIONED_TABLE,
+            OracleDiscoveryModels.VIEW,
+            OracleDiscoveryModels.MATERIALIZED_VIEW);
     private static final Pattern NUMERIC = Pattern.compile("numeric\\((\\d+),(\\d+)\\)");
     private static final Pattern VARCHAR = Pattern.compile("character varying\\((\\d+)\\)");
     private static final Pattern CHAR = Pattern.compile("character\\((\\d+)\\)");
@@ -67,13 +73,21 @@ public final class PostgresSchemaSnapshotCodecV1 {
     }
 
     public SnapshotDefinition decode(String schema, String tableName, List<RawColumn> rawColumns, List<RawConstraint> rawConstraints) {
+        return decode(schema, tableName, OracleDiscoveryModels.TABLE, rawColumns, rawConstraints);
+    }
+
+    public SnapshotDefinition decode(String schema, String tableName, String objectType, List<RawColumn> rawColumns, List<RawConstraint> rawConstraints) {
         String normalizedSchema = identifier(schema, "schema");
         String normalizedTable = identifier(tableName, "table name");
+        String normalizedType = objectType == null ? OracleDiscoveryModels.TABLE : objectType.strip().toUpperCase(Locale.ROOT);
+        if (!SUPPORTED_OBJECT_TYPES.contains(normalizedType)) {
+            throw failure("Unsupported PostgreSQL object type for snapshot: " + normalizedType + ".");
+        }
         List<Column> columns = columns(rawColumns);
         List<Constraint> constraints = constraints(rawConstraints, columns);
         ObjectNode properties = objectMapper.createObjectNode();
         properties.put("codec", CODEC);
-        properties.put("objectType", "TABLE");
+        properties.put("objectType", normalizedType);
         properties.put("owner", normalizedSchema);
         properties.put("table", normalizedTable);
         return new SnapshotDefinition(ENGINE_VERSION, PROPERTY_VERSION, properties, columns, constraints);
@@ -203,6 +217,13 @@ public final class PostgresSchemaSnapshotCodecV1 {
 
     private String identifier(String value, String field) {
         String normalized = required(value, field);
+        if (normalized.length() >= 2 && normalized.startsWith("\"") && normalized.endsWith("\"")) {
+            String inner = normalized.substring(1, normalized.length() - 1);
+            if (inner.isEmpty() || inner.indexOf('"') >= 0) {
+                throw failure("Invalid quoted PostgreSQL " + field + ".");
+            }
+            return inner;
+        }
         if (!IDENTIFIER.matcher(normalized).matches()) throw failure("Invalid PostgreSQL " + field + ".");
         return normalized;
     }

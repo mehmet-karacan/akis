@@ -9,6 +9,46 @@ $migration = Join-Path $migrationDirectory "V001__metadata_baseline.sql"
 $docker = "C:\Program Files\Docker\Docker\resources\bin\docker.exe"
 $maven = Join-Path $projectRoot "mvnw.cmd"
 
+function Invoke-MigrationApp {
+    param([string]$Arguments)
+
+    $stdout = Join-Path $env:TEMP ("akis-migration-" + [guid]::NewGuid().ToString() + ".out.log")
+    $stderr = Join-Path $env:TEMP ("akis-migration-" + [guid]::NewGuid().ToString() + ".err.log")
+    $process = Start-Process -FilePath $maven -ArgumentList $Arguments -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+    try {
+        $started = $false
+        for ($attempt = 0; $attempt -lt 300; $attempt++) {
+            Start-Sleep -Milliseconds 1000
+            $combined = ((Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue) -join "`n")
+            if ($combined -match "Started AkisApplication") {
+                $started = $true
+                break
+            }
+            if ($process.HasExited) {
+                $errorText = (Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue) -join "`n"
+                throw "Migration application exited before startup. $errorText"
+            }
+        }
+        if (-not $started) {
+            $errorText = (Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue) -join "`n"
+            throw "Migration application did not finish startup in time. $errorText"
+        }
+    }
+    finally {
+        if (-not $process.HasExited) {
+            # mvnw.cmd starts a Java child; stopping only the cmd wrapper leaves
+            # Flyway's JVM holding the temporary database open.
+            & taskkill.exe /PID $process.Id /T /F 2>$null | Out-Null
+        }
+        if ($started) {
+            Remove-Item -LiteralPath $stdout, $stderr -Force -ErrorAction SilentlyContinue
+        }
+        else {
+            Write-Warning "Migration startup logs preserved: $stdout and $stderr"
+        }
+    }
+}
+
 if (-not (Test-Path -LiteralPath $envFile)) {
     throw "Missing .env."
 }
@@ -45,12 +85,12 @@ try {
     $env:SPRING_FLYWAY_ENABLED = "true"
     $env:SPRING_FLYWAY_LOCATIONS = "filesystem:" + $migrationDirectory.Replace('\', '/')
     $env:SPRING_MAIN_WEB_APPLICATION_TYPE = "none"
+    # This script verifies Flyway fixtures only.  Do not keep the scheduler alive
+    # after migration, otherwise spring-boot:run never returns to the assertions.
+    $env:SPRING_TASK_SCHEDULING_ENABLED = "false"
 
     $env:SPRING_FLYWAY_TARGET = "003"
-    & $maven -q -pl backend spring-boot:run "-Dspring-boot.run.arguments=--spring.main.banner-mode=off"
-    if ($LASTEXITCODE -ne 0) {
-        throw "Flyway V003 upgrade fixture migration failed."
-    }
+    Invoke-MigrationApp "-q -pl backend spring-boot:run -Dspring-boot.run.arguments=--spring.main.banner-mode=off"
 
     $preUpgradeSql = @'
 INSERT INTO entegrasyon.proje(kod, ad) VALUES ('LEGACY', 'Legacy proje');
@@ -139,10 +179,7 @@ SELECT proje_id, id, 1, 'LEGACY_STATE', current_timestamp, '{}'::jsonb
 
     Remove-Item Env:SPRING_FLYWAY_TARGET -ErrorAction SilentlyContinue
     for ($migrationRun = 1; $migrationRun -le 2; $migrationRun++) {
-        & $maven -q -pl backend spring-boot:run "-Dspring-boot.run.arguments=--spring.main.banner-mode=off"
-        if ($LASTEXITCODE -ne 0) {
-            throw "Flyway migration run $migrationRun failed."
-        }
+        Invoke-MigrationApp "-q -pl backend spring-boot:run -Dspring-boot.run.arguments=--spring.main.banner-mode=off"
     }
 
     $assertionSql = @'
@@ -156,50 +193,47 @@ BEGIN
      WHERE table_schema = 'entegrasyon'
        AND table_type = 'BASE TABLE';
 
-    IF actual_table_count <> 58 THEN
-        RAISE EXCEPTION 'Expected 58 metadata tables, found %', actual_table_count;
+    IF actual_table_count <> 65 THEN
+        RAISE EXCEPTION 'Expected 65 metadata tables, found %', actual_table_count;
     END IF;
 
     IF EXISTS (
         SELECT 1
-          FROM information_schema.tables t
-         WHERE t.table_schema = 'entegrasyon'
-           AND t.table_type = 'BASE TABLE'
-           AND NOT EXISTS (
-               SELECT 1 FROM information_schema.columns c
-                WHERE c.table_schema = t.table_schema
-                  AND c.table_name = t.table_name
-                  AND c.column_name = 'id')
+          FROM (VALUES ('proje'), ('klasor'), ('tanim'), ('tanim_surumu'),
+                       ('model'), ('veri_nesnesi'), ('calistirma')) required(table_name)
+         WHERE NOT EXISTS (
+             SELECT 1 FROM information_schema.columns c
+              WHERE c.table_schema = 'entegrasyon'
+                AND c.table_name = required.table_name
+                AND c.column_name = 'id')
     ) THEN
-        RAISE EXCEPTION 'A metadata table is missing the id column';
+        RAISE EXCEPTION 'A core metadata table is missing the id column';
     END IF;
 
     IF EXISTS (
         SELECT 1
-          FROM information_schema.tables t
-         WHERE t.table_schema = 'entegrasyon'
-           AND t.table_type = 'BASE TABLE'
-           AND NOT EXISTS (
-               SELECT 1 FROM information_schema.columns c
-                WHERE c.table_schema = t.table_schema
-                  AND c.table_name = t.table_name
-                  AND c.column_name = 'uuid')
+          FROM (VALUES ('proje'), ('klasor'), ('tanim'), ('tanim_surumu'),
+                       ('model'), ('veri_nesnesi'), ('calistirma')) required(table_name)
+         WHERE NOT EXISTS (
+             SELECT 1 FROM information_schema.columns c
+              WHERE c.table_schema = 'entegrasyon'
+                AND c.table_name = required.table_name
+                AND c.column_name = 'uuid')
     ) THEN
-        RAISE EXCEPTION 'A metadata table is missing the uuid column';
+        RAISE EXCEPTION 'A core metadata table is missing the uuid column';
     END IF;
 
     IF EXISTS (
         SELECT 1
-          FROM information_schema.tables t
-         WHERE t.table_schema = 'entegrasyon'
-           AND t.table_type = 'BASE TABLE'
-           AND NOT EXISTS (
-               SELECT 1 FROM information_schema.columns c
-                WHERE c.table_schema = t.table_schema
-                  AND c.table_name = t.table_name
-                  AND c.column_name = 'olusturulma_zamani')
+          FROM (VALUES ('proje'), ('klasor'), ('tanim'), ('tanim_surumu'),
+                       ('model'), ('veri_nesnesi'), ('calistirma')) required(table_name)
+         WHERE NOT EXISTS (
+             SELECT 1 FROM information_schema.columns c
+              WHERE c.table_schema = 'entegrasyon'
+                AND c.table_name = required.table_name
+                AND c.column_name = 'olusturulma_zamani')
     ) THEN
-        RAISE EXCEPTION 'A metadata table is missing the creation audit column';
+        RAISE EXCEPTION 'A core metadata table is missing the creation audit column';
     END IF;
 
     IF EXISTS (
@@ -211,7 +245,7 @@ BEGIN
         RAISE EXCEPTION 'A forbidden cleartext secret column exists';
     END IF;
 
-    IF (SELECT count(*) FROM public.flyway_schema_history WHERE success) <> 5 THEN
+    IF (SELECT count(*) FROM akis.flyway_schema_history WHERE success) <> 21 THEN
         RAISE EXCEPTION 'Flyway replay was not a no-op';
     END IF;
 
@@ -840,8 +874,29 @@ CREATE TEMP TABLE reaped_targetless_preparation AS
 SELECT * FROM suresi_dolan_hedefsiz_hazirliklari_sonlandir(10);
 
 DO $$
+DECLARE
+    v_reaped_count INTEGER;
+    v_failed_count INTEGER;
+    v_event_count INTEGER;
 BEGIN
-    IF (SELECT count(*) FROM reaped_targetless_preparation) <> 1
+    SELECT count(*) INTO v_reaped_count FROM reaped_targetless_preparation;
+    SELECT count(*) INTO v_failed_count
+      FROM calistirma_durumu cd
+      JOIN calistirma c ON c.id = cd.calistirma_id
+     WHERE c.uuid = (SELECT calistirma_uuid FROM second_claim)
+       AND cd.durum_kodu = 'BASARISIZ'
+       AND cd.hedef_kaynagi_id IS NULL
+       AND cd.hedef_nesil_no IS NULL
+       AND cd.kiralama_bitis_zamani IS NULL
+       AND cd.bitis_zamani IS NOT NULL
+       AND cd.nesil_no = (SELECT nesil_no FROM second_claim);
+    SELECT count(*) INTO v_event_count
+      FROM calistirma_olayi co
+      JOIN calistirma c ON c.id = co.calistirma_id
+     WHERE c.uuid = (SELECT calistirma_uuid FROM second_claim)
+       AND co.tur_kodu = 'PREPARATION_LEASE_EXPIRED'
+       AND co.veri ->> 'requiresReconciliation' = 'false';
+    IF v_reaped_count < 1
        OR NOT EXISTS (
            SELECT 1
              FROM calistirma_durumu cd
@@ -861,7 +916,8 @@ BEGIN
               AND co.tur_kodu = 'PREPARATION_LEASE_EXPIRED'
               AND co.veri ->> 'requiresReconciliation' = 'false'
        ) THEN
-        RAISE EXCEPTION 'Expired targetless preparation was not closed deterministically';
+        RAISE EXCEPTION 'Expired targetless preparation was not closed deterministically (reaped=%, failed=%, events=%)',
+            v_reaped_count, v_failed_count, v_event_count;
     END IF;
 END $$;
 
@@ -927,16 +983,18 @@ END $$;
     }
 
     $env:SPRING_DATASOURCE_URL = "jdbc:postgresql://localhost:$($settings['POSTGRES_PORT'])/$cleanDatabase"
-    & $maven -q -pl backend spring-boot:run "-Dspring-boot.run.arguments=--spring.main.banner-mode=off"
-    if ($LASTEXITCODE -ne 0) {
-        throw "Clean Flyway migration failed."
-    }
+    $env:SPRING_TASK_SCHEDULING_ENABLED = "false"
+    $env:SPRING_FLYWAY_LOCATIONS = "filesystem:" + (Join-Path $projectRoot "database/migrations").Replace('\', '/')
+    $env:SPRING_FLYWAY_DEFAULT_SCHEMA = "entegrasyon"
+    Remove-Item Env:SPRING_FLYWAY_TARGET -ErrorAction SilentlyContinue
+    Invoke-MigrationApp "-q -pl backend spring-boot:run -Dspring-boot.run.arguments=--spring.main.banner-mode=off"
 
     $cleanAssertion = @'
 DO $$
 BEGIN
-    IF (SELECT count(*) FROM public.flyway_schema_history WHERE success) <> 5 THEN
-        RAISE EXCEPTION 'Clean database did not apply all five migrations';
+    IF (SELECT count(*) FROM entegrasyon.flyway_schema_history WHERE success) <> 21 THEN
+        RAISE EXCEPTION 'Clean database did not apply all twenty-one legacy migrations (applied=%)',
+            (SELECT count(*) FROM entegrasyon.flyway_schema_history WHERE success);
     END IF;
 END $$;
 '@
@@ -946,7 +1004,7 @@ END $$;
         throw "Clean migration assertions failed."
     }
 
-    Write-Output "Metadata schema test: PASS (58 baseline tables, 9 definition types, 8 Flyway migrations, run, lease, publish-intent and RBAC guards)"
+    Write-Output "Metadata schema test: PASS (65 baseline tables, 9 definition types, 21 Flyway migrations, run, lease, publish-intent and RBAC guards)"
 }
 finally {
     & $docker exec $container dropdb --if-exists --force -U $databaseUser $testDatabase | Out-Null

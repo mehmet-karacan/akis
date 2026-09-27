@@ -40,7 +40,7 @@ class MetadataProjectRepositoryIT {
         String code = "PROJECT_" + uuid.toString().replace("-", "").toUpperCase();
 
         ProjectRow created = repository.createProject(
-                uuid, code, "Project Gate", "Clean schema", null, null);
+                uuid, code, "Project Gate", "Clean schema", null);
 
         assertEquals(uuid, created.uuid());
         assertEquals("AKTIF", created.status());
@@ -54,7 +54,7 @@ class MetadataProjectRepositoryIT {
         UUID uuid = UUID.randomUUID();
         String code = "ARCHIVE_" + uuid.toString().replace("-", "").toUpperCase();
         ProjectRow created = repository.createProject(
-                uuid, code, "Archived Project", null, null, null);
+                uuid, code, "Archived Project", null, null);
         jdbc.sql("update akis.proje set arsivlenme_zamani = current_timestamp where id = :id")
                 .param("id", created.id())
                 .update();
@@ -64,37 +64,30 @@ class MetadataProjectRepositoryIT {
 
     @Test
     void assignsCreatorAsProjectManagerAndWritesAuditIdentity() {
-        String provider = "https://identity.example/realms/akis";
-        String subject = "creator-" + UUID.randomUUID();
+        String userCode = "creator-" + UUID.randomUUID();
+        UUID creatorUuid = UUID.randomUUID();
         long creatorId = jdbc.sql("""
-                        insert into akis.kullanici(uuid, gorunen_ad)
-                        values (:uuid, 'Project Creator')
+                        insert into akis.kullanici(
+                            uuid, kullanici_kodu, ad, gorunen_ad, durum,
+                            parola, parola_degistirilme_zamani)
+                        values (:uuid, :userCode, 'Project', 'Project Creator', 'AKTIF',
+                                '{argon2}test', current_timestamp)
                         returning id
                         """)
-                .param("uuid", UUID.randomUUID())
+                .param("uuid", creatorUuid)
+                .param("userCode", userCode)
                 .query(Long.class)
                 .single();
-        jdbc.sql("""
-                        insert into akis.harici_kimlik(
-                            kullanici_id, saglayici_turu, yayinlayici,
-                            harici_kullanici_anahtari)
-                        values (:creatorId, 'OIDC', :provider, :subject)
-                        """)
-                .param("creatorId", creatorId)
-                .param("provider", provider)
-                .param("subject", subject)
-                .update();
         UUID projectUuid = UUID.randomUUID();
         ProjectRow project = repository.createProject(
                 projectUuid,
                 "OWNED_" + projectUuid.toString().replace("-", "").toUpperCase(),
                 "Owned Project",
                 null,
-                provider,
-                subject);
+                creatorId);
 
         var access = new AuthorizationRepository(jdbc).projectAccess(
-                new PrincipalIdentity(provider, subject, "creator"),
+                new PrincipalIdentity(creatorId, creatorUuid, userCode, "creator"),
                 projectUuid,
                 "UYE_YONET");
 

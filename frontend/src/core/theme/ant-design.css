@@ -52,7 +52,6 @@ label { color: var(--ink); }
 .ui-grid-record dl > div { min-width: 0; overflow-wrap: anywhere; }
 .ui-grid-record dt { color: var(--ink-soft); font-size: var(--font-caption); margin-bottom: 4px; }
 .ui-grid-record dd { margin: 0; }
-.ui-grid-records--list dl { grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); }
 .ui-grid-record.is-selected { border-color: var(--accent); background: var(--accent-soft); }
 body .connection-management-panel { padding: 0; }
 body .shell-content { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
@@ -131,7 +130,6 @@ body .shell-body.is-compact > .shell-navigation-pane { position: absolute; top: 
 .workspace-subnav-link.active { color: var(--accent); background: var(--accent-soft); }
 .topbar { border-bottom: 1px solid var(--line); }
 .compact-brand { color: var(--ink); }
-.compact-brand svg { color: var(--accent); }
 .compact-select { display: inline-flex; align-items: center; gap: 6px; min-width: 110px; padding: 0; border: 0; }
 .design-sidebar { background: var(--surface); border-right: 1px solid var(--line); }
 .sidebar-project-tree { color: var(--ink); }
@@ -219,7 +217,6 @@ body .shell-body.is-compact > .shell-navigation-pane { position: absolute; top: 
 .ui-record-field dt { font-size: var(--font-caption); color: var(--ink-soft); }
 .ui-record-field dd { margin: 3px 0 0; font-size: var(--font-body); font-weight: 500; overflow-wrap: anywhere; }
 .ui-record-fields { margin: 0; }
-.ui-collection--list .ui-record-fields { display: grid; grid-template-columns: repeat(auto-fit,minmax(140px,1fr)); }
 .database-provider-icon { display: grid; place-items: center; color: var(--danger); width: 32px; height: 32px; }
 .database-provider-icon--oracle { color: #d64545; }
 .database-provider-icon--postgresql { color: #336791; }
@@ -296,7 +293,6 @@ body .ant-input-affix-wrapper .ant-input-suffix { margin-inline-start: 8px; }
 .login-page { padding: 24px; gap: 0; background: var(--bg); grid-template-columns: minmax(300px, 1fr) minmax(360px, 1fr); }
 .login-page .login-story { min-height: calc(100dvh - 48px); border-radius: 12px 0 0 12px; background-color: var(--login-bg); background-image: radial-gradient(ellipse at top right, var(--login-bg-highlight), transparent 65%); background-size: cover; background-repeat: no-repeat; padding: clamp(24px, 4vw, 64px); }
 .login-page .login-story::after { display: none; }
-.login-page .login-brand svg { color: var(--login-accent); }
 .login-page .login-copy { margin: 40px 0; }
 .login-page .login-copy h1 { font-size: clamp(28px, 3.4vw, 48px); line-height: 1.15; }
 .login-page .login-copy > p:not(.eyebrow) { color: var(--login-ink-soft); }
@@ -361,7 +357,6 @@ body .ui-summary-strip { grid-template-columns: repeat(auto-fit, minmax(min(170p
 body .ui-summary-card .ant-card-body { min-height: 72px; padding: 10px 12px; }
 body .connection-record-card .ant-card-body { padding: 16px; gap: 12px; }
 body .connections-page .ui-collection--card { grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 16px; }
-body .connections-page .ui-collection--list { display: grid; gap: 12px; }
 body .connections-page .ui-record-field { display: flex; padding: 6px 0; min-height: 44px; border: 0; }
 body .connection-record-card .ui-record-field dt, body .connection-record-card .ui-record-field dd { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
 body .connection-record-card .ui-record-field-icon { float: none; margin: 0; }
@@ -420,6 +415,8 @@ body .project-entry-page { min-height: 0; align-items: stretch; }
   body .procedure-command-detail { padding: 12px; }
   body .procedure-task-editor > header { align-items: flex-start; padding: 12px; }
   body .procedure-command-tabs { padding-inline: 12px; }
+  body .procedure-command-tabs--horizontal { min-width: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+  body .procedure-command-tabs--horizontal .procedure-tab { flex: 0 0 auto; }
   body .procedure-general-properties, body .procedure-command-options { grid-template-columns: minmax(0, 1fr); }
   body .run-result-steps { grid-template-columns: minmax(0, 1fr); }
   body .run-result-steps > section { border-left: 0; border-top: 1px solid var(--line); padding: 16px 0 0; }

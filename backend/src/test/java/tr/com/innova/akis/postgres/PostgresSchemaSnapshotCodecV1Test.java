@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
 import tr.com.innova.akis.discovery.SchemaFingerprint;
 import tr.com.innova.akis.discovery.SchemaFingerprintInput;
+import tr.com.innova.akis.oracle.OracleDiscoveryModels;
 import tr.com.innova.akis.oracle.OracleSchemaSnapshotCodecException;
 import tr.com.innova.akis.oracle.OracleSchemaSnapshotCodecV1.Column;
 import tr.com.innova.akis.oracle.OracleSchemaSnapshotCodecV1.SnapshotDefinition;
@@ -92,6 +93,23 @@ class PostgresSchemaSnapshotCodecV1Test {
         assertThrows(OracleSchemaSnapshotCodecException.class, () -> codec.decode("public", "siparis",
                 List.of(new RawColumn("id", "bigint", 1, false, null)),
                 List.of(new RawConstraint("x_fkey", "f", true, false, "public", "y", "NO_ACTION", null, List.of(new RawConstraintColumn("yok", 1, "id"))))));
+    }
+
+    @Test
+    void preservesProviderNeutralObjectTypeInSnapshotProperties() {
+        SnapshotDefinition table = codec.decode("public", "musteri", OracleDiscoveryModels.TABLE,
+                List.of(new RawColumn("id", "bigint", 1, false, null)), List.of());
+        SnapshotDefinition materialized = codec.decode("public", "mv_musteri", OracleDiscoveryModels.MATERIALIZED_VIEW,
+                List.of(new RawColumn("id", "bigint", 1, false, null)), List.of());
+
+        assertEquals("TABLE", table.properties().path("objectType").asText());
+        assertEquals("MATERIALIZED_VIEW", materialized.properties().path("objectType").asText());
+        SnapshotDefinition view = codec.decode("public", "v_musteri", OracleDiscoveryModels.VIEW,
+                List.of(new RawColumn("id", "bigint", 1, false, null)), List.of());
+        assertEquals("VIEW", view.properties().path("objectType").asText());
+        assertThrows(OracleSchemaSnapshotCodecException.class, () -> codec.decode("public", "x", "FOREIGN_TABLE",
+                List.of(new RawColumn("id", "bigint", 1, false, null)), List.of()));
+
     }
 
     @Test

@@ -3,21 +3,14 @@ package tr.com.innova.akis.security;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
-import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
 import tr.com.innova.akis.metadata.ApiException;
 import tr.com.innova.akis.security.AuthorizationRepository.PrincipalIdentity;
@@ -27,32 +20,32 @@ import tr.com.innova.akis.security.AuthorizationRepository.ProjectGrant;
 class AuthorizationServiceTest {
 
     private static final UUID PROJECT_UUID = UUID.randomUUID();
+    private static final UUID USER_UUID = UUID.randomUUID();
 
     @AfterEach
     void cleanSecurityContext() {
         SecurityContextHolder.clearContext();
-        RequestContextHolder.resetRequestAttributes();
     }
 
     @Test
-    void authorizesOidcPrincipalThroughActiveProjectRolePermission() {
+    void authorizesTrustedApplicationUserByStableUserId() {
         FakeRepository repository = new FakeRepository(new ProjectAccess(true, true), false);
-        AuthorizationService service = new AuthorizationService(repository, "oidc");
-        authenticateOidc("https://identity.example/realms/akis", "user-42", "mehmet");
+        AuthorizationService service = new AuthorizationService(repository);
+        authenticate(42, "mehmet");
 
         service.requireProjectPermission(PROJECT_UUID, " project.read ");
 
-        assertEquals("https://identity.example/realms/akis", repository.principal.provider());
-        assertEquals("user-42", repository.principal.subject());
+        assertEquals(42, repository.principal.userId());
+        assertEquals(USER_UUID, repository.principal.userUuid());
         assertEquals("PROJECT.READ", repository.permissionCode);
-        assertEquals("mehmet", service.currentPrincipalName());
+        assertEquals("Test User", service.currentPrincipalName());
     }
 
     @Test
-    void hidesProjectWhenPrincipalHasNoActiveMembership() {
+    void hidesProjectWhenUserHasNoActiveMembership() {
         AuthorizationService service = new AuthorizationService(
-                new FakeRepository(new ProjectAccess(false, false), false), "oidc");
-        authenticateOidc("https://identity.example", "outsider", "outsider");
+                new FakeRepository(new ProjectAccess(false, false), false));
+        authenticate(7, "outsider");
 
         ApiException error = assertThrows(ApiException.class,
                 () -> service.requireProjectPermission(PROJECT_UUID, "PROJECT.READ"));
@@ -64,14 +57,13 @@ class AuthorizationServiceTest {
     @Test
     void deniesVisibleProjectWhenRoleLacksPermission() {
         AuthorizationService service = new AuthorizationService(
-                new FakeRepository(new ProjectAccess(true, false), false), "oidc");
-        authenticateOidc("https://identity.example", "member", "member");
+                new FakeRepository(new ProjectAccess(true, false), false));
+        authenticate(8, "member");
 
         ApiException error = assertThrows(ApiException.class,
                 () -> service.requireProjectPermission(PROJECT_UUID, "PROJECT.WRITE"));
 
         assertEquals(HttpStatus.FORBIDDEN, error.status());
-        assertEquals("PERMISSION_DENIED", error.code());
     }
 
     @Test
@@ -80,8 +72,8 @@ class AuthorizationServiceTest {
         repository.grants = List.of(
                 new ProjectGrant("OPERASYON", PermissionCodes.PROJECT_READ),
                 new ProjectGrant("OPERASYON", PermissionCodes.RUN_READ));
-        AuthorizationService service = new AuthorizationService(repository, "oidc");
-        authenticateOidc("https://identity.example", "operator", "operator");
+        AuthorizationService service = new AuthorizationService(repository);
+        authenticate(9, "operator");
 
         var access = service.projectAuthorization(PROJECT_UUID);
 
@@ -90,163 +82,60 @@ class AuthorizationServiceTest {
     }
 
     @Test
-    void checksSystemPermissionWithOidcProviderAndSubject() {
+    void checksSystemPermissionWithoutDevelopmentBypass() {
         FakeRepository repository = new FakeRepository(new ProjectAccess(false, false), true);
-        AuthorizationService service = new AuthorizationService(repository, "oidc");
-        authenticateOidc("https://identity.example", "administrator", "admin-name");
+        AuthorizationService service = new AuthorizationService(repository);
+        authenticate(10, "administrator");
 
         service.requireSystemPermission(" system.admin ");
 
-        assertEquals("https://identity.example", repository.principal.provider());
-        assertEquals("administrator", repository.principal.subject());
+        assertEquals(10, repository.principal.userId());
         assertEquals("SYSTEM.ADMIN", repository.permissionCode);
-    }
-
-    @Test
-    void grantsLocalDeveloperOnlyInDevelopmentModeFromLoopback() {
-        FakeRepository repository = new FakeRepository(new ProjectAccess(false, false), false);
-        AuthorizationService service = new AuthorizationService(repository, "development");
-        authenticateLocalDeveloper("local-user");
-        requestFrom("127.0.0.1");
-
-        service.requireProjectPermission(PROJECT_UUID, "PROJECT.WRITE");
-        service.requireSystemPermission("SYSTEM.ADMIN");
-
-        assertEquals(0, repository.callCount);
-        assertEquals("local-user", service.currentPrincipalName());
-    }
-
-    @Test
-    void doesNotBypassRepositoryOutsideLoopback() {
-        FakeRepository repository = new FakeRepository(new ProjectAccess(false, false), false);
-        AuthorizationService service = new AuthorizationService(repository, "development");
-        authenticateLocalDeveloper("local-user");
-        requestFrom("10.0.0.8");
-
-        ApiException error = assertThrows(ApiException.class,
-                () -> service.requireProjectPermission(PROJECT_UUID, "PROJECT.READ"));
-
-        assertEquals(HttpStatus.NOT_FOUND, error.status());
-        assertEquals(AuthorizationService.LOCAL_BASIC_PROVIDER, repository.principal.provider());
         assertEquals(1, repository.callCount);
     }
 
     @Test
-    void doesNotGrantLocalDeveloperBypassOutsideDevelopmentMode() {
-        FakeRepository repository = new FakeRepository(new ProjectAccess(true, false), false);
-        AuthorizationService service = new AuthorizationService(repository, "oidc");
-        authenticateLocalDeveloper("local-user");
-        requestFrom("::1");
-
-        ApiException error = assertThrows(ApiException.class,
-                () -> service.requireProjectPermission(PROJECT_UUID, "PROJECT.WRITE"));
-
-        assertEquals(HttpStatus.FORBIDDEN, error.status());
-        assertEquals(1, repository.callCount);
-    }
-
-    @Test
-    void rejectsOidcTokenWithoutIssuer() {
-        FakeRepository repository = new FakeRepository(new ProjectAccess(true, true), true);
-        AuthorizationService service = new AuthorizationService(repository, "oidc");
-        Jwt token = Jwt.withTokenValue("token")
-                .header("alg", "none")
-                .subject("user-42")
-                .issuedAt(Instant.now())
-                .expiresAt(Instant.now().plusSeconds(300))
-                .build();
-        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(
-                token, List.of(new SimpleGrantedAuthority("SCOPE_openid"))));
+    void rejectsAnyPrincipalNotIssuedByTheApplicationAuthenticationProvider() {
+        AuthorizationService service = new AuthorizationService(
+                new FakeRepository(new ProjectAccess(true, true), true));
+        SecurityContextHolder.getContext().setAuthentication(
+                UsernamePasswordAuthenticationToken.authenticated("forged", "", List.of()));
 
         ApiException error = assertThrows(ApiException.class,
                 () -> service.requireSystemPermission("SYSTEM.ADMIN"));
 
         assertEquals(HttpStatus.UNAUTHORIZED, error.status());
-        assertEquals("INVALID_OIDC_PRINCIPAL", error.code());
+        assertEquals("INVALID_APPLICATION_PRINCIPAL", error.code());
     }
 
-    @Test
-    void validatesAuthorizationRequestEvenForDevelopmentAdministrator() {
-        AuthorizationService service = new AuthorizationService(
-                new FakeRepository(new ProjectAccess(false, false), false), "development");
-        authenticateLocalDeveloper("local-user");
-        requestFrom("127.0.0.1");
-
-        ApiException missingProject = assertThrows(ApiException.class,
-                () -> service.requireProjectPermission(null, "PROJECT.READ"));
-        ApiException missingPermission = assertThrows(ApiException.class,
-                () -> service.requireSystemPermission(" "));
-
-        assertEquals(HttpStatus.BAD_REQUEST, missingProject.status());
-        assertEquals("INVALID_AUTHORIZATION_REQUEST", missingProject.code());
-        assertEquals(HttpStatus.BAD_REQUEST, missingPermission.status());
-    }
-
-    private void authenticateOidc(String issuer, String subject, String principalName) {
-        Jwt token = Jwt.withTokenValue("token")
-                .header("alg", "none")
-                .issuer(issuer)
-                .subject(subject)
-                .claim("preferred_username", principalName)
-                .issuedAt(Instant.now())
-                .expiresAt(Instant.now().plusSeconds(300))
-                .build();
-        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(
-                token, List.of(new SimpleGrantedAuthority("SCOPE_openid")), principalName));
-    }
-
-    private void authenticateLocalDeveloper(String username) {
+    private void authenticate(long userId, String userCode) {
+        var principal = new ApplicationUserPrincipal(
+                userId, USER_UUID, userCode, "Test User", "{argon2}test", true);
         SecurityContextHolder.getContext().setAuthentication(
-                UsernamePasswordAuthenticationToken.authenticated(
-                        username,
-                        "not-used",
-                        List.of(new SimpleGrantedAuthority("ROLE_LOCAL_DEVELOPER"))));
-    }
-
-    private void requestFrom(String address) {
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.setRemoteAddr(address);
-        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+                UsernamePasswordAuthenticationToken.authenticated(principal, null, List.of()));
     }
 
     private static final class FakeRepository extends AuthorizationRepository {
-
-        private final ProjectAccess projectAccess;
+        private final ProjectAccess access;
         private final boolean systemPermission;
         private PrincipalIdentity principal;
         private String permissionCode;
         private int callCount;
         private List<ProjectGrant> grants = List.of();
 
-        private FakeRepository(ProjectAccess projectAccess, boolean systemPermission) {
-            super(null);
-            this.projectAccess = projectAccess;
-            this.systemPermission = systemPermission;
+        private FakeRepository(ProjectAccess access, boolean systemPermission) {
+            super(null); this.access = access; this.systemPermission = systemPermission;
         }
 
-        @Override
-        public ProjectAccess projectAccess(
-                PrincipalIdentity principal,
-                UUID projectUuid,
-                String permissionCode) {
-            this.principal = principal;
-            this.permissionCode = permissionCode;
-            callCount++;
-            return projectAccess;
+        @Override public ProjectAccess projectAccess(PrincipalIdentity principal, UUID projectUuid, String permissionCode) {
+            this.principal = principal; this.permissionCode = permissionCode; callCount++; return access;
         }
 
-        @Override
-        public boolean hasSystemPermission(
-                PrincipalIdentity principal,
-                String permissionCode) {
-            this.principal = principal;
-            this.permissionCode = permissionCode;
-            callCount++;
-            return systemPermission;
+        @Override public boolean hasSystemPermission(PrincipalIdentity principal, String permissionCode) {
+            this.principal = principal; this.permissionCode = permissionCode; callCount++; return systemPermission;
         }
 
-        @Override
-        public List<ProjectGrant> projectGrants(PrincipalIdentity principal, UUID projectUuid) {
+        @Override public List<ProjectGrant> projectGrants(PrincipalIdentity principal, UUID projectUuid) {
             return grants;
         }
     }

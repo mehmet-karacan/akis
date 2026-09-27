@@ -29,9 +29,9 @@ class CleanCatalogRepositoryIT {
         projectId = jdbc.sql("insert into akis.proje(kod, ad) values ('CATALOG_IT', 'Catalog IT') returning id")
                 .query(Long.class).single();
         logicalSchemaUuid = jdbc.sql("""
-                insert into akis.mantiksal_sema(proje_id, kod, ad)
-                values (:projectId, 'ORDERS', 'Orders') returning uuid
-                """).param("projectId", projectId).query(UUID.class).single();
+                insert into akis.mantiksal_sema(kod, ad, saglayici_turu)
+                values ('ORDERS', 'Orders', 'POSTGRESQL') returning uuid
+                """).query(UUID.class).single();
     }
 
     @Test

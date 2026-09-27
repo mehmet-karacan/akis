@@ -58,28 +58,9 @@ public class JdbcExecutionStore implements ExecutionStore {
     public Optional<Actor> findActiveActor(long userId) {
         return jdbc.sql("""
                         select id, uuid, gorunen_ad as ad from akis.kullanici
-                         where id = :id and devre_disi_birakilma_zamani is null
+                         where id = :id and durum = 'AKTIF'
                         """)
                 .param("id", userId)
-                .query((rs, rowNum) -> new Actor(
-                        rs.getLong("id"), rs.getObject("uuid", UUID.class),
-                        rs.getString("ad")))
-                .optional();
-    }
-
-    @Override
-    public Optional<Actor> findActiveActor(String provider, String subject) {
-        return jdbc.sql("""
-                        select k.id, k.uuid, k.gorunen_ad as ad
-                          from akis.kullanici k
-                          join akis.harici_kimlik h on h.kullanici_id = k.id
-                         where ((:provider = 'LOCAL_BASIC' and h.saglayici_turu='YEREL' and h.yayinlayici is null)
-                                or (h.saglayici_turu='OIDC' and h.yayinlayici=:provider))
-                           and h.harici_kullanici_anahtari=:subject
-                           and k.devre_disi_birakilma_zamani is null
-                        """)
-                .param("provider", provider)
-                .param("subject", subject)
                 .query((rs, rowNum) -> new Actor(
                         rs.getLong("id"), rs.getObject("uuid", UUID.class),
                         rs.getString("ad")))
@@ -579,6 +560,7 @@ public class JdbcExecutionStore implements ExecutionStore {
                                coalesce(d.baslama_zamani, pd.baslama_zamani) as baslama_zamani,
                                coalesce(d.bitis_zamani, pd.bitis_zamani) as bitis_zamani,
                                d.satir_sayisi, d.bayt_sayisi, coalesce(d.hata_kodu, pd.hata_kodu) as hata_kodu,
+                               sql.calistirilan_sql,
                                child.uuid as alt_calistirma_uuid,
                                task.content->>'logCounter' as log_counter,
                                case when k.baglanti_rolu = 'SOURCE' then 'NOT_APPLICABLE'
@@ -599,6 +581,8 @@ public class JdbcExecutionStore implements ExecutionStore {
                             on k.proje_id = a.proje_id and k.calistirma_adimi_id = a.id
                           left join akis.prosedur_adim_durumu d
                             on d.proje_id = a.proje_id and d.calistirma_adimi_id = a.id
+                          left join akis.prosedur_sql_kaniti sql
+                            on sql.proje_id = a.proje_id and sql.calistirma_adimi_id = a.id
                           left join akis.paket_adim_durumu pd
                             on pd.proje_id = a.proje_id and pd.calistirma_adimi_id = a.id
                           left join akis.calistirma child on child.id = pd.alt_calistirma_id
@@ -618,6 +602,7 @@ public class JdbcExecutionStore implements ExecutionStore {
                         rs.getObject("satir_sayisi", Long.class),
                         rs.getObject("bayt_sayisi", Long.class), rs.getString("hata_kodu"),
                         rs.getString("log_counter"), rs.getString("transaction_state"),
+                        rs.getString("calistirilan_sql") == null ? null : objectMapper.readTree(rs.getString("calistirilan_sql")),
                         rs.getObject("alt_calistirma_uuid", UUID.class)))
                 .list();
     }

@@ -403,19 +403,14 @@ public class JdbcPublicationStore implements PublicationStore {
     }
 
     @Override
-    public Optional<ApprovalActor> findActiveActor(String provider, String subject) {
+    public Optional<ApprovalActor> findActiveActor(long userId) {
         return jdbc.sql("""
                         select k.id, k.uuid, k.gorunen_ad as ad
                           from akis.kullanici k
-                          join akis.harici_kimlik h on h.kullanici_id = k.id
-                         where ((:provider = 'LOCAL_BASIC'
-                                  and h.saglayici_turu = 'YEREL' and h.yayinlayici is null)
-                                or (h.saglayici_turu = 'OIDC' and h.yayinlayici = :provider))
-                           and h.harici_kullanici_anahtari = :subject
-                           and k.devre_disi_birakilma_zamani is null
+                         where k.id = :userId
+                           and k.durum = 'AKTIF'
                         """)
-                .param("provider", provider)
-                .param("subject", subject)
+                .param("userId", userId)
                 .query((rs, rowNum) -> new ApprovalActor(
                         rs.getLong("id"), rs.getObject("uuid", UUID.class),
                         rs.getString("ad")))

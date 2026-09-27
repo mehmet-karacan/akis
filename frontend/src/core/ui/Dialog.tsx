@@ -58,7 +58,9 @@ export function Dialog({ open, title, eyebrow, children, onClose, closeLabel, cl
       }
     }
 
-    document.addEventListener('keydown', onKeyDown)
+    // Listen during capture so the shared dialog remains dismissible even when
+    // an embedded component (for example Ant Design Modal) consumes Escape.
+    document.addEventListener('keydown', onKeyDown, true)
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     const backdrop = backdropRef.current
@@ -68,7 +70,7 @@ export function Dialog({ open, title, eyebrow, children, onClose, closeLabel, cl
     const backgroundState = background.map((item) => ({ item, inert: item.inert, ariaHidden: item.getAttribute('aria-hidden') }))
     background.forEach((item) => { item.inert = true; item.setAttribute('aria-hidden', 'true') })
     return () => {
-      document.removeEventListener('keydown', onKeyDown)
+      document.removeEventListener('keydown', onKeyDown, true)
       document.body.style.overflow = previousOverflow
       backgroundState.forEach(({ item, inert, ariaHidden }) => {
         item.inert = inert
@@ -84,7 +86,7 @@ export function Dialog({ open, title, eyebrow, children, onClose, closeLabel, cl
     <div ref={backdropRef}>
       <Modal open centered footer={null} getContainer={false} width={960}
         className={`akis-modal ${className}`.trim()} rootClassName={backdropClassName}
-        keyboard={false} mask={{ closable: !busy }}
+        keyboard={!busy} mask={{ closable: !busy }}
         closable={{ disabled: busy, 'aria-label': closeLabel }} closeIcon={<X size={18} />}
         onCancel={() => { if (!busy) onClose() }}
         title={<div>{eyebrow && <small className="akis-modal-eyebrow" aria-hidden="true">{eyebrow}</small>}<span>{title}</span></div>}

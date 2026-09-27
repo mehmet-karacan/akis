@@ -45,6 +45,11 @@ public class PublicationService {
     private final PilotRuntimePlanResolver runtimePlanResolver;
     private final ProcedureRuntimePlanResolver procedureRuntimePlanResolver;
     private final SecretValueSanitizer secretSanitizer;
+    private tr.com.innova.akis.execution.PendingRecipeConsumer pendingRecipeConsumer;
+    @org.springframework.beans.factory.annotation.Autowired
+    void configurePendingRecipeConsumer(tr.com.innova.akis.execution.PendingRecipeConsumer consumer) {
+        this.pendingRecipeConsumer = consumer;
+    }
     private StagedMappingPlanner stagedPlanner;
     private PackagePublicationPlanner packagePlanner;
     @org.springframework.beans.factory.annotation.Autowired(required = false)
@@ -193,11 +198,19 @@ public class PublicationService {
         return store.findByReleaseHash(
                         context.scenarioId(), context.environmentId(), releaseHash)
                 .map(existing -> new CreateResult(existing, false))
-                .orElseGet(() -> new CreateResult(store.create(
-                        new PublicationDraft(
-                                context, releaseHash, dependencySummary,
-                                canonicalManifest, bindings, status),
-                        UUID.randomUUID()), true));
+                .orElseGet(() -> {
+                    PublicationRow created = store.create(
+                            new PublicationDraft(
+                                    context, releaseHash, dependencySummary,
+                                    canonicalManifest, bindings, status),
+                            UUID.randomUUID());
+                    if (pendingRecipeConsumer != null) {
+                        pendingRecipeConsumer.consume(
+                                context.projectId(), context.scenarioId(),
+                                context.environmentId(), created.id());
+                    }
+                    return new CreateResult(created, true);
+                });
     }
 
     @Transactional(readOnly = true)

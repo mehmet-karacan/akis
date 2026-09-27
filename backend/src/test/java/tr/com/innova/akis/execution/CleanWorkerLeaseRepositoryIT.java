@@ -19,6 +19,7 @@ class CleanWorkerLeaseRepositoryIT {
     private static RunLeasePort.WorkerIdentity worker;
     private static UUID projectUuid;
     private static UUID publicationUuid;
+    private static long actorId;
 
     @BeforeAll static void connect() {
         String url=required("SPRING_DATASOURCE_URL");
@@ -27,9 +28,8 @@ class CleanWorkerLeaseRepositoryIT {
         execution=new JdbcExecutionStore(jdbc,new ObjectMapper());
         projectUuid=jdbc.sql("insert into akis.proje(kod,ad) values ('WORKER_IT','Worker IT') returning uuid").query(UUID.class).single();
         long p=jdbc.sql("select id from akis.proje where uuid=:u").param("u",projectUuid).query(Long.class).single();
-        long actor=jdbc.sql("insert into akis.kullanici(gorunen_ad) values ('Worker developer') returning id").query(Long.class).single();
-        jdbc.sql("insert into akis.harici_kimlik(kullanici_id,saglayici_turu,harici_kullanici_anahtari) values (:k,'YEREL','worker-developer')").param("k",actor).update();
-        long ortam=jdbc.sql("insert into akis.ortam(proje_id,kod,ad) values (:p,'DEV','Development') returning id").param("p",p).query(Long.class).single();
+        long actor=jdbc.sql("insert into akis.kullanici(kullanici_kodu,ad,gorunen_ad,durum,parola,parola_degistirilme_zamani) values ('worker-developer','Worker developer','Worker developer','AKTIF','{argon2}test',current_timestamp) returning id").query(Long.class).single();
+        long ortam=jdbc.sql("insert into akis.ortam(kod,ad) values ('DEV','Development') returning id").query(Long.class).single();
         long klasor=jdbc.sql("insert into akis.klasor(proje_id,kod,ad) values (:p,'ROOT','Root') returning id").param("p",p).query(Long.class).single();
         long tanim=jdbc.sql("insert into akis.tanim(proje_id,klasor_id,tur,kod,ad) values (:p,:f,'PROSEDUR','LOAD','Load') returning id").param("p",p).param("f",klasor).query(Long.class).single();
         long surum=jdbc.sql("insert into akis.tanim_surumu(proje_id,tanim_id,surum_no,sema_surumu,icerik_ozeti,icerik) values (:p,:t,1,1,:h,'{\"tasks\":[]}') returning id").param("p",p).param("t",tanim).param("h","a".repeat(64)).query(Long.class).single();
@@ -37,7 +37,8 @@ class CleanWorkerLeaseRepositoryIT {
         long senaryo=jdbc.sql("insert into akis.senaryo(proje_id,tanim_surumu_id,dogrulama_id,surum_no,plan_sema_surumu,plan_ozeti,plan) values (:p,:v,:d,1,2,:h,'{}') returning id").param("p",p).param("v",surum).param("d",dogrulama).param("h","b".repeat(64)).query(Long.class).single();
         publicationUuid=jdbc.sql("insert into akis.yayin(proje_id,senaryo_id,ortam_id,yayin_no,durum,bagimlilik_ozeti,fiziksel_manifesto,etkinlestirilme_zamani) values (:p,:s,:o,1,'AKTIF','ready',cast(:m as jsonb),current_timestamp) returning uuid").param("p",p).param("s",senaryo).param("o",ortam).param("m","{\"releaseHash\":\""+"c".repeat(64)+"\",\"runtimeCapability\":\"ORACLE_PROCEDURE_V1\"}").query(UUID.class).single();
         var publication=execution.lockPublication(projectUuid,publicationUuid).orElseThrow();
-        var actorRow=execution.findActiveActor("LOCAL_BASIC","worker-developer").orElseThrow();
+        actorId=jdbc.sql("select id from akis.kullanici where gorunen_ad='Worker developer'").query(Long.class).single();
+        var actorRow=execution.findActiveActor(actorId).orElseThrow();
         execution.createQueuedRun(publication,actorRow,"d".repeat(64),UUID.randomUUID(),UUID.randomUUID(),UUID.randomUUID(),UUID.randomUUID());
         UUID profile=jdbc.sql("insert into akis.worker_profili(kod,ad,yetenek) values ('LOCAL','Local worker','{\"ORACLE_PROCEDURE_V1\":true}') returning uuid").query(UUID.class).single();
         leases=new JdbcRunLeaseStore(jdbc);transitions=new JdbcRunExecutionTransitionStore(jdbc);reconciliations=new JdbcRunReconciliationStore(jdbc);worker=new RunLeasePort.WorkerIdentity("worker-1",profile);
@@ -58,7 +59,7 @@ class CleanWorkerLeaseRepositoryIT {
         assertEquals(RunExecutionTransitionPort.MutationOutcome.ACCEPTED,transitions.completeSuccessfully(active,evidence).outcome());
 
         var publication=execution.lockPublication(projectUuid,publicationUuid).orElseThrow();
-        var actor=execution.findActiveActor("LOCAL_BASIC","worker-developer").orElseThrow();
+        var actor=execution.findActiveActor(actorId).orElseThrow();
         var second=execution.createQueuedRun(publication,actor,"4".repeat(64),UUID.randomUUID(),UUID.randomUUID(),UUID.randomUUID(),UUID.randomUUID());
         var secondRun=leases.claimForPreflight(worker,Duration.ofSeconds(60)).orElseThrow();
         assertEquals(second.runUuid(),secondRun.token().runUuid());

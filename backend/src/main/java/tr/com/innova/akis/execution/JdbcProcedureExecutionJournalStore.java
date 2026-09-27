@@ -55,7 +55,7 @@ public class JdbcProcedureExecutionJournalStore {
     private boolean prepareRun(
             ActiveExecutionToken token, ProcedureRuntimePlan plan) {
         ActiveExecutionToken safeToken = required(token);
-        return invoke(() -> bindToken(jdbc.sql("""
+        boolean prepared = invoke(() -> bindToken(jdbc.sql("""
                 select akis.prosedur_calistirmayi_baslat(
                     :runUuid, :workerReference, :runGeneration,
                     :targetUuid, :targetGeneration, :runtimePlanHash)
@@ -63,6 +63,36 @@ public class JdbcProcedureExecutionJournalStore {
                 .param("runtimePlanHash", plan.runtimePlanHash())
                 .query(Boolean.class)
                 .single());
+        if (prepared) persistSqlEvidence(safeToken, plan);
+        return prepared;
+    }
+
+    private void persistSqlEvidence(ActiveExecutionToken token, ProcedureRuntimePlan plan) {
+        for (ProcedureRuntimePlan.Task task : plan.tasks()) {
+            ProcedureRuntimePlan.TaskBinding binding = plan.bindings().get(task.id());
+            invoke(() -> jdbc.sql("""
+                    insert into akis.prosedur_sql_kaniti
+                        (proje_id, calistirma_id, calistirma_adimi_id, calistirilan_sql)
+                    select p.id, r.id, a.id,
+                           jsonb_build_array(jsonb_build_object(
+                               'step', :stepCode,
+                               'site', :site,
+                               'owner', :owner,
+                               'sql', :sql))
+                      from akis.proje p
+                      join akis.calistirma r on r.proje_id = p.id
+                      join akis.calistirma_adimi a on a.proje_id = p.id
+                             and a.calistirma_id = r.id and a.adim_kodu = :stepCode
+                     where r.uuid = :runUuid
+                    on conflict (calistirma_adimi_id) do nothing
+                    """)
+                    .param("runUuid", token.run().runUuid())
+                    .param("stepCode", task.id())
+                    .param("site", task.connectionRole().name())
+                    .param("owner", binding.owner())
+                    .param("sql", task.command())
+                    .update() == 1);
+        }
     }
 
     private boolean completeRun(

@@ -191,7 +191,7 @@ class ExecutionServiceTest {
         }
 
         @Override
-        public Optional<Actor> findActiveActor(String provider, String subject) {
+        public Optional<Actor> findActiveActor(long userId) {
             return Optional.of(ACTOR);
         }
 

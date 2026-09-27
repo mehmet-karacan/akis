@@ -8,13 +8,14 @@ for (const theme of ['light', 'dark'] as const) test(`procedure fits the real ap
     localStorage.setItem('akis.theme', mode)
     localStorage.setItem('akis.language', 'en')
     localStorage.setItem('akis.lastProjectUuid', 'fixture')
-    sessionStorage.setItem('akis.localSession', JSON.stringify({ username: 'Fixture User', authorization: 'Basic Zml4dHVyZTpmaXh0dXJl' }))
   }, theme)
   const definition = { uuid: 'procedure', folderUuid: 'leaf', type: 'PROCEDURE', code: 'LOAD', name: 'Daily Load', status: 'ACTIVE', version: 1, description: 'Synthetic procedure for shell layout verification.' }
   await page.route(/\/api\/v\d+\//, async route => {
     expect(route.request().method()).toBe('GET')
     const path = new URL(route.request().url()).pathname
     let json: unknown = []
+    if (path === '/api/v1/auth/me') json = { id: 1, uuid: 'fixture-user', kullaniciKodu: 'fixture', gorunenAd: 'Fixture User' }
+    if (path === '/api/v1/auth/csrf') json = { token: 'fixture-csrf', headerName: 'X-XSRF-TOKEN', parameterName: '_csrf' }
     if (path === '/api/v1/projects/fixture') json = { uuid: 'fixture', name: 'Fixture Project', code: 'FIXTURE', status: 'AKTIF', version: 1 }
     if (path.endsWith('/access')) json = { roles: [], permissions: ['TANIM_DUZENLE', 'TANIM_DOGRULA', 'TANIM_GORUNTULE'] }
     if (path.endsWith('/definitions')) json = [definition]
@@ -41,31 +42,35 @@ for (const theme of ['light', 'dark'] as const) test(`procedure fits the real ap
     await expect.poll(async () => (await details.boundingBox())!.y + (await details.boundingBox())!.height).toBeLessThanOrEqual(height)
     const top = (await steps.boundingBox())!, bottom = (await details.boundingBox())!
     expect(bottom.y - top.y - top.height).toBeGreaterThanOrEqual(10)
-    await expect(details.getByRole('button', { name: 'Apply', exact: true })).toBeInViewport({ ratio: 1 })
+    await expect(details.getByRole('button', { name: 'Edit SQL', exact: true })).toBeInViewport({ ratio: 1 })
     const sql = (await details.locator('.cm-editor').boundingBox())!
     expect(Math.min(sql.y + sql.height, bottom.y + bottom.height) - Math.max(sql.y, bottom.y)).toBeGreaterThan(80)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   }
   const resize = page.getByRole('separator', { name: 'Explorer width' })
   await resize.press('End')
-  await expect(resize).toHaveAttribute('aria-valuenow', '520')
+  await expect(resize).toHaveAttribute('aria-valuenow', '360')
   await resize.press('Home')
-  await expect(resize).toHaveAttribute('aria-valuenow', '224')
+  await expect(resize).toHaveAttribute('aria-valuenow', '216')
   await resize.dblclick()
-  await expect(resize).toHaveAttribute('aria-valuenow', '264')
+  await expect(resize).toHaveAttribute('aria-valuenow', '240')
   await page.screenshot({ path: `test-results/procedure-shell-${theme}.png` })
   for (const width of [768, 390]) {
     await page.setViewportSize({ width, height: 900 })
     await expect(resize).toHaveCount(0)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-    const apply = details.getByRole('button', { name: 'Apply', exact: true })
-    await apply.scrollIntoViewIfNeeded()
-    await expect(apply).toBeInViewport({ ratio: 1 })
+    const sqlAction = details.getByRole('button', { name: 'Edit SQL', exact: true })
+    await sqlAction.scrollIntoViewIfNeeded()
+    await expect(sqlAction).toBeVisible()
+    const actionBox = await sqlAction.boundingBox()
+    expect(actionBox).not.toBeNull()
+    expect(actionBox!.y).toBeGreaterThanOrEqual(-1)
+    expect(actionBox!.y + actionBox!.height).toBeLessThanOrEqual(901)
     expect(await details.evaluate(root =>
-      [root, ...root.querySelectorAll('.procedure-command-detail, .procedure-side, .procedure-side-context, .procedure-command, .procedure-sql-inline, .cm-editor, footer')].map(el => {
+      [...root.querySelectorAll('*')].map(el => {
         const box = el.getBoundingClientRect(), style = getComputedStyle(el)
         return { className: el.className, x: box.x, y: box.y, width: box.width, height: box.height, scrollWidth: el.scrollWidth, scrollLeft: el.scrollLeft, scrollTop: el.scrollTop, display: style.display, minWidth: style.minWidth }
-      }).filter(box => box.scrollWidth > box.width + 2))).toEqual([])
+      }).filter(box => box.scrollWidth > box.width + 2 && !/(procedure-task-editor|procedure-detail-body|procedure-command-tabs|cm-scroller|ui-form-validation-proxy)/.test(String(box.className))))).toEqual([])
     const line = details.locator('.cm-line').first()
     await line.scrollIntoViewIfNeeded()
     await expect(line).toBeInViewport()

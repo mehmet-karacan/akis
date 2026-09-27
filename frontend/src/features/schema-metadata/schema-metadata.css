@@ -86,7 +86,6 @@
   border-color: var(--line);
   background: var(--surface-subtle);
 }
-.schema-metadata-page .ui-grid-records--list { grid-template-columns: minmax(0, 1fr); width: 100%; }
 .schema-metadata-page .ui-grid-records--card { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
 .schema-metadata-page .ui-grid-record.ant-card {
   border: 1px solid var(--line-strong) !important;

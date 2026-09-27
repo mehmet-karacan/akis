@@ -1,9 +1,10 @@
 /* Sign-in screen: story panel with feature cards, access card on the right. Colors come from the shared icon tokens. */
 .login-page .login-brand { display: flex; align-items: center; gap: 10px; }
-.login-page .login-brand strong { font-size: 18px; letter-spacing: .01em; }
 .login-page .login-brand small { margin-left: 6px; padding: 3px 9px; border-radius: 999px; font-size: 11px; letter-spacing: .12em; color: var(--login-ink); background: color-mix(in srgb, var(--login-accent) 22%, transparent); border: 1px solid color-mix(in srgb, var(--login-accent) 40%, transparent); }
-.login-brand-mark { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 11px; background: color-mix(in srgb, var(--login-accent) 24%, transparent); border: 1px solid color-mix(in srgb, var(--login-accent) 45%, transparent); }
-.login-page .login-brand-mark svg { color: var(--login-accent); }
+.login-page .login-brand .brand-product-logo { flex: 0 1 auto; }
+.login-page .login-story-footer .brand-corporate-footer { color: var(--login-ink-soft); }
+.login-page .login-story-footer .brand-innova-logo--light { display: none !important; }
+.login-page .login-story-footer .brand-innova-logo--dark { display: block !important; }
 
 .login-features { display: grid; gap: 12px; margin-top: 34px; }
 .login-feature { display: grid; grid-template-columns: 44px 1fr; align-items: start; gap: 14px; padding: 14px 16px; border-radius: 14px; background: color-mix(in srgb, #ffffff 7%, transparent); border: 1px solid color-mix(in srgb, #ffffff 12%, transparent); backdrop-filter: blur(4px); }

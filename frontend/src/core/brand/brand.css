@@ -1,0 +1,29 @@
+.brand-product-logo { display: block; width: auto; max-width: 100%; object-fit: contain; }
+.brand-product-logo--login { width: min(100%, 250px); height: auto; }
+.brand-product-logo--loginCompact { width: min(100%, 210px); height: auto; }
+.brand-product-logo--topbar { width: 112px; height: 34px; }
+.brand-product-logo--compact { width: 94px; height: 32px; }
+.brand-product-logo--icon { width: 36px; height: 36px; }
+.topbar-innova-logo { margin-left: 10px; padding-left: 10px; border-left: 1px solid var(--line); }
+.topbar-innova-logo img { height: 15px; }
+
+.brand-innova-logo { display: inline-flex; flex: 0 0 auto; align-items: center; }
+.brand-innova-logo img { display: block; width: auto; height: 14px; object-fit: contain; }
+.brand-innova-logo--dark { display: none !important; }
+:root[data-theme="dark"] .brand-innova-logo--light { display: none !important; }
+:root[data-theme="dark"] .brand-innova-logo--dark { display: block !important; }
+
+.brand-corporate-footer { display: flex; align-items: center; justify-content: center; gap: 10px; min-width: 0; color: var(--ink-soft); font-size: 11px; letter-spacing: .02em; }
+.brand-corporate-footer.is-compact .brand-innova-logo img { height: 12px; }
+
+@media (max-width: 900px) {
+  .brand-product-logo--login { width: min(100%, 190px); }
+  .brand-product-logo--topbar { width: 96px; }
+}
+
+@media (max-width: 560px) {
+  .topbar-innova-logo { margin-left: 6px; padding-left: 6px; }
+  .topbar-innova-logo img { height: 12px; }
+  .brand-corporate-footer { gap: 7px; font-size: 10px; }
+  .brand-corporate-footer .brand-innova-logo img { height: 11px; }
+}

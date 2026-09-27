@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://akis.innova.com/schemas/project-bundle-v3.schema.json",
+  "title": "Akis portable project bundle v3",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format", "formatVersion", "schemaVersion", "checksum", "exportedAt",
+    "project", "folders", "definitions", "topology", "producer", "includedSections",
+    "publications", "schedules"
+  ],
+  "properties": {
+    "format": { "const": "akis.project-bundle" },
+    "formatVersion": { "const": 3 },
+    "schemaVersion": { "const": 3 },
+    "checksum": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "exportedAt": { "type": "string", "format": "date-time" },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "status", "name"],
+      "properties": {
+        "code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+        "status": { "enum": ["AKTIF", "ARSIV"] },
+        "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "description": { "type": ["string", "null"] }
+      }
+    },
+    "folders": {
+      "type": "array", "maxItems": 10000,
+      "items": { "$ref": "#/$defs/folder" }
+    },
+    "definitions": {
+      "type": "array", "maxItems": 20000,
+      "items": { "$ref": "#/$defs/definition" }
+    },
+    "topology": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sanitized", "definitions"],
+      "properties": {
+        "sanitized": { "const": true },
+        "definitions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "connections", "physicalSchemas", "logicalSchemas", "environments",
+            "schemaBindings", "models", "submodels", "dataObjects"
+          ],
+          "properties": {
+            "connections": { "type": "array", "items": { "type": "object" } },
+            "physicalSchemas": { "type": "array", "items": { "type": "object" } },
+            "logicalSchemas": { "type": "array", "items": { "type": "object" } },
+            "environments": { "type": "array", "items": { "type": "object" } },
+            "schemaBindings": { "type": "array", "items": { "type": "object" } },
+            "models": { "type": "array", "items": { "type": "object" } },
+            "submodels": { "type": "array", "items": { "type": "object" } },
+            "dataObjects": { "type": "array", "items": { "type": "object" } }
+          }
+        }
+      }
+    },
+    "producer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["application", "version", "commit"],
+      "properties": {
+        "application": { "const": "akis-backend" },
+        "version": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "commit": { "type": "string", "minLength": 1, "maxLength": 100 }
+      }
+    },
+    "includedSections": {
+      "type": "array",
+      "const": ["project", "folders", "definitions", "topology", "publications", "schedules"]
+    },
+    "publications": {
+      "type": "array", "maxItems": 10000,
+      "items": { "$ref": "#/$defs/publication" }
+    },
+    "schedules": {
+      "type": "array", "maxItems": 10000,
+      "items": { "$ref": "#/$defs/schedule" }
+    }
+  },
+  "$defs": {
+    "folder": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "code", "status", "name"],
+      "properties": {
+        "path": { "type": "string" },
+        "parentPath": { "type": ["string", "null"] },
+        "code": { "type": "string" },
+        "status": { "enum": ["AKTIF", "ARSIV"] },
+        "name": { "type": "string" },
+        "description": { "type": ["string", "null"] }
+      }
+    },
+    "definition": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "code", "status", "name", "versions"],
+      "properties": {
+        "type": { "type": "string" },
+        "code": { "type": "string" },
+        "folderPath": { "type": ["string", "null"] },
+        "status": { "enum": ["AKTIF", "ARSIV"] },
+        "name": { "type": "string" },
+        "description": { "type": ["string", "null"] },
+        "sourceUuid": { "type": ["string", "null"], "format": "uuid" },
+        "draft": { "$ref": "#/$defs/draft" },
+        "versions": { "type": "array", "items": { "$ref": "#/$defs/version" } }
+      }
+    },
+    "draft": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schemaVersion", "content"],
+      "properties": { "schemaVersion": { "type": "integer" }, "content": { "type": "object" } }
+    },
+    "version": {
+      "type": "object", "additionalProperties": false,
+      "required": ["versionNumber", "schemaVersion", "contentHash", "content", "createdAt"],
+      "properties": {
+        "versionNumber": { "type": "integer" },
+        "schemaVersion": { "type": "integer" },
+        "contentHash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "content": { "type": "object" },
+        "description": { "type": ["string", "null"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "sourceUuid": { "type": ["string", "null"], "format": "uuid" }
+      }
+    },
+    "publication": {
+      "type": "object", "additionalProperties": false,
+      "required": ["definitionType", "definitionCode", "definitionVersionNumber", "environmentCode"],
+      "properties": {
+        "definitionType": { "type": "string" },
+        "definitionCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+        "definitionVersionNumber": { "type": "integer", "minimum": 1 },
+        "environmentCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" }
+      }
+    },
+    "schedule": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "code", "name", "cronExpression", "timeZone", "conflictPolicy",
+        "misfirePolicy", "publicationPolicy", "publicationSelection"
+      ],
+      "properties": {
+        "code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "cronExpression": { "type": "string", "minLength": 1 },
+        "timeZone": { "type": "string", "minLength": 1 },
+        "conflictPolicy": { "enum": ["SKIP", "QUEUE"] },
+        "misfirePolicy": { "enum": ["SKIP", "RUN_ONCE"] },
+        "publicationPolicy": { "enum": ["LATEST_ACTIVE", "PINNED"] },
+        "startsAt": { "type": ["string", "null"], "format": "date-time" },
+        "endsAt": { "type": ["string", "null"], "format": "date-time" },
+        "publicationSelection": { "$ref": "#/$defs/publication" }
+      }
+    }
+  }
+}

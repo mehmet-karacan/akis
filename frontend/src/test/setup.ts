@@ -1,6 +1,11 @@
 import '@testing-library/jest-dom/vitest'
 import '../core/i18n'
 
+// Spring Security's CookieCsrfTokenRepository exposes a browser-visible cookie.
+// The API client must still use the authoritative deferred token returned by
+// /api/v1/auth/csrf for mutation headers.
+document.cookie = 'XSRF-TOKEN=test-csrf-token; path=/'
+
 // Component resize subscriptions have no layout work in jsdom; browser coverage is separate.
 if (!globalThis.ResizeObserver) {
   globalThis.ResizeObserver = class {

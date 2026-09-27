@@ -13,7 +13,7 @@ import { connectionStatusTagStyles } from '../connections/presentation'
 import { operationsApi } from './api'
 import { Field } from './OperationsUi'
 import { useOperationsI18n } from './i18n'
-import type { Membership, ProjectRole } from './types'
+import type { IdentityUser, Membership, ProjectRole } from './types'
 import { apiErrorMessage, formatDate, toOffsetDateTime } from './utils'
 import { useRemoteData } from './useRemoteData'
 import '../connections/connections.css'
@@ -21,8 +21,9 @@ import '../connections/catalog-layout.css'
 import '../topology/topology.css'
 
 const roles: ProjectRole[] = ['PROJE_YONETICISI', 'GELISTIRICI', 'OPERASYON', 'YAYIN_ONAYLAYICI', 'GORUNTULEYICI']
+const userName = (user?: IdentityUser) => user ? `${user.ad}${user.soyad ? ` ${user.soyad}` : ''}` : ''
 
-/** Project memberships in the shared catalog layout: header + filter, summary strip, card/list/table records. */
+/** Project memberships in the shared catalog layout: header + filter, summary strip, card/table records. */
 export function MembershipsPage() {
   const projectUuid = useCurrentProjectUuid()
   const { t, locale } = useOperationsI18n()
@@ -46,8 +47,8 @@ export function MembershipsPage() {
   const query = params.get('q') ?? ''
   const applyQuery = (next: string) => setParams(next ? { q: next } : {})
   const items = useMemo(() => (memberships.data ?? [])
-    .filter((membership) => { const user = userOf(membership.userUuid); return `${user?.name ?? ''} ${user?.email ?? ''} ${membership.roles.map((item) => roleLabel(item.code)).join(' ')}`.toLocaleLowerCase(locale).includes(query.trim().toLocaleLowerCase(locale)) })
-    .sort((a, b) => (userOf(a.userUuid)?.name ?? '').localeCompare(userOf(b.userUuid)?.name ?? '', locale)), [memberships.data, userOf, roleLabel, query, locale])
+    .filter((membership) => { const user = userOf(membership.userUuid); return `${userName(user)} ${user?.eposta ?? ''} ${membership.roles.map((item) => roleLabel(item.code)).join(' ')}`.toLocaleLowerCase(locale).includes(query.trim().toLocaleLowerCase(locale)) })
+    .sort((a, b) => userName(userOf(a.userUuid)).localeCompare(userName(userOf(b.userUuid)), locale)), [memberships.data, userOf, roleLabel, query, locale])
 
   const periodInvalid = Boolean(startsAt && endsAt && new Date(endsAt) <= new Date(startsAt))
   const userError = touched && !userUuid ? t('required') : ''
@@ -80,24 +81,24 @@ export function MembershipsPage() {
       { label: t('users'), value: users.data?.length ?? 0, icon: <UserRound />, tone: 'neutral' },
     ]} />
     <section className="connections-records">
-    {memberships.loading ? <AsyncState state="loading" title={t('loading')} /> : memberships.error ? <AsyncState state="error" title={apiErrorMessage(memberships.error, t('requestFailed'))} retryLabel={t('retry')} onRetry={() => void memberships.reload()} /> : items.length === 0 ? <AsyncState state="empty" title={t('emptyMemberships')} action={addButton} /> : <ProgressiveRecords key={query} items={items}>{(visible) => <DataGrid collectionTitle={tr ? 'Üyelik Kataloğu' : 'Membership Catalog'} collectionIcon={<Users />} toolbarActions={addButton} cardHeaderField="status" cardHiddenFields={['status']} headerFieldsInList view={view} onViewChange={setView}>
+    {memberships.loading ? <AsyncState state="loading" title={t('loading')} /> : memberships.error ? <AsyncState state="error" title={apiErrorMessage(memberships.error, t('requestFailed'))} retryLabel={t('retry')} onRetry={() => void memberships.reload()} /> : items.length === 0 ? <AsyncState state="empty" title={t('emptyMemberships')} action={addButton} /> : <ProgressiveRecords key={query} items={items}>{(visible) => <DataGrid collectionTitle={tr ? 'Üyelik Kataloğu' : 'Membership Catalog'} collectionIcon={<Users />} toolbarActions={addButton} cardHeaderField="status" cardHiddenFields={['status']} view={view} onViewChange={setView}>
       <thead><tr><th data-field-key="name">{t('user')}</th><th data-field-key="email">{t('email')}</th><th data-field-key="roles">{t('roles')}</th><th data-field-key="status">{t('status')}</th><th data-field-key="startsAt">{t('startsAt')}</th><th data-field-key="endsAt">{t('endsAt')}</th><th data-field-key="actions" className="ui-grid-actions-column"><span className="sr-only">{tr ? 'İşlemler' : 'Actions'}</span></th></tr></thead>
       <tbody>{visible.map((membership) => { const user = userOf(membership.userUuid); const ok = active(membership); const tone = ok ? 'success' : 'warning'; return <tr key={membership.uuid} data-connection-uuid={membership.uuid}>
-        <td><span className="connection-record-identity"><strong>{user?.name ?? t('unknownUser')}</strong><small>{user?.subject ?? membership.userUuid}</small></span></td>
-        <td>{user?.email || (tr ? 'Kaydedilmemiş' : 'Not recorded')}</td>
+        <td><span className="connection-record-identity"><strong>{user ? `${user.ad}${user.soyad ? ` ${user.soyad}` : ''}` : t('unknownUser')}</strong><small>{user?.kullaniciKodu ?? membership.userUuid}</small></span></td>
+        <td>{user?.eposta || (tr ? 'Kaydedilmemiş' : 'Not recorded')}</td>
         <td>{membership.roles.map((item) => roleLabel(item.code)).join(', ')}</td>
         <td><Tag className={`connection-status-tag connection-status-tag--${tone}`} style={connectionStatusTagStyles[tone]} icon={ok ? <CheckCircle2 size={12} /> : <CircleAlert size={12} />}><span className="connection-status-tag-label">{statusText(membership)}</span></Tag></td>
         <td>{formatDate(membership.startsAt, locale, t('immediately'))}</td>
         <td>{formatDate(membership.endsAt, locale, t('never'))}</td>
-        <td className="row-actions"><div className="connection-row-actions"><RecordActionButton name={user?.name ?? membership.uuid} editable={false} onClick={() => setSelected(membership)} /></div></td>
+        <td className="row-actions"><div className="connection-row-actions"><RecordActionButton name={userName(user) || membership.uuid} editable={false} onClick={() => setSelected(membership)} /></div></td>
       </tr> })}</tbody>
     </DataGrid>}</ProgressiveRecords>}
     </section>
 
-    {selected && <RecordDetailDialog open title={<span className="connection-dialog-title"><Users size={17} aria-hidden="true" />{userOf(selected.userUuid)?.name ?? t('unknownUser')}</span>} readOnly onClose={() => setSelected(null)} className="connection-catalog-dialog">
+    {selected && <RecordDetailDialog open title={<span className="connection-dialog-title"><Users size={17} aria-hidden="true" />{userName(userOf(selected.userUuid)) || t('unknownUser')}</span>} readOnly onClose={() => setSelected(null)} className="connection-catalog-dialog">
       <section className="connection-detail-section"><div className="form-grid two-column">
-        <label>{t('user')}<AntInput value={userOf(selected.userUuid)?.name ?? t('unknownUser')} readOnly /></label>
-        <label>{t('email')}<AntInput value={userOf(selected.userUuid)?.email ?? ''} readOnly /></label>
+        <label>{t('user')}<AntInput value={userName(userOf(selected.userUuid)) || t('unknownUser')} readOnly /></label>
+        <label>{t('email')}<AntInput value={userOf(selected.userUuid)?.eposta ?? ''} readOnly /></label>
         <label>{t('roles')}<AntInput value={selected.roles.map((item) => roleLabel(item.code)).join(', ')} readOnly /></label>
         <label>{t('status')}<AntInput value={statusText(selected)} readOnly /></label>
         <label>{t('startsAt')}<AntInput value={formatDate(selected.startsAt, locale, t('immediately'))} readOnly /></label>
@@ -112,7 +113,7 @@ export function MembershipsPage() {
           <Field label={t('user')} error={userError}>
             <FormSelect value={userUuid} onChange={(event) => setUserUuid(event.target.value)} required aria-invalid={Boolean(userError)} disabled={users.loading || !users.data?.length}>
               <option value="">{t('selectUser')}</option>
-              {users.data?.map((user) => <option key={user.uuid} value={user.uuid}>{user.name}{user.email ? ` · ${user.email}` : ''}</option>)}
+              {users.data?.map((user) => <option key={user.uuid} value={user.uuid}>{userName(user)}{user.eposta ? ` · ${user.eposta}` : ''}</option>)}
             </FormSelect>
           </Field>
           <Field label={t('role')}>

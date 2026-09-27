@@ -21,10 +21,18 @@ import tr.com.innova.akis.oracle.OracleSchemaSnapshotCodecV1.SnapshotDefinition;
 final class OracleSchemaDictionaryReader {
 
     private static final String TABLE_SQL = """
-            SELECT table_name
-              FROM all_tables
+            SELECT object_name, object_type
+              FROM all_objects
              WHERE owner = ?
-               AND table_name = ?
+               AND object_name = ?
+               AND object_type IN ('TABLE', 'VIEW', 'MATERIALIZED VIEW')
+            """;
+
+    private static final String SYNONYM_SQL = """
+            SELECT table_owner, table_name, db_link
+              FROM all_synonyms
+             WHERE owner = ?
+               AND synonym_name = ?
             """;
 
     private static final String COLUMN_SQL = """
@@ -94,22 +102,43 @@ final class OracleSchemaDictionaryReader {
 
     SnapshotDefinition read(Connection connection, String owner, String tableName)
             throws SQLException {
+        return read(connection, owner, tableName, OracleDiscoveryModels.TABLE);
+    }
+
+    SnapshotDefinition read(Connection connection, String owner, String tableName, String objectType)
+            throws SQLException {
+        String normalizedType = objectType == null
+                ? OracleDiscoveryModels.TABLE
+                : objectType.strip().toUpperCase(Locale.ROOT);
+        if (!List.of(OracleDiscoveryModels.TABLE, OracleDiscoveryModels.VIEW,
+                OracleDiscoveryModels.MATERIALIZED_VIEW, OracleDiscoveryModels.SYNONYM)
+                .contains(normalizedType)) {
+            throw new OracleSchemaSnapshotCodecException(
+                    "Unsupported Oracle object type for dictionary snapshot: " + normalizedType + ".");
+        }
+        String metadataOwner = owner;
+        String metadataName = tableName;
+        if (OracleDiscoveryModels.SYNONYM.equals(normalizedType)) {
+            String[] target = resolveSynonym(connection, owner, tableName);
+            metadataOwner = target[0];
+            metadataName = target[1];
+        }
         try {
-            requireSingleTable(connection, owner, tableName);
+            requireSingleObject(connection, metadataOwner, metadataName, normalizedType);
         }
         catch (SQLException exception) {
             throw tagged("AKIS_TABLE", exception);
         }
         List<RawColumn> columns;
         try {
-            columns = readColumns(connection, owner, tableName);
+            columns = readColumns(connection, metadataOwner, metadataName);
         }
         catch (SQLException exception) {
             throw tagged("AKIS_COLUMNS", exception);
         }
         List<RawConstraint> constraints;
         try {
-            constraints = readConstraints(connection, owner, tableName);
+            constraints = readConstraints(connection, metadataOwner, metadataName);
         }
         catch (SQLException exception) {
             throw tagged("AKIS_CONSTRAINTS", exception);
@@ -117,6 +146,7 @@ final class OracleSchemaDictionaryReader {
         return codec.decode(
                 owner,
                 tableName,
+                normalizedType,
                 columns,
                 constraints);
     }
@@ -127,16 +157,40 @@ final class OracleSchemaDictionaryReader {
                 exception.getErrorCode(), exception);
     }
 
-    private void requireSingleTable(Connection connection, String owner, String tableName)
+    private void requireSingleObject(Connection connection, String owner, String tableName, String objectType)
             throws SQLException {
+        String expected = OracleDiscoveryModels.MATERIALIZED_VIEW.equals(objectType)
+                ? "MATERIALIZED VIEW"
+                : OracleDiscoveryModels.VIEW.equals(objectType) ? "VIEW" : "TABLE";
         try (PreparedStatement statement = connection.prepareStatement(TABLE_SQL)) {
             statement.setString(1, owner);
             statement.setString(2, tableName);
             try (ResultSet rows = statement.executeQuery()) {
-                if (!rows.next() || rows.getString("TABLE_NAME") == null || rows.next()) {
+                if (!rows.next() || rows.getString("OBJECT_NAME") == null
+                        || !expected.equals(rows.getString("OBJECT_TYPE")) || rows.next()) {
                     throw new OracleSchemaSnapshotCodecException(
-                            "Oracle table metadata must resolve to exactly one table.");
+                            "Oracle object metadata must resolve to exactly one object of the requested type.");
                 }
+            }
+        }
+    }
+
+    private String[] resolveSynonym(Connection connection, String owner, String synonym)
+            throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(SYNONYM_SQL)) {
+            statement.setString(1, owner);
+            statement.setString(2, synonym);
+            try (ResultSet rows = statement.executeQuery()) {
+                if (!rows.next()) {
+                    throw new OracleSchemaSnapshotCodecException("Oracle synonym target was not found.");
+                }
+                String targetOwner = rows.getString("TABLE_OWNER");
+                String targetName = rows.getString("TABLE_NAME");
+                if (rows.getString("DB_LINK") != null || targetOwner == null || targetName == null || rows.next()) {
+                    throw new OracleSchemaSnapshotCodecException(
+                            "Oracle synonym must resolve to one local target.");
+                }
+                return new String[] { targetOwner, targetName };
             }
         }
     }

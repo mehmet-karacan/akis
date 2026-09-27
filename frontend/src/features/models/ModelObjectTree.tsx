@@ -1,9 +1,10 @@
 import { Tree, type TreeDataNode } from 'antd'
-import { Folder, Table2, Eye } from 'lucide-react'
+import { Folder } from 'lucide-react'
 import type { DataObject, Submodel } from '../topology/api'
+import { DataObjectTypeIcon } from './DataObjectTypeIcon'
 
 export function ModelObjectTree({ folders, objects, selectedUuid, onSelect }: { folders: Submodel[]; objects: DataObject[]; selectedUuid?: string | null; onSelect(uuid: string): void }) {
-  const objectItem = (object: DataObject): TreeDataNode => ({ key: object.uuid, title: object.name, icon: object.type === 'VIEW' ? <Eye size={16} /> : <Table2 size={16} />, isLeaf: true })
+  const objectItem = (object: DataObject): TreeDataNode => ({ key: object.uuid, title: object.name, icon: <DataObjectTypeIcon type={object.type} />, isLeaf: true })
   const branch = (folder: Submodel, ancestors: Set<string>): TreeDataNode => {
     const visited = new Set([...ancestors, folder.uuid])
     return { key: folder.uuid, title: folder.name, icon: <Folder size={16} />, selectable: false, children: [...folders.filter(item => item.parentUuid === folder.uuid && !visited.has(item.uuid)).map(item => branch(item, visited)), ...objects.filter(item => item.submodelUuid === folder.uuid).map(objectItem)] }

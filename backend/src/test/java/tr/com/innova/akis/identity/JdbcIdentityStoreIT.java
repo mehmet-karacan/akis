@@ -1,7 +1,6 @@
 package tr.com.innova.akis.identity;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.OffsetDateTime;
@@ -38,50 +37,38 @@ class JdbcIdentityStoreIT {
     }
 
     @Test
-    void storesUserAndExternalIdentitySeparately() {
+    void storesApplicationUserWithoutExternalIdentity() {
         UUID userUuid = UUID.randomUUID();
+        String userCode = "identity-" + userUuid;
         UserRow created = store.createUser(
                 userUuid,
-                "https://identity.example/realms/akis",
-                "subject-" + UUID.randomUUID(),
-                "Identity Test User",
+                userCode,
+                "Identity",
+                "Test User",
+                "S-" + userUuid,
                 userUuid + "@example.test");
 
         assertEquals(userUuid, created.uuid());
-        assertEquals("AKTIF", created.status());
-        assertTrue(store.findUser(created.issuer(), created.subject()).isPresent());
-        assertEquals(1L, jdbc.sql("""
-                        select count(*) from akis.harici_kimlik where kullanici_id = :userId
-                        """)
-                .param("userId", created.id())
-                .query(Long.class)
-                .single());
+        assertEquals("PAROLA_BEKLIYOR", created.status());
+        assertEquals("Identity Test User", created.name());
+        assertTrue(store.findUser(userCode).isPresent());
     }
 
     @Test
-    void mapsLocalDevelopmentIdentityWithoutFakeIssuer() {
+    void findsUserCodeCaseInsensitively() {
+        String userCode = "developer-" + UUID.randomUUID();
         UserRow created = store.createUser(
-                UUID.randomUUID(), "LOCAL_BASIC", "developer-" + UUID.randomUUID(),
-                "Local Developer", null);
+                UUID.randomUUID(), userCode, "Local", "Developer", null, null);
 
-        assertEquals("LOCAL_BASIC", created.issuer());
-        assertNull(jdbc.sql("""
-                        select yayinlayici from akis.harici_kimlik where kullanici_id = :userId
-                        """)
-                .param("userId", created.id())
-                .query(String.class)
-                .optional()
-                .orElse(null));
+        assertEquals(created.uuid(), store.findUser(userCode.toUpperCase()).orElseThrow().uuid());
     }
 
     @Test
     void createsTemporalMembershipAndReusableProjectRoleAssignment() {
         UserRow user = store.createUser(
                 UUID.randomUUID(),
-                "https://identity.example/realms/akis",
                 "member-" + UUID.randomUUID(),
-                "Membership Test User",
-                null);
+                "Membership", "Test User", null, null);
         UUID projectUuid = UUID.randomUUID();
         long projectId = jdbc.sql("""
                         insert into akis.proje(uuid, kod, ad)

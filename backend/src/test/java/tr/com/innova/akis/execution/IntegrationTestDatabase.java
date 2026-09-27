@@ -16,7 +16,8 @@ final class IntegrationTestDatabase {
         int separator = withoutQuery.lastIndexOf('/');
         String database = separator < 0 ? "" : withoutQuery.substring(separator + 1);
         String normalized = database.toLowerCase(Locale.ROOT);
-        if (!normalized.endsWith("_it") && !normalized.endsWith("_test")) {
+        boolean generatedWorkerDatabase = normalized.matches("akis_worker_test_[0-9]+");
+        if (!normalized.endsWith("_it") && !normalized.endsWith("_test") && !generatedWorkerDatabase) {
             throw new IllegalStateException(
                     "Destructive JDBC integration tests require an isolated database "
                             + "whose name ends with _it or _test.");

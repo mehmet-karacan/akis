@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { apiErrorMessage, isUuid, redactSensitiveText, redactSensitiveValues, toOffsetDateTime } from './utils'
+import { ApiProblem } from '../../core/api/client'
 
 describe('operations utilities', () => {
   it('redacts sensitive values at every manifest depth without mutating safe context', () => {
@@ -30,5 +31,7 @@ describe('operations utilities', () => {
     expect(redactSensitiveText('jdbc:oracle:thin:user:pass@host')).toBe('jdbc:oracle:thin:user:pass@host')
     expect(redactSensitiveText('https://user:pass@host/path')).toBe('https://[REDACTED]@host/path')
     expect(apiErrorMessage(new Error('token:top-secret'), 'fallback')).toBe('token:[REDACTED]')
+    expect(apiErrorMessage(new ApiProblem({ status: 403 }, 403), 'fallback'))
+      .toBe('Erişim reddedildi (403). Bu ekran veya işlem için yetkiniz yok; oturumu yenileyip tekrar deneyin.')
   })
 })

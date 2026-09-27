@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:akis:contract:data-export:v1",
+  "title": "AKIS Data Export v1 Envelope",
+  "description": "JSON envelope produced by the AKIS job-based data export infrastructure (akis.data-export v1).",
+  "type": "object",
+  "required": [
+    "format",
+    "formatVersion",
+    "dataset",
+    "resourceId",
+    "generatedAt",
+    "snapshotAt",
+    "scope",
+    "locale",
+    "timeZone",
+    "query",
+    "columns",
+    "records",
+    "summary"
+  ],
+  "properties": {
+    "format": {
+      "type": "string",
+      "const": "akis.data-export"
+    },
+    "formatVersion": {
+      "type": "string",
+      "const": "1"
+    },
+    "dataset": {
+      "type": "string",
+      "description": "Allowlisted provider/dataset identifier (e.g. runs, models)."
+    },
+    "resourceId": {
+      "type": "string",
+      "description": "Allowlisted resource identifier (e.g. run-history, data-objects)."
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC timestamp when the file was generated."
+    },
+    "snapshotAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp representing the dataset snapshot used for the export."
+    },
+    "scope": {
+      "type": "string",
+      "enum": ["VISIBLE", "FILTERED", "ALL", "SELECTED"]
+    },
+    "locale": {
+      "type": "string"
+    },
+    "timeZone": {
+      "type": "string"
+    },
+    "query": {
+      "type": "object",
+      "required": ["filters"],
+      "properties": {
+        "filters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["field", "operator", "value"],
+            "properties": {
+              "field": { "type": "string" },
+              "operator": { "type": "string" },
+              "value": {}
+            }
+          }
+        }
+      }
+    },
+    "columns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["key", "label"],
+        "properties": {
+          "key": { "type": "string" },
+          "label": { "type": "string" }
+        }
+      }
+    },
+    "description": {
+      "type": "string"
+    },
+    "records": {
+      "type": "array",
+      "description": "Dataset-specific records streamed incrementally by the provider. Run-history row/byte counters and event sequence numbers are decimal strings (or null) to preserve BIGINT precision in JavaScript."
+    },
+    "details": {
+      "type": ["object", "null"],
+      "description": "Optional provider-specific detail block emitted when includeDetails=true."
+    },
+    "summary": {
+      "type": "object",
+      "required": ["recordCount", "processedRows"],
+      "properties": {
+        "recordCount": {
+          "type": "string",
+          "pattern": "^-?[0-9]+$"
+        },
+        "processedRows": {
+          "type": "string",
+          "pattern": "^-?[0-9]+$"
+        },
+        "selectedRows": {
+          "type": ["string", "null"],
+          "pattern": "^-?[0-9]+$"
+        },
+        "insertedRows": {
+          "type": ["string", "null"],
+          "pattern": "^-?[0-9]+$"
+        },
+        "updatedRows": {
+          "type": ["string", "null"],
+          "pattern": "^-?[0-9]+$"
+        },
+        "deletedRows": {
+          "type": ["string", "null"],
+          "pattern": "^-?[0-9]+$"
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

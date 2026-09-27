@@ -52,7 +52,7 @@ public class KnowledgeModuleRegistry {
                     String source = content.path("source").asText();
                     JsonNode technology = content.path("technology");
                     return new Module(rs.getLong("id"), pin.versionUuid(), hash, source, kind,
-                            technology.path("source").textValue(), technology.path("target").textValue(),
+                            optionalText(technology, "source"), optionalText(technology, "target"),
                             optionSchema(mapper, source, content.path("optionSchema")), Map.of());
                 }).optional().orElseThrow(KnowledgeModuleRegistry::rejected);
             Map<String, Object> values = validateOptions(kind, loaded.optionSchema(), definition.optionsFor(entry.getKey()));
@@ -93,6 +93,11 @@ public class KnowledgeModuleRegistry {
     private static ApiException rejected() {
         return new ApiException(HttpStatus.UNPROCESSABLE_CONTENT, "KM_VERSION_REJECTED",
                 "KM sürümü, türü, proje kapsamı, slotu veya içerik özeti geçersiz. Aynı projede doğrulanmış AKIS_KM sürümünü seçin.");
+    }
+
+    private static String optionalText(JsonNode object, String field) {
+        JsonNode value = object.path(field);
+        return value.isTextual() ? value.asText() : null;
     }
 
     private static JsonNode optionSchema(ObjectMapper mapper, String source, JsonNode legacy) {

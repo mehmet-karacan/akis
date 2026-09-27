@@ -23,6 +23,8 @@ import tr.com.innova.akis.projectbundle.ProjectBundleModels.ImportResult;
 import tr.com.innova.akis.projectbundle.ProjectBundleModels.ProjectBundle;
 import tr.com.innova.akis.projectbundle.ProjectBundleModels.ProjectEntry;
 import tr.com.innova.akis.projectbundle.ProjectBundleModels.TopologyEntry;
+import tr.com.innova.akis.projectbundle.ProjectBundleModels.TargetImportRequest;
+import tr.com.innova.akis.projectbundle.ProjectBundleModels.TargetPlanRequest;
 import tr.com.innova.akis.projectbundle.ProjectBundleModels.ValidationReport;
 import tr.com.innova.akis.security.AuthorizationService;
 
@@ -37,6 +39,10 @@ class ProjectBundleControllerTest {
                 "validate", ProjectBundle.class);
         Method importBundle = ProjectBundleController.class.getDeclaredMethod(
                 "importBundle", ProjectBundle.class, ConflictPolicy.class, boolean.class);
+        Method planTarget = ProjectBundleController.class.getDeclaredMethod(
+                "planTargetImport", UUID.class, TargetPlanRequest.class);
+        Method importTarget = ProjectBundleController.class.getDeclaredMethod(
+                "importIntoTarget", UUID.class, String.class, TargetImportRequest.class);
 
         assertEquals("/projects/{projectUuid}/bundle/export",
                 export.getAnnotation(GetMapping.class).value()[0]);
@@ -44,6 +50,10 @@ class ProjectBundleControllerTest {
                 validate.getAnnotation(PostMapping.class).value()[0]);
         assertEquals("/project-bundles/import",
                 importBundle.getAnnotation(PostMapping.class).value()[0]);
+        assertEquals("/projects/{targetProjectUuid}/bundle/plan",
+                planTarget.getAnnotation(PostMapping.class).value()[0]);
+        assertEquals("/projects/{targetProjectUuid}/bundle/import",
+                importTarget.getAnnotation(PostMapping.class).value()[0]);
     }
 
     @Test
@@ -58,7 +68,7 @@ class ProjectBundleControllerTest {
         assertEquals(projectUuid, authorization.projectUuid);
         assertEquals(PROJECT_READ, authorization.permission);
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertTrue(response.getHeaders().getContentDisposition().getFilename().startsWith("DEMO-bundle-v2"));
+        assertTrue(response.getHeaders().getContentDisposition().getFilename().startsWith("DEMO-bundle-v3"));
     }
 
     @Test
@@ -114,7 +124,7 @@ class ProjectBundleControllerTest {
 
         @Override
         public ValidationReport validate(ProjectBundle bundle) {
-            return new ValidationReport(true, new BundleCounts(0, 0, 0, 0), List.of());
+            return new ValidationReport(true, new BundleCounts(0, 0, 0, 0, 0, 0), List.of());
         }
 
         @Override
@@ -122,7 +132,7 @@ class ProjectBundleControllerTest {
                 ProjectBundle bundle, ConflictPolicy conflictPolicy, boolean dryRun) {
             return new ImportResult(
                     true, false, "DEMO_IMPORT_1", importedProjectUuid,
-                    new BundleCounts(0, 0, 0, 0));
+                    new BundleCounts(0, 0, 0, 0, 0, 0));
         }
 
         private ProjectBundle bundle() {

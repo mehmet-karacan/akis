@@ -3,6 +3,18 @@ package tr.com.innova.akis.oracle;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
@@ -10,6 +22,8 @@ import tools.jackson.databind.ObjectMapper;
 import tr.com.innova.akis.metadata.ApiException;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.ConnectionProfile;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.Credentials;
+import tr.com.innova.akis.oracle.OracleDiscoveryModels.DiscoveryResult;
+import tr.com.innova.akis.oracle.OracleDiscoveryModels.TableMetadata;
 
 class JdbcSchemaDiscoveryPortTest {
 

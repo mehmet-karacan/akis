@@ -14,8 +14,8 @@ export default defineConfig({
     channel: process.env.AKIS_E2E_BROWSER_CHANNEL ?? 'msedge',
     locale: 'en-GB',
     launchOptions: { slowMo: Number(process.env.AKIS_E2E_SLOW_MO ?? 0) },
-    trace: 'retain-on-failure',
-    screenshot: 'only-on-failure',
+    trace: (process.env.AKIS_E2E_TRACE as 'off' | 'on' | 'retain-on-failure' | 'on-first-retry' | 'retain-on-first-failure' | undefined) ?? 'retain-on-failure',
+    screenshot: process.env.AKIS_E2E_SCREENSHOT === 'off' ? 'off' : 'only-on-failure',
     video: process.env.AKIS_E2E_VIDEO === '1' ? 'retain-on-failure' : 'off',
   },
 })

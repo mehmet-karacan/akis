@@ -7,14 +7,9 @@
 .connection-card-description { margin-bottom: 0; }
 .connection-card-audit { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .connection-card-audit h3 { margin: 0 0 8px; font-size: var(--font-caption); color: var(--ink-soft); font-weight: 600; }
-.connections-page .ui-collection--list { gap: 0; overflow: hidden; }
-.ui-collection--list .ui-record-fields { display: flex; flex-wrap: wrap; gap: 12px 18px; }
-.ui-collection--list .ui-record-field { padding: 0; }
 .connections-page > .ui-page-header { margin-bottom: 0; }
 .connections-page > .ui-page-header .button { white-space: nowrap; }
 .connections-records .connections-table-wrap { margin-top: 0; }
-.connections-page .ui-collection--list .ui-collection-card { padding-right: 36px; grid-template-columns: minmax(140px, 1fr) minmax(200px, 2fr); }
-@media (max-width: 760px) { .connections-page .ui-collection--list .ui-collection-card { display: block; } }
 .connections-filter-section, .connections-records { min-width: 0; padding: 16px; }
 .connections-filter-section h2, .connections-records-header h2 { margin: 0; }
 .connections-filter-section .ui-filter-bar { padding: 12px 0 0; margin: 0; gap: 12px; }
@@ -233,12 +228,10 @@ body .connections-page .ui-grid-record-header-leading .database-provider-icon--p
   width: 28px;
   height: 28px;
 }
-body .connections-page .ui-grid-records--card .ui-grid-record-header-leading .provider-cell > span:last-child,
-body .connections-page .ui-grid-records--list .ui-grid-record-header-leading .provider-cell > span:last-child {
+body .connections-page .ui-grid-records--card .ui-grid-record-header-leading .provider-cell > span:last-child {
   display: none;
 }
-body .connections-page .ui-grid-records--card .ui-grid-record-header-leading .provider-cell,
-body .connections-page .ui-grid-records--list .ui-grid-record-header-leading .provider-cell {
+body .connections-page .ui-grid-records--card .ui-grid-record-header-leading .provider-cell {
   gap: 0;
 }
 body .connections-page .ant-tag.connection-status-tag {
@@ -257,7 +250,7 @@ body .connections-page .ui-grid-record-header-extra .ant-tag.connection-status-t
   padding-block: 3px;
   white-space: nowrap;
 }
-/* Provider brand marks are a card/list identity cue only; the table's Provider column shows the name as text. */
+/* Provider brand marks are a card identity cue only; the table's Provider column shows the name as text. */
 body .connections-page .ui-data-grid .provider-cell .database-provider-icon {
   display: none;
 }
@@ -292,7 +285,6 @@ body .connection-detail-page .connection-delete-impact svg { color: var(--schema
 .connection-dialog-title > svg { color: var(--schema-color-info, #2563eb); }
 .connection-panel-description { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 14px; color: var(--ant-color-text-secondary); }
 .connection-panel-description > svg { flex: 0 0 16px; margin-top: 2px; color: var(--ink-soft); }
-body .connections-page .ui-grid-records--list { grid-template-columns: minmax(0, 1fr); }
 body .connections-page .ui-grid-records--card { grid-template-columns: repeat(auto-fit, minmax(min(100%, 430px), 1fr)); }
 body .connections-page .connection-inline-test .akis-button {
   color: var(--schema-color-info, #2563eb);

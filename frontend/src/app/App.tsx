@@ -33,16 +33,17 @@ const ModelDetailPage = lazy(() => import('../features/models').then((module) =>
 const MetadataImportPage = lazy(() => import('../features/models').then((module) => ({ default: module.MetadataImportPage })))
 
 function ProtectedShell() {
-  const { username } = useAuth()
+  const { username, loading } = useAuth()
+  if (loading) return <RouteLoading />
   return username ? <AppShell /> : <Navigate to="/login" replace />
 }
 
 function LoginRoute() {
-  const { username, logout } = useAuth()
+  const { username, logout, loading } = useAuth()
   const location = useLocation()
   const expired = new URLSearchParams(location.search).get('reason') === 'expired'
-  useEffect(() => { if (expired && username) logout() }, [expired, logout, username])
-  if (expired && username) return <RouteLoading />
+  useEffect(() => { if (expired && username) void logout() }, [expired, logout, username])
+  if (loading || (expired && username)) return <RouteLoading />
   return username ? <Navigate to="/project/select" replace /> : <LoginPage />
 }
 
@@ -87,7 +88,8 @@ function ProjectPermissionRoute({ permission, fallback, children }: { permission
 }
 
 export function App() {
-  const { username } = useAuth()
+  const { username, loading } = useAuth()
+  if (loading) return <RouteLoading />
   return (
     <><NetworkFeedback /><Suspense fallback={<RouteLoading />}><Routes>
       <Route path="/login" element={<LoginRoute />} />

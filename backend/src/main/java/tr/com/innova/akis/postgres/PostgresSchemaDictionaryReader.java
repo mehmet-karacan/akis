@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import tools.jackson.databind.ObjectMapper;
+import tr.com.innova.akis.oracle.OracleDiscoveryModels;
 import tr.com.innova.akis.oracle.OracleSchemaSnapshotCodecException;
 import tr.com.innova.akis.oracle.OracleSchemaSnapshotCodecV1.SnapshotDefinition;
 import tr.com.innova.akis.postgres.PostgresSchemaSnapshotCodecV1.RawColumn;
@@ -16,16 +17,16 @@ import tr.com.innova.akis.postgres.PostgresSchemaSnapshotCodecV1.RawConstraint;
 import tr.com.innova.akis.postgres.PostgresSchemaSnapshotCodecV1.RawConstraintColumn;
 
 /**
- * Reads one ordinary table from pg_catalog (never information_schema: it hides type modifiers and partial details) and
+ * Reads one table-like object from pg_catalog (never information_schema: it hides type modifiers and partial details) and
  * hands the rows to {@link PostgresSchemaSnapshotCodecV1}. Only visible, non-dropped attributes are read; partitioned
- * tables (relkind p) are accepted as tables, foreign tables and views are not.
+ * tables (relkind p) and materialized views (relkind m) are accepted for snapshot, foreign tables and plain views are not.
  */
 final class PostgresSchemaDictionaryReader {
     private static final String TABLE_SQL = """
             SELECT c.relkind
               FROM pg_catalog.pg_class c
               JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-             WHERE n.nspname = ? AND c.relname = ? AND c.relkind IN ('r', 'p')
+             WHERE n.nspname = ? AND c.relname = ? AND c.relkind IN ('r', 'p', 'v', 'm')
             """;
     private static final String COLUMN_SQL = """
             SELECT a.attname, pg_catalog.format_type(a.atttypid, a.atttypmod) AS format_type, a.attnum, a.attnotnull,
@@ -62,12 +63,27 @@ final class PostgresSchemaDictionaryReader {
     }
 
     SnapshotDefinition read(Connection connection, String schema, String tableName) throws SQLException {
+        return read(connection, schema, tableName, null);
+    }
+
+    SnapshotDefinition read(Connection connection, String schema, String tableName, String objectType) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(TABLE_SQL)) {
             statement.setString(1, schema);
             statement.setString(2, tableName);
             try (ResultSet rows = statement.executeQuery()) {
-                if (!rows.next()) throw new OracleSchemaSnapshotCodecException("PostgreSQL table was not found or is not an ordinary table.");
+                if (!rows.next()) throw new OracleSchemaSnapshotCodecException("PostgreSQL table was not found or is not a table-like object.");
+                String relkind = rows.getString("relkind");
                 if (rows.next()) throw new OracleSchemaSnapshotCodecException("PostgreSQL table name is ambiguous.");
+                String effectiveType = switch (relkind) {
+                    case "m" -> OracleDiscoveryModels.MATERIALIZED_VIEW;
+                    case "p" -> OracleDiscoveryModels.PARTITIONED_TABLE;
+                    case "v" -> OracleDiscoveryModels.VIEW;
+                    default -> OracleDiscoveryModels.TABLE;
+                };
+                if (objectType != null && !effectiveType.equals(objectType)) {
+                    throw new OracleSchemaSnapshotCodecException("PostgreSQL object type mismatch for requested snapshot.");
+                }
+                objectType = effectiveType;
             }
         }
         List<RawColumn> columns = new ArrayList<>();
@@ -100,7 +116,7 @@ final class PostgresSchemaDictionaryReader {
                 }
             }
         }
-        return codec.decode(schema, tableName, columns, constraints.values().stream().map(ConstraintBuilder::build).toList());
+        return codec.decode(schema, tableName, objectType, columns, constraints.values().stream().map(ConstraintBuilder::build).toList());
     }
 
     private static String deleteRule(String code) {

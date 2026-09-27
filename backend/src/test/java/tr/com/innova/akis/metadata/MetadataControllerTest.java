@@ -33,8 +33,7 @@ class MetadataControllerTest {
                 "AKIS", "Akış", "Metadata project"));
 
         assertEquals(PROJECT_CREATE, authorization.permission);
-        assertEquals("https://identity.example/realms/akis", service.actorProvider);
-        assertEquals("creator-42", service.actorSubject);
+        assertEquals(42L, service.actorId);
     }
 
     @Test
@@ -86,14 +85,13 @@ class MetadataControllerTest {
         @Override
         public PrincipalIdentity currentPrincipalIdentity() {
             return new PrincipalIdentity(
-                    "https://identity.example/realms/akis", "creator-42", "creator");
+                    42L, UUID.randomUUID(), "creator-42", "creator");
         }
     }
 
     private static final class StubMetadataService extends MetadataService {
 
-        private String actorProvider;
-        private String actorSubject;
+        private long actorId;
 
         private StubMetadataService() {
             super(null, new ObjectMapper(), new DefinitionContentValidator(), new SecretValueSanitizer());
@@ -104,10 +102,8 @@ class MetadataControllerTest {
                 String code,
                 String name,
                 String description,
-                String actorProvider,
-                String actorSubject) {
-            this.actorProvider = actorProvider;
-            this.actorSubject = actorSubject;
+                long actorId) {
+            this.actorId = actorId;
             return new ProjectRow(
                     1, PROJECT_UUID, code, "AKTIF", name, description, 1,
                     OffsetDateTime.parse("2026-09-12T00:00:00Z"));

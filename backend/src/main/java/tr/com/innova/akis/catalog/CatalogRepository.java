@@ -409,7 +409,11 @@ public class CatalogRepository {
                 select d.id, d.uuid, d.model_id, m.uuid as model_uuid,
                        d.alt_model_id, s.uuid as submodel_uuid, d.kod,
                        d.nesne_referansi,
-                       case d.tur when 'GORUNUM' then 'VIEW' else d.tur end as tur_kodu,
+                        case d.tur
+                            when 'GORUNUM' then 'VIEW'
+                            else d.tur
+                        end as tur_kodu,
+
                        case when d.arsivlenme_zamani is null then 'AKTIF' else 'PASIF' end as durum_kodu,
                        d.sorgu_sema_surumu as sorgu_tanim_surumu,
                        d.sorgu_tanimi, d.ad, d.versiyon_no
@@ -445,6 +449,10 @@ public class CatalogRepository {
     }
 
     private String databaseDataObjectType(String type) {
-        return "VIEW".equals(type) ? "GORUNUM" : type;
+        return switch (type) {
+            case "VIEW" -> "GORUNUM";
+            case "PARTITIONED_TABLE" -> "TABLO";
+            default -> type;
+        };
     }
 }

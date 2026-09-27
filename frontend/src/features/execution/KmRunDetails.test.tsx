@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import '../../core/i18n'
 import { KmRunDetails, type KmRunData } from './KmRunDetails'
@@ -18,5 +18,15 @@ describe('KM run evidence', () => {
     expect(screen.getByText(/Original step records|İlk çalıştırmanın adım/)).toBeInTheDocument()
     expect(screen.getAllByText(/Outcome Unknown|Sonuç Belirsiz/).length).toBeGreaterThan(0)
     expect(screen.queryByText(/The target outcome must|Hedef sonucu doğrulanmalı/)).not.toBeInTheDocument()
+  })
+  it('renders the SQL evidence stored with the selected step', () => {
+    render(<KmRunDetails data={{ ...data, steps: data.steps.map((step, index) => index === 0 ? {
+      ...step,
+      executedSql: [{ step: 'LOAD', site: 'SOURCE', owner: 'TTBP', sql: 'SELECT 1 FROM TTBP.SATIS_KANALI' }],
+    } : step) }} />)
+    fireEvent.click(screen.getByRole('button', { name: /Load|Yükle/ }))
+    expect(screen.getByText('1 SQL')).toBeInTheDocument()
+    expect(screen.getByText('TTBP')).toBeInTheDocument()
+    expect(screen.getByRole('textbox')).toHaveAttribute('data-language', 'sql')
   })
 })

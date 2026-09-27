@@ -21,11 +21,7 @@ interface ExecutionStore {
 
     Optional<Long> findProjectId(UUID projectUuid);
 
-    Optional<Actor> findActiveActor(String provider, String subject);
-
-    default Optional<Actor> findActiveActor(long userId) {
-        return Optional.empty();
-    }
+    Optional<Actor> findActiveActor(long userId);
 
     Optional<PublicationContext> lockPublication(UUID projectUuid, UUID publicationUuid);
 

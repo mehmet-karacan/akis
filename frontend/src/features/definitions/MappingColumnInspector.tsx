@@ -1,7 +1,7 @@
 import { Input as AntInput } from 'antd'
-import { Database, DatabaseZap, FolderTree, Link2, Maximize2, Minimize2, Network, Table2, Unlink, X } from 'lucide-react'
+import { Database, FolderTree, Link2, Maximize2, Minimize2, Network, Table2, Unlink, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { Button } from '../../core/ui'
+import { Button, SourceTargetCard } from '../../core/ui'
 import type { DataObject, LogicalSchema, Model, SchemaSnapshotColumn } from '../topology/api'
 import type { MappingColumnSelection } from './MappingDiagram'
 import type { MappingContent } from './types'
@@ -123,7 +123,7 @@ export function MappingColumnInspector({ projectUuid, context, value, columns, o
 
   return <section className="mapping-column-inspector" aria-label={tr ? 'Kolon Özellikleri' : 'Column Properties'}>
     <header>
-      <div className="mapping-inspector-identity"><span className={`procedure-heading-icon procedure-heading-icon--${selection.role.toLowerCase()}`} aria-hidden="true">{selection.role === 'SOURCE' ? <DatabaseZap size={17} /> : <Database size={17} />}</span><div><span>{selection.role === 'SOURCE' ? (tr ? 'Kaynak Kolon' : 'Source Column') : (tr ? 'Hedef Kolon' : 'Target Column')}</span><strong>{selection.column.reference}</strong></div></div>
+      <SourceTargetCard role={selection.role} label={selection.role === 'SOURCE' ? (tr ? 'Kaynak Kolon' : 'Source Column') : (tr ? 'Hedef Kolon' : 'Target Column')} name={selection.column.reference} />
       <div className="mapping-inspector-actions"><Button tone="ghost" className="definition-icon-button" aria-label={maximized ? (tr ? 'Önceki boyuta dön' : 'Restore panel') : (tr ? 'Paneli büyüt' : 'Maximize panel')} onClick={onMaximize}>{maximized ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</Button><Button tone="ghost" className="definition-icon-button" aria-label={tr ? 'Özellikleri daralt' : 'Collapse properties'} onClick={onClose}><X size={16} /></Button></div>
     </header>
     <div className="mapping-inspector-context">

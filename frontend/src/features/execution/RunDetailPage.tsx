@@ -81,6 +81,7 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
           logCounter: item.operation === 'ATOMIC_REPLACE' ? 'INSERT' : null,
           transactionState: item.state === 'SUCCEEDED' && item.operation === 'ATOMIC_REPLACE' ? 'COMMIT_CONFIRMED' : 'NOT_APPLICABLE',
           risk: null, startedAt: item.startedAt, finishedAt: item.completedAt, rowCount: item.affectedRows, byteCount: null, errorCode: item.errorCode,
+          executedSql: item.executedSql,
         })))
       } catch { /* child detail stays reachable through its own page */ }
     }))
@@ -88,7 +89,7 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
   }, [project, childKeys])
   const allSteps = useMemo(() => [...(steps.data ?? []), ...[...(childSteps.data?.values() ?? [])].flat()], [steps.data, childSteps.data])
   const hierarchy = useMemo(() => buildRunStepTree(allSteps), [allSteps])
-  // The published procedure version supplies the command text per step code; the run store keeps only outcomes.
+  // Published content still supplies package grouping metadata; SQL evidence is read from the immutable run record.
   const publicationUuid = run.data?.publicationUuid
   const published = useRemoteData(async () => {
     if (!publicationUuid) return null
@@ -199,9 +200,14 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
           ]} />{selectedUnit.commands.map(item => item.errorCode && <Alert key={item.uuid} type="error" showIcon title={item.errorCode} description={t('errorMessageUnavailable')} />)}
           {step.type === 'PAKET' && step.childRunUuid && <p className="run-step-child"><Link to={`/project/operations?run=${encodeURIComponent(step.childRunUuid)}`}><PlayCircle size={14} aria-hidden="true" /> {t('openChildRun')}</Link></p>}
           {step.type !== 'PAKET' && <>
-          <ul className="prerun-sql-list run-step-commands" aria-label={t('commandSql')}>{selectedUnit.commands.map(item => { const task = tasks?.get(item.code); const role = item.connectionRole === 'SOURCE' ? 'source' : 'target'; return <li key={item.uuid} className={`prerun-sql prerun-sql--${role}`}>
-            <div className="prerun-sql-head"><strong>{item.status === 'CALISIYOR' ? (locale.startsWith('tr') ? 'Çalışan SQL' : 'Running SQL') : item.connectionRole === 'SOURCE' ? t('sourceCommand') : t('targetCommand')}</strong><RunStatusBadge status={item.status} />{selectedUnit.commands.length > 1 && <span className="prerun-cell-hint">{rowsLabel(item)}: {rowsValue(item)}</span>}<code>{task?.type ?? item.type} · {item.code}</code></div>
-            <SqlEditor value={task?.command ?? (published.loading ? '…' : t('sqlUnavailable'))} onChange={() => undefined} label={t('commandSql')} readOnly showToolbar={false} /></li> })}</ul></>}
+          <ul className="prerun-sql-list run-step-commands" aria-label={t('commandSql')}>{selectedUnit.commands.map(item => {
+            const evidence = item.executedSql ?? []
+            const entries = evidence.length ? evidence : [{ site: item.connectionRole ?? '—', owner: '', sql: '' }]
+            return entries.map((entry, index) => { const role = item.connectionRole === 'SOURCE' ? 'source' : 'target'; return <li key={`${item.uuid}:${index}`} className={`prerun-sql prerun-sql--${role}`}>
+              <div className="prerun-sql-head"><strong>{item.status === 'CALISIYOR' ? (locale.startsWith('tr') ? 'Çalışan SQL' : 'Running SQL') : item.connectionRole === 'SOURCE' ? t('sourceCommand') : t('targetCommand')}</strong><RunStatusBadge status={item.status} />{selectedUnit.commands.length > 1 && <span className="prerun-cell-hint">{rowsLabel(item)}: {rowsValue(item)}</span>}<code>{entry.site} · {entry.owner || '—'} · {item.code}</code></div>
+              {entry.sql ? <SqlEditor value={entry.sql} onChange={() => undefined} label={t('commandSql')} readOnly wrapLines showToolbar={false} /> : <div className="km-sql-empty"><strong>{t('sqlUnavailable')}</strong><p>{locale.startsWith('tr') ? 'Bu eski çalıştırmada SQL kanıtı kaydedilmemiş.' : 'SQL evidence was not recorded for this historical run.'}</p></div>}
+            </li> })
+          })}</ul></>}
           {!!chunks.data?.items.length && <section className="run-chunk-evidence" aria-label={t('chunkEvidence')}><h4>{t('chunkEvidence')}</h4><Table size="small" pagination={false} rowKey="uuid" dataSource={chunks.data.items} columns={[
             { title: '#', dataIndex: 'sequence' },
             { title: t('status'), dataIndex: 'status' },

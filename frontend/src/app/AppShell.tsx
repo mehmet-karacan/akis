@@ -1,8 +1,9 @@
 import { Button as AntActionButton } from '../core/ui/Button'
+import { BrandLogo, InnovaLogo } from '../core/brand/BrandLogo'
 import { LanguageSwitcher } from '../core/ui/LanguageSwitcher'
 import { ThemeSwitcher } from '../core/ui/ThemeSwitcher'
 import {
-  CircleUserRound, DatabaseZap, LogOut, PanelLeft, PanelLeftClose, PanelLeftOpen,
+  CircleUserRound, LogOut, PanelLeft, PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react'
 import { useCallback, useEffect, useState, type CSSProperties } from 'react'
 import { Grid } from 'antd'
@@ -54,7 +55,7 @@ export function AppShell() {
   const [pendingPath, setPendingPath] = useState<string | null>(null)
   const [savingBeforeLeave, setSavingBeforeLeave] = useState(false)
   const completeNavigation = useCallback((path: string) => {
-    if (path === '/login') logout()
+    if (path === '/login') void logout()
     navigate(path)
   }, [logout, navigate])
 
@@ -127,7 +128,7 @@ function ShellBody({ compact, mobileNavigationOpen, setMobileNavigationOpen, nav
       <a className="skip-link" href="#main-content">{t('common.skipToContent')}</a>
       <div className="shell-content">
         <header className="topbar">
-          <div className="topbar-identity">{compact && <AntActionButton aria-label={t('nav.workspaces')} aria-expanded={mobileNavigationOpen} onClick={() => setMobileNavigationOpen(value => !value)} icon={<PanelLeft size={18} />} />}<span className="compact-brand" aria-label="AKIŞ"><DatabaseZap /><strong>AKIŞ</strong></span><ProjectSwitcher currentProject={project} projectUuid={projectUuid} onNavigate={requestNavigation} /></div>
+          <div className="topbar-identity">{compact && <AntActionButton aria-label={t('nav.workspaces')} aria-expanded={mobileNavigationOpen} onClick={() => setMobileNavigationOpen(value => !value)} icon={<PanelLeft size={18} />} />}<span className="compact-brand"><BrandLogo variant={compact ? 'compact' : 'topbar'} /><InnovaLogo className="topbar-innova-logo" /></span><ProjectSwitcher currentProject={project} projectUuid={projectUuid} onNavigate={requestNavigation} /></div>
           <div className="topbar-actions">
             <LanguageSwitcher className="compact-select" />
             <ThemeSwitcher className="compact-select" />
@@ -152,7 +153,6 @@ function ShellBody({ compact, mobileNavigationOpen, setMobileNavigationOpen, nav
             {activeWorkspace === 'development' ? <div className="design-workspace definitions-workspace"><div className="design-content"><Outlet /></div></div> : <Outlet />}
           </main>
         </div>
-        <footer className="app-copyright">© 2026 Mehmet KARACAN</footer>
       </div>
       <Dialog open={pendingPath !== null} title={t('pendingChanges.title')} eyebrow={t('pendingChanges.eyebrow')} closeLabel={t('common.close')} busy={savingBeforeLeave} onClose={() => setPendingPath(null)}>
         <p className="dialog-description">{t('pendingChanges.description')}</p>

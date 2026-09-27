@@ -17,7 +17,11 @@ export function safeBundleFileName(projectCode: string) {
     .replace(/[^a-zA-Z0-9._-]+/g, '-')
     .replace(/^[._-]+|[._-]+$/g, '')
     .slice(0, 80)
-  return `${normalized || 'project'}-bundle-v2.json`
+  return `${normalized || 'project'}-bundle-v3.json`
+}
+
+export function isV3Bundle(document: ProjectBundleDocument): boolean {
+  return document.formatVersion === 3
 }
 
 export function isBundleDocument(value: unknown): value is ProjectBundleDocument {
@@ -25,9 +29,16 @@ export function isBundleDocument(value: unknown): value is ProjectBundleDocument
   const document = value as Record<string, unknown>
   const project = document.project
   const topology = document.topology
+  const supportedVersion = (document.formatVersion === 2 && document.schemaVersion === 2)
+    || (document.formatVersion === 3 && document.schemaVersion === 3)
+  const validV3Envelope = document.formatVersion !== 3
+    || (Boolean(document.producer)
+      && typeof document.producer === 'object'
+      && !Array.isArray(document.producer)
+      && Array.isArray(document.includedSections))
   return document.format === BUNDLE_FORMAT
-    && document.formatVersion === 2
-    && document.schemaVersion === 2
+    && supportedVersion
+    && validV3Envelope
     && typeof document.checksum === 'string'
     && typeof document.exportedAt === 'string'
     && Boolean(project)

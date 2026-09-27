@@ -3,10 +3,6 @@ param()
 
 $ErrorActionPreference = "Stop"
 $baselineDirectory = $PSScriptRoot
-$v001 = Join-Path $baselineDirectory "V001__identity_rbac_project.sql"
-$v002 = Join-Path $baselineDirectory "V002__connections_and_schemas.sql"
-$v013 = Join-Path $baselineDirectory "V013__physical_schema_identity_per_connection.sql"
-$v014 = Join-Path $baselineDirectory "V014__archive_aware_topology_identity.sql"
 $verification = Join-Path $baselineDirectory "verify-connections.sql"
 $projectRoot = Split-Path -Parent (Split-Path -Parent $baselineDirectory)
 $envFile = Join-Path $projectRoot ".env"
@@ -15,9 +11,13 @@ $docker = "C:\Program Files\Docker\Docker\resources\bin\docker.exe"
 $containerName = "akis-metadata-db-1"
 $testDatabase = "akis_connections_test_" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
 $databaseCreated = $false
+$javaHome = 'C:\Program Files\Eclipse Adoptium\jdk-25.0.3.9-hotspot'
 
 if ($testDatabase -notmatch '^akis_connections_test_[0-9]+$') {
     throw "Unsafe temporary database name."
+}
+if (-not (Test-Path -LiteralPath (Join-Path $javaHome 'bin\java.exe'))) {
+    throw "Java 25 is required for the connection integration test: $javaHome"
 }
 
 $settings = @{}
@@ -38,28 +38,27 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Could not create the temporary connection database." }
     $databaseCreated = $true
 
-    $files = @(
-        @{ Local = $v001; Container = "/tmp/akis-clean-v001.sql" },
-        @{ Local = $v002; Container = "/tmp/akis-clean-v002.sql" },
-        @{ Local = $v013; Container = "/tmp/akis-clean-v013.sql" },
-        @{ Local = $v014; Container = "/tmp/akis-clean-v014.sql" },
-        @{ Local = $verification; Container = "/tmp/akis-clean-connections-verify.sql" },
-        @{ Local = (Join-Path $baselineDirectory 'V003__folders_definitions_and_versions.sql'); Container = '/tmp/akis-clean-v003.sql' },
-        @{ Local = (Join-Path $baselineDirectory 'V004__catalog_and_schema_snapshots.sql'); Container = '/tmp/akis-clean-v004.sql' },
-        @{ Local = (Join-Path $baselineDirectory 'V005__validation_and_scenarios.sql'); Container = '/tmp/akis-clean-v005.sql' },
-        @{ Local = (Join-Path $baselineDirectory 'V006__runnable_releases_and_approvals.sql'); Container = '/tmp/akis-clean-v006.sql' },
-        @{ Local = (Join-Path $baselineDirectory 'V008__audit_log.sql'); Container = '/tmp/akis-clean-v008.sql' }
-    )
-    foreach ($file in $files) {
-        & $docker cp $file.Local "${containerName}:$($file.Container)"
-        if ($LASTEXITCODE -ne 0) { throw "Could not copy a connection test SQL file." }
-        & $docker exec $containerName psql -v ON_ERROR_STOP=1 -U $databaseUser -d $testDatabase -f $file.Container
-        if ($LASTEXITCODE -ne 0) { throw "Connection schema test failed." }
+    $migrations = Get-ChildItem -LiteralPath $baselineDirectory -Filter 'V*.sql' |
+        Where-Object { $_.Name -match '^V[0-9]+__' } |
+        Sort-Object { [int]([regex]::Match($_.Name, '^V([0-9]+)__').Groups[1].Value) }
+    foreach ($migration in $migrations) {
+        $containerPath = "/tmp/akis-clean-$($migration.Name)"
+        & $docker cp $migration.FullName "${containerName}:$containerPath"
+        if ($LASTEXITCODE -ne 0) { throw "Could not copy $($migration.Name)." }
+        & $docker exec $containerName psql -v ON_ERROR_STOP=1 -U $databaseUser -d $testDatabase -f $containerPath
+        if ($LASTEXITCODE -ne 0) { throw "Connection schema test failed in $($migration.Name)." }
     }
+
+    & $docker cp $verification "${containerName}:/tmp/akis-clean-connections-verify.sql"
+    if ($LASTEXITCODE -ne 0) { throw "Could not copy verify-connections.sql." }
+    & $docker exec $containerName psql -v ON_ERROR_STOP=1 -U $databaseUser -d $testDatabase -f /tmp/akis-clean-connections-verify.sql
+    if ($LASTEXITCODE -ne 0) { throw "Connection schema verification failed." }
 
     $env:SPRING_DATASOURCE_URL = "jdbc:postgresql://localhost:$($settings['POSTGRES_PORT'])/$testDatabase"
     $env:SPRING_DATASOURCE_USERNAME = $databaseUser
     $env:SPRING_DATASOURCE_PASSWORD = $settings["POSTGRES_PASSWORD"]
+    $env:JAVA_HOME = $javaHome
+    $env:Path = "$javaHome\bin;$env:Path"
     & $maven -pl backend "-Dtest=CleanTopologyRepositoryIT,CleanConnectionLifecycleRepositoryIT" test
     if ($LASTEXITCODE -ne 0) { throw "Clean connection repository test failed." }
     Write-Output "Clean connection and lifecycle repository tests: PASS"

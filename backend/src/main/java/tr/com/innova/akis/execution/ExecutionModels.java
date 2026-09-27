@@ -131,6 +131,7 @@ final class ExecutionModels {
             String errorCode,
             String logCounter,
             String transactionState,
+            JsonNode executedSql,
             /** Package step: the child run that executed the step's object; null for other step kinds. */
             UUID childRunUuid) {
         RunStepRow(UUID uuid, UUID parentUuid, String code, String type, int ordinal,
@@ -138,14 +139,14 @@ final class ExecutionModels {
                 OffsetDateTime startedAt, OffsetDateTime finishedAt, Long rowCount,
                 Long byteCount, String errorCode) {
             this(uuid, parentUuid, code, type, ordinal, name, status, connectionRole, risk,
-                    startedAt, finishedAt, rowCount, byteCount, errorCode, null, "UNCONFIRMED");
+                    startedAt, finishedAt, rowCount, byteCount, errorCode, null, "UNCONFIRMED", null, null);
         }
         RunStepRow(UUID uuid, UUID parentUuid, String code, String type, int ordinal,
                 String name, String status, String connectionRole, String risk,
                 OffsetDateTime startedAt, OffsetDateTime finishedAt, Long rowCount,
                 Long byteCount, String errorCode, String logCounter, String transactionState) {
             this(uuid, parentUuid, code, type, ordinal, name, status, connectionRole, risk,
-                    startedAt, finishedAt, rowCount, byteCount, errorCode, logCounter, transactionState, null);
+                    startedAt, finishedAt, rowCount, byteCount, errorCode, logCounter, transactionState, null, null);
         }
     }
 

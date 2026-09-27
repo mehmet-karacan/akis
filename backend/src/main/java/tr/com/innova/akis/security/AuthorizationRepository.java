@@ -31,16 +31,10 @@ public class AuthorizationRepository {
                               from akis.proje p
                               join akis.proje_uyeligi pu on pu.proje_id = p.id
                               join akis.kullanici k on k.id = pu.kullanici_id
-                              join akis.harici_kimlik hk on hk.kullanici_id = k.id
                              where p.uuid = :projectUuid
                                and p.arsivlenme_zamani is null
-                               and ((:provider = 'LOCAL_BASIC'
-                                     and hk.saglayici_turu = 'YEREL'
-                                     and hk.yayinlayici is null)
-                                    or (hk.saglayici_turu = 'OIDC'
-                                        and hk.yayinlayici = :provider))
-                               and hk.harici_kullanici_anahtari = :subject
-                               and k.devre_disi_birakilma_zamani is null
+                               and k.id = :userId
+                               and k.durum = 'AKTIF'
                                and pu.durum = 'AKTIF'
                                and pu.gecerlilik_baslangici <= current_timestamp
                                and (pu.gecerlilik_sonu is null
@@ -69,8 +63,7 @@ public class AuthorizationRepository {
                                ) as permitted
                         """)
                 .param("projectUuid", projectUuid)
-                .param("provider", principal.provider())
-                .param("subject", principal.subject())
+                .param("userId", principal.userId())
                 .param("permissionCode", permissionCode)
                 .query((rs, rowNum) -> new ProjectAccess(
                         rs.getBoolean("visible"), rs.getBoolean("permitted")))
@@ -84,7 +77,6 @@ public class AuthorizationRepository {
                         select exists(
                             select 1
                               from akis.kullanici k
-                              join akis.harici_kimlik hk on hk.kullanici_id = k.id
                               join akis.kullanici_rol kr
                                 on kr.kullanici_id = k.id
                                and kr.rol_kapsami = 'SISTEM'
@@ -100,18 +92,12 @@ public class AuthorizationRepository {
                               join akis.yetki y
                                 on y.id = ry.yetki_id
                                and y.kapsam = ry.kapsam
-                             where ((:provider = 'LOCAL_BASIC'
-                                     and hk.saglayici_turu = 'YEREL'
-                                     and hk.yayinlayici is null)
-                                    or (hk.saglayici_turu = 'OIDC'
-                                        and hk.yayinlayici = :provider))
-                               and hk.harici_kullanici_anahtari = :subject
-                               and k.devre_disi_birakilma_zamani is null
+                             where k.id = :userId
+                               and k.durum = 'AKTIF'
                                and y.kod = :permissionCode
                         )
                         """)
-                .param("provider", principal.provider())
-                .param("subject", principal.subject())
+                .param("userId", principal.userId())
                 .param("permissionCode", permissionCode)
                 .query(Boolean.class)
                 .single();
@@ -123,7 +109,6 @@ public class AuthorizationRepository {
                           from akis.proje p
                           join akis.proje_uyeligi pu on pu.proje_id = p.id
                           join akis.kullanici k on k.id = pu.kullanici_id
-                          join akis.harici_kimlik hk on hk.kullanici_id = k.id
                           join akis.kullanici_rol kr on kr.proje_id = p.id
                            and kr.kullanici_id = k.id and kr.rol_kapsami = 'PROJE'
                            and kr.iptal_zamani is null
@@ -131,16 +116,13 @@ public class AuthorizationRepository {
                           left join akis.rol_yetki ry on ry.rol_id = r.id and ry.kapsam = 'PROJE'
                           left join akis.yetki y on y.id = ry.yetki_id and y.kapsam = 'PROJE'
                          where p.uuid = :projectUuid and p.arsivlenme_zamani is null
-                           and ((:provider = 'LOCAL_BASIC' and hk.saglayici_turu = 'YEREL' and hk.yayinlayici is null)
-                                or (hk.saglayici_turu = 'OIDC' and hk.yayinlayici = :provider))
-                           and hk.harici_kullanici_anahtari = :subject
-                           and k.devre_disi_birakilma_zamani is null
+                           and k.id = :userId
+                           and k.durum = 'AKTIF'
                            and pu.durum = 'AKTIF' and pu.gecerlilik_baslangici <= current_timestamp
                            and (pu.gecerlilik_sonu is null or pu.gecerlilik_sonu >= current_timestamp)
                         """)
                 .param("projectUuid", projectUuid)
-                .param("provider", principal.provider())
-                .param("subject", principal.subject())
+                .param("userId", principal.userId())
                 .query((rs, rowNum) -> new ProjectGrant(rs.getString("role_code"), rs.getString("permission_code")))
                 .list();
     }
@@ -151,22 +133,15 @@ public class AuthorizationRepository {
                           from akis.proje p
                           join akis.proje_uyeligi pu on pu.proje_id = p.id
                           join akis.kullanici k on k.id = pu.kullanici_id
-                          join akis.harici_kimlik hk on hk.kullanici_id = k.id
                          where p.arsivlenme_zamani is null
-                           and ((:provider = 'LOCAL_BASIC'
-                                 and hk.saglayici_turu = 'YEREL'
-                                 and hk.yayinlayici is null)
-                                or (hk.saglayici_turu = 'OIDC'
-                                    and hk.yayinlayici = :provider))
-                           and hk.harici_kullanici_anahtari = :subject
-                           and k.devre_disi_birakilma_zamani is null
+                           and k.id = :userId
+                           and k.durum = 'AKTIF'
                            and pu.durum = 'AKTIF'
                            and pu.gecerlilik_baslangici <= current_timestamp
                            and (pu.gecerlilik_sonu is null
                                 or pu.gecerlilik_sonu >= current_timestamp)
                         """)
-                .param("provider", principal.provider())
-                .param("subject", principal.subject())
+                .param("userId", principal.userId())
                 .query(UUID.class)
                 .set();
     }
@@ -177,7 +152,7 @@ public class AuthorizationRepository {
                 .set();
     }
 
-    public record PrincipalIdentity(String provider, String subject, String name) {
+    public record PrincipalIdentity(long userId, UUID userUuid, String userCode, String name) {
     }
 
     public record ProjectAccess(boolean visible, boolean permitted) {

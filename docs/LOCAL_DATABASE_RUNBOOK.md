@@ -12,8 +12,8 @@ veritabanı işlemlerinin kapsamında değildir.
 - `AKIS_EXECUTION_PROCEDURE_RUNTIME_ENABLED=false`
 - Flyway yalnız `classpath:db/akis` temiz baseline zincirini çalıştırır;
   `flyway_schema_history` tablosu da `akis` şemasındadır.
-- İlk yerel yönetici parolası PostgreSQL'e yazılmaz. `harici_kimlik` kaydı,
-  HTTP Basic principal adını uygulama kullanıcısına bağlar.
+- Kimlik doğrulama uygulama kullanıcısı, Argon2id parola özeti ve sunucu taraflı
+  oturumla yapılır. Düz parola ve `harici_kimlik` kaydı tutulmaz.
 
 ## Başlatma
 
@@ -30,10 +30,10 @@ Invoke-RestMethod http://127.0.0.1:8080/actuator/health
 
 ## İlk yönetici
 
-`database/akis-baseline/bootstrap-local-admin.sql` dosyasını `.env` içindeki
-`AKIS_DEV_USERNAME` ile çalıştırın. Betik idempotenttir; kullanıcı, yerel kimlik
-ve etkin `SISTEM_YONETICISI` rolü birer kez oluşur. Parola parametre olarak dahi
-verilmez.
+Etkileşimli terminalde `scripts/bootstrap-admin.ps1` komutunu çalıştırın. Komut
+kullanıcı bilgilerini ve parolayı terminalden alır; parola süreç argümanına,
+ortam değişkenine veya Git'e yazılmaz. Etkin bir sistem yöneticisi varsa işlem
+güvenli biçimde reddedilir.
 
 ## Yedekleme
 

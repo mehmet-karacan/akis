@@ -25,6 +25,9 @@ import tr.com.innova.akis.identity.IdentityModels.MembershipRow;
 import tr.com.innova.akis.identity.IdentityModels.ProjectRoleView;
 import tr.com.innova.akis.identity.IdentityModels.UserRow;
 import tr.com.innova.akis.security.AuthorizationService;
+import tr.com.innova.akis.security.ApplicationUserPrincipal;
+import tr.com.innova.akis.security.PasswordSetupService;
+import org.springframework.security.core.Authentication;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -32,32 +35,50 @@ final class IdentityController {
 
     private final IdentityService service;
     private final AuthorizationService authorization;
+    private final PasswordSetupService passwordSetup;
 
-    IdentityController(IdentityService service, AuthorizationService authorization) {
+    IdentityController(
+            IdentityService service,
+            AuthorizationService authorization,
+            PasswordSetupService passwordSetup) {
         this.service = service;
         this.authorization = authorization;
+        this.passwordSetup = passwordSetup;
     }
 
     @PostMapping("/identity/users")
-    ResponseEntity<UserView> createOidcUser(
-            @Valid @RequestBody CreateOidcUserRequest request) {
+    ResponseEntity<UserView> createUser(
+            @Valid @RequestBody CreateUserRequest request) {
         authorization.requireSystemPermission(IDENTITY_USER_PROVISION);
-        UserRow user = service.createOidcUser(
-                request.issuer(), request.subject(), request.name(), request.email());
+        UserRow user = service.createUser(
+                request.kullaniciKodu(), request.ad(), request.soyad(),
+                request.sicilNumarasi(), request.eposta());
         return ResponseEntity.created(URI.create("/api/v1/identity/users/" + user.uuid()))
                 .body(UserView.from(user));
     }
 
     @GetMapping("/identity/users")
-    List<UserView> listOidcUsers() {
+    List<UserView> listUsers() {
         authorization.requireSystemPermission(IDENTITY_USER_PROVISION);
-        return service.listOidcUsers().stream().map(UserView::from).toList();
+        return service.listUsers().stream().map(UserView::from).toList();
     }
 
     @GetMapping("/identity/users/{userUuid}")
-    UserView oidcUser(@PathVariable UUID userUuid) {
+    UserView user(@PathVariable UUID userUuid) {
         authorization.requireSystemPermission(IDENTITY_USER_PROVISION);
-        return UserView.from(service.oidcUser(userUuid));
+        return UserView.from(service.user(userUuid));
+    }
+
+    @PostMapping("/identity/users/{userUuid}/password-setup-token")
+    PasswordSetupTokenView issuePasswordSetupToken(
+            @PathVariable UUID userUuid,
+            Authentication authentication) {
+        authorization.requireSystemPermission(IDENTITY_USER_PROVISION);
+        if (!(authentication.getPrincipal() instanceof ApplicationUserPrincipal principal)) {
+            throw new IllegalStateException("Yerel kullanıcı oturumu bulunamadı.");
+        }
+        var token = passwordSetup.issue(userUuid, principal.userId());
+        return new PasswordSetupTokenView(token.token(), token.expiresAt());
     }
 
     @PostMapping("/projects/{projectUuid}/memberships")
@@ -96,11 +117,12 @@ final class IdentityController {
         return MembershipView.from(service.membership(projectUuid, membershipUuid));
     }
 
-    record CreateOidcUserRequest(
-            @NotBlank String issuer,
-            @NotBlank String subject,
-            @NotBlank String name,
-            @Email String email) {
+    record CreateUserRequest(
+            @NotBlank String kullaniciKodu,
+            @NotBlank String ad,
+            String soyad,
+            String sicilNumarasi,
+            @Email String eposta) {
     }
 
     record CreateMembershipRequest(
@@ -112,18 +134,22 @@ final class IdentityController {
 
     record UserView(
             UUID uuid,
-            String issuer,
-            String subject,
+            String kullaniciKodu,
             String status,
-            String name,
-            String email,
+            String ad,
+            String soyad,
+            String sicilNumarasi,
+            String eposta,
             OffsetDateTime createdAt) {
 
         static UserView from(UserRow row) {
             return new UserView(
-                    row.uuid(), row.issuer(), row.subject(), row.status(), row.name(),
-                    row.email(), row.createdAt());
+                    row.uuid(), row.userCode(), row.status(), row.firstName(), row.lastName(),
+                    row.employeeNumber(), row.email(), row.createdAt());
         }
+    }
+
+    record PasswordSetupTokenView(String token, OffsetDateTime expiresAt) {
     }
 
     record MembershipView(

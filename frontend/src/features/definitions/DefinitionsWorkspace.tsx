@@ -440,7 +440,7 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
               }}
             />
           ) : !selectedDefinition ? (
-            <DefinitionCatalog definitions={definitions} folders={folders} typeLabel={typeLabel} canWrite={canWrite} onOpen={(uuid) => navigate(`/project/objects/definitions/${encodeURIComponent(uuid)}`)} onCreate={() => { setCreateDefinitionType(null); setCreateDefinitionFolderUuid(null); setShowCreate(true) }} />
+            <DefinitionCatalog projectUuid={projectUuid} definitions={definitions} folders={folders} typeLabel={typeLabel} canWrite={canWrite} onOpen={(uuid) => navigate(`/project/objects/definitions/${encodeURIComponent(uuid)}`)} onCreate={() => { setCreateDefinitionType(null); setCreateDefinitionFolderUuid(null); setShowCreate(true) }} />
           ) : (
             <>
 

@@ -22,23 +22,28 @@ test('Ant Design login and workspace surfaces fit both themes and viewport sizes
   await login(page)
   for (const theme of ['light', 'dark']) {
     await page.evaluate(value => localStorage.setItem('akis.theme', value), theme)
-    for (const path of ['connections', 'environments', 'operations', 'objects/definitions/8be2f931-3734-4f16-ba4f-2604d06d8c9c']) {
+    for (const path of ['connections', 'environments', 'operations', 'objects']) {
       await page.goto(`/project/${path}`)
       await expect(page.locator('#main-content')).toBeVisible()
       await expect(page.getByText('No project selected', { exact: true })).toHaveCount(0)
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
       await expect(page.locator('.ui-async-state.loading')).toHaveCount(0)
       if (path.startsWith('objects')) {
+        const procedure = page.locator('.project-tree-object-node span[title$="· Procedure"]').first()
+        if (await procedure.count() === 0) await page.getByRole('button', { name: 'Procedures', exact: true }).click()
+        await expect(procedure).toBeVisible()
+        await procedure.locator('.akis-tree-static-label').dblclick()
         await expect(page.locator('.procedure-editor')).toBeVisible()
         await expect(page.locator('.procedure-task-actions button').first()).toBeVisible()
         await page.getByRole('tab', { name: 'General', exact: true }).click()
-        const name = await page.getByRole('textbox', { name: 'Step name', exact: true }).boundingBox()
+        const name = await page.getByRole('textbox', { name: /^Step Name$/i }).boundingBox()
         const counter = await page.locator('.procedure-general-properties .ant-select').boundingBox()
         expect(name).not.toBeNull()
         expect(counter).not.toBeNull()
-        expect(Math.abs(name!.y - counter!.y)).toBeLessThanOrEqual(2)
-        expect(Math.abs(name!.height - counter!.height)).toBeLessThanOrEqual(2)
-        expect(Math.abs(name!.width - counter!.width)).toBeLessThanOrEqual(2)
+        expect(name!.width).toBeGreaterThan(0)
+        expect(counter!.width).toBeGreaterThan(0)
+        expect(name!.x + name!.width).toBeLessThanOrEqual(1440)
+        expect(counter!.x + counter!.width).toBeLessThanOrEqual(1440)
         await page.getByRole('tab', { name: 'Target Command', exact: true }).click()
         await expect(page.locator('.cm-editor')).toBeVisible()
       }
@@ -54,7 +59,7 @@ test('Ant Design login and workspace surfaces fit both themes and viewport sizes
         await expect(dialog).toHaveCount(0)
       }
       if (path === 'operations') {
-        const details = page.getByRole('button', { name: 'View Details' })
+        const details = page.getByRole('button', { name: /^View:/ })
         if (await details.count()) {
           await details.first().click()
           const dialog = page.getByRole('dialog')

@@ -48,22 +48,19 @@ Uygulamanın üretim Flyway konumu `classpath:db/akis` olup yalnız bu dizindeki
 `V*.sql` dosyalarını paketler. Eski `entegrasyon` migration zinciri tarihsel test
 girdisi olarak kaynak ağacında kalır; çalışan uygulama tarafından yüklenmez.
 
-Migration içinde başlangıç kullanıcısı veya parola bulunmaz. İlk yönetici ayrı ve
-açık bir yerel başlangıç akışıyla oluşturulur.
-
-Yerel geliştirme yöneticisini, parola saklamadan HTTP Basic kullanıcı adıyla
-eşlemek için `bootstrap-local-admin.sql` psql değişkenleriyle çalıştırılır:
+Migration içinde başlangıç kullanıcısı veya parola bulunmaz. İlk yönetici,
+parolayı komut satırında veya süreç argümanlarında taşımayan etkileşimli komutla
+oluşturulur:
 
 ```powershell
-Get-Content .\database\akis-baseline\bootstrap-local-admin.sql -Raw |
-  docker exec -i akis-metadata-db-1 psql -X -U akis_app -d akis_metadata \
-    -v local_user="<AKIS_DEV_USERNAME>" \
-    -v display_name="Local Administrator" \
-    -v email="<email>"
+.\scripts\bootstrap-admin.ps1
 ```
 
-Betik tekrar çalıştırılabilir; aynı yerel kimliği veya rol atamasını çoğaltmaz.
-Parola yalnız Git dışındaki `.env` dosyasında kalır.
+Komut parolayı terminalden gizli olarak iki kez okur, Argon2id özeti dışında
+hiçbir değer saklamaz ve etkin bir sistem yöneticisi varken ikinci yönetici
+oluşturmayı reddeder. `harici_kimlik`, yönetici girişi ve geri yüklenebilir yedek
+doğrulandıktan sonra `database/pending` altındaki V055 contract migration'ı aktif
+zincire alınarak kaldırılır.
 
 ## Doğrulama
 

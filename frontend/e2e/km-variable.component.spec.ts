@@ -7,17 +7,18 @@ for (const theme of ['light', 'dark']) {
     await page.setViewportSize({ width: 1366, height: 900 })
     await page.route(/\/api\/v\d+\//, route => route.abort())
     await page.goto('/e2e/fixtures/authoring-workbench.html?editor=km')
+    await page.locator('details.km-language-source > summary').click()
     const source = page.getByRole('textbox', { name: 'KM Language Source' })
-    await expect(source).toHaveValue(/AKIS_KM\/2\nMODUL IKM/)
+    await expect(source).toHaveValue(/AKIS_KM\/(?:2|3)\nMODUL IKM/)
     const first = page.getByRole('group', { name: 'Option 1', exact: true })
     await first.getByLabel('Display Name', { exact: true }).fill('Write Strategy')
     await first.getByLabel('Description', { exact: true }).fill('Choose the target operation')
     await first.getByLabel('Allowed Values', { exact: true }).fill('APPEND,MERGE,ATOMIC_DELETE_INSERT')
-    await page.getByRole('group', { name: 'Option 4', exact: true }).getByLabel('Default', { exact: true }).fill('FULL(T) PARALLEL(4)')
+    await page.locator('.km-option-schema fieldset').nth(4).getByLabel('Default', { exact: true }).fill('FULL(T) PARALLEL(4)')
     await expect(source).toHaveValue(/"FULL\(T\) PARALLEL\(4\)"/)
     await expect(first.getByLabel('Display Name', { exact: true })).toHaveValue('Write Strategy')
     await source.fill((await source.inputValue()).replace('ADIM HEDEFE_YAZ', 'SECENEK LIMIT INTEGER ISTEGE_BAGLI 9223372036854775807 YOK\nADIM HEDEFE_YAZ'))
-    const integer = page.getByRole('group', { name: 'Option 5', exact: true }).getByRole('textbox', { name: 'Default', exact: true })
+    const integer = page.locator('.km-option-schema fieldset').nth(5).getByRole('textbox', { name: 'Default', exact: true })
     await expect(integer).toHaveValue('9223372036854775807')
     await integer.fill('9223372036854775808')
     await integer.blur()
@@ -49,8 +50,7 @@ for (const theme of ['light', 'dark']) {
   test(`conditional KM diagnostic is readable in ${theme}`, async ({ page }) => {
     await page.addInitScript(mode => localStorage.setItem('akis.theme', mode), theme)
     await page.setViewportSize({ width: 1366, height: 900 })
-    await page.route(/\/api\/v\d+\//, async route => {
-      expect(new URL(route.request().url()).pathname.endsWith('/knowledge-language/validate')).toBe(true)
+    await page.route('**/api/v1/projects/fixture/knowledge-language/validate', async route => {
       expect(route.request().postDataJSON().source).toContain('EGER CHECK_ROWS')
       await route.fulfill({ json: { valid: true, runnable: false, line: 0, message: 'Syntax valid; no database execution', program: {
         steps: [{ id: 'QUALITY', site: 'STAGING', operation: 'CHECK_NOT_NULL', slot: 'WORK_SOURCE_1', line: 4 }],
@@ -58,6 +58,7 @@ for (const theme of ['light', 'dark']) {
       } } })
     })
     await page.goto('/e2e/fixtures/authoring-workbench.html?editor=km')
+    await page.locator('details.km-language-source > summary').click()
     await page.getByRole('textbox', { name: 'KM Language Source' }).fill('AKIS_KM/2\nMODUL CKM\nSECENEK CHECK_ROWS BOOLEAN ISTEGE_BAGLI true YOK\nADIM QUALITY STAGING CHECK_NOT_NULL WORK_SOURCE_1 EGER CHECK_ROWS')
     await page.getByRole('button', { name: 'Validate Language' }).click()
     await expect(page.getByRole('columnheader', { name: 'Run Condition' })).toBeVisible()
@@ -74,9 +75,11 @@ for (const theme of ['light', 'dark']) {
     await page.setViewportSize({ width: 1366, height: 900 })
     let tests = 0
     let environmentActive = true
-    await page.route(/\/api\/v\d+\//, async route => {
+    await page.route('**/api/v1/projects/fixture/environments*', async route => {
+      return route.fulfill({ json: [{ uuid: 'test', name: 'Test Environment', status: environmentActive ? 'AKTIF' : 'ARSIV' }] })
+    })
+    await page.route('**/api/v1/projects/fixture/definitions/variable/value-tests*', async route => {
       const request = route.request(), path = new URL(request.url()).pathname
-      if (path.endsWith('/environments')) return route.fulfill({ json: [{ uuid: 'test', name: 'Test Environment', status: environmentActive ? 'AKTIF' : 'ARSIV' }] })
       if (path.endsWith('/value-tests') && request.method() === 'GET') return route.fulfill({ json: [] })
       expect(path.endsWith('/value-tests')).toBe(true)
       expect(request.method()).toBe('POST')

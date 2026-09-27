@@ -1,4 +1,5 @@
 import { ArrowLeft, CheckCircle2, CircleAlert, Database, Eye, Folder, Layers3, RefreshCw, ScanSearch, Table2 } from 'lucide-react'
+import { ExportMenu } from '../../core/ui/ExportMenu'
 import { useDocumentTab } from '../../app/DocumentTabsContext'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -6,6 +7,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Tag, Tooltip } from 'antd'
 import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
 import { AsyncState, Button, PageHeader, RecordActionButton, RecordDetailDialog, SummaryStrip } from '../../core/ui'
+import { Select } from '../../core/ui/Select'
 import { DataGrid } from '../../core/ui/DataGrid'
 import { ProgressiveRecords } from '../../core/ui/ProgressiveRecords'
 import { QueryFilter } from '../../core/ui/QueryFilter'
@@ -20,6 +22,7 @@ import './models.css'
 import '../connections/connections.css'
 import '../connections/catalog-layout.css'
 import { matchesCatalogReference, modelPath, resolveModelReference } from './modelRoutes'
+import { DataObjectTypeIcon } from './DataObjectTypeIcon'
 
 export function ModelDetailPage() {
   const { modelUuid: modelReference = '' } = useParams()
@@ -40,9 +43,13 @@ function ModelDetailSession({ projectUuid, modelReference }: { projectUuid: stri
   const folderReference = params.get('folder'); const folder = submodels.find(item => matchesCatalogReference(item, folderReference)); const folderUuid = folder?.uuid
   useDocumentTab(model ? { path: modelPath(model), title: model.name, subtitle: model.code, kind: 'MODEL' } : null)
   const query = params.get('q') ?? ''
+  const typeFilter = params.get('type') ?? 'ALL'
+  const statusFilter = params.get('status') ?? 'ALL'
   const visibleObjects = useMemo(() => objects
     .filter(item => folderUuid ? item.submodelUuid === folderUuid : !item.submodelUuid)
-    .filter(item => `${item.name} ${item.objectReference} ${item.code}`.toLocaleLowerCase(i18n.language).includes(query.trim().toLocaleLowerCase(i18n.language))), [objects, folderUuid, query, i18n.language])
+    .filter(item => typeFilter === 'ALL' || item.type === typeFilter)
+    .filter(item => statusFilter === 'ALL' || item.status === statusFilter)
+    .filter(item => `${item.name} ${item.objectReference} ${item.code}`.toLocaleLowerCase(i18n.language).includes(query.trim().toLocaleLowerCase(i18n.language))), [objects, folderUuid, query, typeFilter, statusFilter, i18n.language])
   const visibleFolders = submodels.filter(item => folderUuid ? item.parentUuid === folderUuid : !item.parentUuid)
   const selectedReference = params.get('object'); const selected = objects.find(item => matchesCatalogReference(item, selectedReference))
   const load = useCallback(async () => {
@@ -72,11 +79,19 @@ function ModelDetailSession({ projectUuid, modelReference }: { projectUuid: stri
   const applyQuery = (next: string) => setParam({ q: next || null }, false)
   const statusTag = (status: string) => { const ok = status === 'AKTIF'; const tone = ok ? 'success' : 'neutral'; return <Tag className={`connection-status-tag connection-status-tag--${tone}`} style={connectionStatusTagStyles[tone]} icon={ok ? <CheckCircle2 size={12} /> : <CircleAlert size={12} />}><span className="connection-status-tag-label">{ok ? t('models.statusActive') : t('models.statusInactive')}</span></Tag> }
   const importLink = canDiscover ? <Link className="button primary" to={`${modelPath(model)}/import${folder ? `?folder=${encodeURIComponent(folder.code)}` : ''}`}><ScanSearch size={16} />{t('models.importMetadata')}</Link> : null
-  const toolbar = <>{canDiscover && <CreateModelFolder projectUuid={projectUuid} modelUuid={model.uuid} folders={submodels} parentUuid={folderUuid} onCreated={() => void load()} />}{importLink}</>
+  const exportFilters = [
+    { field: 'modelUuid', operator: 'eq', value: model.uuid },
+    { field: 'folderUuid', operator: 'eq', value: folderUuid ?? '' },
+    { field: 'query', operator: 'contains', value: query },
+  ].filter(item => Boolean(item.value))
+  const toolbar = <>{canDiscover && <CreateModelFolder projectUuid={projectUuid} modelUuid={model.uuid} folders={submodels} parentUuid={folderUuid} onCreated={() => void load()} />}{importLink}<ExportMenu projectUuid={projectUuid} dataset="models" resourceId="data-objects" filters={exportFilters} label={tr ? 'Dışa Aktar' : 'Export'} /></>
 
   return <section className="page-stack connections-page models-page model-detail-page"><Link className="connection-back-link" to="/project/models"><ArrowLeft size={16} />{t('models.title')}</Link>
     <section className="connection-management-panel"><PageHeader icon={<Layers3 />} eyebrow={`${model.code} · ${logical?.name ?? t('models.notConfigured')}`} title={folder ? `${model.name} / ${folder.name}` : model.name} description={model.description ?? t('models.detailDescription')} />
-    <QueryFilter onApply={applyQuery} placeholder={tr ? 'Data store adı veya nesne referansına göre ara' : 'Search by data store name or object reference'} /></section>
+    <QueryFilter onApply={applyQuery} onReset={() => setParams({})} placeholder={tr ? 'Data store adı, kısa kod veya nesne referansına göre ara' : 'Search by data store name, short code or object reference'}>
+      <label><span>{tr ? 'Tür' : 'Type'}</span><Select value={typeFilter} onChange={event => setParam({ type: event.target.value === 'ALL' ? null : event.target.value })}><option value="ALL">{tr ? 'Tüm türler' : 'All types'}</option><option value="TABLE">{t('models.typeTable')}</option><option value="VIEW">{t('models.typeView')}</option><option value="MATERIALIZED_VIEW">{tr ? 'Materyalize görünüm' : 'Materialized view'}</option><option value="SYNONYM">{tr ? 'Eş anlamlı' : 'Synonym'}</option></Select></label>
+      <label><span>{tr ? 'Durum' : 'Status'}</span><Select value={statusFilter} onChange={event => setParam({ status: event.target.value === 'ALL' ? null : event.target.value })}><option value="ALL">{tr ? 'Tüm durumlar' : 'All statuses'}</option><option value="AKTIF">{tr ? 'Etkin' : 'Active'}</option><option value="PASIF">{tr ? 'Pasif' : 'Inactive'}</option></Select></label>
+    </QueryFilter></section>
     <SummaryStrip ariaLabel={tr ? 'Model özeti' : 'Model summary'} items={[
       { label: 'Data Store', value: objects.length, icon: <Database />, tone: 'info' },
       { label: t('models.typeTable'), value: objects.filter(item => !isView(item.type)).length, icon: <Table2 />, tone: 'teal' },
@@ -90,10 +105,10 @@ function ModelDetailSession({ projectUuid, modelReference }: { projectUuid: stri
         {visibleFolders.map(item => <Button key={item.uuid} icon={<Folder size={16} className="project-folder-icon" />} onDoubleClick={() => setParams({ folder: item.code })} onKeyDown={event => { if (event.key === 'Enter') setParams({ folder: item.code }) }}>{item.name}</Button>)}
       </nav>
       {selectedReference && !selected ? <div className="error-banner" role="alert">{tr ? 'Data Store Bulunamadı' : 'Data Store Not Found'}</div> : null}
-      {visibleObjects.length === 0 ? <AsyncState state="empty" title={t('models.noDataObjects')} action={importLink ?? undefined} /> : <ProgressiveRecords key={`${folderUuid ?? ''}:${query}`} items={visibleObjects}>{(visible) => <DataGrid auditKind="data-objects" auditInFooter collectionTitle={tr ? 'Data Store Listesi' : 'Data Store List'} collectionIcon={<Database />} toolbarActions={toolbar} cardHeaderLeadingField="type" cardHeaderField="status" cardHiddenFields={['type', 'status']} headerFieldsInList view={view} onViewChange={setView}>
+      {visibleObjects.length === 0 ? <AsyncState state="empty" title={t('models.noDataObjects')} action={importLink ?? undefined} /> : <ProgressiveRecords key={`${folderUuid ?? ''}:${query}`} items={visibleObjects}>{(visible) => <DataGrid auditKind="data-objects" auditInFooter collectionTitle={tr ? 'Data Store Listesi' : 'Data Store List'} collectionIcon={<Database />} toolbarActions={toolbar} cardHeaderLeadingField="type" cardHeaderField="status" cardHiddenFields={['type', 'status']} view={view} onViewChange={setView}>
         <thead><tr><th data-field-key="type">{tr ? 'Tür' : 'Type'}</th><th data-field-key="object">Data Store</th><th data-field-key="reference">{tr ? 'Nesne Referansı' : 'Object Reference'}</th><th data-field-key="status">{tr ? 'Durum' : 'Status'}</th><th data-field-key="actions" className="ui-grid-actions-column"><span className="sr-only">{tr ? 'İşlemler' : 'Actions'}</span></th></tr></thead>
         <tbody>{visible.map(object => <tr key={object.uuid} data-connection-uuid={object.uuid} tabIndex={0} onDoubleClick={() => selectObject(object)} onKeyDown={event => { if (event.key === 'Enter' && event.target === event.currentTarget) selectObject(object) }} className={selected?.uuid === object.uuid ? 'is-selected' : undefined}>
-          <td><span className="model-object-kind">{isView(object.type) ? <Eye size={16} /> : <Table2 size={16} />}{typeLabel(object.type)}</span></td>
+          <td><span className="model-object-kind"><DataObjectTypeIcon type={object.type} />{typeLabel(object.type)}</span></td>
           <td><span className="connection-record-identity"><strong>{object.name}</strong><small>{object.code}</small></span></td>
           <td><code>{object.objectReference}</code></td>
           <td>{statusTag(object.status)}</td>
@@ -101,7 +116,7 @@ function ModelDetailSession({ projectUuid, modelReference }: { projectUuid: stri
         </tr>)}</tbody>
       </DataGrid>}</ProgressiveRecords>}
     </section>
-    {selected && <RecordDetailDialog open title={<span className="connection-dialog-title">{isView(selected.type) ? <Eye size={17} aria-hidden="true" /> : <Table2 size={17} aria-hidden="true" />}{typeLabel(selected.type)} · {selected.code}</span>} readOnly onClose={closeObject} className="connection-catalog-dialog">
+    {selected && <RecordDetailDialog open title={<span className="connection-dialog-title"><DataObjectTypeIcon type={selected.type} />{typeLabel(selected.type)} · {selected.code}</span>} readOnly onClose={closeObject} className="connection-catalog-dialog">
       <section className="page-stack connection-detail-page model-object-detail">
         <header className="model-object-hero"><div><span className="model-object-eyebrow">{model.name}{folder ? ` / ${folder.name}` : ''} / {typeLabel(selected.type)}</span><h2>{selected.name}</h2><code>{selected.objectReference}</code><p>{tr ? 'Bu ekranda Data Store kolonlarını, veri tiplerini ve hassas veri işaretlerini inceleyebilirsiniz.' : 'Use this screen to review Data Store columns, data types, and sensitive-data markings.'}</p></div>{statusTag(selected.status)}</header>
         <div className="model-schema-context"><Database size={18} /><div><strong>{tr ? 'Mantıksal Şema' : 'Logical Schema'}</strong><span>{logical?.name ?? (tr ? 'Seçilmedi' : 'Not Selected')}</span><small>{tr ? 'Veri nesneleri bu modelin mantıksal şemasını kullanır. Fiziksel şema, çalıştırma ortamı eşlemesinden belirlenir.' : 'Data objects inherit this model’s logical schema. The physical schema is resolved from the execution environment binding.'}</small></div></div>

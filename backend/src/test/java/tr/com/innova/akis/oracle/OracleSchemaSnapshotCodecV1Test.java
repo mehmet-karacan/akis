@@ -65,6 +65,22 @@ class OracleSchemaSnapshotCodecV1Test {
     }
 
     @Test
+    void preservesProviderNeutralObjectTypeInSnapshotProperties() {
+        SnapshotDefinition view = codec.decode("APP", "V_SALES", OracleDiscoveryModels.VIEW,
+                List.of(new RawColumn("ID", "NUMBER", 19, 0, null, null, 1, false, null)), List.of());
+        SnapshotDefinition materialized = codec.decode("APP", "MV_SALES", OracleDiscoveryModels.MATERIALIZED_VIEW,
+                List.of(new RawColumn("ID", "NUMBER", 19, 0, null, null, 1, false, null)), List.of());
+        SnapshotDefinition synonym = codec.decode("APP", "S_SALES", OracleDiscoveryModels.SYNONYM,
+                List.of(new RawColumn("ID", "NUMBER", 19, 0, null, null, 1, false, null)), List.of());
+
+        assertEquals("VIEW", view.properties().path("objectType").asText());
+        assertEquals("MATERIALIZED_VIEW", materialized.properties().path("objectType").asText());
+        assertEquals("SYNONYM", synonym.properties().path("objectType").asText());
+        assertThrows(OracleSchemaSnapshotCodecException.class, () -> codec.decode("APP", "X", "SEQUENCE",
+                List.of(new RawColumn("ID", "NUMBER", 19, 0, null, null, 1, false, null)), List.of()));
+    }
+
+    @Test
     void outputIsIndependentOfDictionaryRowArrivalOrder() {
         SnapshotDefinition shuffled = codec.decode(
                 "TTBP", "HAKEDIS_TIPI", shuffledColumns(), shuffledConstraints());

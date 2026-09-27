@@ -27,6 +27,7 @@ import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 import tr.com.innova.akis.execution.PilotRuntimePlanResolver;
+import tr.com.innova.akis.execution.PendingRecipeConsumer;
 import tr.com.innova.akis.execution.ProcedureRuntimePlanResolver;
 import tr.com.innova.akis.metadata.ApiException;
 import tr.com.innova.akis.metadata.DefinitionContentValidator;
@@ -83,6 +84,46 @@ class PublicationServiceTest {
         assertEquals(PilotRuntimePlanResolver.PILOT_CAPABILITY,
                 first.publication().physicalManifest()
                         .get("runtimeCapability").stringValue());
+    }
+
+    @Test
+    void consumesImportedRecipesOnlyForNewRealPublication() {
+        FakeStore store = new FakeStore(context("DUSUK"), bindings());
+        PublicationService service = service(store);
+        RecordingRecipeConsumer consumer = new RecordingRecipeConsumer();
+        service.configurePendingRecipeConsumer(consumer);
+
+        CreateResult first = service.create(PROJECT_UUID, SCENARIO_UUID, ENVIRONMENT_UUID);
+        CreateResult replay = service.create(PROJECT_UUID, SCENARIO_UUID, ENVIRONMENT_UUID);
+
+        assertTrue(first.created());
+        assertFalse(replay.created());
+        assertEquals(1, consumer.calls);
+        assertEquals(10L, consumer.projectId);
+        assertEquals(20L, consumer.scenarioId);
+        assertEquals(30L, consumer.environmentId);
+        assertEquals(first.publication().id(), consumer.publicationId);
+    }
+
+    private static final class RecordingRecipeConsumer extends PendingRecipeConsumer {
+        private int calls;
+        private long projectId;
+        private long scenarioId;
+        private long environmentId;
+        private long publicationId;
+
+        private RecordingRecipeConsumer() {
+            super(null);
+        }
+
+        @Override
+        public void consume(long projectId, long scenarioId, long environmentId, long publicationId) {
+            calls++;
+            this.projectId = projectId;
+            this.scenarioId = scenarioId;
+            this.environmentId = environmentId;
+            this.publicationId = publicationId;
+        }
     }
 
     @Test
@@ -597,7 +638,7 @@ class PublicationServiceTest {
         }
 
         @Override
-        public Optional<ApprovalActor> findActiveActor(String provider, String subject) {
+        public Optional<ApprovalActor> findActiveActor(long userId) {
             return Optional.of(ACTOR);
         }
 

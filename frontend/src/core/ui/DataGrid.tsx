@@ -7,6 +7,7 @@ import { ViewToggle, type CollectionView } from './ViewToggle'
 import { RecordFieldIcon, fieldText } from './RecordFieldIcon'
 import { useRecordAudit, type AuditKind } from './useRecordAudit'
 import { recordAuditPresentation } from './recordAuditPresentation'
+import { ExportMenu, type ExportMenuProps } from './ExportMenu'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- children carry arbitrary intrinsic props
 type Element = ReactElement<any>
@@ -19,7 +20,7 @@ function elements(children: ReactNode): Element[] {
 type GridRow = { key: string; cells: ReactElement<TdHTMLAttributes<HTMLTableCellElement>>[]; props: HTMLAttributes<HTMLTableRowElement> & { 'data-connection-uuid'?: string } }
 
 /** Ant Table renderer for declarative domain columns; preserves row actions and cell spans. */
-type GridProps = HTMLAttributes<HTMLTableElement> & { viewControls?: boolean; auditKind?: AuditKind; collectionTitle?: string; collectionIcon?: ReactNode; toolbarActions?: ReactNode; auditInFooter?: boolean; cardHeaderField?: string; cardHeaderLeadingField?: string; cardHiddenFields?: string[]; headerFieldsInList?: boolean; view?: CollectionView; onViewChange?: (view: CollectionView) => void }
+type GridProps = HTMLAttributes<HTMLTableElement> & { viewControls?: boolean; auditKind?: AuditKind; collectionTitle?: string; collectionIcon?: ReactNode; toolbarActions?: ReactNode; exportMenu?: ExportMenuProps; auditInFooter?: boolean; cardHeaderField?: string; cardHeaderLeadingField?: string; cardHiddenFields?: string[]; view?: CollectionView; onViewChange?: (view: CollectionView) => void }
 export function DataGrid(props: GridProps) {
   return props.auditKind ? <AuditedGrid {...props} auditKind={props.auditKind} /> : <Grid {...props} />
 }
@@ -43,7 +44,7 @@ function AuditedGrid({ auditKind, children, ...props }: GridProps & { auditKind:
     return <tr key={row.key} {...row.props}>{cells.slice(0, insertAt)}<td className="ui-record-audit-column">{record.createdBy}</td><td className="ui-record-audit-column">{record.createdAt}</td><td className="ui-record-audit-column">{record.updatedBy}</td><td className="ui-record-audit-column">{record.updatedAt}</td>{cells.slice(insertAt)}</tr>
   })}</tbody></Grid>
 }
-function Grid({ children, className, viewControls = true, auditKind: _, collectionTitle, collectionIcon, toolbarActions, auditInFooter = false, cardHeaderField, cardHeaderLeadingField, cardHiddenFields = [], headerFieldsInList = false, view: controlledView, onViewChange, ...props }: GridProps) {
+function Grid({ children, className, viewControls = true, auditKind: _, collectionTitle, collectionIcon, toolbarActions, exportMenu, auditInFooter = false, cardHeaderField, cardHeaderLeadingField, cardHiddenFields = [], view: controlledView, onViewChange, ...props }: GridProps) {
   void _
   const [view, setView] = useState<CollectionView | null>(null)
   const screens = AntGrid.useBreakpoint()
@@ -82,12 +83,12 @@ function Grid({ children, className, viewControls = true, auditKind: _, collecti
   const field = (row: GridRow, index: number) => <div key={index} data-field-key={fieldText(headerCells[index]?.props.children)}><dt><RecordFieldIcon label={headerCells[index]?.props.children} />{headerCells[index]?.props.children}</dt><dd>{row.cells[index]?.props.children}</dd></div>
   const activeView = canChangeView ? (controlledView ?? view ?? (screens.md === false ? 'card' : 'table')) : 'table'
   return <div ref={gridRef} className={`ui-grid-container ${collectionTitle ? 'ui-grid-surface' : ''}`}>
-    {(canChangeView || collectionTitle || toolbarActions) && <div className="ui-grid-toolbar">{collectionTitle && <h2>{collectionIcon ? <span className="ui-grid-collection-icon" aria-hidden="true">{collectionIcon}</span> : null}{collectionTitle}</h2>}<div className="ui-grid-toolbar-end">{toolbarActions}{canChangeView && <div className="ui-grid-view-control"><span className="ui-grid-view-label"><Eye size={15} aria-hidden="true" />{i18n.language === 'tr' ? 'Görünüm' : 'View'}</span><ViewToggle value={activeView} onChange={(next) => { setView(next); onViewChange?.(next) }} /></div>}</div></div>}
+    {(canChangeView || collectionTitle || toolbarActions || exportMenu) && <div className="ui-grid-toolbar">{collectionTitle && <h2>{collectionIcon ? <span className="ui-grid-collection-icon" aria-hidden="true">{collectionIcon}</span> : null}{collectionTitle}</h2>}<div className="ui-grid-toolbar-end">{exportMenu && <ExportMenu {...exportMenu} />}{toolbarActions}{canChangeView && <div className="ui-grid-view-control"><span className="ui-grid-view-label"><Eye size={15} aria-hidden="true" />{i18n.language === 'tr' ? 'Görünüm' : 'View'}</span><ViewToggle value={activeView} onChange={(next) => { setView(next); onViewChange?.(next) }} /></div>}</div></div>}
     {activeView === 'table' ? <Table<GridRow> className={`ui-data-grid ${className ?? ''}`} columns={columns} dataSource={rows}
     pagination={false} size="small" scroll={{ x: 'max-content' }} onRow={row => row.props}
     aria-label={props['aria-label']} /> : <div className={`ui-grid-records ui-grid-records--${activeView}`} role="list" aria-label={props['aria-label']}>
       {rows.map(row => {
-        const promotedHeaderFields = activeView === 'card' || headerFieldsInList
+        const promotedHeaderFields = activeView === 'card'
         const audit = headerCells.some((_, index) => isAudit(index)) ? <dl className={`ui-record-audit${auditInFooter ? ` ui-record-audit--footer${activeView === 'card' ? ' ui-record-audit--compact' : ''}` : ''}`}>{headerCells.map((_, index) => isAudit(index) ? field(row, index) : null)}</dl> : undefined
         const action = actionsIndex >= 0 ? row.cells[actionsIndex]?.props.children : undefined
         return <RecordCard key={row.key} role="listitem" className={`ui-grid-record ${row.props.className ?? ''}`}

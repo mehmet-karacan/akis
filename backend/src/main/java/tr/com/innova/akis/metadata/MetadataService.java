@@ -67,12 +67,11 @@ public class MetadataService {
             String code,
             String name,
             String description,
-            String actorProvider,
-            String actorSubject) {
+            long actorId) {
         repository.lockProjectCodeNamespace();
         return repository.createProject(
                 UUID.randomUUID(), normalizeCode(code), normalizeName(name), trimToNull(description),
-                actorProvider, actorSubject);
+                actorId);
     }
 
     List<ProjectRow> listProjects() {

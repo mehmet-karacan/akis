@@ -91,19 +91,9 @@ class AuthorizationRepositoryIT {
     }
 
     @Test
-    void resolvesSystemPermissionAndVisibleProjectsThroughExternalIdentity() {
+    void resolvesSystemPermissionAndVisibleProjectsThroughApplicationUser() {
         Fixture fixture = projectFixture("GORUNTULEYICI");
-        long userId = jdbc.sql("""
-                        select k.id
-                          from akis.kullanici k
-                          join akis.harici_kimlik hk on hk.kullanici_id = k.id
-                         where hk.yayinlayici = :provider
-                           and hk.harici_kullanici_anahtari = :subject
-                        """)
-                .param("provider", fixture.principal().provider())
-                .param("subject", fixture.principal().subject())
-                .query(Long.class)
-                .single();
+        long userId = fixture.principal().userId();
         jdbc.sql("""
                         insert into akis.kullanici_rol(kullanici_id, rol_id, rol_kapsami)
                         select :userId, id, 'SISTEM'
@@ -123,28 +113,21 @@ class AuthorizationRepositoryIT {
     private static Fixture projectFixture(String roleCode) {
         UUID userUuid = UUID.randomUUID();
         UUID projectUuid = UUID.randomUUID();
-        String subject = "subject-" + UUID.randomUUID();
-        String provider = "https://identity.example/realms/akis";
+        String userCode = "user-" + UUID.randomUUID();
 
         long userId = jdbc.sql("""
-                        insert into akis.kullanici(uuid, gorunen_ad, eposta)
-                        values (:uuid, 'Repository Test User', :email)
+                        insert into akis.kullanici(
+                            uuid, kullanici_kodu, ad, gorunen_ad, eposta, durum,
+                            parola, parola_degistirilme_zamani)
+                        values (:uuid, :userCode, 'Repository', 'Repository Test User', :email,
+                                'AKTIF', '{argon2}test', current_timestamp)
                         returning id
                         """)
                 .param("uuid", userUuid)
+                .param("userCode", userCode)
                 .param("email", userUuid + "@example.test")
                 .query(Long.class)
                 .single();
-        jdbc.sql("""
-                        insert into akis.harici_kimlik(
-                            kullanici_id, saglayici_turu, yayinlayici,
-                            harici_kullanici_anahtari)
-                        values (:userId, 'OIDC', :provider, :subject)
-                        """)
-                .param("userId", userId)
-                .param("provider", provider)
-                .param("subject", subject)
-                .update();
         long projectId = jdbc.sql("""
                         insert into akis.proje(uuid, kod, ad)
                         values (:uuid, :code, 'Repository Test Project')
@@ -172,7 +155,7 @@ class AuthorizationRepositoryIT {
                 .param("projectId", projectId)
                 .param("roleCode", roleCode)
                 .update();
-        return new Fixture(projectUuid, new PrincipalIdentity(provider, subject, "test-user"));
+        return new Fixture(projectUuid, new PrincipalIdentity(userId, userUuid, userCode, "test-user"));
     }
 
     private static String required(String name) {

@@ -11,6 +11,17 @@ export interface MetadataImportPorts {
 
 export const discoveryTableKey = (table: DiscoveryTable) => `${table.owner}.${table.name}`
 
+const catalogObjectType = (tableType: string): string => {
+  switch (tableType) {
+    case 'TABLE': return 'TABLO'
+    case 'PARTITIONED_TABLE': return 'TABLO'
+    case 'VIEW': return 'VIEW'
+    case 'MATERIALIZED_VIEW': return 'MATERIALIZED_VIEW'
+    case 'SYNONYM': return 'SYNONYM'
+    default: return tableType
+  }
+}
+
 /** Read the authoritative catalog on every attempt. A failed/uncertain create
  * response must never cause a blind create retry from an obsolete UI snapshot.
  * Snapshot capture is the completion boundary; registration alone is not success.
@@ -21,11 +32,12 @@ export async function importModelMetadata(tables: DiscoveryTable[], ports: Metad
   let completed = 0
   for (const table of tables) {
     if (!ports.isActive()) break
-    const matches = objects.filter(object => object.objectReference.toUpperCase() === table.name.toUpperCase())
+    const normalizedReference = table.name.toUpperCase()
+    const matches = objects.filter(object => object.objectReference.toUpperCase() === normalizedReference)
     if (matches.length > 1) throw new Error('METADATA_OBJECT_AMBIGUOUS')
     let object = matches[0]
     if (!object) {
-      object = await ports.createObject(table)
+      object = await ports.createObject({ ...table, type: catalogObjectType(table.type) })
       objects.push(object)
     }
     ports.onRegistered(object)

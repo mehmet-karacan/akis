@@ -3,7 +3,10 @@ param(
     [switch] $Headed,
     [switch] $Ui,
     [ValidateRange(0, 5000)]
-    [int] $SlowMoMs = 0
+    [int] $SlowMoMs = 0,
+    [ValidateSet('off', 'on', 'retain-on-failure', 'on-first-retry', 'retain-on-first-failure')]
+    [string] $Trace = 'retain-on-failure',
+    [switch] $NoScreenshots
 )
 
 $ErrorActionPreference = "Stop"
@@ -44,11 +47,15 @@ foreach ($healthUrl in @("http://127.0.0.1:8080/actuator/health", $baseUrl)) {
 $previousUsername = $env:AKIS_E2E_USERNAME
 $previousPassword = $env:AKIS_E2E_PASSWORD
 $previousSlowMo = $env:AKIS_E2E_SLOW_MO
+$previousTrace = $env:AKIS_E2E_TRACE
+$previousScreenshot = $env:AKIS_E2E_SCREENSHOT
 try {
     $env:AKIS_E2E_USERNAME = $settings["AKIS_DEV_USERNAME"]
     $env:AKIS_E2E_PASSWORD = $settings["AKIS_DEV_PASSWORD"]
     $env:AKIS_E2E_BASE_URL = $baseUrl
     $env:AKIS_E2E_SLOW_MO = if ($SlowMoMs -gt 0) { [string] $SlowMoMs } elseif ($Headed) { "300" } else { "0" }
+    $env:AKIS_E2E_TRACE = $Trace
+    $env:AKIS_E2E_SCREENSHOT = if ($NoScreenshots) { "off" } else { "only-on-failure" }
     Push-Location $frontendRoot
     try {
         $arguments = @("playwright", "test")
@@ -63,4 +70,6 @@ finally {
     $env:AKIS_E2E_USERNAME = $previousUsername
     $env:AKIS_E2E_PASSWORD = $previousPassword
     $env:AKIS_E2E_SLOW_MO = $previousSlowMo
+    $env:AKIS_E2E_TRACE = $previousTrace
+    $env:AKIS_E2E_SCREENSHOT = $previousScreenshot
 }

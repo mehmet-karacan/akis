@@ -2,6 +2,12 @@ package tr.com.innova.akis.knowledge;
 
 import java.time.OffsetDateTime;
 import java.util.*;
+import java.util.function.Consumer;
+import java.util.function.BiConsumer;
+import javax.sql.DataSource;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,8 +18,19 @@ import tools.jackson.databind.node.ArrayNode;
 @Service
 public class KmStepJournal {
     private final JdbcClient jdbc;
+    private final JdbcClient exportJdbc;
     private final ObjectMapper mapper;
-    public KmStepJournal(JdbcClient jdbc,ObjectMapper mapper) { this.jdbc=jdbc;this.mapper=mapper; }
+    public KmStepJournal(JdbcClient jdbc,ObjectMapper mapper) {
+        this.jdbc=jdbc;this.exportJdbc=jdbc;this.mapper=mapper;
+    }
+    @Autowired
+    public KmStepJournal(JdbcClient jdbc,ObjectMapper mapper,DataSource dataSource,
+            @Value("${akis.export.jdbc-fetch-size:1000}") int fetchSize) {
+        this.jdbc=jdbc;this.mapper=mapper;
+        JdbcTemplate template=new JdbcTemplate(dataSource);
+        template.setFetchSize(fetchSize);
+        this.exportJdbc=JdbcClient.create(template);
+    }
     public record Row(long generation,int ordinal,String stepCode,String operation,String site,String slot,String state,
             Long affectedRows,String errorCode,OffsetDateTime startedAt,OffsetDateTime completedAt,JsonNode executedSql) {
         public Row(long generation,int ordinal,String stepCode,String operation,String site,String slot,String state,
@@ -31,6 +48,21 @@ public class KmStepJournal {
                 where p.uuid=:project and c.uuid=:run
                 """).param("project",project).param("run",run)
                 .query((r,n)->new Reconciliation(r.getString("sonuc"),r.getObject("satir_sayisi",Long.class))).optional().orElse(null);
+    }
+    @Transactional(readOnly=true)
+    public Map<UUID,Reconciliation> reconciliationBatch(UUID project,List<UUID> runs) {
+        if (runs.isEmpty()) return Map.of();
+        Map<UUID,Reconciliation> result=new HashMap<>();
+        jdbc.sql("""
+                select c.uuid as run_uuid,m.sonuc,m.satir_sayisi from akis.mutabakat_kaniti m
+                join akis.proje p on p.id=m.proje_id
+                join akis.calistirma c on c.proje_id=p.id and c.id=m.calistirma_id
+                where p.uuid=:project and c.uuid in (:runs)
+                """).param("project",project).param("runs",runs)
+                .query((r,n)->Map.entry(r.getObject("run_uuid",UUID.class),
+                        new Reconciliation(r.getString("sonuc"),r.getObject("satir_sayisi",Long.class))))
+                .list().forEach(entry->result.put(entry.getKey(),entry.getValue()));
+        return result;
     }
     @Transactional
     public void prepare(WorkObjectStore.Owner owner,String planHash,AkisKmInterpreter.Plan plan,ArrayNode sqlEvidence) {
@@ -117,5 +149,41 @@ public class KmStepJournal {
                         r.getString("operation"),r.getString("site"),r.getString("slot"),r.getString("state"),r.getObject("affected_rows",Long.class),
                         r.getString("error_code"),r.getObject("started_at",OffsetDateTime.class),r.getObject("completed_at",OffsetDateTime.class),
                         mapper.readTree(r.getString("calistirilan_sql")))).list();
+    }
+
+    /** Streams journal rows without materialising the run's complete detail list. */
+    @Transactional(readOnly=true)
+    public void forEachRow(UUID project, UUID run, Consumer<Row> consumer) {
+        try (var rows = exportJdbc.sql("""
+                select j.* from akis.km_step_journal j join akis.proje p on p.id=j.proje_id
+                join akis.calistirma c on c.proje_id=p.id and c.id=j.calistirma_id
+                where p.uuid=:project and c.uuid=:run order by j.generation,j.ordinal
+                """).param("project",project).param("run",run)
+                .query((r,n)->new Row(r.getLong("generation"),r.getInt("ordinal"),r.getString("step_code"),
+                        r.getString("operation"),r.getString("site"),r.getString("slot"),r.getString("state"),
+                        r.getObject("affected_rows",Long.class),r.getString("error_code"),
+                        r.getObject("started_at",OffsetDateTime.class),r.getObject("completed_at",OffsetDateTime.class),
+                        mapper.readTree(r.getString("calistirilan_sql")))).stream()) {
+            rows.forEach(consumer);
+        }
+    }
+    @Transactional(readOnly=true)
+    public void forEachRowBatch(UUID project,List<UUID> runs,BiConsumer<UUID,Row> consumer) {
+        if (runs.isEmpty()) return;
+        try (var rows=exportJdbc.sql("""
+                select c.uuid as run_uuid,j.* from akis.km_step_journal j
+                join akis.proje p on p.id=j.proje_id
+                join akis.calistirma c on c.proje_id=p.id and c.id=j.calistirma_id
+                where p.uuid=:project and c.uuid in (:runs)
+                order by c.uuid,j.generation,j.ordinal
+                """).param("project",project).param("runs",runs)
+                .query((r,n)->Map.entry(r.getObject("run_uuid",UUID.class),
+                        new Row(r.getLong("generation"),r.getInt("ordinal"),r.getString("step_code"),
+                                r.getString("operation"),r.getString("site"),r.getString("slot"),r.getString("state"),
+                                r.getObject("affected_rows",Long.class),r.getString("error_code"),
+                                r.getObject("started_at",OffsetDateTime.class),r.getObject("completed_at",OffsetDateTime.class),
+                                mapper.readTree(r.getString("calistirilan_sql"))))).stream()) {
+            rows.forEach(entry->consumer.accept(entry.getKey(),entry.getValue()));
+        }
     }
 }

@@ -304,8 +304,11 @@ class TopologyRepository {
     }
 
     void clearDefaultPhysicalSchema(long connectionId, UUID keepUuid) {
-        jdbc.sql("update akis.fiziksel_sema set varsayilan_mi = false where baglanti_id = :connectionId and uuid <> :keep and varsayilan_mi")
-                .param("connectionId", connectionId).param("keep", keepUuid).update();
+        var statement = keepUuid == null
+                ? jdbc.sql("update akis.fiziksel_sema set varsayilan_mi = false where baglanti_id = :connectionId and varsayilan_mi")
+                : jdbc.sql("update akis.fiziksel_sema set varsayilan_mi = false where baglanti_id = :connectionId and uuid <> :keep and varsayilan_mi")
+                        .param("keep", keepUuid);
+        statement.param("connectionId", connectionId).update();
     }
 
     boolean deletePhysicalSchema(UUID uuid) {

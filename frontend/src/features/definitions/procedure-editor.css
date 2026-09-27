@@ -197,6 +197,7 @@ body .explorer-resize-handle:hover::before, body .explorer-resize-handle:focus-v
 .mapping-inspector-identity { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .mapping-inspector-identity > div { display: grid; gap: 1px; }
 .mapping-inspector-identity > div > span { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); }
+.mapping-inspector-technical-alias { color: var(--ink-soft); font-size: 11px; overflow-wrap: anywhere; }
 .mapping-node-title { display: inline-flex; align-items: center; gap: 6px; }
 .mapping-node-mark { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; }
 .mapping-node-mark--source { color: var(--schema-color-teal); background: color-mix(in srgb, var(--schema-color-teal) 14%, var(--surface)); }

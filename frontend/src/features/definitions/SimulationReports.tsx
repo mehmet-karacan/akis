@@ -14,6 +14,8 @@ import type { Definition, ProcedureContent, ProcedureTask } from './types'
 import { isProcedureContent } from './defaults'
 import { operationsApi } from '../operations/api'
 import { connectionUses, type PreRunPlan, type PreRunPreview } from './PreRunReport'
+import { packageMappingStrategy, type PackageMappingStrategy } from './packageMappingStrategy'
+import { mapPackageStepsBounded } from './packageSimulationConcurrency'
 import { ConnectionsSection, connectionsMarkdown, connectionEndpoint, type ConnectionUse } from './ConnectionsSection'
 import './pre-run-report.css'
 
@@ -214,6 +216,7 @@ export interface PackageChildReport {
   connections: ConnectionUse[]
   issues: string[]
   note?: string
+  mappingStrategy?: PackageMappingStrategy
 }
 export interface PackageSimulation {
   environment: Environment
@@ -235,6 +238,7 @@ function mappingChildFromPlan(plan: PreRunPlan, topology: Topology, tr: boolean,
     connections: connectionUses(plan, topology.connections, topology.physical, tr),
     issues: issue ? [issue] : [],
     note: plan.staging?.nonReversibleDdl ? (tr ? 'Geri alınamaz DDL (TRUNCATE)' : 'Non-reversible DDL (TRUNCATE)') : undefined,
+    mappingStrategy: packageMappingStrategy(plan),
   }
 }
 
@@ -311,6 +315,7 @@ async function childReport(projectUuid: string, definition: Definition, environm
 }
 export async function simulatePackage(projectUuid: string, content: PackageContent, environment: Environment, definitions: Definition[], topology: Topology, tr: boolean): Promise<PackageSimulation> {
   const byId = new Map(content.steps.map((step) => [step.id, step]))
+  const definitionsByUuid = new Map(definitions.map((definition) => [definition.uuid, definition]))
   const label = (id: string) => byId.get(id)?.name || id
   const next = (from: string, outcomes: TransitionOutcome[]) => content.transitions.find((edge) => edge.fromStepId === from && outcomes.includes(edge.outcome ?? 'ALWAYS'))
   const issues = packageValidation(content).map((code) => tr ? ({ START_REQUIRED: 'Başlangıç adımı tanımlı değil.', DUPLICATE_ID: 'Adım kimlikleri tekrar ediyor.', MISSING_REFERENCE: 'Bir geçiş var olmayan adıma işaret ediyor.', DUPLICATE_OUTCOME: 'Aynı sonuç için iki geçiş var.', INVALID_OUTCOME: 'Adım türüne uymayan geçiş sonucu.', CYCLE: 'Geçişler döngü oluşturuyor.', UNREACHABLE_STEP: 'Başlangıçtan ulaşılamayan adım var.' } as Record<string, string>)[code] ?? code : code)
@@ -320,15 +325,27 @@ export async function simulatePackage(projectUuid: string, content: PackageConte
   while (current && byId.has(current) && !seen.has(current)) {
     seen.add(current)
     const step = byId.get(current)!
-    const definition = definitions.find((item) => item.uuid === step.definitionUuid)
+    const definition = definitionsByUuid.get(step.definitionUuid ?? '')
     if (!definition) issues.push(tr ? `${label(current)}: bağlı nesne bulunamadı.` : `${label(current)}: linked object not found.`)
     const success = next(current, step.type === 'VARIABLE_EVALUATE' ? ['TRUE', 'ALWAYS'] : ['SUCCESS', 'ALWAYS'])
     const failure = next(current, step.type === 'VARIABLE_EVALUATE' ? ['FALSE', 'FAILURE'] : ['FAILURE'])
-    const child = definition ? await childReport(projectUuid, definition, environment, topology, tr) : undefined
-    if (child) issues.push(...child.issues)
-    path.push({ index: path.length + 1, step, definition, child, onSuccess: success ? label(success.toStepId) : undefined, onFailure: failure ? label(failure.toStepId) : undefined })
+    path.push({ index: path.length + 1, step, definition, onSuccess: success ? label(success.toStepId) : undefined, onFailure: failure ? label(failure.toStepId) : undefined })
     current = success?.toStepId
   }
+  const childCache = new Map<string, Promise<PackageChildReport>>()
+  const children = await mapPackageStepsBounded(path, 4, async (item) => {
+    if (!item.definition) return undefined
+    let report = childCache.get(item.definition.uuid)
+    if (!report) {
+      report = childReport(projectUuid, item.definition, environment, topology, tr)
+      childCache.set(item.definition.uuid, report)
+    }
+    return report
+  })
+  path.forEach((item, index) => {
+    item.child = children[index]
+    if (item.child) issues.push(...item.child.issues)
+  })
   const transitions = content.transitions.map((edge) => ({ from: label(edge.fromStepId), to: label(edge.toStepId), outcome: edge.outcome ?? 'ALWAYS' as TransitionOutcome }))
   // Connections the whole package will open (deduplicated) and every statement in execution order, prefixed with the package step.
   const connections: ConnectionUse[] = []
@@ -347,7 +364,7 @@ function packageMarkdown(name: string, sim: PackageSimulation, tr: boolean) {
     `## ${tr ? 'Tüm Geçişler' : 'All Transitions'}`, '', ...sim.transitions.map((edge) => `- ${edge.from} → ${edge.to} (${edge.outcome})`), '',
     ...connectionsMarkdown(sim.connections, tr),
     ...(sim.issues.length ? [`## ${tr ? 'Uyarılar' : 'Warnings'}`, '', ...sim.issues.map((issue) => `- ${issue}`), ''] : []),
-    ...sim.path.flatMap((item) => item.child ? [`## ${item.index}. ${item.step.name || item.step.id} — ${item.definition?.name ?? ''} (${item.child.kind})`, '', ...(item.child.steps.length ? [`| # | ${tr ? 'Adım' : 'Step'} | ${tr ? 'Konum' : 'Site'} | ${tr ? 'İşlem' : 'Operation'} | ${tr ? 'Ayrıntı' : 'Detail'} |`, '|---|---|---|---|---|', ...item.child.steps.map((step) => `| ${step.index} | ${step.name} | ${step.site ?? '—'} | ${step.operation ?? '—'} | ${step.detail ?? ''} |`), ''] : []), ...item.child.statements.flatMap((statement) => [`### ${statement.step} · ${statement.site}${statement.owner ? ` · ${statement.owner}` : ''}${statement.note ? ` — ${statement.note}` : ''}`, '', '```sql', statement.sql, '```', ''])] : [])].join('\n')
+    ...sim.path.flatMap((item) => item.child ? [`## ${item.index}. ${item.step.name || item.step.id} — ${item.definition?.name ?? ''} (${item.child.kind})`, '', ...(item.child.mappingStrategy ? [`- ${tr ? 'Hedef' : 'Target'}: ${item.child.mappingStrategy.target || '—'}`, `- IKM: ${item.child.mappingStrategy.ikmVersionUuid || '—'} · ${item.child.mappingStrategy.ikmContentHash || '—'}`, `- ${tr ? 'Yazma davranışı' : 'Write behavior'}: ${item.child.mappingStrategy.writeMode} · TRUNCATE_TARGET=${item.child.mappingStrategy.truncateTarget}`, `- ${tr ? 'Plan özeti' : 'Plan hash'}: ${item.child.mappingStrategy.planHash || '—'}`, ...(item.child.mappingStrategy.nonReversibleDdl ? [`- ${tr ? 'Risk: geri alınamaz DDL' : 'Risk: non-reversible DDL'}`] : []), ''] : []), ...(item.child.steps.length ? [`| # | ${tr ? 'Adım' : 'Step'} | ${tr ? 'Konum' : 'Site'} | ${tr ? 'İşlem' : 'Operation'} | ${tr ? 'Ayrıntı' : 'Detail'} |`, '|---|---|---|---|---|', ...item.child.steps.map((step) => `| ${step.index} | ${step.name} | ${step.site ?? '—'} | ${step.operation ?? '—'} | ${step.detail ?? ''} |`), ''] : []), ...item.child.statements.flatMap((statement) => [`### ${statement.step} · ${statement.site}${statement.owner ? ` · ${statement.owner}` : ''}${statement.note ? ` — ${statement.note}` : ''}`, '', '```sql', statement.sql, '```', ''])] : [])].join('\n')
 }
 export function PackageSimulationReport({ projectUuid, content, environmentUuid, definitionName, onReady }: { projectUuid: string; content: unknown; environmentUuid: string; definitionName: string; onReady?(): void }) {
   const { language, t } = useDefinitionsI18n(); const tr = language === 'tr'
@@ -368,6 +385,7 @@ export function PackageSimulationReport({ projectUuid, content, environmentUuid,
     <SimulateActions busy={busy} ready={Boolean(sim)} warning={Boolean(sim?.issues.length)} onSimulate={() => void simulate()} onOpen={() => setOpen(true)} tr={tr} />
     {sim && <ReportDialog open={open} onClose={() => setOpen(false)} tr={tr} title={tr ? 'Çalıştırma Öncesi Rapor' : 'Pre-Run Report'} subtitle={`${definitionName} · ${sim.environment.name}`} markdown={packageMarkdown(definitionName, sim, tr)} json={sim} fileStem={stem(definitionName, sim.environment.name)}>
       <div className="prerun-report">
+        <div className="definition-notice definition-notice--info" role="status"><ScanSearch size={16} aria-hidden="true" /><span>{tr ? 'Bu rapor düzenlenen paket ve çağrılan nesnelerin son derlenmiş planlarını gösterir; daha önce yayınlanmış paketin pinlenmiş sürümüyle aynı olduğu varsayılmaz.' : 'This report previews the edited package and the latest compiled plans of called objects; it does not assume an older publication has the same pinned versions.'}</span></div>
         <SummaryStrip ariaLabel={tr ? 'Rapor özeti' : 'Report summary'} items={[
           { label: tr ? 'Ortam' : 'Environment', value: sim.environment.name, hint: sim.environment.code, icon: <Layers size={18} />, tone: 'teal' },
           { label: tr ? 'Ana Akış' : 'Main Path', value: String(sim.path.length), hint: tr ? 'adım sırayla' : 'steps in order', icon: <ListOrdered size={18} />, tone: 'info' },
@@ -395,8 +413,12 @@ export function PackageSimulationReport({ projectUuid, content, environmentUuid,
           <h4><GitBranch size={15} aria-hidden="true" />{tr ? 'Tüm Geçişler' : 'All Transitions'} <span className="procedure-heading-count">{sim.transitions.length}</span></h4>
           <ul className="prerun-transitions">{sim.transitions.map((edge, index) => <li key={index}><span className={`procedure-route-chip is-ready procedure-route-chip--${edge.outcome === 'FAILURE' || edge.outcome === 'FALSE' ? 'source' : 'target'}`}>{t(({ SUCCESS: 'outcomeSUCCESS', FAILURE: 'outcomeFAILURE', TRUE: 'outcomeTRUE', FALSE: 'outcomeFALSE', ALWAYS: 'outcomeALWAYS' } as const)[edge.outcome])}</span><strong>{edge.from}</strong><span aria-hidden="true">→</span><strong>{edge.to}</strong></li>)}</ul>
         </section>
-        {sim.path.filter((item) => item.child && (item.child.steps.length || item.child.statements.length || item.child.note)).map((item) => <section key={item.step.id} className="prerun-section prerun-section--child">
+        {sim.path.filter((item) => item.child && (item.child.steps.length || item.child.statements.length || item.child.note || item.child.mappingStrategy)).map((item) => <section key={item.step.id} className="prerun-section prerun-section--child">
           <h4><span className="procedure-step-badge">{item.index}</span>{item.definition && <DefinitionTypeIcon type={item.definition.type} size={13} />}{item.step.name || item.step.id}{item.definition && <code>{item.definition.code}</code>}{item.child!.note && <em className="prerun-sql-flag"><AlertTriangle size={12} aria-hidden="true" />{item.child!.note}</em>}</h4>
+          {item.child!.mappingStrategy && <DataGrid viewControls={false} className="prerun-grid">
+            <thead><tr><th scope="col">{tr ? 'Hedef' : 'Target'}</th><th scope="col">IKM</th><th scope="col">{tr ? 'Yazma davranışı' : 'Write behavior'}</th><th scope="col">{tr ? 'Risk' : 'Risk'}</th></tr></thead>
+            <tbody><tr><td><code title={item.child!.mappingStrategy.target}>{item.child!.mappingStrategy.target || '—'}</code></td><td><code title={item.child!.mappingStrategy.ikmVersionUuid}>{item.child!.mappingStrategy.ikmVersionUuid ? `v · ${item.child!.mappingStrategy.ikmVersionUuid.slice(0, 8)}…` : '—'}</code><small className="prerun-cell-hint" title={item.child!.mappingStrategy.ikmContentHash}>{item.child!.mappingStrategy.ikmContentHash ? `hash · ${item.child!.mappingStrategy.ikmContentHash.slice(0, 12)}…` : '—'}</small></td><td><code>{item.child!.mappingStrategy.writeMode || '—'}</code><small className="prerun-cell-hint">TRUNCATE_TARGET: {item.child!.mappingStrategy.truncateTarget ? (tr ? 'Evet' : 'Yes') : (tr ? 'Hayır' : 'No')}</small></td><td>{item.child!.mappingStrategy.nonReversibleDdl || item.child!.mappingStrategy.truncateTarget ? <span className="prerun-sql-flag"><AlertTriangle size={12} aria-hidden="true" />{item.child!.mappingStrategy.nonReversibleDdl ? (tr ? 'Geri alınamaz DDL' : 'Non-reversible DDL') : (tr ? 'TRUNCATE hedef ayarı' : 'TRUNCATE target option')}</span> : (tr ? 'Belirtilmedi' : 'None noted')}</td></tr></tbody>
+          </DataGrid>}
           {item.child!.steps.length > 0 && <DataGrid viewControls={false} className="prerun-grid">
             <thead><tr><th scope="col">#</th><th scope="col">{tr ? 'Adım' : 'Step'}</th><th scope="col">{tr ? 'Konum' : 'Site'}</th><th scope="col">{tr ? 'İşlem' : 'Operation'}</th><th scope="col">{tr ? 'Ayrıntı' : 'Detail'}</th></tr></thead>
             <tbody>{item.child!.steps.map((step) => <tr key={step.index} className={step.enabled === false ? 'is-disabled' : ''}><th scope="row">{step.index}</th><td><strong>{step.name}</strong></td><td>{step.site ? <span className={`procedure-route-chip is-ready procedure-route-chip--${step.site === 'SOURCE' ? 'source' : 'target'}`}>{step.site === 'SOURCE' ? (tr ? 'Kaynak' : 'Source') : step.site === 'STAGING' ? 'Staging' : (tr ? 'Hedef' : 'Target')}</span> : '—'}</td><td><code>{step.operation ?? '—'}</code></td><td>{step.detail}</td></tr>)}</tbody>

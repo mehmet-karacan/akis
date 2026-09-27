@@ -395,6 +395,7 @@ final class ExecutionController {
             String errorCode,
             String logCounter,
             String transactionState,
+            tools.jackson.databind.JsonNode executedSql,
             UUID childRunUuid) {
 
         static RunStepView from(RunStepRow row) {
@@ -404,7 +405,7 @@ final class ExecutionController {
                     row.finishedAt(), row.rowCount(), row.byteCount(),
                     row.rowCount() == null ? null : row.rowCount().toString(),
                     row.byteCount() == null ? null : row.byteCount().toString(),
-                    row.errorCode(), row.logCounter(), row.transactionState(), row.childRunUuid());
+                    row.errorCode(), row.logCounter(), row.transactionState(), row.executedSql(), row.childRunUuid());
         }
     }
 }

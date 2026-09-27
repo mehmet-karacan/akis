@@ -19,10 +19,9 @@ class CleanVariableHistoryIT {
         long p=jdbc.sql("insert into akis.proje(kod,ad) values ('VARIABLE_IT','Variable IT') returning id").query(Long.class).single();
         UUID project=jdbc.sql("select uuid from akis.proje where id=:p").param("p",p).query(UUID.class).single();
         UUID definition=jdbc.sql("insert into akis.tanim(proje_id,tur,kod,ad) values (:p,'DEGISKEN','D','Date') returning uuid").param("p",p).query(UUID.class).single();
-        UUID environment=jdbc.sql("insert into akis.ortam(proje_id,kod,ad) values (:p,'TEST','Test') returning uuid").param("p",p).query(UUID.class).single();
-        UUID logical=jdbc.sql("insert into akis.mantiksal_sema(proje_id,kod,ad) values (:p,'LS','Logical') returning uuid").param("p",p).query(UUID.class).single();
-        long b=jdbc.sql("insert into akis.baglanti(proje_id,kod,ad,saglayici_turu) values (:p,'DB','Database','ORACLE') returning id").param("p",p).query(Long.class).single();
-        UUID version=jdbc.sql("insert into akis.baglanti_surumu(proje_id,baglanti_id,surum_no,baglanti_modu,jndi_adi) values (:p,:b,1,'JNDI','test') returning uuid").param("p",p).param("b",b).query(UUID.class).single();
+        UUID environment=jdbc.sql("insert into akis.ortam(kod,ad) values ('TEST','Test') returning uuid").query(UUID.class).single();
+        UUID logical=jdbc.sql("insert into akis.mantiksal_sema(kod,ad,saglayici_turu) values ('LS','Logical','ORACLE') returning uuid").query(UUID.class).single();
+        UUID version=jdbc.sql("insert into akis.baglanti(kod,ad,saglayici_turu,baglanti_modu,jndi_adi) values ('DB','Database','ORACLE','JNDI','test') returning uuid").query(UUID.class).single();
         var provider=mock(RuntimeOracleConnectionProvider.class);
         var session=mock(RuntimeOracleConnectionProvider.RuntimeOracleSession.class);
         var connection=mock(Connection.class); var statement=mock(PreparedStatement.class); var rows=mock(ResultSet.class); var meta=mock(ResultSetMetaData.class);

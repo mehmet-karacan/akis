@@ -36,10 +36,37 @@ it('preserves an application problem returned with service unavailable', async (
       code: 'ORACLE_CREDENTIAL_UNAVAILABLE',
       detail: 'Oracle kimlik secret değeri çalışma ortamında bulunamadı.',
     }),
-  }))
+}))
   await expect(apiRequest('/api/test')).rejects.toEqual(expect.objectContaining({
     name: ApiProblem.name,
     code: 'ORACLE_CREDENTIAL_UNAVAILABLE',
     message: 'Oracle kimlik secret değeri çalışma ortamında bulunamadı.',
   }))
+})
+
+it('refreshes the csrf token and retries a rejected mutation once', async () => {
+  let mutationAttempts = 0
+  let csrfRefreshes = 0
+  const request = vi.fn().mockImplementation((url: string) => {
+    if (url === '/api/v1/auth/csrf') {
+      csrfRefreshes += 1
+      return Promise.resolve({
+        status: 200,
+        ok: true,
+        json: vi.fn().mockResolvedValue({ token: `fresh-token-${csrfRefreshes}`, headerName: 'X-XSRF-TOKEN' }),
+      })
+    }
+    mutationAttempts += 1
+    return Promise.resolve(mutationAttempts === 1
+      ? { status: 403, ok: false, statusText: 'Forbidden' }
+      : { status: 200, ok: true, json: vi.fn().mockResolvedValue({ ok: true }) })
+  })
+  vi.stubGlobal('fetch', request)
+
+  // The first call obtains the stale token; the retry path must fetch a fresh
+  // token before replaying the rejected mutation.
+  await expect(apiRequest('/api/test', { method: 'POST', body: '{}' })).resolves.toEqual({ ok: true })
+  expect(mutationAttempts).toBe(2)
+  expect(csrfRefreshes).toBeGreaterThanOrEqual(1)
+  expect(document.cookie).not.toContain('XSRF-TOKEN=fresh-token-')
 })

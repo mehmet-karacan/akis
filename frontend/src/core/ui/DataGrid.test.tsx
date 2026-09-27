@@ -6,7 +6,7 @@ vi.mock('./useRecordAudit', () => ({ useRecordAudit: () => ({ state: 'ready', re
 
 it('keeps audit attribution and semantic icons in every view', () => {
   const { container } = render(<DataGrid auditKind="models"><thead><tr><th>Name</th></tr></thead><tbody><tr key="record-1"><td>Model</td></tr></tbody></DataGrid>)
-  for (const view of ['Table', 'Cards', 'List']) {
+  for (const view of ['Table', 'Cards']) {
     fireEvent.click(screen.getByRole('radio', { name: view }))
     expect(screen.getByText('Creator')).toBeInTheDocument()
     expect(screen.getByText('Editor')).toBeInTheDocument()
@@ -26,14 +26,12 @@ it('uses common views without losing record values or actions', () => {
   expect(screen.getByText('Finance')).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
   expect(edit).toHaveBeenCalledOnce()
-  fireEvent.click(screen.getByRole('radio', { name: 'List' }))
-  expect(screen.getByRole('listitem')).toHaveTextContent('Finance')
   fireEvent.click(screen.getByRole('radio', { name: 'Table' }))
   expect(screen.getByRole('table')).toBeInTheDocument()
 })
 
-it('does not duplicate an external view selector', () => {
-  render(<DataGrid viewControls={false}><thead><tr><th>Name</th></tr></thead><tbody><tr><td>Finance</td></tr></tbody></DataGrid>)
+it('keeps table-only collections in a table even when a card preference is supplied', () => {
+  render(<DataGrid view="card" viewControls={false}><thead><tr><th>Name</th></tr></thead><tbody><tr><td>Finance</td></tr></tbody></DataGrid>)
   expect(screen.queryByRole('radio')).not.toBeInTheDocument()
   expect(screen.getByRole('table')).toBeInTheDocument()
 })
@@ -50,19 +48,15 @@ it('uses the shared compact audit standard when audit is placed in the card foot
   fireEvent.click(screen.getByRole('radio', { name: 'Cards' }))
   expect(container.querySelector('.ui-grid-footer-content .ui-record-audit--compact')).toHaveTextContent('Creator')
   expect(container.querySelector('.ui-grid-footer-action')).toHaveTextContent('View')
-  fireEvent.click(screen.getByRole('radio', { name: 'List' }))
-  expect(container.querySelector('.ui-grid-footer-content .ui-record-audit--footer')).toHaveTextContent('Creator')
-  expect(container.querySelector('.ui-grid-footer-content .ui-record-audit--compact')).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('radio', { name: 'Cards' }))
+  expect(container.querySelector('.ui-grid-footer-content .ui-record-audit--compact')).toHaveTextContent('Creator')
 })
 
-it('can promote a sequence field to the right side of card headers while retaining it in list view', () => {
+it('can promote a sequence field to the right side of card headers', () => {
   const { container } = render(<DataGrid cardHeaderField="sequence"><thead><tr><th>Name</th><th>Sequence Used</th></tr></thead><tbody><tr><td>Orders</td><td>orders_id_seq</td></tr></tbody></DataGrid>)
   fireEvent.click(screen.getByRole('radio', { name: 'Cards' }))
   expect(container.querySelector('.ui-grid-record-header-extra')).toHaveTextContent('orders_id_seq')
   expect(container.querySelector('.ui-record-card-fields')).not.toHaveTextContent('orders_id_seq')
-  fireEvent.click(screen.getByRole('radio', { name: 'List' }))
-  expect(container.querySelector('.ui-grid-record-header-extra')).not.toBeInTheDocument()
-  expect(container.querySelector('.ui-record-card-fields')).toHaveTextContent('orders_id_seq')
 })
 
 it('shows semantic collection and view icons when a collection title is present', () => {
@@ -78,6 +72,11 @@ it('maps every schema metadata heading to its stable semantic icon', () => {
     'table', 'description', 'columns', 'constraints', 'indexes', 'relationships', 'sequences',
     'createdBy', 'createdAt', 'updatedBy', 'updatedAt', 'action',
   ])
+})
+
+it('renders the shared export action from a grid configuration', () => {
+  render(<DataGrid viewControls={false} exportMenu={{ projectUuid: 'project', dataset: 'runs', resourceId: 'run-history' }}><thead><tr><th>Name</th></tr></thead><tbody><tr><td>Run</td></tr></tbody></DataGrid>)
+  expect(screen.getByRole('button', { name: /export|dışa aktar/i })).toBeInTheDocument()
 })
 
 it('uses distinct operational icons for updated, deleted and trigger columns', () => {

@@ -6,6 +6,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
 import { AsyncState, Button, Dialog, PageHeader, RecordActionButton, SummaryStrip } from '../../core/ui'
 import { DataGrid } from '../../core/ui/DataGrid'
+import { ExportMenu } from '../../core/ui/ExportMenu'
 import { ProgressiveRecords } from '../../core/ui/ProgressiveRecords'
 import { QueryFilter } from '../../core/ui/QueryFilter'
 import { useCollectionView } from '../../core/ui/ViewToggle'
@@ -19,7 +20,7 @@ import '../connections/connections.css'
 import '../connections/catalog-layout.css'
 import '../schemas/schemas.css'
 
-/** Same catalog layout as the connections screen: header + filter, summary strip, card/list/table records. */
+/** Same catalog layout as the connections screen: header + filter, summary strip, card/table records. */
 export function EnvironmentsPage() {
   const projectUuid = useCurrentProjectUuid()
   const [view, setView] = useCollectionView('akis:environments:view')
@@ -75,7 +76,7 @@ export function EnvironmentsPage() {
       { label: t('schemas.physicalTitle'), value: physicalSchemas.length, icon: <Database />, tone: 'teal' },
     ]} />
     <section className="connections-records">
-    {loading ? <AsyncState state="loading" title={t('common.loading')} /> : error ? <AsyncState state="error" title={error} retryLabel={t('common.retry')} onRetry={() => void load()} /> : filtered.length === 0 ? <AsyncState state="empty" title={t('schemas.noEnvironments')} action={addButton} /> : <ProgressiveRecords key={query} items={filtered}>{(visible) => <DataGrid auditKind="environments" auditInFooter collectionTitle={tr ? 'Ortam Kataloğu' : 'Environment Catalog'} collectionIcon={<Workflow />} toolbarActions={addButton} cardHeaderLeadingField="risk" cardHeaderField="mapping" cardHiddenFields={['risk', 'mapping']} headerFieldsInList view={view} onViewChange={setView}>
+    {loading ? <AsyncState state="loading" title={t('common.loading')} /> : error ? <AsyncState state="error" title={error} retryLabel={t('common.retry')} onRetry={() => void load()} /> : filtered.length === 0 ? <AsyncState state="empty" title={t('schemas.noEnvironments')} action={addButton} /> : <ProgressiveRecords key={query} items={filtered}>{(visible) => <DataGrid auditKind="environments" auditInFooter collectionTitle={tr ? 'Ortam Kataloğu' : 'Environment Catalog'} collectionIcon={<Workflow />} toolbarActions={<>{addButton}<ExportMenu projectUuid={projectUuid} dataset="topology" resourceId="environments" filters={query ? [{ field: 'query', operator: 'contains', value: query }] : []} label={tr ? 'Dışa Aktar' : 'Export'} /></>} cardHeaderLeadingField="risk" cardHeaderField="mapping" cardHiddenFields={['risk', 'mapping']} view={view} onViewChange={setView}>
       <thead><tr>
         <th data-field-key="risk">{tr ? 'Risk' : 'Risk'}</th><th data-field-key="name">{t('schemas.environment')}</th><th data-field-key="description">{t('schemas.description')}</th>{logicalSchemas.map((schema) => <th key={schema.uuid} data-field-key={`ls-${schema.code}`}>{schema.name}</th>)}<th data-field-key="mapping">{tr ? 'Eşleme Durumu' : 'Mapping Status'}</th><th data-field-key="default">{tr ? 'Varsayılan' : 'Default'}</th><th data-field-key="status">{t('connections.status')}</th><th data-field-key="actions" className="ui-grid-actions-column"><span className="sr-only">{tr ? 'İşlemler' : 'Actions'}</span></th>
       </tr></thead><tbody>{visible.map((item) => { const complete = item.mappings.length > 0 && item.mappedCount === item.mappings.length; const tone = complete ? 'success' : 'warning'; const risk = riskTone(item.environment.risk); return <tr key={item.environment.uuid} data-connection-uuid={item.environment.uuid}>

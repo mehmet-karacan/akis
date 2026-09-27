@@ -19,8 +19,6 @@ const meanings = [
   ['mapping', /eşleme|mapping|binding/i, Link2],
   ['default', /varsayılan|default/i, Star],
   ['email', /e-?posta|e-?mail/i, Mail],
-  ['issuer', /sağlayıcı kimliği|issuer/i, KeyRound],
-  ['subject', /^konu$|^subject$/i, Fingerprint],
   ['roles', /^rol|^roles?$/i, ShieldCheck],
   ['folder', /klasör|folder/i, Folder],
   ['reverse', /reverse|keşif|discovery/i, ScanSearch],

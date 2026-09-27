@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import i18n from '../../../core/i18n'
 import { DEFAULT_PROCEDURE, isProcedureContent } from '../defaults'
-import { applyAutomaticRowHandoffs, groupProcedureTasks, inferProcedureTaskMetadata, isProcedureSideConfigured, pageProcedureTasks, ProcedureEditor } from '../ProcedureEditor'
+import { applyAutomaticRowHandoffs, filterProcedureUnits, groupProcedureTasks, inferProcedureTaskMetadata, isProcedureSideConfigured, pageProcedureTasks, ProcedureEditor } from '../ProcedureEditor'
 import { inferProcedureLogCounter } from '../procedureCatalog'
 import type { ProcedureContent } from '../types'
 import { definitionsApi } from '../api'
@@ -149,5 +149,13 @@ describe('ProcedureEditor', () => {
     expect(last.items).toHaveLength(100)
     expect(last.items[0]?.task.id).toBe('STEP_9901')
     expect(last.pages).toBe(100)
+  })
+
+  it('filters every conceptual step before pagination', () => {
+    const tasks = Array.from({ length: 101 }, (_, index) => ({ ...DEFAULT_PROCEDURE.tasks[0]!, id: `STEP_${index + 1}`, name: `Step ${index + 1}` }))
+    const units = groupProcedureTasks(tasks)
+    const filtered = filterProcedureUnits(units, 'Step 101')
+    expect(filtered).toHaveLength(1)
+    expect(filtered[0]?.target?.name ?? filtered[0]?.source?.name).toBe('Step 101')
   })
 })

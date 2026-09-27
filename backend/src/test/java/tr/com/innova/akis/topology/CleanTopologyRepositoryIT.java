@@ -82,7 +82,9 @@ class CleanTopologyRepositoryIT {
         assertEquals("ETKIN", created.status());
         String stored = repository.findEncryptedPassword(created.id()).orElseThrow();
         assertFalse(stored.contains("local-secret"));
-        assertEquals("local-secret", cipher.decrypt(stored));
+        var envelope = new ObjectMapper().readTree(cipher.decrypt(stored));
+        assertEquals("reader", envelope.path("username").asText());
+        assertEquals("local-secret", envelope.path("password").asText());
 
         var renamed = service.updateConnection(created.uuid(), oracle("ORACLE_RENAMED", "db-next.example", null));
         assertEquals("ORACLE_RENAMED", renamed.code());

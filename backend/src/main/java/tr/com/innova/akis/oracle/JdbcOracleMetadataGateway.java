@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -154,7 +155,8 @@ final class JdbcSchemaDiscoveryPort implements SchemaDiscoveryPort {
             boolean truncated = false;
             String pattern = tableName == null ? "%" : tableName;
             try (ResultSet resultSet = metadata.getTables(
-                    null, owner, pattern, new String[] {"TABLE", "VIEW"})) {
+                    null, owner, pattern,
+                    new String[] {"TABLE", "VIEW", "SYNONYM", "MATERIALIZED VIEW"})) {
                 while (resultSet.next()) {
                     if (tables.size() == limit) {
                         truncated = true;
@@ -162,13 +164,15 @@ final class JdbcSchemaDiscoveryPort implements SchemaDiscoveryPort {
                     }
                     String tableOwner = resultSet.getString("TABLE_SCHEM");
                     String discoveredTable = resultSet.getString("TABLE_NAME");
-                    String type = resultSet.getString("TABLE_TYPE");
+                    String jdbcType = resultSet.getString("TABLE_TYPE");
+                    ResolvedObject resolved = resolveObject(connection, tableOwner, discoveredTable, jdbcType);
+                    requireNoCaseCollision(tables, resolved);
                     tables.add(new TableMetadata(
-                            tableOwner,
-                            discoveredTable,
-                            type,
-                            JdbcDictionaryMetadata.readColumns(metadata, tableOwner, discoveredTable),
-                            JdbcDictionaryMetadata.readConstraints(metadata, tableOwner, discoveredTable)));
+                            resolved.owner(),
+                            resolved.name(),
+                            resolved.type(),
+                            JdbcDictionaryMetadata.readColumns(metadata, resolved.owner(), resolved.name()),
+                            JdbcDictionaryMetadata.readConstraints(metadata, resolved.owner(), resolved.name())));
                 }
             }
             return new DiscoveryResult(
@@ -182,6 +186,106 @@ final class JdbcSchemaDiscoveryPort implements SchemaDiscoveryPort {
                     "Oracle metadata discovery failed (vendorCode={}, sqlState={}).",
                     exception.getErrorCode(), exception.getSQLState());
             throw DiscoveryConnections.discoveryFailed();
+        }
+    }
+
+    private static final String SYNONYM_TARGET_SQL = """
+            SELECT table_owner, table_name, db_link
+              FROM all_synonyms
+             WHERE owner = ?
+               AND synonym_name = ?
+            """;
+
+    private ResolvedObject resolveObject(Connection connection, String owner, String name, String jdbcType) throws SQLException {
+        String normalizedType = switch (jdbcType == null ? "" : jdbcType.toUpperCase(Locale.ROOT)) {
+            case "TABLE" -> OracleDiscoveryModels.TABLE;
+            case "VIEW" -> OracleDiscoveryModels.VIEW;
+            case "MATERIALIZED VIEW" -> OracleDiscoveryModels.MATERIALIZED_VIEW;
+            case "SYNONYM" -> OracleDiscoveryModels.SYNONYM;
+            default -> jdbcType;
+        };
+        if (!OracleDiscoveryModels.SYNONYM.equals(normalizedType)) {
+            return new ResolvedObject(owner, name, normalizedType);
+        }
+        try (PreparedStatement statement = connection.prepareStatement(SYNONYM_TARGET_SQL)) {
+            statement.setString(1, owner);
+            statement.setString(2, name);
+            try (ResultSet rows = statement.executeQuery()) {
+                if (!rows.next() || rows.getString("TABLE_NAME") == null) {
+                    throw new ApiException(
+                            HttpStatus.UNPROCESSABLE_CONTENT,
+                            "ORACLE_SYNONYM_UNRESOLVED",
+                            "Oracle eşanlamlısı çözümlenemedi: " + owner + "." + name);
+                }
+                if (rows.getString("DB_LINK") != null) {
+                    throw new ApiException(
+                            HttpStatus.UNPROCESSABLE_CONTENT,
+                            "ORACLE_SYNONYM_REMOTE",
+                            "Uzak veritabanı bağlantılı Oracle eşanlamlısı desteklenmiyor: " + owner + "." + name);
+                }
+                String targetOwner = rows.getString("TABLE_OWNER");
+                String targetName = rows.getString("TABLE_NAME");
+                if (rows.next()) {
+                    throw new ApiException(
+                            HttpStatus.UNPROCESSABLE_CONTENT,
+                            "ORACLE_SYNONYM_AMBIGUOUS",
+                            "Oracle eşanlamlısı birden fazla hedefe çözümleniyor: " + owner + "." + name);
+                }
+                String targetType = readObjectType(connection, targetOwner, targetName);
+                if (targetType == null) {
+                    throw new ApiException(
+                            HttpStatus.UNPROCESSABLE_CONTENT,
+                            "ORACLE_SYNONYM_TARGET_MISSING",
+                            "Oracle eşanlamlısının hedef nesnesi görünmüyor: " + targetOwner + "." + targetName);
+                }
+                return new ResolvedObject(targetOwner, targetName, targetType);
+            }
+        }
+    }
+
+    private static final String OBJECT_TYPE_SQL = """
+            SELECT object_type
+              FROM all_objects
+             WHERE owner = ?
+               AND object_name = ?
+               AND object_type IN ('TABLE', 'VIEW', 'MATERIALIZED VIEW')
+            """;
+
+    private String readObjectType(Connection connection, String owner, String name) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(OBJECT_TYPE_SQL)) {
+            statement.setString(1, owner);
+            statement.setString(2, name);
+            try (ResultSet rows = statement.executeQuery()) {
+                String type = null;
+                while (rows.next()) {
+                    String candidate = rows.getString("OBJECT_TYPE");
+                    if (type != null) {
+                        return null;
+                    }
+                    type = candidate;
+                }
+                return type == null ? null : switch (type) {
+                    case "TABLE" -> OracleDiscoveryModels.TABLE;
+                    case "VIEW" -> OracleDiscoveryModels.VIEW;
+                    case "MATERIALIZED VIEW" -> OracleDiscoveryModels.MATERIALIZED_VIEW;
+                    default -> null;
+                };
+            }
+        }
+    }
+
+    private record ResolvedObject(String owner, String name, String type) { }
+
+    private void requireNoCaseCollision(List<TableMetadata> tables, ResolvedObject resolved) {
+        String key = resolved.owner().toUpperCase(Locale.ROOT) + "." + resolved.name().toUpperCase(Locale.ROOT);
+        for (TableMetadata existing : tables) {
+            String existingKey = existing.owner().toUpperCase(Locale.ROOT) + "." + existing.name().toUpperCase(Locale.ROOT);
+            if (key.equals(existingKey)) {
+                throw new ApiException(
+                        HttpStatus.UNPROCESSABLE_CONTENT,
+                        "ORACLE_OBJECT_CASE_COLLISION",
+                        "Keşif sonuçlarında büyük/küçük harf çakışması var: " + key);
+            }
         }
     }
 

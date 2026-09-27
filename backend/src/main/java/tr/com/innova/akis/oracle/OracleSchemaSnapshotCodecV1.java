@@ -21,6 +21,12 @@ public final class OracleSchemaSnapshotCodecV1 {
 
     private static final String CODEC = "ORACLE_SCHEMA_V1";
     private static final Pattern IDENTIFIER = Pattern.compile("[A-Z][A-Z0-9_$#]{0,127}");
+    private static final Set<String> SUPPORTED_OBJECT_TYPES = Set.of(
+            OracleDiscoveryModels.TABLE,
+            OracleDiscoveryModels.PARTITIONED_TABLE,
+            OracleDiscoveryModels.VIEW,
+            OracleDiscoveryModels.MATERIALIZED_VIEW,
+            OracleDiscoveryModels.SYNONYM);
     private static final Set<String> DELETE_RULES = Set.of("NO_ACTION", "CASCADE", "SET_NULL");
     private static final Set<String> DEFERRABILITY = Set.of("DEFERRABLE", "NOT_DEFERRABLE");
 
@@ -38,13 +44,26 @@ public final class OracleSchemaSnapshotCodecV1 {
             String tableName,
             List<RawColumn> rawColumns,
             List<RawConstraint> rawConstraints) {
+        return decode(owner, tableName, OracleDiscoveryModels.TABLE, rawColumns, rawConstraints);
+    }
+
+    public SnapshotDefinition decode(
+            String owner,
+            String tableName,
+            String objectType,
+            List<RawColumn> rawColumns,
+            List<RawConstraint> rawConstraints) {
         String normalizedOwner = identifier(owner, "owner");
         String normalizedTable = identifier(tableName, "table name");
+        String normalizedType = objectType == null ? OracleDiscoveryModels.TABLE : objectType.strip().toUpperCase(Locale.ROOT);
+        if (!SUPPORTED_OBJECT_TYPES.contains(normalizedType)) {
+            throw failure("Unsupported Oracle object type for snapshot: " + normalizedType + ".");
+        }
         List<Column> columns = columns(rawColumns);
         List<Constraint> constraints = constraints(rawConstraints, columns);
         ObjectNode properties = objectMapper.createObjectNode();
         properties.put("codec", CODEC);
-        properties.put("objectType", "TABLE");
+        properties.put("objectType", normalizedType);
         properties.put("owner", normalizedOwner);
         properties.put("table", normalizedTable);
         return new SnapshotDefinition(

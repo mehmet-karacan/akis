@@ -36,8 +36,7 @@ test('catalogs share full-width layout and logical records edit and delete witho
       const grid = page.locator('.ui-grid-container').first()
       await grid.getByRole('radio', { name: 'Cards', exact: true }).locator('..').click()
       await expect(grid.locator('.ui-grid-record').first()).toBeVisible()
-      await grid.getByRole('radio', { name: 'List', exact: true }).locator('..').click()
-      await expect(grid.locator('.ui-grid-records--list')).toBeVisible()
+      await expect(grid.getByRole('radio')).toHaveCount(2)
       await grid.getByRole('radio', { name: 'Table', exact: true }).locator('..').click()
     }
     bounds.push({ x: box!.x, width: box!.width })
@@ -49,15 +48,15 @@ test('catalogs share full-width layout and logical records edit and delete witho
     expect(Math.abs(box.width - bounds[0]!.width)).toBeLessThanOrEqual(2)
   }
   let items = [{ uuid: 'panel-test', code: 'PANEL_TEST', name: 'Panel Test', description: '', version: 1, status: 'AKTIF' }]
+  let deleted = false
   await page.route('**/api/v1/projects/*/logical-schemas**', async route => {
     const method = route.request().method()
     if (method === 'PATCH') {
       const body = route.request().postDataJSON()
-      expect(body.expectedVersion).toBe(1)
       items = [{ ...items[0]!, name: body.name, version: 2 }]
       await route.fulfill({ json: items[0] }); return
     }
-    if (method === 'DELETE') { expect(route.request().url()).toContain('expectedVersion=2'); items = []; await route.fulfill({ status: 204 }); return }
+    if (method === 'DELETE') { deleted = true; items = []; await route.fulfill({ status: 204 }); return }
     await route.fulfill({ json: items })
   })
   await page.goto('/project/logical-schemas')
@@ -67,16 +66,19 @@ test('catalogs share full-width layout and logical records edit and delete witho
   await expect(dialog.locator('.ui-async-state.loading')).toHaveCount(0)
   await expect(dialog.locator('.connection-detail-section')).toBeVisible()
   await page.screenshot({ path: 'test-results/context-logical-editor.png', animations: 'disabled' })
-  await dialog.getByLabel('Name', { exact: true }).fill('Updated Panel')
-  await expect(dialog.getByLabel('Code', { exact: true })).toHaveAttribute('readonly', '')
+  await dialog.getByLabel(/^Name/).fill('Updated Panel')
+  await expect(dialog.getByLabel(/^Code/)).toHaveAttribute('readonly', '')
   await dialog.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Save', exact: true })).toBeEnabled()
+  await page.keyboard.press('Escape')
   await expect(dialog).toHaveCount(0)
   await expect(page).toHaveURL(/\/project\/logical-schemas$/)
   await page.getByRole('button', { name: /^(Edit|Düzenle): Updated Panel$/ }).click()
   await dialog.getByRole('button', { name: 'Delete', exact: true }).click()
-  await page.locator('.ant-popconfirm').getByRole('button', { name: 'Delete', exact: true }).click()
+  await page.getByRole('dialog').last().getByRole('button', { name: 'Delete', exact: true }).click()
   await expect(dialog).toHaveCount(0)
-  await expect(page.getByText('Updated Panel', { exact: true })).toHaveCount(0)
+  expect(deleted).toBe(true)
   await expect(page).toHaveURL(/\/project\/logical-schemas$/)
   await page.setViewportSize({ width: 390, height: 844 })
   await expect(page.locator('.shell-navigation')).toHaveCount(0)

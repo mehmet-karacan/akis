@@ -117,7 +117,7 @@ final class MetadataController {
         var principal = authorization.currentPrincipalIdentity();
         ProjectRow project = service.createProject(
                 request.code(), request.name(), request.description(),
-                principal.provider(), principal.subject());
+                principal.userId());
         return ResponseEntity.created(URI.create("/api/v1/projects/" + project.uuid()))
                 .body(ProjectView.from(project));
     }

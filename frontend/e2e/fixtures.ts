@@ -9,9 +9,18 @@ export async function login(page: Page) {
   }
 
   await page.goto('/login')
+  await page.evaluate(() => localStorage.removeItem('akis.lastProjectUuid'))
   await page.locator('input[autocomplete="username"]').fill(username)
   await page.locator('input[autocomplete="current-password"]').fill(password)
   await page.locator('button[type="submit"]').click()
+  await page.waitForURL(/\/project(?:\/select)?(?:[?#].*)?$/i)
+  await page.evaluate(async () => {
+    const response = await fetch('/api/v1/projects')
+    const projects = await response.json() as Array<{ uuid: string; code: string }>
+    const selected = projects.find((project) => project.code === 'SKY') ?? projects[0]
+    if (selected) localStorage.setItem('akis.lastProjectUuid', selected.uuid)
+  })
+  await page.goto('/project')
   await page.waitForURL(/\/project(?:[?#].*)?$/i)
   const projectUuid = await page.evaluate(() => localStorage.getItem('akis.lastProjectUuid'))
   expect(projectUuid, 'A project must be selected after login').toBeTruthy()
@@ -19,10 +28,10 @@ export async function login(page: Page) {
 }
 
 export async function navigateInApp(page: Page, path: string, expectedPath = path) {
-  await page.evaluate((nextPath) => {
-    window.history.pushState({}, '', nextPath)
-    window.dispatchEvent(new PopStateEvent('popstate'))
-  }, path)
+  // Use the browser entry path rather than mutating history behind the
+  // router. This exercises the same deep-link contract as a real refresh and
+  // avoids bypassing the router's own navigation state.
+  await page.goto(path)
   await expect(page).toHaveURL(new RegExp(`${escapeRegExp(expectedPath)}(?:[?#].*)?$`))
 }
 

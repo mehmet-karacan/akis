@@ -14,6 +14,10 @@ class IntegrationTestDatabaseTest {
 
         assertEquals(integration, IntegrationTestDatabase.requireIsolatedUrl(integration));
         assertEquals(testWithOptions, IntegrationTestDatabase.requireIsolatedUrl(testWithOptions));
+        assertEquals(
+                "jdbc:postgresql://localhost:5432/akis_worker_test_123",
+                IntegrationTestDatabase.requireIsolatedUrl(
+                        "jdbc:postgresql://localhost:5432/akis_worker_test_123"));
         assertThrows(IllegalStateException.class, () ->
                 IntegrationTestDatabase.requireIsolatedUrl(
                         "jdbc:postgresql://localhost:5432/akis_metadata"));

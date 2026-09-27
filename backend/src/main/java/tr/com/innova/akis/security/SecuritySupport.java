@@ -31,7 +31,11 @@ final class SecuritySupport {
         http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+                        // LocalAuthenticationService/AuthController persist the authenticated
+                        // ApplicationUserPrincipal in the JDBC-backed HTTP session. STATELESS
+                        // silently discarded that context after a successful login, causing the
+                        // next /project request to redirect back to /login?reason=expired.
+                        .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED));
     }
 
     static String required(String value, String label) {

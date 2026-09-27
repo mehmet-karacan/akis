@@ -8,6 +8,13 @@ import tools.jackson.databind.JsonNode;
 
 public final class OracleDiscoveryModels {
 
+    /** Provider-neutral object types returned by discovery and stored on the catalog where supported. */
+    public static final String TABLE = "TABLE";
+    public static final String PARTITIONED_TABLE = "PARTITIONED_TABLE";
+    public static final String VIEW = "VIEW";
+    public static final String MATERIALIZED_VIEW = "MATERIALIZED_VIEW";
+    public static final String SYNONYM = "SYNONYM";
+
     private OracleDiscoveryModels() {
     }
 

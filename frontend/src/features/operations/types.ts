@@ -81,11 +81,12 @@ export interface ProcedurePilotVerification {
 
 export interface IdentityUser {
   uuid: string
-  issuer: string
-  subject: string
+  kullaniciKodu: string
   status: string
-  name: string
-  email: string | null
+  ad: string
+  soyad: string | null
+  sicilNumarasi: string | null
+  eposta: string | null
   createdAt: string
 }
 

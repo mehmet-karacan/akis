@@ -41,6 +41,12 @@ export interface ProjectBundleDocument {
   folders: unknown[]
   definitions: unknown[]
   topology: { sanitized: boolean; definitions: Record<string, unknown> }
+  producer?: {
+    application: string
+    version: string
+    commit: string
+  }
+  includedSections?: string[]
 }
 
 export interface SelectedBundle {
@@ -48,4 +54,55 @@ export interface SelectedBundle {
   fileName: string
   size: number
   fingerprint: string
+}
+
+export type GlobalResourceType =
+  | 'CONNECTION'
+  | 'PHYSICAL_SCHEMA'
+  | 'LOGICAL_SCHEMA'
+  | 'ENVIRONMENT'
+
+export type GlobalBindingMode = 'BIND_EXISTING' | 'CREATE_GLOBAL'
+
+export interface GlobalBinding {
+  type: GlobalResourceType
+  sourceCode: string
+  mode: GlobalBindingMode
+  targetUuid?: string | null
+  newCode?: string | null
+  configuration?: unknown | null
+}
+
+export interface GlobalDependency {
+  type: GlobalResourceType
+  sourceCode: string
+  provider?: string | null
+  required: boolean
+  mode?: GlobalBindingMode | null
+  targetUuid?: string | null
+  targetCode?: string | null
+  resolved: boolean
+  message: string
+}
+
+export interface TargetImportPlan {
+  valid: boolean
+  targetProjectUuid: string
+  targetVersion: number
+  bundleChecksum: string
+  planDigest: string
+  counts: BundleCounts
+  changes: Record<string, number>
+  globalDependencies: GlobalDependency[]
+  issues: BundleIssue[]
+}
+
+export interface TargetImportResult {
+  imported: boolean
+  replayed: boolean
+  targetProjectUuid: string
+  targetVersion: number
+  bundleChecksum: string
+  planDigest: string
+  counts: BundleCounts
 }

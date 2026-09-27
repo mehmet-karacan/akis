@@ -27,9 +27,9 @@ class IdentityControllerTest {
     void protectsUserProvisioningWithSystemPermission() {
         CapturingAuthorization authorization = new CapturingAuthorization();
         IdentityController controller = new IdentityController(
-                new StubIdentityService(), authorization);
+                new StubIdentityService(), authorization, null);
 
-        controller.listOidcUsers();
+        controller.listUsers();
 
         assertEquals(
                 IDENTITY_USER_PROVISION,
@@ -40,7 +40,7 @@ class IdentityControllerTest {
     void protectsMembershipManagementWithProjectPermission() {
         CapturingAuthorization authorization = new CapturingAuthorization();
         IdentityController controller = new IdentityController(
-                new StubIdentityService(), authorization);
+                new StubIdentityService(), authorization, null);
 
         controller.listMemberships(PROJECT_UUID);
 
@@ -79,7 +79,7 @@ class IdentityControllerTest {
         }
 
         @Override
-        public List<UserRow> listOidcUsers() {
+        public List<UserRow> listUsers() {
             return List.of();
         }
 

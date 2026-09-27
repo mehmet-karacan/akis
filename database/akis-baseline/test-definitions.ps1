@@ -10,9 +10,13 @@ $docker = "C:\Program Files\Docker\Docker\resources\bin\docker.exe"
 $containerName = "akis-metadata-db-1"
 $testDatabase = "akis_definitions_test_" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
 $databaseCreated = $false
+$javaHome = 'C:\Program Files\Eclipse Adoptium\jdk-25.0.3.9-hotspot'
 
 if ($testDatabase -notmatch '^akis_definitions_test_[0-9]+$') {
     throw "Unsafe temporary database name."
+}
+if (-not (Test-Path -LiteralPath (Join-Path $javaHome 'bin\java.exe'))) {
+    throw "Java 25 is required for the definitions integration test: $javaHome"
 }
 
 $settings = @{}
@@ -52,6 +56,8 @@ try {
     $env:SPRING_DATASOURCE_URL = "jdbc:postgresql://localhost:$($settings['POSTGRES_PORT'])/$testDatabase"
     $env:SPRING_DATASOURCE_USERNAME = $databaseUser
     $env:SPRING_DATASOURCE_PASSWORD = $settings["POSTGRES_PASSWORD"]
+    $env:JAVA_HOME = $javaHome
+    $env:Path = "$javaHome\bin;$env:Path"
     & $maven -pl backend "-Dtest=CleanDefinitionRepositoryIT" test
     if ($LASTEXITCODE -ne 0) { throw "Clean definition repository test failed." }
     Write-Output "Clean folder, definition, draft and version repository tests: PASS"

@@ -11,6 +11,7 @@ import { AntDesignProvider } from './core/theme/AntDesignProvider'
 import './core/theme/ant-design.css'
 import './core/theme/icons.css'
 import './core/theme/buttons.css'
+import './core/brand/brand.css'
 import './app/project-explorer.css'
 
 createRoot(document.getElementById('root')!).render(

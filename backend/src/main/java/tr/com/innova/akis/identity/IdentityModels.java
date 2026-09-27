@@ -20,12 +20,16 @@ final class IdentityModels {
     record UserRow(
             long id,
             UUID uuid,
-            String issuer,
-            String subject,
+            String userCode,
             String status,
-            String name,
+            String firstName,
+            String lastName,
+            String employeeNumber,
             String email,
             OffsetDateTime createdAt) {
+        String name() {
+            return lastName == null || lastName.isBlank() ? firstName : firstName + " " + lastName;
+        }
     }
 
     record ProjectRef(long id, UUID uuid, String status) {

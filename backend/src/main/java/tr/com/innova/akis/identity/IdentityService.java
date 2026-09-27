@@ -1,11 +1,8 @@
 package tr.com.innova.akis.identity;
 
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -20,13 +17,12 @@ import tr.com.innova.akis.identity.IdentityModels.ProjectRef;
 import tr.com.innova.akis.identity.IdentityModels.ProjectRoleRef;
 import tr.com.innova.akis.identity.IdentityModels.UserRow;
 import tr.com.innova.akis.metadata.ApiException;
+import tr.com.innova.akis.security.UserCodeNormalizer;
 
 @Service
 public class IdentityService {
 
     private static final Pattern SIMPLE_EMAIL = Pattern.compile("^[^@\\s]+@[^@\\s]+$");
-    private static final String LOCAL_BASIC_PROVIDER = "LOCAL_BASIC";
-
     private final IdentityStore store;
     private final Clock clock;
 
@@ -41,29 +37,38 @@ public class IdentityService {
     }
 
     @Transactional
-    public UserRow createOidcUser(
-            String issuer,
-            String subject,
-            String name,
+    public UserRow createUser(
+            String userCode,
+            String firstName,
+            String lastName,
+            String employeeNumber,
             String email) {
-        String safeIssuer = issuer(issuer);
-        String safeSubject = required(subject, "OIDC subject", 500);
-        String safeName = required(name, "Ad", 200);
+        String safeUserCode;
+        try {
+            safeUserCode = UserCodeNormalizer.normalize(userCode);
+        }
+        catch (IllegalArgumentException exception) {
+            throw validation(exception.getMessage());
+        }
+        String safeFirstName = required(firstName, "Ad", 100);
+        String safeLastName = optional(lastName, 100);
+        String safeEmployeeNumber = optional(employeeNumber, 50);
         String safeEmail = email(email);
-        if (store.findUser(safeIssuer, safeSubject).isPresent()) {
-            throw conflict("OIDC_USER_EXISTS", "OIDC kullanıcısı zaten kayıtlı.");
+        if (store.findUser(safeUserCode).isPresent()) {
+            throw conflict("USER_CODE_EXISTS", "Kullanıcı kodu zaten kayıtlı.");
         }
         return store.createUser(
-                UUID.randomUUID(), safeIssuer, safeSubject, safeName, safeEmail);
+                UUID.randomUUID(), safeUserCode, safeFirstName, safeLastName,
+                safeEmployeeNumber, safeEmail);
     }
 
     @Transactional(readOnly = true)
-    public List<UserRow> listOidcUsers() {
+    public List<UserRow> listUsers() {
         return store.listUsers();
     }
 
     @Transactional(readOnly = true)
-    public UserRow oidcUser(UUID userUuid) {
+    public UserRow user(UUID userUuid) {
         if (userUuid == null) {
             throw validation("Kullanıcı UUID değeri zorunludur.");
         }
@@ -157,30 +162,6 @@ public class IdentityService {
         return user;
     }
 
-    private String issuer(String value) {
-        String normalized = required(value, "OIDC issuer", 500);
-        if (LOCAL_BASIC_PROVIDER.equals(normalized)) {
-            return normalized;
-        }
-        try {
-            URI parsed = new URI(normalized);
-            String scheme = parsed.getScheme() == null
-                    ? ""
-                    : parsed.getScheme().toLowerCase(Locale.ROOT);
-            if (!parsed.isAbsolute()
-                    || !(scheme.equals("https") || scheme.equals("http"))
-                    || parsed.getHost() == null
-                    || parsed.getQuery() != null
-                    || parsed.getFragment() != null) {
-                throw validation("OIDC issuer geçerli bir HTTP(S) URI olmalıdır.");
-            }
-            return normalized;
-        }
-        catch (URISyntaxException exception) {
-            throw validation("OIDC issuer geçerli bir HTTP(S) URI olmalıdır.");
-        }
-    }
-
     private String email(String value) {
         String normalized = trimToNull(value);
         if (normalized != null
@@ -194,6 +175,14 @@ public class IdentityService {
         String normalized = trimToNull(value);
         if (normalized == null || normalized.length() > maximumLength) {
             throw validation(field + " 1-" + maximumLength + " karakter olmalıdır.");
+        }
+        return normalized;
+    }
+
+    private String optional(String value, int maximumLength) {
+        String normalized = trimToNull(value);
+        if (normalized != null && normalized.length() > maximumLength) {
+            throw validation("Alan en fazla " + maximumLength + " karakter olmalıdır.");
         }
         return normalized;
     }

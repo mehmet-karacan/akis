@@ -251,8 +251,11 @@ public class TopologyService {
     PhysicalSchemaRow createPhysicalSchema(PhysicalSchemaInput input) {
         ConnectionRow connection = connection(input.connectionUuid());
         PhysicalSchemaWrite write = normalizePhysical(input, null, connection.databaseType());
+        // The partial unique index permits only one default per connection. Clear the
+        // previous default before inserting the replacement; the surrounding
+        // transaction rolls this back if the insert fails.
+        if (write.defaultSchema()) repository.clearDefaultPhysicalSchema(connection.id(), null);
         PhysicalSchemaRow created = repository.createPhysicalSchema(connection.id(), connection.databaseType(), write, null);
-        if (write.defaultSchema()) repository.clearDefaultPhysicalSchema(connection.id(), created.uuid());
         return created;
     }
 
@@ -291,7 +294,9 @@ public class TopologyService {
         String integration = prefix(in.integrationPrefix(), current == null ? "I$_" : current.integrationPrefix(), "Entegrasyon prefixi");
         String error = prefix(in.errorPrefix(), current == null ? "E$_" : current.errorPrefix(), "Hata prefixi");
         String temp = prefix(in.tempPrefix(), current == null ? "T$_" : current.tempPrefix(), "Geçici prefix");
-        if (Set.of(loading, integration, error, temp).size() != 4) throw validation("Prefixler birbirinden farklı olmalıdır.");
+        if (new java.util.HashSet<>(java.util.List.of(loading, integration, error, temp)).size() != 4) {
+            throw validation("Prefixler birbirinden farklı olmalıdır.");
+        }
         return new PhysicalSchemaWrite(code, name, trimToNull(in.description()),
                 trimToNull(in.catalogName()), schemaName, trimToNull(in.workCatalogName()), work,
                 Boolean.TRUE.equals(in.defaultSchema()),

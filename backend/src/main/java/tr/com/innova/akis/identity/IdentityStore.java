@@ -12,13 +12,15 @@ import tr.com.innova.akis.identity.IdentityModels.UserRow;
 
 interface IdentityStore {
 
-    UserRow createUser(UUID uuid, String issuer, String subject, String name, String email);
+    UserRow createUser(
+            UUID uuid, String userCode, String firstName, String lastName,
+            String employeeNumber, String email);
 
     List<UserRow> listUsers();
 
     Optional<UserRow> findUser(UUID userUuid);
 
-    Optional<UserRow> findUser(String issuer, String subject);
+    Optional<UserRow> findUser(String userCode);
 
     Optional<ProjectRef> findProject(UUID projectUuid);
 

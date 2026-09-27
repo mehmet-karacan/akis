@@ -11,12 +11,13 @@ import { useCollectionView } from '../../core/ui/ViewToggle'
 import { connectionStatusTagStyles } from '../connections/presentation'
 import { definitionsApi } from '../definitions/api'
 import { operationsApi } from '../operations/api'
-import { apiErrorMessage, formatDate } from '../operations/utils'
+import { apiErrorMessage } from '../operations/utils'
 import { useRemoteData } from '../operations/useRemoteData'
 import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
 import { ScheduleEditorPanel } from './ScheduleEditorPanel'
 import { scheduleApi } from './scheduleApi'
 import type { Schedule } from './scheduleTypes'
+import { formatScheduleDate, schedulePublicationSummary } from './scheduleFormatters'
 import { executionCodeLabel, useExecutionI18n } from './i18n'
 import '../connections/connections.css'
 import '../connections/catalog-layout.css'
@@ -41,6 +42,10 @@ export function SchedulesPage() {
   const [formError, setFormError] = useState<unknown>(null)
   const [pendingUuid, setPendingUuid] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Schedule | null>(null)
+  const [historyTarget, setHistoryTarget] = useState<Schedule | null>(null)
+  const triggerEvents = useRemoteData(() => historyTarget
+    ? scheduleApi.triggerEvents(projectUuid, historyTarget.uuid)
+    : Promise.resolve([]), [projectUuid, historyTarget?.uuid])
 
   const publicationParts = (publicationUuid: string) => {
     const publication = publications.data?.find((item) => item.uuid === publicationUuid)
@@ -49,6 +54,23 @@ export function SchedulesPage() {
     return { name: definition?.name ?? '—', meta: `#${publication.publicationNumber} · ${publication.environmentCode}`, risk: publication.environmentRisk }
   }
   const publicationLabel = (publicationUuid: string) => { const parts = publicationParts(publicationUuid); return parts.meta ? `${parts.name} · ${parts.meta}` : parts.name }
+  /** The configured/pinned target (publicationUuid) and what would actually fire right now (resolvedPublicationUuid) are shown separately: they diverge when a LATEST_ACTIVE anchor gets a newer version, or when a PINNED target stops being active. */
+  const resolutionNote = (schedule: Schedule) => {
+    if (schedule.lastErrorMessage) {
+      return <small className="schedule-resolution-line" title={schedule.lastErrorMessage}>
+        <span className="schedule-risk-badge"><ShieldAlert size={11} aria-hidden="true" />{schedule.lastErrorMessage}</span>
+      </small>
+    }
+    if (!schedule.resolvedPublicationUuid) {
+      return <small className="schedule-resolution-line">
+        <span className="schedule-risk-badge"><ShieldAlert size={11} aria-hidden="true" />{tr ? 'Etkin yayın çözülemedi' : 'Active publication unresolved'}</span>
+      </small>
+    }
+    if (schedule.resolvedPublicationUuid !== schedule.publicationUuid) {
+      return <small className="schedule-resolution-line">{tr ? 'Şu an çalışacak' : 'Will run'}: {publicationLabel(schedule.resolvedPublicationUuid)}</small>
+    }
+    return null
+  }
   const relativeTime = (value: string | null) => {
     if (!value) return null
     const diffMs = Date.parse(value) - Date.now()
@@ -82,10 +104,9 @@ export function SchedulesPage() {
 
   const allItems = schedules.data ?? []
   const items = useMemo(() => allItems.filter((schedule) => `${schedule.ad} ${schedule.kod} ${publicationLabel(schedule.publicationUuid)} ${schedule.cronExpression}`.toLocaleLowerCase(locale).includes(query.toLocaleLowerCase(locale))), [allItems, query, locale, publications.data, definitions.data])
-  const nextRunOverall = useMemo(() => allItems
+  const nextRunOverall = useMemo(() => [...allItems]
     .filter((item) => item.status === 'AKTIF' && item.nextFireTime)
-    .map((item) => item.nextFireTime as string)
-    .sort()[0] ?? null, [allItems])
+    .sort((a, b) => Date.parse(a.nextFireTime as string) - Date.parse(b.nextFireTime as string))[0] ?? null, [allItems])
   const createAction = <AntActionButton tone="primary" icon={<Plus size={16} />} className="ops-button" type="button" onClick={() => { setEditTarget(null); setEditorOpen(true) }}>{t('createSchedule')}</AntActionButton>
 
   const deleteDialog = <Dialog open={Boolean(deleteTarget)} title={t('confirmDeleteSchedule')} closeLabel={t('close')} onClose={() => setDeleteTarget(null)} busy={pendingUuid === deleteTarget?.uuid} className="akis-modal">
@@ -96,6 +117,19 @@ export function SchedulesPage() {
     </div>
   </Dialog>
 
+  const historyDialog = <Dialog open={Boolean(historyTarget)} title={historyTarget ? `${historyTarget.ad} · ${tr ? 'Tetikleme Geçmişi' : 'Trigger history'}` : ''} closeLabel={t('close')} onClose={() => setHistoryTarget(null)} className="akis-modal">
+    <p className="schedule-preview-empty">{tr ? 'Son 100 planlı tetikleme ve çalıştırma kararı. Atlanan tetiklemeler de burada görünür.' : 'Latest 100 scheduled triggers and decisions, including skipped occurrences.'}</p>
+    {triggerEvents.loading ? <AsyncState state="loading" title={t('loading')} />
+      : triggerEvents.error ? <AsyncState state="error" title={apiErrorMessage(triggerEvents.error, t('requestFailed'))} retryLabel={t('retry')} onRetry={() => void triggerEvents.reload()} />
+      : !triggerEvents.data?.length ? <AsyncState state="empty" title={tr ? 'Henüz tetikleme kaydı yok' : 'No trigger records yet'} />
+      : <ol className="schedule-event-list">{triggerEvents.data.map(event => <li key={event.id}>
+          <span className={`schedule-event-icon${event.outcome === 'FIRED' ? ' schedule-event-icon--fired' : ''}`} aria-hidden="true">{event.outcome === 'FIRED' ? <CheckCircle2 size={17} /> : <ShieldAlert size={17} />}</span>
+          <span className="schedule-event-content"><strong>{({ FIRED: tr ? 'Çalıştırıldı' : 'Run created', OVERLAP_SKIPPED: tr ? 'Çakışma nedeniyle atlandı' : 'Skipped: overlap', MISFIRE_SKIPPED: tr ? 'Kaçırılan tetikleme atlandı' : 'Skipped: missed trigger', QUEUE_LIMIT_SUSPENDED: tr ? 'Kuyruk sınırı: askıya alındı' : 'Queue limit: suspended', PINNED_SUSPENDED: tr ? 'Sabit yayın geçersiz: askıya alındı' : 'Pinned publication invalid: suspended', WINDOW_EXPIRED: tr ? 'Tarih penceresi sona erdi' : 'Date window expired', ACTOR_INACTIVE: tr ? 'Kullanıcı etkin değil' : 'Owner inactive', PUBLICATION_MISSING: tr ? 'Yayın bulunamadı' : 'Publication unavailable', PUBLICATION_INACTIVE: tr ? 'Yayın etkin değil' : 'Publication inactive' } as Record<string, string>)[event.outcome] ?? event.outcome}</strong>
+            <small>{tr ? 'Planlanan' : 'Scheduled'}: {formatScheduleDate(event.scheduledFor, locale, historyTarget?.timeZone ?? 'Europe/Istanbul')} · {tr ? 'Karar' : 'Decided'}: {formatScheduleDate(event.occurredAt, locale, historyTarget?.timeZone ?? 'Europe/Istanbul')}</small>
+          </span>
+        </li>)}</ol>}
+  </Dialog>
+
   return <section className="page-stack connections-page execution-page">
     <section className="connection-management-panel"><PageHeader icon={<CalendarClock />} eyebrow={tr ? 'OPERASYON' : 'OPERATIONS'} title={t('schedules')} description={t('schedulesHelp')} />
     <QueryFilter onApply={setQuery} placeholder={tr ? 'Ad, kod, yayın veya cron ifadesinde ara' : 'Search name, code, publication or cron expression'} /></section>
@@ -103,11 +137,11 @@ export function SchedulesPage() {
       { label: t('schedules'), value: items.length, icon: <CalendarClock />, tone: 'info' },
       { label: t('scheduleStatus_AKTIF'), value: items.filter((item) => item.status === 'AKTIF').length, icon: <CheckCircle2 />, tone: 'success' },
       { label: t('scheduleStatus_ASKIDA'), value: items.filter((item) => item.status === 'ASKIDA').length, icon: <Pause />, tone: 'neutral' },
-      { label: t('nextFireTime'), value: nextRunOverall ? formatDate(nextRunOverall, locale) : '—', hint: nextRunOverall ? (relativeTime(nextRunOverall) ?? undefined) : undefined, icon: <Clock3 />, tone: 'warning' },
+      { label: t('nextFireTime'), value: nextRunOverall?.nextFireTime ? formatScheduleDate(nextRunOverall.nextFireTime, locale, nextRunOverall.timeZone) : '—', hint: nextRunOverall?.nextFireTime ? (relativeTime(nextRunOverall.nextFireTime) ?? undefined) : undefined, icon: <Clock3 />, tone: 'warning' },
     ]} />
     <section className="connections-records">
       {Boolean(formError) && <div className="error-banner" role="alert">{apiErrorMessage(formError, t('requestFailed'))}</div>}
-      {schedules.loading ? <AsyncState state="loading" title={t('loading')} /> : schedules.error ? <AsyncState state="error" title={apiErrorMessage(schedules.error, t('requestFailed'))} retryLabel={t('retry')} onRetry={() => void schedules.reload()} /> : items.length === 0 ? <AsyncState state="empty" title={t('emptySchedules')} action={createAction} /> : <ProgressiveRecords items={items}>{(visible) => <DataGrid collectionTitle={t('schedules')} collectionIcon={<CalendarClock />} toolbarActions={createAction} cardHeaderField="status" cardHiddenFields={['status']} headerFieldsInList view={view} onViewChange={setView}>
+      {schedules.loading ? <AsyncState state="loading" title={t('loading')} /> : schedules.error ? <AsyncState state="error" title={apiErrorMessage(schedules.error, t('requestFailed'))} retryLabel={t('retry')} onRetry={() => void schedules.reload()} /> : items.length === 0 ? <AsyncState state="empty" title={t('emptySchedules')} action={createAction} /> : <ProgressiveRecords items={items}>{(visible) => <DataGrid collectionTitle={t('schedules')} collectionIcon={<CalendarClock />} exportMenu={{ projectUuid, dataset: 'execution', resourceId: 'schedules', filters: query ? [{ field: 'query', operator: 'contains', value: query }] : [], label: tr ? 'Dışa Aktar' : 'Export' }} toolbarActions={createAction} cardHeaderField="status" cardHiddenFields={['status']} view={view} onViewChange={setView}>
         <thead><tr><th data-field-key="name">{t('scheduleName')}</th><th data-field-key="publication">{t('publication')}</th><th data-field-key="cron">{t('scheduleCron')}</th><th data-field-key="status">{t('status')}</th><th data-field-key="next">{t('nextFireTime')}</th><th data-field-key="last">{t('lastFireTime')}</th><th data-field-key="actions" className="ui-grid-actions-column"><span className="sr-only">{t('actions')}</span></th></tr></thead>
         <tbody>{visible.map((schedule) => { const publication = publicationParts(schedule.publicationUuid); const relative = schedule.status === 'AKTIF' ? relativeTime(schedule.nextFireTime) : null; return <tr key={schedule.uuid} data-connection-uuid={schedule.uuid}>
           <td><span className="connection-record-identity">
@@ -117,13 +151,21 @@ export function SchedulesPage() {
           </span></td>
           <td><span className="connection-record-identity schedule-publication">
             <strong>{publication.name}</strong>
-            <small>{publication.meta}{publication.risk === 'URETIM' && <span className="schedule-risk-badge"><ShieldAlert size={11} aria-hidden="true" />{executionCodeLabel('URETIM', locale)}</span>}</small>
+             <small>{schedulePublicationSummary(schedule.publicationPolicy, publication.meta, locale)}{publication.risk === 'URETIM' && <span className="schedule-risk-badge"><ShieldAlert size={11} aria-hidden="true" />{executionCodeLabel('URETIM', locale)}</span>}</small>
+             {resolutionNote(schedule)}
           </span></td>
-          <td><code>{schedule.cronExpression}</code><small className="schedule-timezone">{schedule.timeZone}</small></td>
+          <td><code>{schedule.cronExpression}</code><small className="schedule-timezone">{schedule.timeZone}</small>
+            {(schedule.startsAt || schedule.endsAt) && <small className="schedule-window-line">
+              {schedule.startsAt && `${tr ? 'Başlangıç' : 'Start'}: ${formatScheduleDate(schedule.startsAt, locale, schedule.timeZone)}`}
+              {schedule.startsAt && schedule.endsAt && ' · '}
+              {schedule.endsAt && `${tr ? 'Bitiş' : 'End'}: ${formatScheduleDate(schedule.endsAt, locale, schedule.timeZone)}`}
+            </small>}
+          </td>
           <td>{(() => { const tone = schedule.status === 'AKTIF' ? 'success' : 'neutral'; return <Tag className={`connection-status-tag connection-status-tag--${tone}`} style={connectionStatusTagStyles[tone]} icon={schedule.status === 'AKTIF' ? <CheckCircle2 size={12} /> : <Pause size={12} />}><span className="connection-status-tag-label">{t(`scheduleStatus_${schedule.status}` as Parameters<typeof t>[0])}</span></Tag> })()}</td>
-          <td>{schedule.nextFireTime ? <Tag className="connection-status-tag connection-status-tag--warning" style={connectionStatusTagStyles.warning} icon={<Clock3 size={12} />}><span className="connection-status-tag-label">{formatDate(schedule.nextFireTime, locale)}</span></Tag> : <span className="schedule-muted-cell">{t('notRecorded')}</span>}</td>
-          <td>{schedule.lastFireTime ? <Tag className="connection-status-tag connection-status-tag--info" style={lastRunTagStyle} icon={<History size={12} />}><span className="connection-status-tag-label">{formatDate(schedule.lastFireTime, locale)}</span></Tag> : <span className="schedule-muted-cell">{t('notRecorded')}</span>}</td>
+          <td>{schedule.nextFireTime ? <Tag className="connection-status-tag connection-status-tag--warning" style={connectionStatusTagStyles.warning} icon={<Clock3 size={12} />}><span className="connection-status-tag-label">{formatScheduleDate(schedule.nextFireTime, locale, schedule.timeZone)}</span></Tag> : <span className="schedule-muted-cell">{t('notRecorded')}</span>}</td>
+          <td>{schedule.lastFireTime ? <Tag className="connection-status-tag connection-status-tag--info" style={lastRunTagStyle} icon={<History size={12} />}><span className="connection-status-tag-label">{formatScheduleDate(schedule.lastFireTime, locale, schedule.timeZone)}</span></Tag> : <span className="schedule-muted-cell">{t('notRecorded')}</span>}</td>
           <td className="row-actions"><div className="connection-row-actions">
+            <AntActionButton tone="ghost" type="button" aria-label={tr ? 'Tetikleme geçmişi' : 'Trigger history'} title={tr ? 'Tetikleme geçmişi' : 'Trigger history'} icon={<History size={14} />} onClick={() => setHistoryTarget(schedule)} />
             <AntActionButton tone="ghost" type="button" aria-label={tr ? 'Düzenle' : 'Edit'} title={tr ? 'Düzenle' : 'Edit'} icon={<Edit3 size={14} />} onClick={() => { setEditTarget(schedule); setEditorOpen(true) }} />
             <AntActionButton tone="ghost" type="button" aria-label={schedule.status === 'AKTIF' ? t('pauseSchedule') : t('resumeSchedule')} title={schedule.status === 'AKTIF' ? t('pauseSchedule') : t('resumeSchedule')} icon={schedule.status === 'AKTIF' ? <Pause size={14} /> : <Play size={14} />} disabled={pendingUuid === schedule.uuid} onClick={() => void togglePause(schedule)} />
             <AntActionButton tone="ghost" type="button" aria-label={t('deleteSchedule')} title={t('deleteSchedule')} icon={<Trash2 size={14} />} disabled={pendingUuid === schedule.uuid} onClick={() => setDeleteTarget(schedule)} />
@@ -131,6 +173,6 @@ export function SchedulesPage() {
         </tr> })}</tbody>
       </DataGrid>}</ProgressiveRecords>}
     </section>
-    <ScheduleEditorPanel open={editorOpen} schedule={editTarget} projectUuid={projectUuid} publications={(publications.data ?? []).map(item => ({ uuid: item.uuid, label: publicationLabel(item.uuid), active: item.status === 'AKTIF', risk: item.environmentRisk }))} onClose={() => setEditorOpen(false)} onSaved={schedules.reload} />{deleteDialog}
+    <ScheduleEditorPanel open={editorOpen} schedule={editTarget} projectUuid={projectUuid} publications={(publications.data ?? []).map(item => ({ uuid: item.uuid, label: publicationLabel(item.uuid), active: item.status === 'AKTIF', risk: item.environmentRisk }))} onClose={() => setEditorOpen(false)} onSaved={schedules.reload} />{deleteDialog}{historyDialog}
   </section>
 }

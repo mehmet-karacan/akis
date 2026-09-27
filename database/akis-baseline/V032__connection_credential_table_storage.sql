@@ -1,3 +1,5 @@
+SET search_path TO akis, public;
+
 -- Allow connection credentials to be stored (encrypted) directly on baglanti_kimligi,
 -- instead of requiring an OS environment variable per connection. The 'TABLO' provider
 -- reuses gizli_deger_konumu to hold the encrypted {"username":...,"password":...} payload.

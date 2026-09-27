@@ -1,5 +1,5 @@
 import { apiRequest, jsonBody } from '../../core/api/client'
-import type { CreateScheduleInput, Schedule } from './scheduleTypes'
+import type { CreateScheduleInput, Schedule, SchedulePreview, ScheduleTriggerEvent } from './scheduleTypes'
 
 const schedulesPath = (projectUuid: string) =>
   `/api/v1/projects/${encodeURIComponent(projectUuid)}/schedules`
@@ -10,6 +10,9 @@ export const scheduleApi = {
   },
   get(projectUuid: string, scheduleUuid: string) {
     return apiRequest<Schedule>(`${schedulesPath(projectUuid)}/${encodeURIComponent(scheduleUuid)}`)
+  },
+  triggerEvents(projectUuid: string, scheduleUuid: string) {
+    return apiRequest<ScheduleTriggerEvent[]>(`${schedulesPath(projectUuid)}/${encodeURIComponent(scheduleUuid)}/events`)
   },
   create(projectUuid: string, input: CreateScheduleInput) {
     return apiRequest<Schedule>(schedulesPath(projectUuid), { method: 'POST', ...jsonBody(input) })
@@ -30,6 +33,11 @@ export const scheduleApi = {
   remove(projectUuid: string, scheduleUuid: string, expectedVersion: number) {
     return apiRequest<void>(`${schedulesPath(projectUuid)}/${encodeURIComponent(scheduleUuid)}?expectedVersion=${expectedVersion}`, {
       method: 'DELETE',
+    })
+  },
+  preview(projectUuid: string, cronExpression: string, timeZone: string, startsAt?: string | null, endsAt?: string | null) {
+    return apiRequest<SchedulePreview>(`${schedulesPath(projectUuid)}/preview`, {
+      method: 'POST', ...jsonBody({ cronExpression, timeZone, startsAt: startsAt ?? null, endsAt: endsAt ?? null }),
     })
   },
 }

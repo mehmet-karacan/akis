@@ -15,6 +15,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import tr.com.innova.akis.discovery.SchemaSnapshotModels.ColumnInput;
 import tr.com.innova.akis.discovery.SchemaSnapshotModels.ConstraintInput;
+import tr.com.innova.akis.discovery.SchemaSnapshotModels.SnapshotProvenance;
 
 class CleanSchemaSnapshotRepositoryIT {
 
@@ -41,20 +42,21 @@ class CleanSchemaSnapshotRepositoryIT {
         long projectId = jdbc.sql("select id from akis.proje where uuid=:uuid")
                 .param("uuid", projectUuid).query(Long.class).single();
         long connectionId = jdbc.sql("""
-                insert into akis.baglanti(proje_id,kod,ad,saglayici_turu)
-                values (:p,'PG','PostgreSQL','POSTGRESQL') returning id
-                """).param("p", projectId).query(Long.class).single();
-        connectionVersionUuid = jdbc.sql("""
-                insert into akis.baglanti_surumu(proje_id,baglanti_id,surum_no,baglanti_modu,
-                    surucu_sinifi,sunucu_adi,port,veritabani_adi)
-                values (:p,:b,1,'JDBC','org.postgresql.Driver','localhost',5432,'db') returning uuid
-                """).param("p", projectId).param("b", connectionId).query(UUID.class).single();
+                insert into akis.baglanti(
+                    kod,ad,saglayici_turu,baglanti_modu,surucu_sinifi,sunucu_adi,
+                    port,veritabani_adi,kullanici_adi,sifre)
+                values ('PG','PostgreSQL','POSTGRESQL','JDBC','org.postgresql.Driver',
+                    'localhost',5432,'db','snapshot_user','snapshot-secret') returning id
+                """).query(Long.class).single();
+        connectionVersionUuid = jdbc.sql("select uuid from akis.baglanti where id=:id")
+                .param("id", connectionId).query(UUID.class).single();
         physicalSchemaUuid = jdbc.sql("""
-                insert into akis.fiziksel_sema(proje_id,baglanti_id,kod,ad,sema_adi)
-                values (:p,:b,'PUBLIC','Public','public') returning uuid
-                """).param("p", projectId).param("b", connectionId).query(UUID.class).single();
-        long logicalId = jdbc.sql("insert into akis.mantiksal_sema(proje_id,kod,ad) values (:p,'L','Logical') returning id")
-                .param("p", projectId).query(Long.class).single();
+                insert into akis.fiziksel_sema(
+                    baglanti_id,kod,ad,saglayici_turu,sema_adi,calisma_sema_adi)
+                values (:b,'PUBLIC','Public','POSTGRESQL','public','public') returning uuid
+                """).param("b", connectionId).query(UUID.class).single();
+        long logicalId = jdbc.sql("insert into akis.mantiksal_sema(kod,ad,saglayici_turu) values ('L','Logical','POSTGRESQL') returning id")
+                .query(Long.class).single();
         long modelId = jdbc.sql("insert into akis.model(proje_id,mantiksal_sema_id,kod,ad) values (:p,:l,'M','Model') returning id")
                 .param("p", projectId).param("l", logicalId).query(Long.class).single();
         dataObjectUuid = jdbc.sql("""
@@ -76,10 +78,12 @@ class CleanSchemaSnapshotRepositoryIT {
 
         var first = service.create(projectUuid, dataObjectUuid, physicalSchemaUuid,
                 connectionVersionUuid, "PostgreSQL 16", discoveredAt, 1,
-                properties, columns, constraints);
+                properties, columns, constraints,
+                new SnapshotProvenance("POSTGRESQL", "PostgreSQL", "16", "pgJDBC", "42"));
         var repeated = service.create(projectUuid, dataObjectUuid, physicalSchemaUuid,
                 connectionVersionUuid, "PostgreSQL 16", discoveredAt.plusHours(1), 1,
-                properties, columns, constraints);
+                properties, columns, constraints,
+                new SnapshotProvenance("POSTGRESQL", "PostgreSQL", "16", "pgJDBC", "42"));
 
         assertEquals(first.uuid(), repeated.uuid());
         assertEquals(List.of("ID", "NAME"), first.columns().stream().map(c -> c.reference()).toList());

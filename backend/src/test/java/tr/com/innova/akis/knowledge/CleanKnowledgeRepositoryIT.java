@@ -28,7 +28,7 @@ class CleanKnowledgeRepositoryIT {
         var plan=AkisKmInterpreter.compile(new AkisKmInterpreter.Modules(AkisKmLanguage.example(AkisKmLanguage.Kind.LKM),null,AkisKmLanguage.example(AkisKmLanguage.Kind.IKM)));
         assertThrows(IllegalStateException.class,()->journal.prepare(owner,"b".repeat(64),plan));
         journal.prepare(owner,hash,plan);
-        assertEquals(4,journal.list(project,run).size());
+        assertEquals(6,journal.list(project,run).size());
         assertNull(journal.reconciliation(project,run));
         assertTrue(journal.list(UUID.randomUUID(),run).isEmpty());
         journal.transition(owner,1,"RUNNING",null,null);
@@ -79,7 +79,7 @@ class CleanKnowledgeRepositoryIT {
         }
         var definition=new StagedMappingDefinition(UUID.randomUUID(),pins,new StagedMappingDefinition.Options(500,500,10000,1000000,false));
         var registry=new KnowledgeModuleRegistry(jdbc,mapper,new DefinitionContentValidator());
-        assertEquals(4,registry.resolve(projectId,definition).plan().steps().size());
+        assertEquals(6,registry.resolve(projectId,definition).plan().steps().size());
         assertThrows(RuntimeException.class,()->registry.resolve(projectId+999,definition));
         pins.put("loading",new StagedMappingDefinition.Pin(pins.get("loading").versionUuid(),"0".repeat(64)));
         assertThrows(RuntimeException.class,()->registry.resolve(projectId,new StagedMappingDefinition(definition.logicalSchemaUuid(),pins,definition.options())));

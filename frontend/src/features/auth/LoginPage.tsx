@@ -1,4 +1,4 @@
-import { ArrowRight, Cable, DatabaseZap, KeyRound, Layers3, LockKeyhole, MonitorSmartphone, Rocket, ShieldCheck, UserRound, Workflow } from 'lucide-react'
+import { ArrowRight, Cable, KeyRound, Layers3, LockKeyhole, MonitorSmartphone, Rocket, ShieldCheck, UserRound, Workflow } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -8,6 +8,8 @@ import { LanguageSwitcher } from '../../core/ui/LanguageSwitcher'
 import { ThemeSwitcher } from '../../core/ui/ThemeSwitcher'
 import { ApiProblem } from '../../core/api/client'
 import { useAuth } from '../../core/auth/AuthContext'
+import { BrandLogo } from '../../core/brand/BrandLogo'
+import { CorporateFooter } from '../../core/brand/CorporateFooter'
 import { DatabaseProviderIcon, databaseProviderVisual } from '../topology/DatabaseProviderIcon'
 import './login.css'
 
@@ -17,20 +19,30 @@ const PROVIDERS = ['ORACLE', 'POSTGRESQL'] as const
 export function LoginPage() {
   const { t, i18n } = useTranslation()
   const tr = i18n.language.startsWith('tr')
-  const { login } = useAuth()
+  const { login, setupPassword } = useAuth()
   const navigate = useNavigate()
-  const [username, setUsername] = useState('developer')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [setupMode, setSetupMode] = useState(false)
+  const [setupToken, setSetupToken] = useState('')
+  const [setupSuccess, setSetupSuccess] = useState(false)
 
   async function submit(event: FormEvent) {
     event.preventDefault()
     setBusy(true)
     setError('')
     try {
-      await login(username.trim(), password)
-      navigate('/project/select')
+      if (setupMode) {
+        await setupPassword(setupToken, password)
+        setSetupSuccess(true)
+        setSetupMode(false)
+        setSetupToken('')
+      } else {
+        await login(username, password)
+        navigate('/project/select')
+      }
     } catch (cause) {
       setError(cause instanceof ApiProblem ? cause.message : t('auth.connectionError'))
     } finally {
@@ -52,7 +64,7 @@ export function LoginPage() {
   return (
     <main className="login-page">
       <section className="login-story">
-        <div className="login-brand"><span className="login-brand-mark"><DatabaseZap size={22} /></span><strong>Akış</strong><small>{t('auth.eyebrow')}</small></div>
+        <div className="login-brand"><BrandLogo variant="login" /><small>{t('auth.eyebrow')}</small></div>
         <div className="login-copy">
           <h1>{t('auth.title')}</h1>
           <p>{t('auth.description')}</p>
@@ -63,10 +75,10 @@ export function LoginPage() {
             {pillars.map(({ tone, icon: Icon, label }) => <li key={label} className={`tone-${tone}`}><Icon size={15} aria-hidden="true" />{label}</li>)}
           </ul>
         </div>
-        <footer className="login-story-footer">
-          <small>AKIŞ / METADATA CONTROL PLANE</small>
+        <div className="login-story-footer">
+          <CorporateFooter compact />
           <span className="login-providers" aria-label={tr ? 'Desteklenen veritabanları' : 'Supported databases'}>{PROVIDERS.map((provider) => <span key={provider} className="login-provider"><DatabaseProviderIcon databaseType={provider} /><span>{databaseProviderVisual(provider).label}</span></span>)}</span>
-        </footer>
+        </div>
       </section>
 
       <section className="login-panel">
@@ -77,17 +89,24 @@ export function LoginPage() {
         <form className="login-form login-card" onSubmit={submit}>
           <div className="form-heading">
             <div className="lock-badge"><LockKeyhole size={22} /></div>
-            <div><p className="eyebrow">{t('auth.secureAccess')}</p><h2>{t('auth.signIn')}</h2></div>
+            <div><p className="eyebrow">{t('auth.secureAccess')}</p><h2>{setupMode ? (tr ? 'Parola Kurulumu' : 'Password Setup') : t('auth.signIn')}</h2></div>
           </div>
-          <label>{t('auth.username')}
+          {!setupMode && <label>{t('auth.username')}
             <Input size="large" autoComplete="username" prefix={<UserRound size={16} className="login-field-icon login-field-icon--user" aria-hidden="true" />} value={username} onChange={(event) => setUsername(event.target.value)} required />
+          </label>}
+          {setupMode && <label>{tr ? 'Tek Kullanımlık Kurulum Kodu' : 'One-time Setup Token'}
+            <Input size="large" autoComplete="off" prefix={<ShieldCheck size={16} className="login-field-icon login-field-icon--user" aria-hidden="true" />} value={setupToken} onChange={(event) => setSetupToken(event.target.value)} required autoFocus />
+          </label>}
+          <label>{setupMode ? (tr ? 'Yeni Parola' : 'New Password') : t('auth.password')}
+            <Input.Password size="large" autoComplete={setupMode ? 'new-password' : 'current-password'} prefix={<KeyRound size={16} className="login-field-icon login-field-icon--key" aria-hidden="true" />} value={password} onChange={(event) => setPassword(event.target.value)} required autoFocus={!setupMode} />
           </label>
-          <label>{t('auth.password')}
-            <Input.Password size="large" autoComplete="current-password" prefix={<KeyRound size={16} className="login-field-icon login-field-icon--key" aria-hidden="true" />} value={password} onChange={(event) => setPassword(event.target.value)} required autoFocus />
-          </label>
+          {setupSuccess && <Alert type="success" showIcon title={tr ? 'Parolanız oluşturuldu. Şimdi giriş yapabilirsiniz.' : 'Your password is ready. You can now sign in.'} role="status" />}
           {error && <Alert type="error" showIcon title={error} role="alert" />}
           <Button tone="primary" className="login-submit" busy={busy} type="submit">
-            {busy ? t('auth.signingIn') : t('auth.signIn')}<ArrowRight size={17} />
+            {busy ? t('auth.signingIn') : setupMode ? (tr ? 'Parolayı Oluştur' : 'Set Password') : t('auth.signIn')}<ArrowRight size={17} />
+          </Button>
+          <Button tone="ghost" type="button" onClick={() => { setSetupMode((value) => !value); setError(''); setSetupSuccess(false); setPassword('') }}>
+            {setupMode ? (tr ? 'Giriş ekranına dön' : 'Back to sign in') : (tr ? 'İlk parolamı oluştur' : 'Set my first password')}
           </Button>
           <p className="local-notice"><ShieldCheck size={15} aria-hidden="true" />{t('auth.localNotice')}</p>
         </form>

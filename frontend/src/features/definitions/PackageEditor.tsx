@@ -3,7 +3,7 @@ import { Select as FormSelect } from '../../core/ui/Select'
 import { Input as AntInput } from 'antd'
 import {
   Background, Controls, MiniMap, ReactFlow, ReactFlowProvider, applyNodeChanges,
-  type Connection as FlowConnection, type Node, type NodeChange, type ReactFlowInstance,
+  useNodesInitialized, type Connection as FlowConnection, type Node, type NodeChange, type ReactFlowInstance,
 } from '@xyflow/react'
 import { AlertCircle, AlignCenter, CheckCircle2, CirclePlay, Copy, ExternalLink, GitBranch, Plus, Trash2, Undo2, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type DragEvent } from 'react'
@@ -56,6 +56,7 @@ function PackageEditorInner({ projectUuid, definitionUuid, value, onChange, onOp
   const [transitionTarget, setTransitionTarget] = useState('')
   const [transitionOutcome, setTransitionOutcome] = useState<TransitionOutcome>('SUCCESS')
   const [message, setMessage] = useState('')
+  const nodesInitialized = useNodesInitialized()
 
   useEffect(() => {
     try {
@@ -92,10 +93,20 @@ function PackageEditorInner({ projectUuid, definitionUuid, value, onChange, onOp
     selected: step.id === selectedStepId,
   })), [content.firstStepId, content.steps, content.transitions, definitions, language, positions, selectedStepId, t, versionSummaries])
   useEffect(() => {
-    if (!instance || nodes.length === 0) return
-    const frame = window.requestAnimationFrame(() => { void instance.fitView({ padding: .18 }) })
-    return () => window.cancelAnimationFrame(frame)
-  }, [instance, nodes.length])
+    if (!instance || nodes.length === 0 || !nodesInitialized) return
+    let retry: number | undefined
+    const frame = window.requestAnimationFrame(() => {
+      void instance.fitView({ padding: .18 })
+      // The canvas can receive its final shell dimensions one frame after the
+      // React Flow instance is initialized. Refit once after that layout pass
+      // so a freshly opened package never starts with nodes outside the view.
+      retry = window.setTimeout(() => { void instance.fitView({ padding: .18 }) }, 100)
+    })
+    return () => {
+      window.cancelAnimationFrame(frame)
+      if (retry !== undefined) window.clearTimeout(retry)
+    }
+  }, [instance, nodes.length, nodesInitialized])
   const edges = useMemo(() => content.transitions.map((edge, index) => ({
     id: `edge-${index}-${edge.fromStepId}-${edge.toStepId}`,
     source: edge.fromStepId,

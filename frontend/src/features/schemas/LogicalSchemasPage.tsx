@@ -6,6 +6,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
 import { AsyncState, Button, Dialog, PageHeader, RecordActionButton, SummaryStrip } from '../../core/ui'
 import { DataGrid } from '../../core/ui/DataGrid'
+import { ExportMenu } from '../../core/ui/ExportMenu'
 import { ProgressiveRecords } from '../../core/ui/ProgressiveRecords'
 import { QueryFilter } from '../../core/ui/QueryFilter'
 import { useCollectionView } from '../../core/ui/ViewToggle'
@@ -20,7 +21,7 @@ import '../connections/connections.css'
 import '../connections/catalog-layout.css'
 import './schemas.css'
 
-/** Same catalog layout as the connections screen: header + filter, summary strip, card/list/table records. */
+/** Same catalog layout as the connections screen: header + filter, summary strip, card/table records. */
 export function LogicalSchemasPage() {
   const projectUuid = useCurrentProjectUuid()
   const [view, setView] = useCollectionView('akis:logical-schemas:view')
@@ -77,7 +78,7 @@ export function LogicalSchemasPage() {
       { label: t('connections.title'), value: connections.length, icon: <Cable />, tone: 'neutral' },
     ]} />
     <section className="connections-records">
-    {loading ? <AsyncState state="loading" title={t('common.loading')} /> : error ? <AsyncState state="error" title={error} retryLabel={t('common.retry')} onRetry={() => void load()} /> : filtered.length === 0 ? <AsyncState state="empty" title={t('schemas.noLogical')} action={addButton} /> : <ProgressiveRecords key={query} items={filtered}>{(visible) => <DataGrid auditKind="logical-schemas" auditInFooter collectionTitle={tr ? 'Mantıksal Şema Kataloğu' : 'Logical Schema Catalog'} collectionIcon={<GitBranch />} toolbarActions={addButton} cardHeaderLeadingField="provider" cardHeaderField="mapping" cardHiddenFields={['provider', 'mapping']} headerFieldsInList view={view} onViewChange={setView}>
+    {loading ? <AsyncState state="loading" title={t('common.loading')} /> : error ? <AsyncState state="error" title={error} retryLabel={t('common.retry')} onRetry={() => void load()} /> : filtered.length === 0 ? <AsyncState state="empty" title={t('schemas.noLogical')} action={addButton} /> : <ProgressiveRecords key={query} items={filtered}>{(visible) => <DataGrid auditKind="logical-schemas" auditInFooter collectionTitle={tr ? 'Mantıksal Şema Kataloğu' : 'Logical Schema Catalog'} collectionIcon={<GitBranch />} toolbarActions={<>{addButton}<ExportMenu projectUuid={projectUuid} dataset="topology" resourceId="logical-schemas" filters={query ? [{ field: 'query', operator: 'contains', value: query }] : []} label={tr ? 'Dışa Aktar' : 'Export'} /></>} cardHeaderLeadingField="provider" cardHeaderField="mapping" cardHiddenFields={['provider', 'mapping']} view={view} onViewChange={setView}>
       <thead><tr>
         <th data-field-key="provider">{t('connections.provider')}</th><th data-field-key="name">{t('schemas.logicalSchema')}</th><th data-field-key="description">{t('schemas.description')}</th>{environments.map((environment) => <th key={environment.uuid} data-field-key={`env-${environment.code}`}>{environment.name}</th>)}<th data-field-key="mapping">{tr ? 'Eşleme Durumu' : 'Mapping Status'}</th><th data-field-key="status">{t('connections.status')}</th><th data-field-key="actions" className="ui-grid-actions-column"><span className="sr-only">{tr ? 'İşlemler' : 'Actions'}</span></th>
       </tr></thead><tbody>{visible.map((item) => { const state = mappingState(item); const tone = state === 'complete' ? 'success' : 'warning'; return <tr key={item.schema.uuid} data-connection-uuid={item.schema.uuid}>

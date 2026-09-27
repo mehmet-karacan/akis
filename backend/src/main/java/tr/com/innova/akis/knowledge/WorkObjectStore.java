@@ -1,6 +1,12 @@
 package tr.com.innova.akis.knowledge;
 
 import java.util.*;
+import java.util.function.Consumer;
+import java.util.function.BiConsumer;
+import javax.sql.DataSource;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -9,7 +15,16 @@ import static tr.com.innova.akis.knowledge.WorkObjectLifecycle.State;
 @Service
 public class WorkObjectStore {
     private final JdbcClient jdbc;
-    public WorkObjectStore(JdbcClient jdbc) { this.jdbc=jdbc; }
+    private final JdbcClient exportJdbc;
+    public WorkObjectStore(JdbcClient jdbc) { this.jdbc=jdbc;this.exportJdbc=jdbc; }
+    @Autowired
+    public WorkObjectStore(JdbcClient jdbc,DataSource dataSource,
+            @Value("${akis.export.jdbc-fetch-size:1000}") int fetchSize) {
+        this.jdbc=jdbc;
+        JdbcTemplate template=new JdbcTemplate(dataSource);
+        template.setFetchSize(fetchSize);
+        this.exportJdbc=JdbcClient.create(template);
+    }
     public record Owner(UUID projectUuid,UUID runUuid,long generation,String worker) { }
     public record WorkArea(UUID physicalSchemaUuid,long policyVersion) {
         public WorkArea { Objects.requireNonNull(physicalSchemaUuid); if(policyVersion<1) throw new IllegalArgumentException("Çalışma politikası sürümü gerekir."); }
@@ -87,6 +102,43 @@ public class WorkObjectStore {
             rs.getString("database_identity"),rs.getString("owner_name"),rs.getString("object_name"),rs.getObject("object_id",Long.class),
             rs.getString("structure_hash"),State.valueOf(rs.getString("state")),rs.getObject("row_count",Long.class),
             rs.getObject("logical_bytes",Long.class),rs.getString("payload_hash"))).list();
+    }
+
+    /** Streams work-object rows without materialising the complete run detail list. */
+    @Transactional(readOnly=true)
+    public void forEachObjectRow(UUID project, UUID run, Consumer<ObjectRow> consumer) {
+        try (var rows = exportJdbc.sql("""
+            select w.* from akis.km_work_object w join akis.proje p on p.id=w.proje_id
+            join akis.calistirma c on c.id=w.calistirma_id and c.proje_id=p.id
+            where p.uuid=:project and c.uuid=:run
+            order by w.generation,w.slot
+            """).param("project",project).param("run",run)
+            .query((rs,n)->new ObjectRow(rs.getObject("uuid",UUID.class),rs.getString("slot"),
+                rs.getString("database_identity"),rs.getString("owner_name"),rs.getString("object_name"),
+                rs.getObject("object_id",Long.class),rs.getString("structure_hash"),
+                State.valueOf(rs.getString("state")),rs.getObject("row_count",Long.class),
+                rs.getObject("logical_bytes",Long.class),rs.getString("payload_hash"))).stream()) {
+            rows.forEach(consumer);
+        }
+    }
+    @Transactional(readOnly=true)
+    public void forEachObjectRowBatch(UUID project,List<UUID> runs,BiConsumer<UUID,ObjectRow> consumer) {
+        if (runs.isEmpty()) return;
+        try (var rows=exportJdbc.sql("""
+                select c.uuid as run_uuid,w.* from akis.km_work_object w
+                join akis.proje p on p.id=w.proje_id
+                join akis.calistirma c on c.id=w.calistirma_id and c.proje_id=p.id
+                where p.uuid=:project and c.uuid in (:runs)
+                order by c.uuid,w.generation,w.slot
+                """).param("project",project).param("runs",runs)
+                .query((rs,n)->Map.entry(rs.getObject("run_uuid",UUID.class),
+                        new ObjectRow(rs.getObject("uuid",UUID.class),rs.getString("slot"),
+                                rs.getString("database_identity"),rs.getString("owner_name"),rs.getString("object_name"),
+                                rs.getObject("object_id",Long.class),rs.getString("structure_hash"),
+                                State.valueOf(rs.getString("state")),rs.getObject("row_count",Long.class),
+                                rs.getObject("logical_bytes",Long.class),rs.getString("payload_hash")))).stream()) {
+            rows.forEach(entry->consumer.accept(entry.getKey(),entry.getValue()));
+        }
     }
     /** A registered, not yet dropped work object already carries this physical name (an earlier attempt's table). */
     @Transactional(readOnly=true)

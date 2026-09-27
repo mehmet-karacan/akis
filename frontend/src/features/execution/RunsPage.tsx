@@ -114,6 +114,15 @@ export function RunsPage() {
     {!validInterval && <small role="alert">{tr ? '1-86400 arasında tam sayı girin.' : 'Enter a whole number between 1 and 86400.'}</small>}
   </div>
   const count = (exact: unknown, plain: number | string | null | undefined) => (exactCount(exact as Parameters<typeof exactCount>[0]) ?? (plain == null ? null : BigInt(plain)))?.toLocaleString(locale) ?? t('notRecorded')
+  const exportFilters = [
+    { field: 'query', operator: 'contains', value: query },
+    { field: 'statuses', operator: 'in', value: status },
+    { field: 'environment', operator: 'eq', value: environment },
+    { field: 'definitionType', operator: 'eq', value: definitionType },
+    { field: 'from', operator: 'gte', value: from },
+    { field: 'to', operator: 'lte', value: to },
+    { field: 'scheduled', operator: 'eq', value: scheduled === undefined ? '' : String(scheduled) },
+  ].filter(item => Boolean(item.value))
 
   return <section className="page-stack connections-page execution-page">
     <section className="connection-management-panel"><PageHeader icon={<PlayCircle />} eyebrow={tr ? 'OPERASYON' : 'OPERATIONS'} title={t('runs')} description={t('runsOperationalHelp')} />
@@ -144,7 +153,7 @@ export function RunsPage() {
     </section>
     <section ref={recordsScrollRoot} className="connections-records">
       {Boolean(runs.error) && runs.data && <div className="error-banner" role="alert">{t('refreshFailed')} <AntActionButton tone="ghost" type="button" onClick={() => void runs.reload()}>{t('retry')}</AntActionButton></div>}
-      {runs.loading && !runs.data ? <AsyncState state="loading" title={t('loading')} /> : Boolean(runs.error) && !runs.data ? <AsyncState state="error" title={apiErrorMessage(runs.error, t('requestFailed'))} retryLabel={t('retry')} onRetry={() => void runs.reload()} /> : !runs.data || loadedRuns.length === 0 ? <AsyncState state="empty" title={t('emptyRuns')} action={refreshControls} /> : <DataGrid viewControls={false} collectionTitle={tr ? 'Çalıştırma Listesi' : 'Run List'} collectionIcon={<PlayCircle />} toolbarActions={<><span className="run-record-count">{tr ? `${loadedRuns.length.toLocaleString(locale)} / ${totalRuns.toLocaleString(locale)} kayıt gösteriliyor` : `Showing ${loadedRuns.length.toLocaleString(locale)} of ${totalRuns.toLocaleString(locale)} records`}</span>{refreshControls}</>}>
+      {runs.loading && !runs.data ? <AsyncState state="loading" title={t('loading')} /> : Boolean(runs.error) && !runs.data ? <AsyncState state="error" title={apiErrorMessage(runs.error, t('requestFailed'))} retryLabel={t('retry')} onRetry={() => void runs.reload()} /> : !runs.data || loadedRuns.length === 0 ? <AsyncState state="empty" title={t('emptyRuns')} action={refreshControls} /> : <DataGrid viewControls={false} collectionTitle={tr ? 'Çalıştırma Listesi' : 'Run List'} collectionIcon={<PlayCircle />} exportMenu={{ projectUuid, dataset: 'runs', resourceId: 'run-history', filters: exportFilters, includeDetailsDefault: true, label: tr ? 'Dışa Aktar' : 'Export' }} toolbarActions={<>{refreshControls}<span className="run-record-count">{tr ? `${loadedRuns.length.toLocaleString(locale)} / ${totalRuns.toLocaleString(locale)} kayıt gösteriliyor` : `Showing ${loadedRuns.length.toLocaleString(locale)} of ${totalRuns.toLocaleString(locale)} records`}</span></>}>
         <thead><tr><th data-field-key="name">{t('object')}</th><th data-field-key="status">{t('status')}</th><th data-field-key="startedAt">{tr ? 'Başlangıç Zamanı' : 'Start Time'}</th><th data-field-key="duration">{t('duration')}</th><th data-field-key="finishedAt">{tr ? 'Bitiş Zamanı' : 'End Time'}</th><th data-field-key="environment">{t('environment')}</th><th data-field-key="type">{t('objectType')}</th><th data-field-key="selected">{t('selectedRows')}</th><th data-field-key="inserted">{t('insertedRows')}</th><th data-field-key="updated">{tr ? 'Güncellenen' : 'Updated'}</th><th data-field-key="deleted">{tr ? 'Silinen' : 'Deleted'}</th><th data-field-key="trigger">{t('trigger')}</th><th data-field-key="initiator">{t('initiator')}</th><th data-field-key="actions" className="ui-grid-actions-column"><span className="sr-only">{t('actions')}</span></th></tr></thead>
         <tbody>{loadedRuns.map((item) => <tr key={item.run.runUuid} data-connection-uuid={item.run.runUuid}>
           <td><span className="connection-record-identity"><strong>{item.definitionName}</strong><small>{item.definitionCode}</small></span></td>

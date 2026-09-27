@@ -14,6 +14,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -23,6 +24,7 @@ import tr.com.innova.akis.metadata.ApiException;
 import tr.com.innova.akis.oracle.DiscoveryConnections;
 import tr.com.innova.akis.oracle.JdbcDictionaryMetadata;
 import tr.com.innova.akis.oracle.OracleDatabaseIdentityFingerprintV1;
+import tr.com.innova.akis.oracle.OracleDiscoveryModels;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.ConnectionProbe;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.ConnectionProfile;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.Credentials;
@@ -107,12 +109,13 @@ public final class JdbcPostgresSchemaDiscovery implements SchemaDiscoveryPort {
             List<TableMetadata> tables = new ArrayList<>();
             boolean truncated = false;
             String pattern = tableName == null ? "%" : tableName;
-            try (ResultSet resultSet = metadata.getTables(null, owner, pattern, new String[] {"TABLE", "PARTITIONED TABLE", "VIEW"})) {
+            try (ResultSet resultSet = metadata.getTables(null, owner, pattern,
+                    new String[] {"TABLE", "PARTITIONED TABLE", "VIEW", "MATERIALIZED VIEW"})) {
                 while (resultSet.next()) {
                     if (tables.size() == limit) { truncated = true; break; }
                     String tableOwner = resultSet.getString("TABLE_SCHEM");
                     String discoveredTable = resultSet.getString("TABLE_NAME");
-                    String type = "VIEW".equals(resultSet.getString("TABLE_TYPE")) ? "VIEW" : "TABLE";
+                    String type = objectTypeOf(resultSet.getString("TABLE_TYPE"));
                     tables.add(new TableMetadata(tableOwner, discoveredTable, type,
                             JdbcDictionaryMetadata.readColumns(metadata, tableOwner, discoveredTable),
                             JdbcDictionaryMetadata.readConstraints(metadata, tableOwner, discoveredTable)));
@@ -124,6 +127,17 @@ public final class JdbcPostgresSchemaDiscovery implements SchemaDiscoveryPort {
             LOGGER.warn("PostgreSQL metadata discovery failed (sqlState={}).", exception.getSQLState());
             throw DiscoveryConnections.discoveryFailed();
         }
+    }
+
+    static String objectTypeOf(String jdbcTableType) {
+        String normalized = jdbcTableType == null ? "" : jdbcTableType.toUpperCase(Locale.ROOT).replace(" ", "_");
+        return switch (normalized) {
+            case "TABLE" -> OracleDiscoveryModels.TABLE;
+            case "PARTITIONED_TABLE" -> OracleDiscoveryModels.PARTITIONED_TABLE;
+            case "VIEW" -> OracleDiscoveryModels.VIEW;
+            case "MATERIALIZED_VIEW" -> OracleDiscoveryModels.MATERIALIZED_VIEW;
+            default -> jdbcTableType;
+        };
     }
 
     @Override

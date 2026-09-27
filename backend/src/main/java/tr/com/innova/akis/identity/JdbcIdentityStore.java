@@ -18,8 +18,6 @@ import tr.com.innova.akis.identity.IdentityModels.UserRow;
 @Repository
 public class JdbcIdentityStore implements IdentityStore {
 
-    private static final String LOCAL_BASIC_PROVIDER = "LOCAL_BASIC";
-
     private final JdbcClient jdbc;
 
     public JdbcIdentityStore(JdbcClient jdbc) {
@@ -29,64 +27,48 @@ public class JdbcIdentityStore implements IdentityStore {
     @Override
     public UserRow createUser(
             UUID uuid,
-            String issuer,
-            String subject,
-            String name,
+            String userCode,
+            String firstName,
+            String lastName,
+            String employeeNumber,
             String email) {
-        long userId = jdbc.sql("""
-                        insert into akis.kullanici(uuid, gorunen_ad, eposta)
-                        values (:uuid, :name, :email)
-                        returning id
+        jdbc.sql("""
+                        insert into akis.kullanici(
+                            uuid, kullanici_kodu, ad, soyad, sicil_numarasi,
+                            gorunen_ad, eposta, durum)
+                        values (
+                            :uuid, :userCode, :firstName, :lastName, :employeeNumber,
+                            concat_ws(' ', :firstName, :lastName), :email, 'PAROLA_BEKLIYOR')
                         """)
                 .param("uuid", uuid)
-                .param("name", name)
+                .param("userCode", userCode)
+                .param("firstName", firstName)
+                .param("lastName", lastName, Types.VARCHAR)
+                .param("employeeNumber", employeeNumber, Types.VARCHAR)
                 .param("email", email, Types.VARCHAR)
-                .query(Long.class)
-                .single();
-
-        boolean local = LOCAL_BASIC_PROVIDER.equals(issuer);
-        jdbc.sql("""
-                        insert into akis.harici_kimlik(
-                            kullanici_id, saglayici_turu, yayinlayici,
-                            harici_kullanici_anahtari)
-                        values (:userId, :providerType, :issuer, :subject)
-                        """)
-                .param("userId", userId)
-                .param("providerType", local ? "YEREL" : "OIDC")
-                .param("issuer", local ? null : issuer, Types.VARCHAR)
-                .param("subject", subject)
                 .update();
         return findUser(uuid).orElseThrow();
     }
 
     @Override
     public List<UserRow> listUsers() {
-        return jdbc.sql(userSelect() + " order by k.gorunen_ad, k.uuid, hk.id")
+        return jdbc.sql(userSelect() + " order by k.gorunen_ad, k.uuid")
                 .query(this::mapUser)
                 .list();
     }
 
     @Override
     public Optional<UserRow> findUser(UUID userUuid) {
-        return jdbc.sql(userSelect() + " where k.uuid = :uuid order by hk.id limit 1")
+        return jdbc.sql(userSelect() + " where k.uuid = :uuid")
                 .param("uuid", userUuid)
                 .query(this::mapUser)
                 .optional();
     }
 
     @Override
-    public Optional<UserRow> findUser(String issuer, String subject) {
-        boolean local = LOCAL_BASIC_PROVIDER.equals(issuer);
-        return jdbc.sql(userSelect() + """
-                         where hk.harici_kullanici_anahtari = :subject
-                           and ((:local and hk.saglayici_turu = 'YEREL'
-                                 and hk.yayinlayici is null)
-                                or (not :local and hk.saglayici_turu = 'OIDC'
-                                    and hk.yayinlayici = :issuer))
-                        """)
-                .param("subject", subject)
-                .param("local", local)
-                .param("issuer", local ? null : issuer, Types.VARCHAR)
+    public Optional<UserRow> findUser(String userCode) {
+        return jdbc.sql(userSelect() + " where lower(k.kullanici_kodu) = lower(:userCode)")
+                .param("userCode", userCode)
                 .query(this::mapUser)
                 .optional();
     }
@@ -208,15 +190,9 @@ public class JdbcIdentityStore implements IdentityStore {
 
     private String userSelect() {
         return """
-                select k.id, k.uuid,
-                       case when hk.saglayici_turu = 'YEREL'
-                            then 'LOCAL_BASIC' else hk.yayinlayici end as yayinlayici,
-                       hk.harici_kullanici_anahtari,
-                       case when k.devre_disi_birakilma_zamani is null
-                            then 'AKTIF' else 'DEVRE_DISI' end as durum,
-                       k.gorunen_ad, k.eposta, k.olusturulma_zamani
+                select k.id, k.uuid, k.kullanici_kodu, k.durum,
+                       k.ad, k.soyad, k.sicil_numarasi, k.eposta, k.olusturulma_zamani
                   from akis.kullanici k
-                  join akis.harici_kimlik hk on hk.kullanici_id = k.id
                 """;
     }
 
@@ -224,10 +200,11 @@ public class JdbcIdentityStore implements IdentityStore {
         return new UserRow(
                 rs.getLong("id"),
                 rs.getObject("uuid", UUID.class),
-                rs.getString("yayinlayici"),
-                rs.getString("harici_kullanici_anahtari"),
+                rs.getString("kullanici_kodu"),
                 rs.getString("durum"),
-                rs.getString("gorunen_ad"),
+                rs.getString("ad"),
+                rs.getString("soyad"),
+                rs.getString("sicil_numarasi"),
                 rs.getString("eposta"),
                 rs.getObject("olusturulma_zamani", OffsetDateTime.class));
     }

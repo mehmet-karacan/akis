@@ -230,8 +230,10 @@ public class OracleDiscoveryService {
         DataObjectCaptureProfile dataObject = repository.findDataObjectCaptureProfile(
                         projectId, dataObjectUuid, physicalSchemaUuid)
                 .orElseThrow(() -> validation("Veri nesnesi fiziksel şema eşlemesiyle uyuşmuyor."));
-        if (!"AKTIF".equals(dataObject.status()) || !"TABLO".equals(dataObject.objectType())) {
-            throw validation("Şema görüntüsü yalnız aktif tablo veri nesnesi için alınabilir.");
+        if (!"AKTIF".equals(dataObject.status())
+                || !Set.of("TABLO", "VIEW", "MATERIALIZED_VIEW", "SYNONYM")
+                        .contains(dataObject.objectType())) {
+            throw validation("Şema görüntüsü yalnız aktif tablo benzeri veri nesneleri için alınabilir.");
         }
         String tableName = identifier(profile, dataObject.objectReference(), "Veri nesnesi referansı");
         ConnectionProbe probe;
@@ -339,18 +341,29 @@ public class OracleDiscoveryService {
         return value != null && DATABASE_NAME.matcher(value).matches();
     }
 
-    /** Oracle identifiers are upper-cased dictionary names; PostgreSQL names are case-sensitive and kept as given. */
+    /** Oracle identifiers are upper-cased dictionary names; PostgreSQL identifiers are kept case-sensitive when quoted. */
     private String identifier(ConnectionProfile profile, String value, String field) {
         if ("POSTGRESQL".equals(profile.databaseType())) {
-            String normalized = value == null ? "" : value.strip();
-            if (!POSTGRES_IDENTIFIER.matcher(normalized).matches()) {
-                throw validation(field + " geçersiz.");
-            }
-            // PostgreSQL unquoted identifiers are folded to lower case. Keep discovery,
-            // provisioning and the physical-schema catalog on the same convention.
-            return normalized.toLowerCase(Locale.ROOT);
+            return postgresIdentifier(value, field);
         }
         return identifier(value, field);
+    }
+
+    String postgresIdentifier(String value, String field) {
+        String normalized = value == null ? "" : value.strip();
+        if (normalized.length() >= 2 && normalized.startsWith("\"") && normalized.endsWith("\"")) {
+            String inner = normalized.substring(1, normalized.length() - 1);
+            if (inner.isEmpty() || inner.indexOf('"') >= 0 || inner.indexOf('\0') >= 0) {
+                throw validation(field + " geçersiz.");
+            }
+            return inner;
+        }
+        if (!POSTGRES_IDENTIFIER.matcher(normalized).matches()) {
+            throw validation(field + " geçersiz.");
+        }
+        // PostgreSQL unquoted identifiers are folded to lower case. Keep discovery,
+        // provisioning and the physical-schema catalog on the same convention.
+        return normalized.toLowerCase(Locale.ROOT);
     }
 
     private String identifier(String value, String field) {

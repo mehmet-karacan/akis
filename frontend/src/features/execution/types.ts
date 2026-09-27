@@ -97,6 +97,7 @@ export interface RunEvent {
 export interface RunEventPage { items: RunEvent[]; nextCursor: number | null; hasMore: boolean }
 
 export interface RunStep {
+  executedSql?: { step?: string; site: string; owner: string; sql: string }[] | null
   logCounter?: string | null
   transactionState?: 'COMMITTED' | 'COMMIT_CONFIRMED' | 'ROLLBACK_CONFIRMED' | 'NOT_ATTEMPTED' | 'UNCONFIRMED' | 'NOT_APPLICABLE'
   uuid: string
