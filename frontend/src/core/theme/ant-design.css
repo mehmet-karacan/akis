@@ -70,7 +70,7 @@ body .shell-navigation .workspace-navigation .ant-menu-item { position: relative
 body .shell-navigation .workspace-navigation .ant-menu-item::after { display: none; }
 body .shell-navigation .workspace-navigation .ant-menu-item-selected { background: var(--accent-soft); }
 body .shell-navigation .workspace-navigation .ant-menu-item-selected::before { content: ''; position: absolute; inset: 7px auto 7px 0; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent); }
-body .shell-navigation .workspace-navigation .ant-menu-item-icon { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 6px; background: color-mix(in srgb, currentColor 9%, transparent); }
+body .shell-navigation .workspace-navigation .ant-menu-item-icon { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 6px; background: transparent; }
 body .shell-navigation.is-collapsed .workspace-navigation { width: 64px; padding: 8px; }
 body .shell-navigation.is-collapsed .workspace-navigation .ant-menu-item { width: 48px; padding-inline: 12px !important; }
 body .shell-navigation.is-collapsed .workspace-navigation .ant-menu-item-selected::before { inset-block: 7px; }
