@@ -1,4 +1,4 @@
-import { Database, FolderKanban, History, Info, Network } from 'lucide-react'
+import { Database, FolderKanban, History, Info, LayoutGrid, Network } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router-dom'
 import { Menu } from 'antd'
@@ -30,16 +30,22 @@ export function WorkspaceNavigation({ hasPendingChanges, onNavigate, collapsed =
   const { t } = useTranslation()
   const location = useLocation()
   void hasPendingChanges // The shell guards every onNavigate request.
-  return <Menu mode="inline" inlineCollapsed={collapsed} className="workspace-navigation" aria-label={t('nav.workspaces')}
-    selectedKeys={[resolveWorkspace(location.pathname)]}
-    onClick={({ key }) => {
-      const workspace = workspaces.find(item => item.id === key)!
-      onNavigate(workspace.absolute ? workspace.path : projectRoute(workspace.path))
-    }}
-    items={workspaces.map(({ id, key, icon: Icon }) => ({
-      key: id,
-      className: `workspace-nav--${id}`,
-      label: t(key),
-      icon: <span className={`workspace-icon workspace-icon--${id}`} data-ui-icon={id} aria-hidden="true"><Icon size={16} /></span>,
-    }))} />
+  return <div className={`workspace-navigation-shell${collapsed ? ' is-collapsed' : ''}`}>
+    <div className="workspace-navigation-heading" aria-hidden={collapsed}>
+      <span className="workspace-navigation-heading-icon"><LayoutGrid size={16} /></span>
+      <span className="workspace-navigation-heading-copy"><small>AKIŞ</small><strong>{t('nav.workspaces')}</strong></span>
+    </div>
+    <Menu mode="inline" inlineCollapsed={collapsed} className="workspace-navigation" aria-label={t('nav.workspaces')}
+      selectedKeys={[resolveWorkspace(location.pathname)]}
+      onClick={({ key }) => {
+        const workspace = workspaces.find(item => item.id === key)!
+        onNavigate(workspace.absolute ? workspace.path : projectRoute(workspace.path))
+      }}
+      items={workspaces.map(({ id, key, icon: Icon }) => ({
+        key: id,
+        className: `workspace-nav--${id}`,
+        label: t(key),
+        icon: <span className={`workspace-icon workspace-icon--${id}`} data-ui-icon={id} aria-hidden="true"><Icon size={16} /></span>,
+      }))} />
+  </div>
 }

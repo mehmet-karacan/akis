@@ -65,13 +65,23 @@ body .explorer-resize-handle { position: absolute; right: -3px; top: 0; bottom: 
 body .explorer-resize-handle:hover, body .explorer-resize-handle:focus-visible { background: var(--accent); outline: 0; }
 body .shell-navigation { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--surface); border-right: 1px solid var(--line); }
 body .shell-navigation-content { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; }
-body .shell-navigation .workspace-navigation { border-inline-end: 0; position: static; padding: 8px; margin: 0; width: 100%; background: transparent; }
+body .shell-navigation .workspace-navigation-shell { min-width: 0; }
+body .shell-navigation .workspace-navigation-heading { display: flex; align-items: center; gap: 10px; margin: 8px 10px 6px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-subtle); }
+body .shell-navigation .workspace-navigation-heading-icon { display: grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; border-radius: 8px; color: var(--accent); background: var(--accent-soft); }
+body .shell-navigation .workspace-navigation-heading-copy { display: grid; min-width: 0; gap: 2px; }
+body .shell-navigation .workspace-navigation-heading-copy small { color: var(--ink-faint); font-size: 9px; font-weight: 800; letter-spacing: .12em; }
+body .shell-navigation .workspace-navigation-heading-copy strong { overflow: hidden; color: var(--ink); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+body .shell-navigation .workspace-navigation { border-inline-end: 0; position: static; padding: 4px 8px 8px; margin: 0; width: 100%; background: transparent; }
 body .shell-navigation .workspace-navigation .ant-menu-item { position: relative; height: 36px; margin: 2px 0; padding-inline: 9px !important; border-radius: 7px; font-size: 12.5px; font-weight: 600; }
 body .shell-navigation .workspace-navigation .ant-menu-item::after { display: none; }
 body .shell-navigation .workspace-navigation .ant-menu-item-selected { background: var(--accent-soft); }
 body .shell-navigation .workspace-navigation .ant-menu-item-selected::before { content: ''; position: absolute; inset: 7px auto 7px 0; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent); }
-body .shell-navigation .workspace-navigation .ant-menu-item-icon { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 6px; background: transparent; }
-body .shell-navigation.is-collapsed .workspace-navigation { width: 64px; padding: 8px; }
+body .shell-navigation .workspace-navigation .ant-menu-item-icon { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; background: color-mix(in srgb, currentColor 9%, var(--surface)); }
+body .shell-navigation .workspace-navigation .ant-menu-item-selected .ant-menu-item-icon { background: color-mix(in srgb, currentColor 14%, var(--surface)); }
+body .shell-navigation.is-collapsed .workspace-navigation-shell { width: 64px; }
+body .shell-navigation.is-collapsed .workspace-navigation-heading { justify-content: center; margin: 8px 8px 6px; padding: 8px; }
+body .shell-navigation.is-collapsed .workspace-navigation-heading-copy { display: none; }
+body .shell-navigation.is-collapsed .workspace-navigation { width: 64px; padding: 4px 8px 8px; }
 body .shell-navigation.is-collapsed .workspace-navigation .ant-menu-item { width: 48px; padding-inline: 12px !important; }
 body .shell-navigation.is-collapsed .workspace-navigation .ant-menu-item-selected::before { inset-block: 7px; }
 body .shell-navigation-footer { flex: 0 0 auto; padding: 8px; border-top: 1px solid var(--line); background: var(--surface); }
