@@ -6,7 +6,7 @@ import {
   Hash, KeyRound, ListOrdered, ListTree, RefreshCw, Ruler, Share2,
   ShieldCheck, Table2, Tags, Trash2, Type, X, type LucideIcon,
 } from 'lucide-react'
-import { AsyncState, ExportMenu, PageHeader, RecordDetailDialog, SummaryStrip } from '../../core/ui'
+import { AsyncState, PageHeader, RecordDetailDialog, SummaryStrip } from '../../core/ui'
 import { DataGrid } from '../../core/ui/DataGrid'
 import { RecordActionButton } from '../../core/ui/RecordActionButton'
 import { QueryFilter } from '../../core/ui/QueryFilter'
@@ -275,7 +275,7 @@ export function SchemaMetadataPage() {
           />
 
           <div className="schema-metadata-table-wrap">
-            <DataGrid collectionTitle={tr ? 'Tablo Kataloğu' : 'Table Catalog'} collectionIcon={<Table2 />} auditInFooter cardHeaderField="sequence" toolbarActions={<ExportMenu globalScope dataset="schema-metadata" resourceId="schema-metadata" label={tr ? 'Dışa Aktar' : 'Export'} />}>
+            <DataGrid collectionTitle={tr ? 'Tablo Kataloğu' : 'Table Catalog'} collectionIcon={<Table2 />} auditInFooter cardHeaderField="sequence">
               <thead>
                 <tr>
                   <th>{tr ? 'Tablo' : 'Table'}</th>
