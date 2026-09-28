@@ -8,7 +8,7 @@ import { LanguageSwitcher } from '../../core/ui/LanguageSwitcher'
 import { ThemeSwitcher } from '../../core/ui/ThemeSwitcher'
 import { ApiProblem } from '../../core/api/client'
 import { useAuth } from '../../core/auth/AuthContext'
-import { BrandLogo } from '../../core/brand/BrandLogo'
+import { BrandLogo, InnovaLogo } from '../../core/brand/BrandLogo'
 import { CorporateFooter } from '../../core/brand/CorporateFooter'
 import { DatabaseProviderIcon, databaseProviderVisual } from '../topology/DatabaseProviderIcon'
 import './login.css'
@@ -64,7 +64,7 @@ export function LoginPage() {
   return (
     <main className="login-page">
       <section className="login-story">
-        <div className="login-brand"><BrandLogo variant="login" /><small>{t('auth.eyebrow')}</small></div>
+        <div className="login-brand"><BrandLogo variant="login" /><InnovaLogo className="login-innova-logo" /><small>{t('auth.eyebrow')}</small></div>
         <div className="login-copy">
           <h1>{t('auth.title')}</h1>
           <p>{t('auth.description')}</p>

@@ -18,9 +18,9 @@ it('uses the shared AKIŞ logo registry for each product placement', () => {
   expect(new Set(logos.map((logo) => logo.className)).size).toBe(3)
 })
 
-it('keeps the corporate footer wording stable', () => {
+it('keeps the corporate footer wording stable without repeating the header logo', () => {
   render(<CorporateFooter />)
 
   expect(screen.getByText('2025 - 2026 İnnova Bilişim Çözümleri A.Ş.')).toBeInTheDocument()
-  expect(screen.getByRole('img', { name: 'İnnova Bilişim Çözümleri A.Ş.' })).toBeInTheDocument()
+  expect(screen.queryByRole('img', { name: 'İnnova Bilişim Çözümleri A.Ş.' })).not.toBeInTheDocument()
 })

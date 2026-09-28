@@ -174,6 +174,10 @@ public class MetadataService {
         return repository.listDefinitions(project(projectUuid).id(), type);
     }
 
+    List<DefinitionRow> listRecentDefinitions(UUID projectUuid) {
+        return repository.listRecentDefinitions(project(projectUuid).id(), 5);
+    }
+
     @Transactional
     DefinitionRow moveDefinition(
             UUID projectUuid,

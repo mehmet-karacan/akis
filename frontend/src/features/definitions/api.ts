@@ -43,6 +43,9 @@ export const definitionsApi = {
       `${base}/projects/${segment(projectUuid)}/definitions${type ? `?type=${segment(type)}` : ''}`,
     ),
 
+  listRecentDefinitions: (projectUuid: string) =>
+    apiRequest<Definition[]>(`${base}/projects/${segment(projectUuid)}/definitions/recent`),
+
   createDefinition: (projectUuid: string, input: NewDefinitionInput) =>
     apiRequest<Definition>(`${base}/projects/${segment(projectUuid)}/definitions`, {
       method: 'POST',

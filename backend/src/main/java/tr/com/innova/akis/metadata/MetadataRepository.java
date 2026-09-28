@@ -271,6 +271,14 @@ public class MetadataRepository {
         return query.query(this::mapDefinition).list();
     }
 
+    List<DefinitionRow> listRecentDefinitions(long projectId, int limit) {
+        return jdbc.sql(definitionSelect() + " where t.proje_id = :projectId and t.arsivlenme_zamani is null order by t.olusturulma_zamani desc, t.id desc limit :limit")
+                .param("projectId", projectId)
+                .param("limit", limit)
+                .query(this::mapDefinition)
+                .list();
+    }
+
     Optional<DefinitionRow> findDefinition(long projectId, UUID uuid) {
         return jdbc.sql(definitionSelect() + " where t.proje_id = :projectId and t.uuid = :uuid")
                 .param("projectId", projectId)

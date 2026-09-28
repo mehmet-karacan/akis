@@ -53,20 +53,22 @@ final class OracleDiscoveryController {
             @Valid @RequestBody(required = false) DiscoveryRequest request) {
         authorization.requireProjectPermission(projectUuid, DISCOVERY_WRITE);
         DiscoveryRequest safeRequest = request == null
-                ? new DiscoveryRequest(null, 100)
+                ? new DiscoveryRequest(null, 100, null)
                 : request;
         int limit = safeRequest.limit() == null ? 100 : safeRequest.limit();
         DiscoveryResult result = service.discover(
                 connectionUuid,
                 physicalSchemaUuid,
                 safeRequest.tableName(),
-                limit);
+                limit,
+                safeRequest.types());
         return DiscoveryView.from(connectionUuid, physicalSchemaUuid, result);
     }
 
     record DiscoveryRequest(
             @Pattern(regexp = "[A-Za-z][A-Za-z0-9_$#]{0,127}") String tableName,
-            @Min(1) @Max(200) Integer limit) {
+            @Min(1) @Max(200) Integer limit,
+            List<String> types) {
     }
 
     /** Returns the raw, authoritative Oracle DBMS_METADATA DDL for preview/conversion. */

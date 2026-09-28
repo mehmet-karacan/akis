@@ -85,7 +85,7 @@ test('opens reverse engineer from the model tree with resolved source context', 
   await expect(page).toHaveURL(/\/project\/models\/.+\/import$/)
   await expect(page.getByRole('heading', { name: 'Reverse Engineer', exact: true })).toBeVisible()
   await expect(page.getByText(/Resolved connection|Çözümlenen bağlantı/)).toBeVisible()
-  await expect(page.getByRole('button', { name: /Fetch Objects From Source|Kaynaktan Nesneleri Getir/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Discover Objects|Nesneleri Keşfet/ })).toBeVisible()
   await expectNoHorizontalOverflow(page)
   await page.screenshot({ path: 'test-results/model-reverse-engineer.png', fullPage: true })
 })

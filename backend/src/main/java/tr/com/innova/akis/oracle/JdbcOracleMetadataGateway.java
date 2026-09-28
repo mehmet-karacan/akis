@@ -146,7 +146,8 @@ final class JdbcSchemaDiscoveryPort implements SchemaDiscoveryPort {
             Credentials credentials,
             String owner,
             String tableName,
-            int limit) {
+            int limit,
+            Set<String> types) {
         try (Connection connection = DiscoveryConnections.open(profile, credentials)) {
             DatabaseMetaData metadata = connection.getMetaData();
             ensureOracle19c(metadata);
@@ -154,9 +155,12 @@ final class JdbcSchemaDiscoveryPort implements SchemaDiscoveryPort {
             List<TableMetadata> tables = new ArrayList<>();
             boolean truncated = false;
             String pattern = tableName == null ? "%" : tableName;
+            String[] jdbcTypes = types.isEmpty()
+                    ? new String[] {"TABLE", "VIEW", "SYNONYM", "MATERIALIZED VIEW"}
+                    : types.stream().map(type -> "MATERIALIZED_VIEW".equals(type) ? "MATERIALIZED VIEW" : type).toArray(String[]::new);
             try (ResultSet resultSet = metadata.getTables(
                     null, owner, pattern,
-                    new String[] {"TABLE", "VIEW", "SYNONYM", "MATERIALIZED VIEW"})) {
+                    jdbcTypes)) {
                 while (resultSet.next()) {
                     if (tables.size() == limit) {
                         truncated = true;

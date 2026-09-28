@@ -48,7 +48,7 @@ export function DataObjectTable({ columns, protection }: Props) {
       <label className="model-column-search"><span className="sr-only">{tr ? 'Kolon ara' : 'Search columns'}</span><Input allowClear prefix={<Search size={15} />} placeholder={tr ? 'Kolon adı veya veri tipi ara' : 'Search column name or data type'} value={query} onChange={event => setQuery(event.target.value)} /></label>
     </header>
     <div className="model-column-summary" aria-label={tr ? 'Kolon özeti' : 'Column summary'}>
-      <div><Columns3 size={17} /><span>{tr ? 'Toplam Kolon' : 'Total Columns'}<strong>{columns.length}</strong></span></div>
+      <div><Columns3 size={17} /><span>{tr ? 'Gösterilen / Toplam' : 'Shown / Total'}<strong>{filtered.length} / {columns.length}</strong></span></div>
       <div><CheckCircle2 size={17} /><span>{tr ? 'Zorunlu' : 'Required'}<strong>{required}</strong></span></div>
       <div><span className="model-column-nullable-mark">?</span><span>{tr ? 'Null Olabilir' : 'Nullable'}<strong>{columns.length - required}</strong></span></div>
       {protection && <div><ShieldCheck size={17} /><span>{tr ? 'Hassas' : 'Sensitive'}<strong>{sensitive.size}</strong></span></div>}
@@ -56,9 +56,9 @@ export function DataObjectTable({ columns, protection }: Props) {
     <div className="model-table-wrap">
     {protection && <p className="model-protection-hint"><ShieldCheck size={14} aria-hidden="true" /> {t('models.sensitiveHint')}</p>}
     {error && <div className="definition-notice definition-notice--error" role="alert">{error}</div>}
-    <DataGrid view="table" viewControls={false} collectionTitle={tr ? 'Kolon Listesi' : 'Column List'} collectionIcon={<Columns3 />}><thead><tr><th data-field-key="name">{t('models.columnName')}</th><th data-field-key="type">{t('models.dataType')}</th><th data-field-key="size">{t('models.size')}</th><th data-field-key="nullable">{t('models.nullable')}</th>{protection && <th data-field-key="sensitive">{t('models.sensitive')}</th>}</tr></thead>
+    <DataGrid view="table" viewControls={false} collectionTitle={tr ? 'Kolon Listesi' : 'Column List'} collectionIcon={<Columns3 />}><thead><tr><th data-field-key="ordinal" className="model-column-ordinal">#</th><th data-field-key="name">{t('models.columnName')}</th><th data-field-key="type">{t('models.dataType')}</th><th data-field-key="canonical">{tr ? 'Ortak Tip' : 'Canonical Type'}</th><th data-field-key="size">{t('models.size')}</th><th data-field-key="nullable">{t('models.nullable')}</th>{protection && <th data-field-key="sensitive">{t('models.sensitive')}</th>}</tr></thead>
       <tbody>{filtered.map((column) => <tr key={column.reference} className={sensitive.has(column.reference.toUpperCase()) ? 'is-sensitive' : undefined}>
-        <td><strong>{column.reference}</strong></td><td><code>{column.producerType}</code></td><td>{columnSize(column)}</td><td>{column.nullable ? t('models.yes') : t('models.no')}</td>
+        <td className="model-column-ordinal">{column.ordinal}</td><td><strong>{column.reference}</strong></td><td><code>{column.producerType}</code></td><td><code>{column.canonicalType || '—'}</code></td><td>{columnSize(column)}</td><td>{column.nullable ? t('models.yes') : t('models.no')}</td>
         {protection && <td><label className="model-sensitive-toggle"><input type="checkbox" aria-label={`${t('models.sensitive')}: ${column.reference}`} disabled={!protection.editable || busy} checked={sensitive.has(column.reference.toUpperCase())} onChange={() => void toggle(column.reference.toUpperCase())} /><span>{sensitive.has(column.reference.toUpperCase()) ? t('models.encrypted') : ''}</span></label></td>}
       </tr>)}</tbody>
     </DataGrid>

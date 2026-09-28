@@ -1,11 +1,10 @@
 import { DataGrid } from '../../core/ui/DataGrid'
-import { ExportMenu } from '../../core/ui/ExportMenu'
 import { Select as FormSelect } from '../../core/ui/Select'
 import { Input as AntInput, Popconfirm, Tabs, Tag, Tooltip } from 'antd'
-import { Boxes, CheckCircle2, CircleAlert, Database, FileText, Layers3, Plus, ScanSearch, Trash2 } from 'lucide-react'
+import { Boxes, CheckCircle2, CircleAlert, Database, Eye, FileText, Layers3, Plus, ScanSearch, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useCurrentProjectUuid } from '../projects/CurrentProjectContext'
 import { AsyncState, Button, PageHeader, RecordActionButton, RecordDetailDialog, SummaryStrip } from '../../core/ui'
 import { RecordAuditFields } from '../../core/ui/RecordAuditFields'
@@ -16,6 +15,7 @@ import { definitionsApi } from '../definitions/api'
 import type { Definition } from '../definitions/types'
 import { FeedbackToast } from '../../core/ui/FeedbackToast'
 import { QueryFilter } from '../../core/ui/QueryFilter'
+import { Select } from '../../core/ui/Select'
 import { ProgressiveRecords } from '../../core/ui/ProgressiveRecords'
 import { useCollectionView } from '../../core/ui/ViewToggle'
 import { DatabaseProviderIcon, databaseProviderVisual } from '../topology/DatabaseProviderIcon'
@@ -68,12 +68,26 @@ export function ModelsPage() {
   useEffect(() => { void load() }, [load])
 
   const query = searchParams.get('q') ?? ''
-  const applyQuery = (next: string) => { const params = new URLSearchParams(searchParams); if (next) params.set('q', next); else params.delete('q'); setSearchParams(params) }
+  const technologyFilter = searchParams.get('technology') ?? 'ALL'
+  const schemaFilter = searchParams.get('schema') ?? 'ALL'
+  const statusFilter = searchParams.get('status') ?? 'ALL'
+  const reverseFilter = searchParams.get('reverse') ?? 'ALL'
+  const setFilter = (field: string, value: string) => { const next = new URLSearchParams(searchParams); if (value && value !== 'ALL') next.set(field, value); else next.delete(field); setSearchParams(next) }
+  const applyQuery = (next: string) => setFilter('q', next)
+  const technologies = [...new Set(models.map(model => logicalSchemas.find(schema => schema.uuid === model.logicalSchemaUuid)?.databaseType ?? model.technologyCode).filter((value): value is string => Boolean(value)))].sort()
   const filtered = useMemo(() => {
     const text = query.trim().toLocaleLowerCase(i18n.language)
-    return (text ? models.filter(model => `${model.name} ${model.code} ${model.technologyCode}`.toLocaleLowerCase(i18n.language).includes(text)) : models)
+    return models.filter(model => {
+      const schema = logicalSchemas.find(item => item.uuid === model.logicalSchemaUuid)
+      const technology = schema?.databaseType ?? model.technologyCode
+      return (!text || `${model.name} ${model.code} ${technology} ${schema?.name ?? ''}`.toLocaleLowerCase(i18n.language).includes(text))
+        && (technologyFilter === 'ALL' || technology === technologyFilter)
+        && (schemaFilter === 'ALL' || model.logicalSchemaUuid === schemaFilter)
+        && (statusFilter === 'ALL' || model.status === statusFilter)
+        && (reverseFilter === 'ALL' || (reverseFilter === 'READY' ? Boolean(model.reverseEnvironmentUuid) : !model.reverseEnvironmentUuid))
+    })
       .slice().sort((a, b) => a.name.localeCompare(b.name, i18n.language))
-  }, [i18n.language, models, query])
+  }, [i18n.language, logicalSchemas, models, query, reverseFilter, schemaFilter, statusFilter, technologyFilter])
 
   const showCreate = () => {
     setEditing(null)
@@ -120,29 +134,34 @@ export function ModelsPage() {
   const addButton = canManage ? <Button tone="primary" icon={<Plus size={16} />} disabled={logicalSchemas.length === 0} onClick={showCreate}>{t('models.create')}</Button> : undefined
   const schemaOf = (model: Model) => logicalSchemas.find(schema => schema.uuid === model.logicalSchemaUuid)
   return <section className="page-stack connections-page models-page"><FeedbackToast message={notice} onClose={() => setNotice('')} />
-    <section className="connection-management-panel"><PageHeader icon={<Layers3 />} eyebrow={t('models.eyebrow')} title={t('models.title')} description={t('models.description')} />
-    <QueryFilter onApply={applyQuery} placeholder={t('models.searchPlaceholder')} /></section>
+    <section className="connection-management-panel"><PageHeader icon={<Layers3 />} eyebrow={t('models.eyebrow')} title={t('models.title')} description={t('models.description')} actions={addButton} />
+    <QueryFilter key={query} onApply={applyQuery} onReset={() => setSearchParams(new URLSearchParams())} placeholder={t('models.searchPlaceholder')}>
+      <label><span>{tr ? 'Teknoloji' : 'Technology'}</span><Select value={technologyFilter} onChange={event => setFilter('technology', event.target.value)}><option value="ALL">{tr ? 'Tüm teknolojiler' : 'All technologies'}</option>{technologies.map(item => <option key={item} value={item}>{databaseProviderVisual(item).label}</option>)}</Select></label>
+      <label><span>{t('models.logicalSchema')}</span><Select value={schemaFilter} onChange={event => setFilter('schema', event.target.value)}><option value="ALL">{tr ? 'Tüm şemalar' : 'All schemas'}</option>{logicalSchemas.map(item => <option key={item.uuid} value={item.uuid}>{item.name}</option>)}</Select></label>
+      <label><span>{t('models.status')}</span><Select value={statusFilter} onChange={event => setFilter('status', event.target.value)}><option value="ALL">{tr ? 'Tüm durumlar' : 'All statuses'}</option><option value="AKTIF">{t('models.statusActive')}</option><option value="PASIF">{t('models.statusInactive')}</option></Select></label>
+      <label><span>{tr ? 'Keşif Ortamı' : 'Discovery Environment'}</span><Select value={reverseFilter} onChange={event => setFilter('reverse', event.target.value)}><option value="ALL">{tr ? 'Tümü' : 'All'}</option><option value="READY">{tr ? 'Seçili' : 'Configured'}</option><option value="MISSING">{tr ? 'Seçilmedi' : 'Not configured'}</option></Select></label>
+    </QueryFilter></section>
     {error ? <div className="error-banner" role="alert">{error}</div> : null}
     <SummaryStrip ariaLabel={t('models.title')} items={[
-      { label: tr ? 'Toplam Model' : 'Total Models', value: models.length, icon: <Layers3 />, tone: 'info' },
+      { label: tr ? 'Gösterilen / Toplam' : 'Shown / Total', value: `${filtered.length} / ${models.length}`, icon: <Layers3 />, tone: 'info' },
       { label: t('models.statusActive'), value: models.filter(model => model.status === 'AKTIF').length, icon: <Boxes />, tone: 'success' },
       { label: t('models.objectCount'), value: models.reduce((sum, model) => sum + (model.dataObjectCount ?? 0), 0), icon: <Database />, tone: 'neutral' },
       { label: tr ? 'Reverse Hazır' : 'Reverse Ready', value: models.filter(model => model.reverseEnvironmentUuid).length, icon: <ScanSearch />, tone: 'teal' },
     ]} />
     <section className="connections-records">
     {loading ? <AsyncState state="loading" title={t('common.loading')} /> : filtered.length === 0 ? <AsyncState state="empty" title={t('models.empty')} description={t('models.emptyHint')} action={addButton} /> :
-      <ProgressiveRecords key={query} items={filtered}>{(visible) => <DataGrid auditKind="models" auditInFooter collectionTitle={tr ? 'Model Kataloğu' : 'Model Catalog'} collectionIcon={<Layers3 />} toolbarActions={<>{addButton}<ExportMenu projectUuid={projectUuid} dataset="models" resourceId="data-objects" filters={query ? [{ field: 'query', operator: 'contains', value: query }] : []} label={tr ? 'Dışa Aktar' : 'Export'} /></>} cardHeaderLeadingField="provider" cardHeaderField="status" cardHiddenFields={['provider', 'status']} view={view} onViewChange={setView}>
+      <ProgressiveRecords key={`${query}:${technologyFilter}:${schemaFilter}:${statusFilter}:${reverseFilter}`} items={filtered}>{(visible) => <DataGrid auditKind="models" auditInFooter collectionTitle={tr ? 'Model Kataloğu' : 'Model Catalog'} collectionIcon={<Layers3 />} cardHeaderLeadingField="provider" cardHeaderField="status" cardHiddenFields={['provider', 'status']} view={view} onViewChange={setView}>
       <thead><tr><th data-field-key="provider">{tr ? 'Teknoloji' : 'Technology'}</th><th data-field-key="name">{t('models.name')}</th><th data-field-key="description">{t('models.descriptionField')}</th><th data-field-key="schema">{t('models.logicalSchema')}</th><th data-field-key="environment">{tr ? 'Reverse Ortamı' : 'Reverse Context'}</th><th data-field-key="mode">{tr ? 'Reverse Modu' : 'Reverse Mode'}</th><th data-field-key="objects">{t('models.objectCount')}</th><th data-field-key="updated">{t('models.lastMetadataUpdate')}</th><th data-field-key="status">{t('models.status')}</th><th data-field-key="actions" className="ui-grid-actions-column"><span className="sr-only">{tr ? 'İşlemler' : 'Actions'}</span></th></tr></thead>
       <tbody>{visible.map(model => { const active = model.status === 'AKTIF'; const tone = active ? 'success' : 'neutral'; const technology = schemaOf(model)?.databaseType ?? model.technologyCode ?? ''; return <tr key={model.uuid} data-connection-uuid={model.uuid}>
         <td><span className="provider-cell"><DatabaseProviderIcon databaseType={technology} /><span>{databaseProviderVisual(technology).label}</span></span></td>
-        <td><span className="connection-record-identity"><strong>{model.name}</strong><small>{model.code}</small></span></td>
+        <td><span className="connection-record-identity"><Link className="model-catalog-link" to={modelPath(model)}>{model.name}</Link><small>{model.code}</small></span></td>
         <td>{model.description || t('common.noDescription')}</td>
         <td>{schemaOf(model)?.name ?? ''}</td>
         <td>{environments.find(environment => environment.uuid === model.reverseEnvironmentUuid)?.name ?? (tr ? 'Seçilmedi' : 'Not selected')}</td>
         <td>{model.reverseMode === 'CUSTOM_RKM' ? 'RKM' : tr ? 'Standart' : 'Standard'}</td>
         <td>{model.dataObjectCount ?? 0}</td><td>{formatDate(model.lastMetadataUpdate)}</td>
         <td><Tag className={`connection-status-tag connection-status-tag--${tone}`} style={connectionStatusTagStyles[tone]} icon={active ? <CheckCircle2 size={12} /> : <CircleAlert size={12} />}><span className="connection-status-tag-label">{active ? t('models.statusActive') : t('models.statusInactive')}</span></Tag></td>
-        <td className="row-actions"><div className="connection-row-actions"><Tooltip title="Reverse Engineer"><Button aria-label={`Reverse Engineer: ${model.name}`} icon={<ScanSearch size={15} />} onClick={() => navigate(`${modelPath(model)}/import`)} /></Tooltip><RecordActionButton name={model.name} editable={canManage} onClick={() => showEdit(model)} /></div></td>
+        <td className="row-actions"><div className="connection-row-actions"><Tooltip title={tr ? 'Modeli Aç' : 'Open Model'}><Button aria-label={`${tr ? 'Modeli Aç' : 'Open Model'}: ${model.name}`} icon={<Eye size={15} />} onClick={() => navigate(modelPath(model))} /></Tooltip>{canManage && <Tooltip title="Reverse Engineer"><Button aria-label={`Reverse Engineer: ${model.name}`} icon={<ScanSearch size={15} />} onClick={() => navigate(`${modelPath(model)}/import`)} /></Tooltip>}<RecordActionButton name={model.name} editable={canManage} onClick={() => showEdit(model)} /></div></td>
       </tr> })}</tbody></DataGrid>}</ProgressiveRecords>}
     </section>
     <RecordDetailDialog open={open} title={editing ? <span className="connection-dialog-title"><Layers3 size={17} aria-hidden="true" />{editing.name}<small className="sr-only">{canManage ? (tr ? 'Modeli Düzenle' : 'Edit Model') : (tr ? 'Modeli Görüntüle' : 'View Model')}</small></span> : t('models.create')} busy={busy} readOnly={!canManage} onClose={closeEditor} className="connection-catalog-dialog">

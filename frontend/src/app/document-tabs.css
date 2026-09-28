@@ -1,18 +1,31 @@
 /* Document tabs (ODI editor tabs) sit at the top of the main content; the maximize toggle hides the navigation pane. */
-.document-tabbar { display: flex; align-items: flex-end; gap: 6px; min-height: 40px; padding: 6px 8px 0; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--ink-soft) 4%, var(--surface)); }
+.document-tabbar { display: flex; align-items: center; gap: 10px; min-height: 56px; margin: -24px -24px 20px; padding: 7px 24px; border-bottom: 1px solid var(--line); background: var(--surface); }
 .document-tabbar.is-empty { min-height: 36px; }
-.document-tabs { display: flex; flex: 1 1 auto; min-width: 0; gap: 4px; overflow-x: auto; scrollbar-width: thin; }
-.document-tab { display: inline-flex; align-items: center; gap: 8px; max-width: 16rem; min-width: 0; height: 34px; padding: 0 8px 0 10px; border: 1px solid transparent; border-bottom: 0; border-radius: 8px 8px 0 0; color: var(--ink-soft); background: transparent; cursor: pointer; user-select: none; white-space: nowrap; }
-.document-tab:hover { background: color-mix(in srgb, var(--ink-soft) 8%, transparent); color: var(--ink); }
-.document-tab.is-active { color: var(--ink); background: var(--surface); border-color: var(--line); box-shadow: 0 1px 0 var(--surface); }
-.document-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.document-tabs { display: flex; flex: 1 1 auto; min-width: 0; gap: 6px; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+.document-tab, .document-section-tab { position: relative; display: inline-flex; align-items: center; gap: 8px; max-width: 16rem; min-width: 0; height: 36px; padding: 0 10px; border: 1px solid transparent; border-radius: 8px; color: var(--ink-soft); background: transparent; cursor: pointer; user-select: none; white-space: nowrap; }
+.document-section-tab { flex: 0 0 auto; font: inherit; }
+.document-section-tab .workspace-icon { width: 24px; height: 24px; display: inline-grid; place-items: center; border-radius: 6px; }
+.document-tab-divider { flex: 0 0 1px; height: 22px; background: var(--line-strong); }
+.document-tab:hover, .document-section-tab:hover { background: var(--surface-subtle); color: var(--ink); }
+.document-tab.is-active, .document-section-tab.is-active { color: var(--ink); border-color: var(--line-strong); background: var(--accent-soft); }
+.document-tab.is-active::after, .document-section-tab.is-active::after { content: ''; position: absolute; right: 9px; bottom: -8px; left: 9px; height: 2px; border-radius: 2px 2px 0 0; background: var(--accent); }
+.document-tab:focus-visible, .document-section-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.document-tab .definition-type-icon { flex: 0 0 auto; }
 .document-tab-title { overflow: hidden; text-overflow: ellipsis; font-size: 12.5px; font-weight: 500; }
-.document-tab.is-active .document-tab-title { font-weight: 600; }
+.document-tab.is-active .document-tab-title, .document-section-tab.is-active .document-tab-title { font-weight: 600; }
 .document-tab-dirty { width: 7px; height: 7px; border-radius: 999px; background: var(--schema-color-warning); flex: 0 0 auto; }
 .document-tab-close { display: inline-grid; place-items: center; width: 18px; height: 18px; border: 0; border-radius: 5px; padding: 0; color: var(--ink-soft); background: transparent; cursor: pointer; opacity: .55; }
 .document-tab:hover .document-tab-close, .document-tab.is-active .document-tab-close { opacity: 1; }
 .document-tab-close:hover { color: var(--schema-color-danger); background: color-mix(in srgb, var(--schema-color-danger) 12%, transparent); }
-.document-tabbar-maximize { flex: 0 0 auto; margin-bottom: 4px; }
+.document-tabbar-maximize { flex: 0 0 auto; }
+
+/* Tabs are a shell-level surface; page headings always begin below them. */
+.main-content:has(> .design-workspace) > .document-tabbar { margin: 0; }
+@media (max-width: 760px) {
+  .main-content:not(:has(> .design-workspace)) > .document-tabbar { margin: -16px -16px 16px; padding-inline: 16px; }
+  .document-tab { max-width: 11rem; }
+  .document-section-tab { max-width: 10rem; }
+}
 
 /* Maximized workbench: navigation pane and explorer collapse, content takes the full width. */
 .shell-body.is-maximized .shell-navigation-pane { display: none; }

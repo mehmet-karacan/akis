@@ -10,6 +10,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
@@ -177,6 +178,27 @@ class OracleDiscoveryServiceTest {
     }
 
     @Test
+    void discoveryPassesSelectedObjectTypeToGatewayBeforeResultLimit() {
+        CapturingGateway gateway = new CapturingGateway();
+        gateway.discovery = new DiscoveryResult("APP_OWNER", OffsetDateTime.now(ZoneOffset.UTC), false, List.of());
+        service(repository(7L), gateway).discover(
+                OracleDiscoveryTestFixtures.CONNECTION_UUID, OracleDiscoveryTestFixtures.PHYSICAL_SCHEMA_UUID,
+                null, 20, List.of("VIEW"));
+        assertEquals(Set.of("VIEW"), gateway.types);
+        assertEquals(20, gateway.limit);
+    }
+
+    @Test
+    void discoveryRejectsUnsupportedTypeBeforeOpeningGateway() {
+        CapturingGateway gateway = new CapturingGateway();
+        ApiException error = assertThrows(ApiException.class, () -> service(repository(7L), gateway).discover(
+                OracleDiscoveryTestFixtures.CONNECTION_UUID, OracleDiscoveryTestFixtures.PHYSICAL_SCHEMA_UUID,
+                null, 20, List.of("UNKNOWN")));
+        assertEquals("VALIDATION_FAILED", error.code());
+        assertEquals(0, gateway.discoveryCalls);
+    }
+
+    @Test
     void governedSnapshotCaptureDerivesTheTableFromTheBoundCatalogObject() {
         StubRepository repository = repository(7L);
         CapturingGateway gateway = new CapturingGateway();
@@ -315,6 +337,7 @@ class OracleDiscoveryServiceTest {
         private String owner;
         private String tableName;
         private int limit;
+        private Set<String> types;
         private int captureCalls;
         private int schemaListCalls;
         private SnapshotCapture capture;
@@ -338,12 +361,13 @@ class OracleDiscoveryServiceTest {
         }
 
         @Override
-        public DiscoveryResult discover(ConnectionProfile profile, Credentials credentials, String owner, String tableName, int limit) {
+        public DiscoveryResult discover(ConnectionProfile profile, Credentials credentials, String owner, String tableName, int limit, Set<String> types) {
             discoveryCalls++;
             remember(credentials);
             this.owner = owner;
             this.tableName = tableName;
             this.limit = limit;
+            this.types = types;
             return discovery;
         }
 

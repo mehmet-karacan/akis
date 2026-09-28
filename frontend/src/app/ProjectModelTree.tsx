@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type Key, type ReactNode } from 'react'
 import { ProjectFolderIcon } from '../features/definitions/DefinitionTypeIcon'
 import { Button, Dropdown, Tree, Alert, type TreeDataNode } from 'antd'
-import { Database, Table2, Eye, MoreHorizontal, ScanSearch, Trash2 } from 'lucide-react'
+import { Database, Table2, Eye, Layers3, MoreHorizontal, ScanSearch, Trash2 } from 'lucide-react'
 import { Dialog } from '../core/ui/Dialog'
 import { Button as AkisButton } from '../core/ui/Button'
 import { FeedbackToast } from '../core/ui/FeedbackToast'
@@ -116,7 +116,7 @@ function ProjectModelTreeSession({ projectUuid, onNavigate }: Props) {
     <Tree blockNode virtual={false} motion={null} expandedKeys={expanded} onExpand={setExpanded} selectedKeys={selected} onSelect={setSelected}
       loadedKeys={loaded}
       loadData={node => load(String(node.key))}
-      treeData={[{ key: 'models', className: 'project-tree-section-node', title: <span className="akis-tree-title--section">{title(t('nav.models'), <Database size={15} className="model-tree-model-icon" aria-hidden="true" />)}</span>, isLeaf: false,
+      treeData={[{ key: 'models', className: 'project-tree-section-node', title: <span className="akis-tree-title--section">{title(t('nav.models'), <span className="project-explorer-root-icon project-explorer-root-icon--models" aria-hidden="true"><Layers3 size={16} /></span>)}</span>, isLeaf: false,
         children: models?.map(model => {
           const route = '/models/' + modelRouteSegment(model)
           return { key: 'model:' + model.uuid, route, title: title(model.name, <span className="definition-type-icon definition-type-icon--model" aria-hidden="true"><Database size={14} /></span>, route, route + '/import', undefined, { kind: 'model', name: model.name, run: () => topologyApi.deleteModel(projectUuid, model.uuid, model.version) }), isLeaf: false, children: metadata(model) }

@@ -196,6 +196,12 @@ final class MetadataController {
                 .toList();
     }
 
+    @GetMapping("/projects/{projectUuid}/definitions/recent")
+    List<DefinitionView> recentDefinitions(@PathVariable UUID projectUuid) {
+        authorization.requireProjectPermission(projectUuid, DEFINITION_READ);
+        return service.listRecentDefinitions(projectUuid).stream().map(DefinitionView::from).toList();
+    }
+
     @GetMapping("/projects/{projectUuid}/definitions/{definitionUuid}")
     DefinitionView definition(
             @PathVariable UUID projectUuid,

@@ -4,6 +4,18 @@ type DataObjectTypeIconProps = { type: string; size?: number }
 
 const normalizedType = (type: string) => type.trim().toUpperCase()
 
+export function dataObjectTypeLabel(type: string, tr: boolean): string {
+  switch (normalizedType(type)) {
+    case 'TABLE':
+    case 'TABLO': return tr ? 'Tablo' : 'Table'
+    case 'PARTITIONED_TABLE': return tr ? 'Bölümlenmiş Tablo' : 'Partitioned Table'
+    case 'VIEW': return tr ? 'Görünüm' : 'View'
+    case 'MATERIALIZED_VIEW': return tr ? 'Materyalize Görünüm' : 'Materialized View'
+    case 'SYNONYM': return tr ? 'Eş Anlamlı' : 'Synonym'
+    default: return type.replaceAll('_', ' ')
+  }
+}
+
 /** Shared data-object type mark used by model trees, discovery results and details. */
 export function DataObjectTypeIcon({ type, size = 16 }: DataObjectTypeIconProps) {
   const normalized = normalizedType(type)

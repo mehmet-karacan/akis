@@ -5,6 +5,8 @@ import { useLocation } from 'react-router-dom'
 import { DefinitionTypeIcon } from '../features/definitions/DefinitionTypeIcon'
 import { DEFINITION_TYPES, type DefinitionType } from '../features/definitions/types'
 import { useDocumentTabs } from './DocumentTabsContext'
+import { destinations, resolveNavigationItem } from './WorkspaceNavigation'
+import { projectRoute } from '../features/projects/CurrentProjectContext'
 import './document-tabs.css'
 
 function TabIcon({ kind }: { kind: string }) {
@@ -18,7 +20,10 @@ export function DocumentTabBar({ onNavigate, dirtyPath }: { onNavigate(path: str
   const { t } = useTranslation()
   const { pathname } = useLocation()
   const { tabs, close, closeOthers } = useDocumentTabs()
-  if (!tabs.length) return null
+  const destination = destinations.find(item => item.id === resolveNavigationItem(pathname)) ?? destinations[0]
+  const SectionIcon = destination.icon
+  const sectionPath = destination.absolute ? destination.path : projectRoute(destination.path)
+  const documentActive = tabs.some(tab => tab.path === pathname)
   const closeTab = (path: string) => {
     const next = close(path)
     if (pathname === path) onNavigate(next ?? '/project/objects')
@@ -28,6 +33,11 @@ export function DocumentTabBar({ onNavigate, dirtyPath }: { onNavigate(path: str
     { key: 'others', label: t('tabs.closeOthers'), onClick: () => { closeOthers(path); if (pathname !== path) onNavigate(path) } },
   ]
   return <div className="document-tabbar" role="tablist" aria-label={t('tabs.openDocuments')}>
+    <button type="button" className={`document-section-tab${documentActive ? '' : ' is-active'}`} role="tab" aria-selected={!documentActive} title={t(destination.key)} onClick={() => { if (pathname !== sectionPath) onNavigate(sectionPath) }}>
+      <span className={`workspace-icon workspace-icon--${destination.id}`} aria-hidden="true"><SectionIcon size={15} /></span>
+      <span className="document-tab-title">{t(destination.key)}</span>
+    </button>
+    {tabs.length > 0 && <span className="document-tab-divider" aria-hidden="true" />}
     <div className="document-tabs">
       {tabs.map((tab) => {
         const active = pathname === tab.path

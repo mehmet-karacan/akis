@@ -9,7 +9,7 @@ export interface SummaryMetric {
   value: ReactNode
   hint?: string
   icon: ReactNode
-  tone?: 'info' | 'success' | 'warning' | 'danger' | 'neutral' | 'teal' | 'pink'
+  tone?: 'info' | 'success' | 'warning' | 'danger' | 'neutral' | 'teal' | 'pink' | 'brown'
 }
 
 export function SummaryStrip({ items, ariaLabel }: { items: SummaryMetric[]; ariaLabel: string }) {

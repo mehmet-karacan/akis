@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ApiProblem } from '../../core/api/client'
+import { BRAND } from '../../core/brand/brand'
 import { AsyncState, Button, Dialog, PageHeader, RecordActionButton, SummaryStrip } from '../../core/ui'
 import { DataGrid } from '../../core/ui/DataGrid'
 import { ProgressiveRecords } from '../../core/ui/ProgressiveRecords'
@@ -115,5 +116,6 @@ export function ProjectsPage() {
         </footer>
       </form>
     </Dialog>
+    <footer className="app-copyright">{BRAND.copyright}</footer>
   </section>
 }

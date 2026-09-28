@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom'
 import { beforeEach, expect, it, vi } from 'vitest'
 import i18n from '../../core/i18n'
+import { selectAntOption } from '../../test/selectAntOption'
 import { topologyApi, type DiscoveryResult } from '../topology/api'
 import { MetadataImportPage } from './MetadataImportPage'
 import { bindingFixture, connectionFixture, environmentFixture, physicalSchemaFixture } from '../topology/testFixtures'
@@ -29,9 +30,11 @@ it('locks discovery context while pending and clears results when its scope chan
   let resolve!: (value: DiscoveryResult) => void
   vi.mocked(topologyApi.discoverOracle).mockImplementationOnce(() => new Promise(done => { resolve = done }))
   open()
-  fireEvent.click(await screen.findByRole('button', { name: 'Fetch Objects From Source' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Discover Objects' }))
   expect(screen.getByRole('textbox')).toBeDisabled()
-  expect(screen.getByRole('combobox', { name: 'Discovery environment' })).toBeDisabled()
+  expect(screen.queryByRole('combobox', { name: 'Discovery environment' })).not.toBeInTheDocument()
+  expect(screen.getByText('Test')).toBeVisible()
+  expect(document.querySelector('.metadata-context-summary .provider-cell')).toBeNull()
   await act(async () => resolve(result))
   expect(await screen.findAllByText('DISCOVERED_TABLE', { selector: 'strong' })).toHaveLength(1)
   expect(screen.getByRole('textbox')).toBeEnabled()
@@ -40,10 +43,22 @@ it('locks discovery context while pending and clears results when its scope chan
   expect(screen.queryByRole('button', { name: /Import Selected/ })).not.toBeInTheDocument()
 })
 
+it('offers environment selection only when more than one environment exists', async () => {
+  vi.mocked(topologyApi.listEnvironments).mockResolvedValue([
+    environmentFixture({ uuid: 'environment', code: 'TEST', name: 'Test' }),
+    environmentFixture({ uuid: 'second', code: 'PROD', name: 'Production' }),
+  ])
+  open()
+  const environment = await screen.findByRole('combobox', { name: 'Discovery environment' })
+  expect(environment).toBeEnabled()
+  await selectAntOption(environment, 'Production')
+  expect(environment.closest('.ant-select')).toHaveTextContent('Production')
+})
+
 it('never silently runs standard discovery for a custom RKM model', async () => {
   vi.mocked(topologyApi.getModel).mockResolvedValue({ uuid: 'first', name: 'Custom Model', code: 'CUSTOM', logicalSchemaUuid: 'logical', status: 'AKTIF', version: 1, reverseMode: 'CUSTOM_RKM', rkmDefinitionUuid: 'rkm' })
   open()
-  const discover = await screen.findByRole('button', { name: 'Fetch Objects From Source' })
+  const discover = await screen.findByRole('button', { name: 'Discover Objects' })
   expect(discover).toBeDisabled()
   expect(screen.getByText(/Custom RKM execution is not connected yet/)).toBeVisible()
   fireEvent.click(discover)
@@ -54,22 +69,49 @@ it('does not bring delayed discovery results into another model', async () => {
   let resolve!: (value: DiscoveryResult) => void
   vi.mocked(topologyApi.discoverOracle).mockImplementationOnce(() => new Promise(done => { resolve = done }))
   open()
-  fireEvent.click(await screen.findByRole('button', { name: 'Fetch Objects From Source' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Discover Objects' }))
   fireEvent.click(screen.getByRole('button', { name: 'Next Model' }))
   await screen.findByRole('link', { name: 'Model second' })
   await act(async () => resolve(result))
   expect(screen.queryByText('DISCOVERED_TABLE')).not.toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Fetch Objects From Source' })).toBeEnabled()
+  expect(screen.getByRole('button', { name: 'Discover Objects' })).toBeEnabled()
 })
 
 it('shows discovery errors in a toast and removes previous results before retry', async () => {
   vi.mocked(topologyApi.discoverOracle).mockResolvedValueOnce(result).mockRejectedValueOnce(new Error('Discovery unavailable'))
   open()
-  fireEvent.click(await screen.findByRole('button', { name: 'Fetch Objects From Source' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Discover Objects' }))
   await screen.findAllByText('DISCOVERED_TABLE', { selector: 'strong' })
-  fireEvent.click(screen.getByRole('button', { name: 'Fetch Objects From Source' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Discover Objects' }))
   await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Discovery unavailable'))
   expect(screen.queryByText('DISCOVERED_TABLE')).not.toBeInTheDocument()
+})
+
+it('filters discovered object types and selects only the visible results', async () => {
+  vi.mocked(topologyApi.discoverOracle).mockResolvedValue({ ...result, tables: [
+    result.tables[0]!,
+    { ...result.tables[0]!, name: 'DISCOVERED_VIEW', type: 'VIEW' },
+  ] })
+  open()
+  fireEvent.click(await screen.findByRole('button', { name: 'Discover Objects' }))
+  expect(await screen.findByText('2 / 2 objects shown')).toBeInTheDocument()
+  await selectAntOption(screen.getByRole('combobox', { name: 'Narrow Results' }), 'View')
+  expect(screen.getByRole('status')).toHaveTextContent('1 / 2 objects shown')
+  expect(screen.queryByText('DISCOVERED_TABLE')).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Select Filtered' }))
+  expect(screen.getByRole('button', { name: /Save Selected Objects to Model \(1\)/i })).toBeEnabled()
+})
+
+it('filters at source before discovery and shows selected object details without a modal', async () => {
+  open()
+  const type = await screen.findByRole('combobox', { name: 'Object Type to Discover' })
+  await selectAntOption(type, 'View')
+  fireEvent.click(screen.getByRole('button', { name: 'Discover Objects' }))
+  await waitFor(() => expect(topologyApi.discoverOracle).toHaveBeenCalledWith('p', 'connection', 'physical', { tableName: undefined, types: ['VIEW'], limit: 100 }))
+  expect(await screen.findByRole('complementary', { name: 'Selected object' })).toBeVisible()
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('tab', { name: /Columns/ }))
+  expect(screen.getByRole('tabpanel')).toHaveTextContent('No columns found.')
 })
 
 it('keeps partial import progress and retries only the unfinished object without recreating it', async () => {
@@ -83,7 +125,7 @@ it('keeps partial import progress and retries only the unfinished object without
   })
   const capture = vi.spyOn(topologyApi, 'captureOracleSchemaSnapshot').mockResolvedValueOnce({} as never).mockRejectedValueOnce(new Error('Capture failed')).mockResolvedValueOnce({} as never)
   open()
-  fireEvent.click(await screen.findByRole('button', { name: 'Fetch Objects From Source' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Discover Objects' }))
   for (const checkbox of await screen.findAllByRole('checkbox')) fireEvent.click(checkbox)
   fireEvent.click(screen.getByRole('button', { name: /Save Selected|Import Selected|Import selected|Save selected/ }))
   await waitFor(() => expect(screen.getByText(/Metadata saved: 1 \/ 2/)).toBeInTheDocument())

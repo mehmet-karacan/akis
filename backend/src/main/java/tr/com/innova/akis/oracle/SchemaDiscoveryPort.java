@@ -1,6 +1,7 @@
 package tr.com.innova.akis.oracle;
 
 import java.util.List;
+import java.util.Set;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.ConnectionProbe;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.ConnectionProfile;
 import tr.com.innova.akis.oracle.OracleDiscoveryModels.Credentials;
@@ -20,12 +21,22 @@ public interface SchemaDiscoveryPort {
 
     List<String> listSchemas(ConnectionProfile profile, Credentials credentials);
 
+    default DiscoveryResult discover(
+            ConnectionProfile profile,
+            Credentials credentials,
+            String owner,
+            String tableName,
+            int limit) {
+        return discover(profile, credentials, owner, tableName, limit, Set.of());
+    }
+
     DiscoveryResult discover(
             ConnectionProfile profile,
             Credentials credentials,
             String owner,
             String tableName,
-            int limit);
+            int limit,
+            Set<String> types);
 
     SnapshotCapture captureSnapshot(
             ConnectionProfile profile,

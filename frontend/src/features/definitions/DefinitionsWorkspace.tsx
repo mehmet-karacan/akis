@@ -392,7 +392,7 @@ export function DefinitionsWorkspace({ projectUuid, routeDefinitionUuid }: Defin
 
   return (
     <div className="definitions-workspace" onKeyDown={handleWorkspaceKeyDown}>
-      <h1 className="sr-only">{t('title')}</h1>
+      <h1 className="sr-only">{selectedDefinition?.name ?? (language === 'tr' ? 'Akış Tasarımı' : 'Flow Design')}</h1>
       {capabilityError && <div className="definition-notice definition-notice--info" role="status"><AlertCircle size={16} aria-hidden="true" /><span>{t('capabilityUnavailable')}</span></div>}
       {environmentLoadError && <div className="definition-notice definition-notice--error" role="alert"><AlertCircle size={16} aria-hidden="true" /><span>{t('environmentLoadError')}</span></div>}
 

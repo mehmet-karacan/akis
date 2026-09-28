@@ -26,6 +26,18 @@ const TYPE_ICONS: Record<DefinitionType, LucideIcon> = {
   LOAD_PLAN: Route,
 }
 
+/** The catalog summary uses the same semantic type color as the tree and detail badges. */
+export const DEFINITION_TYPE_TONES = {
+  MAPPING: 'info',
+  REUSABLE_MAPPING: 'info',
+  PACKAGE: 'neutral',
+  PROCEDURE: 'warning',
+  VARIABLE: 'pink',
+  SEQUENCE: 'success',
+  KNOWLEDGE_MODULE: 'brown',
+  LOAD_PLAN: 'teal',
+} as const satisfies Record<DefinitionType, string>
+
 /** Tinted badge with the type's own color; the same mark is used in the tree, catalogs, chips and menus. */
 export function DefinitionTypeIcon({ type, size = 15, badge = true }: { type: DefinitionType; size?: number; badge?: boolean }) {
   const Icon = TYPE_ICONS[type] ?? Braces

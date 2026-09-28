@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -102,15 +103,21 @@ public final class JdbcPostgresSchemaDiscovery implements SchemaDiscoveryPort {
     }
 
     @Override
-    public DiscoveryResult discover(ConnectionProfile profile, Credentials credentials, String owner, String tableName, int limit) {
+    public DiscoveryResult discover(ConnectionProfile profile, Credentials credentials, String owner, String tableName, int limit, Set<String> types) {
         try (Connection connection = DiscoveryConnections.open(profile, credentials)) {
             requirePinnedIdentity(profile, connection);
             DatabaseMetaData metadata = connection.getMetaData();
             List<TableMetadata> tables = new ArrayList<>();
             boolean truncated = false;
             String pattern = tableName == null ? "%" : tableName;
+            String[] jdbcTypes = types.isEmpty()
+                    ? new String[] {"TABLE", "PARTITIONED TABLE", "VIEW", "MATERIALIZED VIEW"}
+                    : types.stream().flatMap(type -> "TABLE".equals(type)
+                            ? java.util.stream.Stream.of("TABLE", "PARTITIONED TABLE")
+                            : java.util.stream.Stream.of("MATERIALIZED_VIEW".equals(type) ? "MATERIALIZED VIEW" : type))
+                            .toArray(String[]::new);
             try (ResultSet resultSet = metadata.getTables(null, owner, pattern,
-                    new String[] {"TABLE", "PARTITIONED TABLE", "VIEW", "MATERIALIZED VIEW"})) {
+                    jdbcTypes)) {
                 while (resultSet.next()) {
                     if (tables.size() == limit) { truncated = true; break; }
                     String tableOwner = resultSet.getString("TABLE_SCHEM");

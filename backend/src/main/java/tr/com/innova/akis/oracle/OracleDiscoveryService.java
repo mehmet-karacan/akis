@@ -122,6 +122,10 @@ public class OracleDiscoveryService {
     }
 
     public DiscoveryResult discover(UUID connectionUuid, UUID physicalSchemaUuid, String tableName, int limit) {
+        return discover(connectionUuid, physicalSchemaUuid, tableName, limit, null);
+    }
+
+    public DiscoveryResult discover(UUID connectionUuid, UUID physicalSchemaUuid, String tableName, int limit, List<String> types) {
         ConnectionProfile profile = discoverableProfile(connectionUuid);
         PhysicalSchemaProfile physicalSchema = physicalSchema(profile, physicalSchemaUuid);
         if (limit < 1 || limit > 200) {
@@ -129,8 +133,18 @@ public class OracleDiscoveryService {
         }
         String owner = identifier(profile, physicalSchema.schemaReference(), "Fiziksel şema referansı");
         String normalizedTableName = tableName == null || tableName.isBlank() ? null : identifier(profile, tableName, "Tablo adı");
+        Set<String> allowedTypes = "POSTGRESQL".equals(profile.databaseType())
+                ? Set.of("TABLE", "VIEW", "MATERIALIZED_VIEW")
+                : Set.of("TABLE", "VIEW", "MATERIALIZED_VIEW", "SYNONYM");
+        if (types != null && types.stream().anyMatch(type -> type == null || type.isBlank())) {
+            throw validation("Keşif nesne türü boş olamaz.");
+        }
+        Set<String> selectedTypes = types == null ? Set.of() : Set.copyOf(types);
+        if (!allowedTypes.containsAll(selectedTypes)) {
+            throw validation("Keşif için desteklenmeyen nesne türü seçildi.");
+        }
         try (Credentials credentials = credentials(profile)) {
-            return gateway(profile).discover(profile, credentials, owner, normalizedTableName, limit);
+            return gateway(profile).discover(profile, credentials, owner, normalizedTableName, limit, selectedTypes);
         }
     }
 

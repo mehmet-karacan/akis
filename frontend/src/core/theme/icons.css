@@ -28,6 +28,7 @@ body .ui-summary-card.tone-danger .ui-summary-icon { color: var(--schema-color-d
 body .ui-summary-card.tone-neutral .ui-summary-icon { color: var(--schema-color-neutral) !important; background: color-mix(in srgb, var(--schema-color-neutral) 14%, var(--surface)) !important; }
 body .ui-summary-card.tone-teal .ui-summary-icon { color: var(--schema-color-teal) !important; background: color-mix(in srgb, var(--schema-color-teal) 14%, var(--surface)) !important; }
 body .ui-summary-card.tone-pink .ui-summary-icon { color: var(--schema-color-pink) !important; background: color-mix(in srgb, var(--schema-color-pink) 14%, var(--surface)) !important; }
+body .ui-summary-card.tone-brown .ui-summary-icon { color: var(--schema-color-brown) !important; background: color-mix(in srgb, var(--schema-color-brown) 14%, var(--surface)) !important; }
 
 /* Page, collection, dialog and tab icons. */
 body .ui-page-title-icon svg, body .ui-grid-collection-icon svg, body .connection-dialog-title > svg { color: var(--schema-color-info); }
@@ -53,12 +54,18 @@ body [data-field-icon="code"], body [data-field-icon="hash"], body [data-field-i
 
 /* Shell navigation: each workspace keeps its own color, active or not. */
 /* Workspace icons use the same semantic palette as cards, fields and object types. */
-body .workspace-navigation .workspace-icon { display: inline-grid; place-items: center; color: var(--schema-color-info); }
-body .workspace-navigation .workspace-icon--project { color: var(--schema-color-info); }
-body .workspace-navigation .workspace-icon--development { color: var(--schema-color-neutral); }
-body .workspace-navigation .workspace-icon--operations { color: var(--schema-color-warning); }
-body .workspace-navigation .workspace-icon--connections { color: var(--schema-color-teal); }
-body .workspace-navigation .workspace-icon--schema-metadata { color: var(--schema-color-success); }
+body .workspace-navigation .workspace-icon { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; color: var(--workspace-icon-tone) !important; background: color-mix(in srgb, var(--workspace-icon-tone) 14%, var(--surface)) !important; }
+body .workspace-navigation .workspace-icon svg { color: inherit !important; stroke: currentColor !important; }
+body .workspace-navigation .workspace-icon--project { --workspace-icon-tone: var(--schema-color-info); }
+body .workspace-navigation .workspace-icon--development { --workspace-icon-tone: var(--schema-color-neutral); }
+body .workspace-navigation .workspace-icon--models { --workspace-icon-tone: var(--schema-color-info); }
+body .workspace-navigation .workspace-icon--operations { --workspace-icon-tone: var(--schema-color-warning); }
+body .workspace-navigation .workspace-icon--publications { --workspace-icon-tone: var(--schema-color-pink); }
+body .workspace-navigation .workspace-icon--schedules { --workspace-icon-tone: var(--schema-color-warning); }
+body .workspace-navigation .workspace-icon--connections { --workspace-icon-tone: var(--schema-color-teal); }
+body .workspace-navigation .workspace-icon--logical-schemas { --workspace-icon-tone: var(--schema-color-neutral); }
+body .workspace-navigation .workspace-icon--environments { --workspace-icon-tone: var(--schema-color-warning); }
+body .workspace-navigation .workspace-icon--schema-metadata { --workspace-icon-tone: var(--schema-color-success); }
 body .workspace-subnav-link > svg { width: 16px; height: 16px; color: var(--schema-color-info); }
 body .workspace-subnav-link[data-nav="connections"] > svg { color: var(--schema-color-teal); }
 body .workspace-subnav-link[data-nav="logical-schemas"] > svg { color: var(--schema-color-neutral); }

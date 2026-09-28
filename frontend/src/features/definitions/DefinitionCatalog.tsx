@@ -1,5 +1,5 @@
 import { Tag } from 'antd'
-import { CheckCircle2, CircleAlert, Folder, Layers3, Plus } from 'lucide-react'
+import { CheckCircle2, CircleAlert, Layers3, Plus } from 'lucide-react'
 import { useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AsyncState, Button, ExportMenu, PageHeader, RecordActionButton, SummaryStrip } from '../../core/ui'
@@ -8,7 +8,7 @@ import { ProgressiveRecords } from '../../core/ui/ProgressiveRecords'
 import { QueryFilter } from '../../core/ui/QueryFilter'
 import { useCollectionView } from '../../core/ui/ViewToggle'
 import { connectionStatusTagStyles } from '../connections/presentation'
-import { DefinitionTypeIcon } from './DefinitionTypeIcon'
+import { DEFINITION_TYPE_TONES, DefinitionTypeIcon, ProjectFolderIcon } from './DefinitionTypeIcon'
 import { useDefinitionsI18n } from './i18n'
 import type { Definition, DefinitionType, Folder as DefinitionFolder } from './types'
 import '../connections/connections.css'
@@ -41,12 +41,12 @@ export function DefinitionCatalog({ projectUuid, definitions, folders, typeLabel
   const exportMenu = <ExportMenu projectUuid={projectUuid} dataset="definitions" resourceId="definitions" filters={query.trim() ? [{ field: 'query', operator: 'contains', value: query.trim() }] : []} />
 
   return <section className="page-stack connections-page definitions-catalog">
-    <section className="connection-management-panel"><PageHeader icon={<Layers3 />} eyebrow={tr ? 'PROJE NESNELERİ' : 'PROJECT OBJECTS'} title={t('title')} description={t('subtitle')} actions={exportMenu} />
+    <section className="connection-management-panel"><PageHeader icon={<Layers3 />} eyebrow={tr ? 'TASARIM VE MODELLEME' : 'DESIGN & MODELING'} title={tr ? 'Akış Tasarımı' : 'Flow Design'} description={t('subtitle')} actions={exportMenu} />
     <QueryFilter onApply={applyQuery} placeholder={tr ? 'Ad, kod, tür veya klasöre göre ara' : 'Search by name, code, type or folder'} /></section>
     <SummaryStrip ariaLabel={t('title')} items={[
       { label: tr ? 'Toplam Nesne' : 'Total Objects', value: definitions.length, icon: <Layers3 />, tone: 'info' },
-      { label: tr ? 'Klasör' : 'Folders', value: folders.length, icon: <Folder />, tone: 'neutral' },
-      ...typeCounts.map(([type, count]) => ({ label: typeLabel(type as DefinitionType), value: count, icon: <DefinitionTypeIcon type={type as DefinitionType} size={18} />, tone: 'teal' as const })),
+      { label: tr ? 'Klasör' : 'Folders', value: folders.length, icon: <ProjectFolderIcon size={18} />, tone: 'neutral' },
+      ...typeCounts.map(([type, count]) => ({ label: typeLabel(type as DefinitionType), value: count, icon: <DefinitionTypeIcon type={type as DefinitionType} size={18} badge={false} />, tone: DEFINITION_TYPE_TONES[type as DefinitionType] })),
     ]} />
     <section className="connections-records">
       {filtered.length === 0 ? <AsyncState state="empty" title={definitions.length === 0 ? t('selectDefinition') : (tr ? 'Eşleşen nesne yok' : 'No matching objects')} action={addButton} /> : <ProgressiveRecords key={query} items={filtered}>{(visible) => <DataGrid auditKind="definitions" auditInFooter collectionTitle={tr ? 'Nesne Kataloğu' : 'Object Catalog'} collectionIcon={<Layers3 />} toolbarActions={addButton} cardHeaderLeadingField="type" cardHeaderField="status" cardHiddenFields={['type', 'status']} view={view} onViewChange={setView}>

@@ -4,6 +4,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import i18n from '../../core/i18n'
 import { topologyApi, type Model, type SchemaSnapshot } from '../topology/api'
 import { ModelDetailPage } from './ModelDetailPage'
+import { bindingFixture, connectionFixture, environmentFixture, physicalSchemaFixture } from '../topology/testFixtures'
 
 const access = vi.hoisted(() => ({ discover: true }))
 vi.mock('../../core/auth/ProjectAccessContext', () => ({ useProjectAccess: () => ({ can: (permission: string) => permission === 'KATALOG_KESFET' && access.discover }) }))
@@ -28,6 +29,10 @@ beforeEach(async () => {
     { uuid: 'view', modelUuid: 'first', code: 'V', name: 'Order Summary', objectReference: 'V_ORDERS', type: 'VIEW', status: 'AKTIF', version: 1 },
   ])
   vi.spyOn(topologyApi, 'listSchemaSnapshots').mockResolvedValue([])
+  vi.spyOn(topologyApi, 'listEnvironments').mockResolvedValue([environmentFixture({ uuid: 'env', name: 'Production' })])
+  vi.spyOn(topologyApi, 'listBindings').mockResolvedValue([bindingFixture({ uuid: 'binding', logicalSchemaUuid: 'schema', environmentUuid: 'env', physicalSchemaUuid: 'physical' })])
+  vi.spyOn(topologyApi, 'listPhysicalSchemas').mockResolvedValue([physicalSchemaFixture({ uuid: 'physical', connectionUuid: 'connection', schemaName: 'TTBP' })])
+  vi.spyOn(topologyApi, 'listConnections').mockResolvedValue([connectionFixture({ uuid: 'connection' })])
 })
 
 it('uses one catalog heading and keeps the detail dialog closed until a data store is selected', async () => {
@@ -90,7 +95,7 @@ it('shows a missing selection explicitly and hides metadata refresh without disc
   access.discover = false
   open('/projects/p/models/first?object=missing')
   expect(await screen.findByText('Data Store Not Found')).toBeInTheDocument()
-  expect(screen.queryByRole('link', { name: 'Reverse Engineer' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('complementary', { name: 'Reverse Engineer workspace' })).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: /Refresh metadata:/ })).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole('radio', { name: 'Table' }))
   const row = screen.getByText('Orders').closest('tr')!
@@ -98,4 +103,49 @@ it('shows a missing selection explicitly and hides metadata refresh without disc
   fireEvent.keyDown(row, { key: 'Enter' })
   await waitFor(() => expect(topologyApi.listSchemaSnapshots).toHaveBeenCalledWith('p', 'table'))
   expect(await screen.findByRole('heading', { name: 'Orders' })).toBeInTheDocument()
+})
+
+it('keeps folder creation and discovery available when a model has no objects', async () => {
+  vi.mocked(topologyApi.listDataObjects).mockResolvedValue([])
+  open()
+  await screen.findByRole('heading', { name: 'Model first' })
+  expect(screen.getByRole('button', { name: 'Add Folder' })).toBeInTheDocument()
+  expect(await screen.findByRole('complementary', { name: 'Reverse Engineer workspace' })).toBeInTheDocument()
+})
+
+it('keeps reverse engineer inside the model workspace without a folder picker', async () => {
+  open()
+  expect(await screen.findByRole('heading', { name: 'Model first' })).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Data Store List' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Reverse Engineer' })).toBeInTheDocument()
+  expect(await screen.findByRole('combobox', { name: 'Object Type to Discover' })).toBeInTheDocument()
+  expect(screen.queryByRole('combobox', { name: 'Destination Folder' })).not.toBeInTheDocument()
+  expect(within(screen.getByRole('complementary', { name: 'Reverse Engineer workspace' })).getByText('Model Root')).toBeInTheDocument()
+})
+
+it('takes the refresh destination from the existing data store folder', async () => {
+  vi.mocked(topologyApi.listSubmodels).mockResolvedValue([{ uuid: 'sales', modelUuid: 'first', parentUuid: null, code: 'SALES', name: 'Sales', version: 1 }])
+  vi.mocked(topologyApi.listDataObjects).mockResolvedValue([{ uuid: 'table', modelUuid: 'first', submodelUuid: 'sales', code: 'T', name: 'Orders', objectReference: 'ORDERS', type: 'TABLE', status: 'AKTIF', version: 1 }])
+  open('/projects/p/models/first?folder=SALES&refresh=T')
+  const reverse = await screen.findByRole('complementary', { name: 'Reverse Engineer workspace' })
+  expect(await within(reverse).findByText('Sales')).toBeInTheDocument()
+  expect(within(reverse).getByRole('textbox', { name: 'Table or view name (optional)' })).toHaveValue('ORDERS')
+  expect(within(reverse).queryByRole('combobox', { name: 'Destination Folder' })).not.toBeInTheDocument()
+})
+
+it('opens a folder with one click and counts only tables as tables', async () => {
+  vi.mocked(topologyApi.listSubmodels).mockResolvedValue([{ uuid: 'folder', modelUuid: 'first', parentUuid: null, code: 'FOLDER', name: 'Sales', version: 1 }])
+  vi.mocked(topologyApi.listDataObjects).mockResolvedValue([
+    { uuid: 'table', modelUuid: 'first', code: 'T', name: 'Orders', objectReference: 'ORDERS', type: 'TABLE', status: 'AKTIF', version: 1 },
+    { uuid: 'view', modelUuid: 'first', code: 'V', name: 'Order Summary', objectReference: 'V_ORDERS', type: 'VIEW', status: 'AKTIF', version: 1 },
+    { uuid: 'synonym', modelUuid: 'first', code: 'S', name: 'Order Alias', objectReference: 'S_ORDERS', type: 'SYNONYM', status: 'AKTIF', version: 1 },
+  ])
+  open()
+  await screen.findByRole('heading', { name: 'Model first' })
+  const summary = screen.getByRole('region', { name: 'Model summary' })
+  expect(within(summary).getByText('Table').closest('.ui-summary-card')).toHaveTextContent('1')
+  expect(within(summary).getByText('Synonyms').closest('.ui-summary-card')).toHaveTextContent('1')
+  fireEvent.click(screen.getByRole('button', { name: 'Sales' }))
+  expect(screen.getByRole('heading', { name: 'Model first / Sales' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Add Folder' })).toBeInTheDocument()
 })
