@@ -179,7 +179,7 @@ label { display: grid; gap: 7px; }
 .language-option { display: flex; align-items: center; gap: 7px; }
 .user-menu { height: 100%; display: flex; align-items: center; gap: 8px; padding: 0 6px 0 12px; }
 .user-menu > span:not(.user-avatar) { font-weight: 500; }
-.user-avatar { width: 22px; height: 22px; flex: none; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--accent-soft); color: var(--accent); }
+.user-avatar { width: 22px; height: 22px; flex: none; display: inline-flex; align-items: center; justify-content: center; color: var(--accent); }
 .user-menu > .ant-btn { height: 100%; border-radius: 0; padding: 0 10px; }
 .user-menu > .ant-btn:hover { background: var(--danger-soft); color: var(--danger); }
 .main-content { padding: 24px; }

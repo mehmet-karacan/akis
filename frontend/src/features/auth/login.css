@@ -11,10 +11,10 @@
 .login-feature strong { display: block; margin-bottom: 3px; color: var(--login-ink); }
 .login-feature p { margin: 0; line-height: 1.5; color: var(--login-ink-soft); }
 .login-feature-icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; }
-.login-feature.tone-neutral .login-feature-icon { color: var(--schema-color-neutral); background: color-mix(in srgb, var(--schema-color-neutral) 22%, transparent); }
-.login-feature.tone-success .login-feature-icon { color: var(--schema-color-success); background: color-mix(in srgb, var(--schema-color-success) 22%, transparent); }
-.login-feature.tone-pink .login-feature-icon { color: var(--schema-color-pink); background: color-mix(in srgb, var(--schema-color-pink) 22%, transparent); }
-.login-feature.tone-info .login-feature-icon { color: var(--schema-color-info); background: color-mix(in srgb, var(--schema-color-info) 22%, transparent); }
+.login-feature.tone-neutral .login-feature-icon { color: var(--schema-color-neutral); }
+.login-feature.tone-success .login-feature-icon { color: var(--schema-color-success); }
+.login-feature.tone-pink .login-feature-icon { color: var(--schema-color-pink); }
+.login-feature.tone-info .login-feature-icon { color: var(--schema-color-info); }
 
 .login-pillars { display: flex; flex-wrap: wrap; gap: 8px; margin: 22px 0 0; padding: 0; list-style: none; }
 .login-pillars li { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; font-size: 12px; color: var(--login-ink); background: color-mix(in srgb, #ffffff 8%, transparent); border: 1px solid color-mix(in srgb, #ffffff 14%, transparent); }

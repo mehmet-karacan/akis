@@ -200,8 +200,8 @@ body .explorer-resize-handle:hover::before, body .explorer-resize-handle:focus-v
 .mapping-inspector-technical-alias { color: var(--ink-soft); font-size: 11px; overflow-wrap: anywhere; }
 .mapping-node-title { display: inline-flex; align-items: center; gap: 6px; }
 .mapping-node-mark { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; }
-.mapping-node-mark--source { color: var(--schema-color-teal); background: color-mix(in srgb, var(--schema-color-teal) 14%, var(--surface)); }
-.mapping-node-mark--target { color: var(--schema-color-info); background: color-mix(in srgb, var(--schema-color-info) 14%, var(--surface)); }
+.mapping-node-mark--source { color: var(--schema-color-teal); background: transparent; }
+.mapping-node-mark--target { color: var(--schema-color-info); background: transparent; }
 body .mapping-inspector-resizer span { width: 44px; height: 6px; background: color-mix(in srgb, var(--schema-color-info) 55%, var(--line)); box-shadow: 0 0 0 4px var(--surface); }
 body .mapping-inspector-resizer:hover span, body .mapping-inspector-resizer:focus-visible span { background: var(--schema-color-info); }
 @media (max-width: 900px) { .mapping-editor-body { grid-template-columns: 1fr; } }

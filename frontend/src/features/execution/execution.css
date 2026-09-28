@@ -222,12 +222,12 @@ body .execution-page .run-object-type[data-object-type="KNOWLEDGE_MODULE"] { col
 .run-result-page > .ui-summary-strip .ui-summary-card strong { overflow: visible; font-size: clamp(13px, 1.1vw, 17px); line-height: 1.25; overflow-wrap: anywhere; text-overflow: clip; white-space: normal; }
 .run-overall-status { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
 .run-overall-status > span { color: var(--ant-color-text-secondary); font-size: 12px; font-weight: 400; }
-.run-status-signal { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; color: var(--schema-color-neutral); background: color-mix(in srgb, var(--schema-color-neutral) 14%, transparent); }
+.run-status-signal { display: inline-grid; place-items: center; width: 34px; height: 34px; color: var(--schema-color-neutral); }
 .run-status-signal > svg { width: 18px; height: 18px; }
-.run-status-signal--success { color: var(--schema-color-success); background: color-mix(in srgb, var(--schema-color-success) 14%, transparent); }
-.run-status-signal--danger { color: var(--schema-color-danger); background: color-mix(in srgb, var(--schema-color-danger) 14%, transparent); }
-.run-status-signal--warning { color: var(--schema-color-warning); background: color-mix(in srgb, var(--schema-color-warning) 14%, transparent); }
-.run-status-signal--info { color: var(--schema-color-info); background: color-mix(in srgb, var(--schema-color-info) 14%, transparent); }
+.run-status-signal--success { color: var(--schema-color-success); }
+.run-status-signal--danger { color: var(--schema-color-danger); }
+.run-status-signal--warning { color: var(--schema-color-warning); }
+.run-status-signal--info { color: var(--schema-color-info); }
 .run-result-steps { display: grid; grid-template-columns: minmax(260px, .72fr) minmax(0, 1.28fr); gap: 16px; align-items: start; }
 .run-result-steps > .ant-tree { max-height: min(68vh, 760px); overflow: auto; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
 .run-step-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; }
