@@ -40,7 +40,7 @@ label { color: var(--ink); }
 .ui-summary-card { padding: 0; min-width: 0; }
 .ui-summary-card .ant-card-body { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; gap: 12px; min-height: 92px; }
 .ui-summary-card .ant-card-body { width: 100%; min-width: 0; }
-.ui-summary-card .ui-summary-icon { width: 40px; height: 40px; }
+.ui-summary-card .ui-summary-icon { width: 38px; height: 38px; }
 .ui-summary-card .ui-summary-content { min-width: 0; }
 .ui-summary-content strong { font-variant-numeric: tabular-nums; }
 .view-mode-icon { display: inline-flex; align-items: center; justify-content: center; min-height: 28px; }
@@ -101,7 +101,7 @@ body .shell-body.is-compact > .shell-navigation-pane { position: absolute; top: 
 .ui-summary-card .ant-card-body > div { display: grid; min-width: 0; gap: 2px; }
 .ui-summary-card { overflow: hidden; }
 .ui-summary-card strong { display: block; min-width: 0; max-width: 100%; font-size: 20px; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
-.ui-summary-icon { display: grid; place-items: center; color: var(--accent); width: 38px; height: 38px; flex-shrink: 0; }
+.ui-summary-icon { display: grid; place-items: center; color: var(--accent); width: 38px; height: 38px; flex-shrink: 0; border-radius: 8px; }
 .tone-success .ui-summary-icon { color: var(--schema-color-success); }
 .tone-warning .ui-summary-icon { color: var(--schema-color-warning); }
 .tone-danger .ui-summary-icon { color: var(--schema-color-danger); }

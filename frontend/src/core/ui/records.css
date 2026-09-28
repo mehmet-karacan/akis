@@ -21,8 +21,8 @@
 @media (max-width: 620px) { .ui-query-form, .ui-query-fields { grid-template-columns: minmax(0, 1fr); } }
 .ui-summary-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); grid-auto-rows: 1fr; align-items: stretch; gap: 12px; }
 .ui-summary-card { min-width: 0; min-height: 78px; height: 100%; }
-.ui-summary-card .ant-card-body { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; gap: 12px; min-height: 78px; height: 100%; padding: 12px 14px; }
-.ui-summary-icon { width: 40px; height: 40px; flex: 0 0 40px; display: grid; place-items: center; }
+.ui-summary-card .ant-card-body { display: grid; grid-template-columns: 38px minmax(0, 1fr); align-items: center; gap: 12px; min-height: 78px; height: 100%; padding: 12px 14px; }
+.ui-summary-icon { width: 38px; height: 38px; flex: 0 0 38px; display: grid; place-items: center; }
 .ui-summary-icon svg { width: 18px; height: 18px; }
 .ui-summary-content { min-width: 0; align-self: center; display: grid; gap: 2px; }
 .ui-summary-content > small { white-space: normal; overflow-wrap: anywhere; }
