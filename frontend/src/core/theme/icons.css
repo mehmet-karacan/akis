@@ -19,15 +19,15 @@
   --schema-color-pink: #f472b6;
 }
 
-/* Summary cards: the tone shows only in the icon. */
-body .ui-summary-card .ui-summary-icon { background: transparent !important; box-shadow: none !important; }
-body .ui-summary-card.tone-info .ui-summary-icon { color: var(--schema-color-info) !important; }
-body .ui-summary-card.tone-success .ui-summary-icon { color: var(--schema-color-success) !important; }
-body .ui-summary-card.tone-warning .ui-summary-icon { color: var(--schema-color-warning) !important; }
-body .ui-summary-card.tone-danger .ui-summary-icon { color: var(--schema-color-danger) !important; }
-body .ui-summary-card.tone-neutral .ui-summary-icon { color: var(--schema-color-neutral) !important; }
-body .ui-summary-card.tone-teal .ui-summary-icon { color: var(--schema-color-teal) !important; }
-body .ui-summary-card.tone-pink .ui-summary-icon { color: var(--schema-color-pink) !important; }
+/* Summary cards: use the established soft semantic surface without a box border. */
+body .ui-summary-card .ui-summary-icon { border-radius: 8px; }
+body .ui-summary-card.tone-info .ui-summary-icon { color: var(--schema-color-info) !important; background: color-mix(in srgb, var(--schema-color-info) 14%, var(--surface)) !important; }
+body .ui-summary-card.tone-success .ui-summary-icon { color: var(--schema-color-success) !important; background: color-mix(in srgb, var(--schema-color-success) 14%, var(--surface)) !important; }
+body .ui-summary-card.tone-warning .ui-summary-icon { color: var(--schema-color-warning) !important; background: color-mix(in srgb, var(--schema-color-warning) 14%, var(--surface)) !important; }
+body .ui-summary-card.tone-danger .ui-summary-icon { color: var(--schema-color-danger) !important; background: color-mix(in srgb, var(--schema-color-danger) 14%, var(--surface)) !important; }
+body .ui-summary-card.tone-neutral .ui-summary-icon { color: var(--schema-color-neutral) !important; background: color-mix(in srgb, var(--schema-color-neutral) 14%, var(--surface)) !important; }
+body .ui-summary-card.tone-teal .ui-summary-icon { color: var(--schema-color-teal) !important; background: color-mix(in srgb, var(--schema-color-teal) 14%, var(--surface)) !important; }
+body .ui-summary-card.tone-pink .ui-summary-icon { color: var(--schema-color-pink) !important; background: color-mix(in srgb, var(--schema-color-pink) 14%, var(--surface)) !important; }
 
 /* Page, collection, dialog and tab icons. */
 body .ui-page-title-icon svg, body .ui-grid-collection-icon svg, body .connection-dialog-title > svg { color: var(--schema-color-info); }
