@@ -43,10 +43,19 @@ export async function refreshCsrfToken() {
 
 export async function ensureCsrfToken() {
   if (csrfToken) return
-  // Spring's deferred token is intentionally different from the raw
-  // XSRF-TOKEN cookie. The cookie is only a browser-visible repository value;
-  // using it as the request header causes a deterministic 403. Always obtain
-  // the authoritative token from the CSRF endpoint for a fresh client state.
+  // Use the browser-visible repository cookie for the first attempt. Spring
+  // may rotate/defer the authoritative token; apiRequest handles that case
+  // by refreshing once after the server returns 403.
+  const cookieToken = document.cookie
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith('XSRF-TOKEN='))
+    ?.slice('XSRF-TOKEN='.length)
+  if (cookieToken) {
+    csrfToken = decodeURIComponent(cookieToken)
+    csrfHeaderName = 'X-XSRF-TOKEN'
+    return
+  }
   await refreshCsrfToken()
 }
 
