@@ -51,12 +51,13 @@ body [data-field-icon="relationships"], body [data-field-icon="email"], body [da
 body [data-field-icon="code"], body [data-field-icon="hash"], body [data-field-icon="count"], body [data-field-icon="number"] { color: var(--schema-color-neutral) !important; }
 
 /* Shell navigation: each workspace keeps its own color, active or not. */
-body .workspace-navigation .ant-menu-item .ant-menu-item-icon svg { color: var(--schema-color-info); }
-body .workspace-navigation .ant-menu-item.workspace-nav--project .ant-menu-item-icon svg { color: var(--schema-color-info); }
-body .workspace-navigation .ant-menu-item.workspace-nav--development .ant-menu-item-icon svg { color: var(--schema-color-neutral); }
-body .workspace-navigation .ant-menu-item.workspace-nav--operations .ant-menu-item-icon svg { color: var(--schema-color-warning); }
-body .workspace-navigation .ant-menu-item.workspace-nav--connections .ant-menu-item-icon svg { color: var(--schema-color-teal); }
-body .workspace-navigation .ant-menu-item.workspace-nav--schema-metadata .ant-menu-item-icon svg { color: var(--schema-color-success); }
+/* Workspace icons use the same semantic palette as cards, fields and object types. */
+body .workspace-navigation .workspace-icon { display: inline-grid; place-items: center; color: var(--schema-color-info); }
+body .workspace-navigation .workspace-icon--project { color: var(--schema-color-info); }
+body .workspace-navigation .workspace-icon--development { color: var(--schema-color-neutral); }
+body .workspace-navigation .workspace-icon--operations { color: var(--schema-color-warning); }
+body .workspace-navigation .workspace-icon--connections { color: var(--schema-color-teal); }
+body .workspace-navigation .workspace-icon--schema-metadata { color: var(--schema-color-success); }
 body .workspace-subnav-link > svg { width: 16px; height: 16px; color: var(--schema-color-info); }
 body .workspace-subnav-link[data-nav="connections"] > svg { color: var(--schema-color-teal); }
 body .workspace-subnav-link[data-nav="logical-schemas"] > svg { color: var(--schema-color-neutral); }

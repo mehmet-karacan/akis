@@ -36,5 +36,10 @@ export function WorkspaceNavigation({ hasPendingChanges, onNavigate, collapsed =
       const workspace = workspaces.find(item => item.id === key)!
       onNavigate(workspace.absolute ? workspace.path : projectRoute(workspace.path))
     }}
-    items={workspaces.map(({ id, key, icon: Icon }) => ({ key: id, className: `workspace-nav--${id}`, label: t(key), icon: <Icon size={16} /> }))} />
+    items={workspaces.map(({ id, key, icon: Icon }) => ({
+      key: id,
+      className: `workspace-nav--${id}`,
+      label: t(key),
+      icon: <span className={`workspace-icon workspace-icon--${id}`} data-ui-icon={id} aria-hidden="true"><Icon size={16} /></span>,
+    }))} />
 }
