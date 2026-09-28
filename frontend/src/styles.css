@@ -169,7 +169,7 @@ label { display: grid; gap: 7px; }
 .project-switcher > span:nth-child(2) { flex: 1; min-width: 0; display: grid; line-height: 1.25; }
 .project-switcher small { color: var(--ink-soft); font-weight: 600; letter-spacing: .02em; text-transform: uppercase; font-size: 10px; }
 .project-switcher strong { max-width: 230px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
-.project-icon { flex: none; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; background: var(--accent-soft); color: var(--accent); }
+.project-icon { flex: none; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; color: var(--accent); }
 .project-switcher-chevron { flex: none; color: var(--ink-soft); }
 .topbar-actions { height: 38px; display: flex; align-items: stretch; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-subtle); overflow: hidden; }
 .topbar-actions > .compact-select, .topbar-actions > .ant-dropdown-trigger, .topbar-actions > .user-menu { border-radius: 0; }

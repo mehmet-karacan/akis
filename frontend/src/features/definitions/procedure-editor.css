@@ -1,8 +1,8 @@
 /* Procedure editor: clear zones (steps list on top, step detail below) and colored marks per role. */
 .procedure-heading-identity { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
 .procedure-heading-icon { display: grid; place-items: center; flex: 0 0 auto; width: 34px; height: 34px; border-radius: 9px; }
-.procedure-heading-icon--steps { color: var(--schema-color-info); background: color-mix(in srgb, var(--schema-color-info) 14%, var(--surface)); }
-.procedure-heading-icon--detail { color: var(--schema-color-neutral); background: color-mix(in srgb, var(--schema-color-neutral) 14%, var(--surface)); }
+.procedure-heading-icon--steps { color: var(--schema-color-info); background: transparent; }
+.procedure-heading-icon--detail { color: var(--schema-color-neutral); background: transparent; }
 .procedure-heading-count { margin-left: 8px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--schema-color-info); background: color-mix(in srgb, var(--schema-color-info) 12%, var(--surface)); }
 .procedure-steps-panel { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 12px 14px 8px; }
 .procedure-task-editor { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); margin-top: 10px; }
@@ -79,7 +79,7 @@
 .definition-version-detail .definition-panel-heading { padding-bottom: 10px; border-bottom: 1px solid var(--line); margin-bottom: 10px; flex-wrap: wrap; }
 .definition-panel-heading h3 { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; }
 .definition-panel-heading p { color: var(--ink-soft); font-size: 12px; }
-.procedure-heading-icon--scenarios { color: var(--schema-color-info); background: color-mix(in srgb, var(--schema-color-info) 14%, var(--surface)); width: 28px; height: 28px; }
+.procedure-heading-icon--scenarios { color: var(--schema-color-info); background: transparent; width: 28px; height: 28px; }
 .definition-scenario-list { display: grid; gap: 10px; padding-top: 0; }
 .definition-scenario-list > article { display: grid; grid-template-columns: 1fr; gap: 0; padding: 10px 14px; }
 .definition-scenario-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
@@ -190,10 +190,10 @@ body .explorer-resize-handle:hover::before, body .explorer-resize-handle:focus-v
 .mapping-inline-actions { display: inline-flex; align-items: center; gap: 8px; }
 .mapping-type-chip { display: inline-flex; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-family: var(--font-mono, ui-monospace, monospace); color: var(--schema-color-neutral); background: color-mix(in srgb, var(--schema-color-neutral) 12%, var(--surface)); }
 .mapping-condition-title { display: inline-flex; align-items: center; gap: 8px; }
-.procedure-heading-icon--join { color: var(--schema-color-warning); background: color-mix(in srgb, var(--schema-color-warning) 14%, var(--surface)); }
-.procedure-heading-icon--filter { color: var(--schema-color-pink); background: color-mix(in srgb, var(--schema-color-pink) 14%, var(--surface)); }
-.procedure-heading-icon--source { color: var(--schema-color-teal); background: color-mix(in srgb, var(--schema-color-teal) 14%, var(--surface)); }
-.procedure-heading-icon--target { color: var(--schema-color-info); background: color-mix(in srgb, var(--schema-color-info) 14%, var(--surface)); }
+.procedure-heading-icon--join { color: var(--schema-color-warning); background: transparent; }
+.procedure-heading-icon--filter { color: var(--schema-color-pink); background: transparent; }
+.procedure-heading-icon--source { color: var(--schema-color-teal); background: transparent; }
+.procedure-heading-icon--target { color: var(--schema-color-info); background: transparent; }
 .mapping-inspector-identity { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .mapping-inspector-identity > div { display: grid; gap: 1px; }
 .mapping-inspector-identity > div > span { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); }
