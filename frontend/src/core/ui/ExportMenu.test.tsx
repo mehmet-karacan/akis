@@ -39,6 +39,11 @@ describe('ExportMenu', () => {
     expect(screen.queryByRole('menuitem', { name: 'Seçili kayıtlar' })).not.toBeInTheDocument()
   })
 
+  it('does not render export for catalogs without an explicit export contract', () => {
+    renderMenu({ projectUuid: 'p1', dataset: 'topology', resourceId: 'connections' })
+    expect(screen.queryByRole('button', { name: 'Dışa Aktar' })).not.toBeInTheDocument()
+  })
+
   it('creates a filtered job, emits an event and displays its downloadable result', async () => {
     const job: ExportJob = {
       uuid: 'e1', providerId: 'runs', resourceId: 'run-history', scope: 'FILTERED',

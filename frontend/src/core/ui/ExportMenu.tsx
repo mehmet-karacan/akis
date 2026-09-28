@@ -29,6 +29,9 @@ export function ExportMenu({
   label,
   includeDetailsDefault = false,
 }: ExportMenuProps) {
+  // Export is an explicit capability, not a default action on every catalog.
+  // At present only run history has the complete, detail-aware export contract.
+  const exportEnabled = resourceId === 'run-history' || resourceId === 'data-objects'
   const [busy, setBusy] = useState(false)
   const [open, setOpen] = useState(false)
   const [error, setError] = useState('')
@@ -37,6 +40,8 @@ export function ExportMenu({
   const { i18n } = useTranslation()
   const tr = i18n.language.startsWith('tr')
   const title = label ?? (tr ? 'Dışa Aktar' : 'Export')
+
+  if (!exportEnabled) return null
 
   async function startExport(scope: ExportScope, includeDetails: boolean) {
     if (pending.current || disabled) return
