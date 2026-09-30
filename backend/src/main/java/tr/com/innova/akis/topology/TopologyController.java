@@ -38,7 +38,7 @@ import tr.com.innova.akis.topology.TopologyService.PhysicalSchemaInput;
 import static tr.com.innova.akis.security.PermissionCodes.*;
 
 /**
- * Topology is global (ODI master-repository model). The project in the path only scopes
+ * Topology is global. The project in the path only scopes
  * the caller's permission check; the data itself is shared by all projects.
  */
 @RestController

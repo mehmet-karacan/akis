@@ -43,14 +43,14 @@ class DisabledProcedureTaskExecutorTest {
         Task task = new Task(
                 "TRUNCATE_TARGET", "Clear target", TaskType.SQL,
                 ConnectionRole.TARGET, RiskClass.DESTRUCTIVE,
-                "TRUNCATE TABLE INNOVA_ODI.STG_HAKEDIS_TIPI",
+                "TRUNCATE TABLE TARGET_SCHEMA.STG_SAMPLE_TABLE",
                 "d".repeat(64), true, ErrorPolicy.STOP, 30,
                 null, null, List.of());
         TaskBinding binding = new TaskBinding(
                 task.id(), task.connectionRole(), UUID.randomUUID(), UUID.randomUUID(),
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                1, "e".repeat(64), "INNOVA_ODI.STG_HAKEDIS_TIPI",
-                "INNOVA_ODI", "STG_HAKEDIS_TIPI", "TABLO");
+                1, "e".repeat(64), "TARGET_SCHEMA.STG_SAMPLE_TABLE",
+                "TARGET_SCHEMA", "STG_SAMPLE_TABLE", "TABLO");
         ProcedureRuntimePlan plan = new ProcedureRuntimePlan(
                 1, "a".repeat(64), "b".repeat(64), "c".repeat(64),
                 UUID.randomUUID(), UUID.randomUUID(), List.of(task),

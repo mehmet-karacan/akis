@@ -38,7 +38,7 @@ export function mappingState(item: LogicalSchemaCatalogItem): MappingState {
   return item.mappedCount === item.mappings.length ? 'complete' : 'partial'
 }
 
-/** "TEST → SKY / TTBP" style label for one environment mapping. */
+/** "TEST → SOURCE / UPSTREAM_SCHEMA" style label for one environment mapping. */
 export function mappingLabel(mapping: LogicalSchemaMapping, notMapped: string) {
   if (!mapping.binding) return `${mapping.environment.code} → ${notMapped}`
   return `${mapping.environment.code} → ${mapping.connection?.code ?? '?'} / ${mapping.physicalSchema?.schemaName ?? '?'}`

@@ -14,7 +14,7 @@ interface Props {
   onClose(): void
 }
 
-/** Creates an environment (ODI context): code, name, risk class and whether it is the default context. */
+/** Creates an environment (context): code, name, risk class and whether it is the default context. */
 export function EnvironmentForm({ projectUuid, onCreated, onClose }: Props) {
   const { t, i18n } = useTranslation()
   const tr = i18n.language.startsWith('tr')

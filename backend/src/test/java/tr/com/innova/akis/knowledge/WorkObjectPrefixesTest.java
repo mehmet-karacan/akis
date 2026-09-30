@@ -22,12 +22,12 @@ class WorkObjectPrefixesTest {
         assertNotEquals(name, prefixes.objectName("LOADING", project, UUID.randomUUID(), 1, "SOURCE_1"));
         assertThrows(IllegalArgumentException.class, () -> prefixes.objectName("LOADING", project, run, 0, "SOURCE_1"));
     }
-    @Test void odiStylePrefixesDoNotDoubleTheSeparator() {
+    @Test void prefixesDoNotDoubleTheSeparator() {
         String name = WorkObjectPrefixes.DEFAULTS.objectName("LOADING", UUID.randomUUID(), UUID.randomUUID(), 1, "SOURCE_1");
         assertEquals(30, name.length());
         assertTrue(name.matches("AKIS_C\\$_[A-F0-9]+"));
     }
-    @Test void targetNamesFollowOdiStyleAndFallBackToHashedTailOnShortHosts() {
+    @Test void targetNamesFollowWorkNamingConventionAndFallBackToHashedTailOnShortHosts() {
         var prefixes = WorkObjectPrefixes.DEFAULTS;
         assertEquals("AKIS_C$_STG_MUSTERI", prefixes.targetObjectName("LOADING", "STG_MUSTERI", 0, 128));
         assertEquals("AKIS_C$_STG_MUSTERI_2", prefixes.targetObjectName("LOADING", "STG_MUSTERI", 2, 128));

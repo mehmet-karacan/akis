@@ -248,7 +248,7 @@ class OracleTargetFenceFacadeTest {
         RuntimeOracleConnectionProvider provider = new RuntimeOracleConnectionProvider(
                 binding -> Optional.of(profile(binding.connectionVersionUuid())),
                 objectMapper,
-                ignored -> "{\"username\":\"INNOVA_ODI\",\"password\":\"hidden\"}",
+                ignored -> "{\"username\":\"TARGET_SCHEMA\",\"password\":\"hidden\"}",
                 (url, properties) -> connection.proxy(),
                 Runnable::run);
         Fixture fixture = new Fixture(events, connection, ledger, command, provider);

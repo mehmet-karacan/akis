@@ -7,16 +7,16 @@ import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
-/** Direct, dependency-ordered refresh of the small TTBP configuration tables. */
+/** Direct, dependency-ordered refresh of the small UPSTREAM_SCHEMA configuration tables. */
 public final class ConfigTableDirectTransfer {
   private static final List<String> TABLES = List.of(
-      "SATIS_KANALI_GRUBU", "HESAP_TIPI", "PRIM_BASLIGI", "ISLEM_ONCESI_TIPI",
+      "CHANNEL_GROUP", "HESAP_TIPI", "PRIM_BASLIGI", "ISLEM_ONCESI_TIPI",
       "ISLEM_ONCESI_DETAY_TIPI", "ISLEM_PARAMETRE", "UST_CEZA_KAYIT_TIPI",
-      "EMAIL_SUREC_TIPI", "KAMPANYA_TIPI", "TARIFE_AGACI_DUGUMU", "SATIS_KANALI",
+      "EMAIL_SUREC_TIPI", "KAMPANYA_TIPI", "TARIFE_AGACI_DUGUMU", "CHANNEL",
       "EMAIL_SABLON", "ISLEM_ONCESI_TIPI_DETAY_ILS", "URETILECEK_ISLEM_ONCESI_TIPI",
-      "BEYAN_DOSYASI", "HAKEDIS_TIPI", "SATIS_KANALI_TIPI", "KAMPANYA",
-      "PRIM_KALEMI_TIPI", "DYNAMIC_SP_CALL_CONFIG", "HAKEDIS_TIPI_KANAL_TIPI",
-      "HAKEDIS_TIPI_EMAIL_SABLON", "ENT_KURAL_SURUMU", "ISLEM_TIPI",
+      "BEYAN_DOSYASI", "SAMPLE_TABLE", "CHANNEL_TIPI", "KAMPANYA",
+      "PRIM_KALEMI_TIPI", "DYNAMIC_SP_CALL_CONFIG", "SAMPLE_TABLE_KANAL_TIPI",
+      "SAMPLE_TABLE_EMAIL_SABLON", "ENT_KURAL_SURUMU", "ISLEM_TIPI",
       "ENT_KURAL_MUAFIYET", "ISLEM_PARAMETRE_GELIS_SURUM", "ENT_KURAL", "TARIFE",
       "HEDEF_TIPI", "TTS_TAHSILAT_KADEME", "ISLEM_HESAP", "SAYIM_KURALI",
       "ENTEGRASYON_KONTROL", "CEZA_KAYIT_TIPI", "HEDEF_TIPI_FORMUL",
@@ -53,7 +53,7 @@ public final class ConfigTableDirectTransfer {
         oracle.setAutoCommit(false);
         if (args.length == 1 && "--beyan-blob-stats".equals(args[0])) {
           try (Statement s = oracle.createStatement(); ResultSet r = s.executeQuery(
-              "select count(*), coalesce(max(dbms_lob.getlength(EK_ICERIK)),0), coalesce(sum(dbms_lob.getlength(EK_ICERIK)),0) from TTBP.BEYAN_DOSYASI")) {
+              "select count(*), coalesce(max(dbms_lob.getlength(EK_ICERIK)),0), coalesce(sum(dbms_lob.getlength(EK_ICERIK)),0) from UPSTREAM_SCHEMA.BEYAN_DOSYASI")) {
             r.next(); System.out.printf("ROWS=%d MAX_BLOB_BYTES=%d TOTAL_BLOB_BYTES=%d%n", r.getLong(1), r.getLong(2), r.getLong(3));
           }
           return;
@@ -62,7 +62,7 @@ public final class ConfigTableDirectTransfer {
           String sql = "select column_name,data_type,data_precision,case when data_type='NUMBER' then data_scale end,"+
               "case when char_used is not null then char_length when data_type='RAW' then data_length end,"+
               "case when data_type like 'TIMESTAMP%' or data_type like 'INTERVAL%' then data_scale end,"+
-              "nullable,data_default,column_id from all_tab_cols where owner='TTBP' and table_name='ISLEM_TIPI' "+
+              "nullable,data_default,column_id from all_tab_cols where owner='UPSTREAM_SCHEMA' and table_name='ISLEM_TIPI' "+
               "and hidden_column='NO' order by column_id";
           try (Statement s=oracle.createStatement(); ResultSet r=s.executeQuery(sql)) {
             while(r.next()) System.out.printf("COL=%s TYPE=%s PREC=%s SCALE=%s LEN=%s TIME=%s NULL=%s DEFAULT=%s ORD=%s%n",
@@ -79,7 +79,7 @@ public final class ConfigTableDirectTransfer {
         if (args.length == 1 && "--verify-counts".equals(args[0])) {
           long total=0;
           for(String table:TABLES) {
-            long sourceCount=sourceCounts.get(table), targetCount=count(pg,"ttbp",table.toLowerCase(Locale.ROOT));
+            long sourceCount=sourceCounts.get(table), targetCount=count(pg,"upstream_schema",table.toLowerCase(Locale.ROOT));
             if(sourceCount!=targetCount) throw new SQLException(table+" count mismatch source="+sourceCount+" target="+targetCount);
             total+=targetCount;
           }
@@ -89,7 +89,7 @@ public final class ConfigTableDirectTransfer {
         truncate(pg);
         for (String table : TABLES) {
           long inserted = copy(oracle, pg, table);
-          long target = count(pg, "ttbp", table.toLowerCase(Locale.ROOT));
+          long target = count(pg, "upstream_schema", table.toLowerCase(Locale.ROOT));
           long expected = sourceCounts.get(table);
           if (inserted != expected || target != expected) {
             throw new SQLException(table + " count mismatch source=" + expected
@@ -130,7 +130,7 @@ public final class ConfigTableDirectTransfer {
       try (ResultSet r = s.executeQuery()) { while (r.next()) references.add(r.getString(1)); }
     }
     for (String table : TABLES) {
-      String command = "TRUNCATE TABLE TTBP." + table + " RESTART IDENTITY CASCADE";
+      String command = "TRUNCATE TABLE UPSTREAM_SCHEMA." + table + " RESTART IDENTITY CASCADE";
       List<String> matches = references.stream().filter(reference -> java.util.regex.Pattern.compile(
           "(?<![A-Z0-9_$#])" + java.util.regex.Pattern.quote(reference.toUpperCase(Locale.ROOT)) + "(?![A-Z0-9_$#])")
           .matcher(command).find()).toList();
@@ -142,8 +142,8 @@ public final class ConfigTableDirectTransfer {
     String sql = "select pn.nspname||'.'||pc.relname, rn.nspname||'.'||rc.relname, con.conname "
         + "from pg_constraint con join pg_class pc on pc.oid=con.conrelid "
         + "join pg_namespace pn on pn.oid=pc.relnamespace join pg_class rc on rc.oid=con.confrelid "
-        + "join pg_namespace rn on rn.oid=rc.relnamespace where con.contype='f' and rn.nspname='ttbp' "
-        + "and rc.relname = any (?) and not (pn.nspname='ttbp' and pc.relname = any (?)) order by 1,2,3";
+        + "join pg_namespace rn on rn.oid=rc.relnamespace where con.contype='f' and rn.nspname='upstream_schema' "
+        + "and rc.relname = any (?) and not (pn.nspname='upstream_schema' and pc.relname = any (?)) order by 1,2,3";
     String[] names = TABLES.stream().map(value -> value.toLowerCase(Locale.ROOT)).toArray(String[]::new);
     int count = 0;
     try (PreparedStatement s = pg.prepareStatement(sql)) {
@@ -158,7 +158,7 @@ public final class ConfigTableDirectTransfer {
   private static void listConnections(Connection pg) throws SQLException {
     String sql = "select id,kod,ad,coalesce(aciklama,''),sunucu_adi,port,coalesce(servis_adi,''),"
         + "coalesce(sid,''),kullanici_adi,durum from akis.baglanti "
-        + "where upper(kod)='SKY' or upper(ad)='SKY' order by id";
+        + "where upper(kod)='SOURCE' or upper(ad)='SOURCE' order by id";
     try (Statement s = pg.createStatement(); ResultSet r = s.executeQuery(sql)) {
       while (r.next()) System.out.printf(
           "ID=%d CODE=%s NAME=%s DESCRIPTION=%s HOST=%s PORT=%d SERVICE=%s SID=%s USER=%s STATUS=%s%n",
@@ -169,10 +169,10 @@ public final class ConfigTableDirectTransfer {
 
   private static Source source(Connection pg) throws Exception {
     String sql = "select sunucu_adi,port,servis_adi,sid,kullanici_adi,sifre,jdbc_url_ek "
-        + "from akis.baglanti where upper(kod)='SKY' or upper(ad)='SKY' "
+        + "from akis.baglanti where upper(kod)='SOURCE' or upper(ad)='SOURCE' "
         + "order by id desc fetch first 1 row only";
     try (Statement s = pg.createStatement(); ResultSet r = s.executeQuery(sql)) {
-      if (!r.next()) throw new SQLException("Active SKY connection not found");
+      if (!r.next()) throw new SQLException("Active SOURCE connection not found");
       String host = r.getString(1), service = r.getString(3), sid = r.getString(4);
       int port = r.getInt(2);
       String url = service != null && !service.isBlank()
@@ -186,12 +186,12 @@ public final class ConfigTableDirectTransfer {
 
   private static void verifyTables(Connection pg) throws SQLException {
     try (PreparedStatement q = pg.prepareStatement(
-        "select count(*) from information_schema.tables where table_schema='ttbp' and table_name=?")) {
+        "select count(*) from information_schema.tables where table_schema='upstream_schema' and table_name=?")) {
       for (String table : TABLES) {
         q.setString(1, table.toLowerCase(Locale.ROOT));
         try (ResultSet r = q.executeQuery()) {
           r.next();
-          if (r.getInt(1) != 1) throw new SQLException("Missing target table: ttbp." + table);
+          if (r.getInt(1) != 1) throw new SQLException("Missing target table: upstream_schema." + table);
         }
       }
     }
@@ -202,7 +202,7 @@ public final class ConfigTableDirectTransfer {
     try (Statement s = oracle.createStatement()) {
       s.setQueryTimeout(120);
       for (String table : TABLES) {
-        try (ResultSet r = s.executeQuery("select count(*) from TTBP." + table)) {
+        try (ResultSet r = s.executeQuery("select count(*) from UPSTREAM_SCHEMA." + table)) {
           r.next(); counts.put(table, r.getLong(1));
         }
       }
@@ -211,7 +211,7 @@ public final class ConfigTableDirectTransfer {
   }
 
   private static void truncate(Connection pg) throws SQLException {
-    String names = TABLES.stream().map(t -> "ttbp." + t.toLowerCase(Locale.ROOT))
+    String names = TABLES.stream().map(t -> "upstream_schema." + t.toLowerCase(Locale.ROOT))
         .reduce((a, b) -> a + "," + b).orElseThrow();
     try (Statement s = pg.createStatement()) { s.executeUpdate("truncate table " + names); }
   }
@@ -219,7 +219,7 @@ public final class ConfigTableDirectTransfer {
   private static long copy(Connection oracle, Connection pg, String table) throws SQLException {
     List<String> columns = targetColumns(pg, table);
     List<SelfFk> selfFks = selfFks(pg, table);
-    String sourceSql = "select " + String.join(",", columns) + " from TTBP." + table;
+    String sourceSql = "select " + String.join(",", columns) + " from UPSTREAM_SCHEMA." + table;
     List<Object[]> rows = new ArrayList<>();
     try (Statement s = oracle.createStatement()) {
       s.setFetchSize(1000); s.setQueryTimeout(300);
@@ -233,7 +233,7 @@ public final class ConfigTableDirectTransfer {
     }
     if (!selfFks.isEmpty()) rows = parentFirst(rows, columns, selfFks, table);
     String marks = String.join(",", Collections.nCopies(columns.size(), "?"));
-    String insert = "insert into ttbp." + table.toLowerCase(Locale.ROOT) + " ("
+    String insert = "insert into upstream_schema." + table.toLowerCase(Locale.ROOT) + " ("
         + String.join(",", columns) + ") values (" + marks + ")";
     try (PreparedStatement p = pg.prepareStatement(insert)) {
       int pending = 0;
@@ -281,7 +281,7 @@ public final class ConfigTableDirectTransfer {
   private static List<String> targetColumns(Connection pg, String table) throws SQLException {
     List<String> result = new ArrayList<>();
     try (PreparedStatement q = pg.prepareStatement("select column_name from information_schema.columns "
-        + "where table_schema='ttbp' and table_name=? order by ordinal_position")) {
+        + "where table_schema='upstream_schema' and table_name=? order by ordinal_position")) {
       q.setString(1, table.toLowerCase(Locale.ROOT));
       try (ResultSet r = q.executeQuery()) { while (r.next()) result.add(r.getString(1)); }
     }
@@ -297,7 +297,7 @@ public final class ConfigTableDirectTransfer {
           join lateral unnest(c.conkey,c.confkey) with ordinality x(child,parent,ord) on true
           join pg_attribute a on a.attrelid=c.conrelid and a.attnum=x.child
           join pg_attribute pa on pa.attrelid=c.confrelid and pa.attnum=x.parent
-         where c.contype='f' and c.conrelid=c.confrelid and n.nspname='ttbp' and t.relname=?
+         where c.contype='f' and c.conrelid=c.confrelid and n.nspname='upstream_schema' and t.relname=?
          group by c.oid
         """;
     List<SelfFk> result = new ArrayList<>();

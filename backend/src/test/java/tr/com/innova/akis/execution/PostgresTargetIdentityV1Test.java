@@ -19,7 +19,7 @@ class PostgresTargetIdentityV1Test {
         assertEquals("akis_metadata", base.site());
         assertEquals(INSTALLATION, base.container());
         assertEquals("akis_pg_target", base.owner());
-        assertEquals("STG_HAKEDIS_TIPI", base.objectName());
+        assertEquals("STG_SAMPLE_TABLE", base.objectName());
         assertEquals(64, base.canonicalTargetHash().length());
         assertEquals(base.canonicalTargetHash(), canonicalizer.canonicalize(relation(INSTALLATION, 16384L, 2200L, 90001L, "r"), "TABLE").canonicalTargetHash());
         // Dropped and recreated table -> new relation oid -> different target.
@@ -38,6 +38,6 @@ class PostgresTargetIdentityV1Test {
     }
 
     private static VerifiedRelation relation(String installation, long databaseOid, long schemaOid, long relationOid, String relkind) {
-        return new VerifiedRelation(installation, "akis_metadata", databaseOid, "akis_pg_target", schemaOid, "STG_HAKEDIS_TIPI", relationOid, relkind);
+        return new VerifiedRelation(installation, "akis_metadata", databaseOid, "akis_pg_target", schemaOid, "STG_SAMPLE_TABLE", relationOid, relkind);
     }
 }

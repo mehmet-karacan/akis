@@ -50,6 +50,6 @@ class PostgresRuntimeConnectionIT {
         return new DatasetBinding("SOURCE_NODE", DatasetRole.SOURCE, DatabaseType.ORACLE,
                 DataObjectType.TABLE, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 UUID.randomUUID(), VERSION, UUID.randomUUID(), 1, "a".repeat(64),
-                "AKIS.STG_HAKEDIS_TIPI", "AKIS", "STG_HAKEDIS_TIPI");
+                "AKIS.STG_SAMPLE_TABLE", "AKIS", "STG_SAMPLE_TABLE");
     }
 }

@@ -54,8 +54,8 @@ class OracleTargetIdentityReadFacadeTest {
                 result.evidence().targetIdentityVersion());
         assertEquals("AKISDB", result.evidence().databaseUniqueName());
         assertEquals("AKISPDB", result.evidence().containerName());
-        assertEquals("INNOVA_ODI", result.evidence().owner());
-        assertEquals("STG_HAKEDIS_TIPI", result.evidence().objectName());
+        assertEquals("TARGET_SCHEMA", result.evidence().owner());
+        assertEquals("STG_SAMPLE_TABLE", result.evidence().objectName());
         assertEquals(fixture.identity.canonicalTargetHash(),
                 result.evidence().canonicalTargetHash());
         assertEquals(fixture.command.plan().target(), fixture.openedBinding);
@@ -159,7 +159,7 @@ class OracleTargetIdentityReadFacadeTest {
         Fixture fixture = fixture();
         fixture.identity = new OracleTargetIdentityV1().canonicalize(
                 new VerifiedDatabaseIdentity("AKISDB", "AKISPDB"),
-                "INNOVA_ODI", "TABLE", "OTHER_TABLE");
+                "TARGET_SCHEMA", "TABLE", "OTHER_TABLE");
 
         SafeFailure result = assertInstanceOf(
                 SafeFailure.class, fixture.facade.read(fixture.command));
@@ -197,8 +197,8 @@ class OracleTargetIdentityReadFacadeTest {
         return new PilotRuntimePlan(
                 1, RUNTIME_HASH, RELEASE_HASH, PLAN_HASH,
                 UUID.randomUUID(), UUID.randomUUID(), 1000,
-                binding(DatasetRole.SOURCE, "TTBP", "HAKEDIS_TIPI", "d".repeat(64)),
-                binding(DatasetRole.TARGET, "INNOVA_ODI", "STG_HAKEDIS_TIPI",
+                binding(DatasetRole.SOURCE, "UPSTREAM_SCHEMA", "SAMPLE_TABLE", "d".repeat(64)),
+                binding(DatasetRole.TARGET, "TARGET_SCHEMA", "STG_SAMPLE_TABLE",
                         targetFingerprint),
                 List.of(new DirectColumnMapping("ID", "ID")),
                 WriteStrategy.ATOMIC_DELETE_INSERT,
@@ -237,7 +237,7 @@ class OracleTargetIdentityReadFacadeTest {
         private RuntimeException identityFailure;
         private CanonicalTargetIdentity identity = new OracleTargetIdentityV1().canonicalize(
                 new VerifiedDatabaseIdentity("AKISDB", "AKISPDB"),
-                "INNOVA_ODI", "TABLE", "STG_HAKEDIS_TIPI");
+                "TARGET_SCHEMA", "TABLE", "STG_SAMPLE_TABLE");
         private Connection preflightConnection;
         private Connection identityConnection;
         private int preflightCalls;

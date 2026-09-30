@@ -143,20 +143,20 @@ class DefinitionContentValidatorTest {
                 {"tasks":[
                   {"id":"CLEAR_TARGET","type":"SQL","connectionRole":"TARGET",
                    "riskClass":"DESTRUCTIVE","requiresApproval":true,"onError":"STOP",
-                   "command":"TRUNCATE TABLE INNOVA_ODI.STG_HAKEDIS_TIPI"},
+                   "command":"TRUNCATE TABLE TARGET_SCHEMA.STG_SAMPLE_TABLE"},
                   {"id":"READ_SOURCE","type":"SQL","connectionRole":"SOURCE",
                    "riskClass":"READ_ONLY","onError":"STOP","timeoutSeconds":60,
-                   "command":"SELECT\\n ID, ACIKLAMA FROM TTBP.HAKEDIS_TIPI",
+                   "command":"SELECT\\n ID, ACIKLAMA FROM UPSTREAM_SCHEMA.SAMPLE_TABLE",
                    "output":{"kind":"ROWSET","maxRows":10000}},
                   {"id":"WRITE_TARGET","type":"SQL","connectionRole":"TARGET",
                    "riskClass":"DML","onError":"STOP","logCounter":"INSERT",
                    "transactionMode":"TRANSACTION","transactionChannel":0,
                    "transactionIsolation":"READ_COMMITTED","commitMode":"COMMIT",
-                   "command":"INSERT\\n INTO INNOVA_ODI.STG_HAKEDIS_TIPI (ID, ACIKLAMA) VALUES (:ID, :ACIKLAMA)",
+                   "command":"INSERT\\n INTO TARGET_SCHEMA.STG_SAMPLE_TABLE (ID, ACIKLAMA) VALUES (:ID, :ACIKLAMA)",
                    "input":{"fromTask":"READ_SOURCE","mode":"BATCH","batchSize":250}},
                   {"id":"GATHER_STATS","type":"PLSQL","connectionRole":"TARGET",
                    "riskClass":"DDL","requiresApproval":true,"onError":"STOP",
-                   "command":"BEGIN DBMS_STATS.GATHER_TABLE_STATS('INNOVA_ODI','STG_HAKEDIS_TIPI'); END;"}
+                   "command":"BEGIN DBMS_STATS.GATHER_TABLE_STATS('TARGET_SCHEMA','STG_SAMPLE_TABLE'); END;"}
                 ]}
                 """));
     }

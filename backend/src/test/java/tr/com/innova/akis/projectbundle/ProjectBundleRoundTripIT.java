@@ -114,7 +114,7 @@ class ProjectBundleRoundTripIT {
                 "LOAD", "AKTIF", "Load variable", null);
         long rkmDefinition = repository.insertDefinition(
                 sourceProject.id(), childFolder, DefinitionType.KNOWLEDGE_MODULE,
-                "RKM_HAKEDIS", "AKTIF", "Hakediş reverse module", null);
+                "RKM_SAMPLE", "AKTIF", "Hakediş reverse module", null);
         var rkmContent = mapper.createObjectNode();
         rkmContent.put("kmType", "RKM");
         rkmContent.putArray("tasks");
@@ -243,36 +243,36 @@ class ProjectBundleRoundTripIT {
                 .put("sourceUuid", sourceEnvironmentUuid.toString());
         topology.putArray("schemaBindings");
         topology.putArray("models").addObject()
-                .put("code", "HAKEDIS_MODEL")
+                .put("code", "SAMPLE_MODEL")
                 .put("name", "Hakediş Model")
                 .putNull("description")
                 .put("logicalSchemaCode", "SOURCE_LS")
                 .put("reverseEnvironmentCode", "SOURCE_ENV")
                 .put("reverseMode", "CUSTOM_RKM")
-                .put("rkmCode", "RKM_HAKEDIS")
+                .put("rkmCode", "RKM_SAMPLE")
                 .put("rkmScope", "PROJE");
         topology.putArray("submodels").addObject()
                 .put("code", "CORE")
                 .put("name", "Core")
                 .putNull("description")
-                .put("modelCode", "HAKEDIS_MODEL")
+                .put("modelCode", "SAMPLE_MODEL")
                 .putNull("parentCode");
         ((tools.jackson.databind.node.ArrayNode) topology.get("submodels")).addObject()
                 .put("code", "DETAIL")
                 .put("name", "Detail")
-                .put("modelCode", "HAKEDIS_MODEL")
+                .put("modelCode", "SAMPLE_MODEL")
                 .put("parentCode", "CORE");
         topology.putArray("dataObjects").addObject()
-                .put("code", "HAKEDIS_TIPI")
+                .put("code", "SAMPLE_TABLE")
                 .put("name", "Hakediş Tipi")
-                .put("reference", "TTBP.HAKEDIS_TIPI")
+                .put("reference", "UPSTREAM_SCHEMA.SAMPLE_TABLE")
                 .put("type", "TABLO")
-                .put("modelCode", "HAKEDIS_MODEL")
+                .put("modelCode", "SAMPLE_MODEL")
                 .put("submodelCode", "DETAIL");
         repository.importPortableTopology(sourceProject.id(), topology);
         long sourceDataObjectId = jdbc.sql("""
                 select id from akis.veri_nesnesi
-                 where proje_id = :project and kod = 'HAKEDIS_TIPI'
+                 where proje_id = :project and kod = 'SAMPLE_TABLE'
                 """).param("project", sourceProject.id()).query(Long.class).single();
         var portableColumns = mapper.createArrayNode();
         portableColumns.addObject()
@@ -300,7 +300,7 @@ class ProjectBundleRoundTripIT {
         UUID sourcePackageDefinitionUuid = repository.findDefinitionUuid(
                 sourceProject.id(), DefinitionType.PACKAGE, "MAIN_PACKAGE");
         UUID sourceRkmUuid = repository.findDefinitionUuid(
-                sourceProject.id(), DefinitionType.KNOWLEDGE_MODULE, "RKM_HAKEDIS");
+                sourceProject.id(), DefinitionType.KNOWLEDGE_MODULE, "RKM_SAMPLE");
         assertNotEquals(sourcePackageDefinitionUuid, sourceChildPackageUuid);
         String sourceLogicalSchemaBefore = jdbc.sql(
                         "select to_jsonb(m)::text from akis.mantiksal_sema m where m.uuid = :uuid")
@@ -411,7 +411,7 @@ class ProjectBundleRoundTripIT {
         UUID targetChildPackageUuid = repository.findDefinitionUuid(
                 targetProject.id(), DefinitionType.PACKAGE, "CHILD_PACKAGE");
         UUID targetRkmUuid = repository.findDefinitionUuid(
-                targetProject.id(), DefinitionType.KNOWLEDGE_MODULE, "RKM_HAKEDIS");
+                targetProject.id(), DefinitionType.KNOWLEDGE_MODULE, "RKM_SAMPLE");
 
         assertNotEquals(sourceProcedureDefinitionUuid, targetProcedureDefinitionUuid);
         assertNotEquals(sourceVariableDefinitionUuid, targetVariableDefinitionUuid);
@@ -420,7 +420,7 @@ class ProjectBundleRoundTripIT {
         assertEquals(targetRkmUuid, jdbc.sql("""
                 select r.uuid from akis.model m
                   join akis.tanim r on r.id = m.rkm_tanim_id
-                 where m.proje_id = :project and m.kod = 'HAKEDIS_MODEL'
+                 where m.proje_id = :project and m.kod = 'SAMPLE_MODEL'
                 """).param("project", targetProject.id()).query(UUID.class).single());
 
         // Reference remap kanıtı: PROCEDURE task içindeki LS/ENV hedef global UUID'lere dönüşmüş.

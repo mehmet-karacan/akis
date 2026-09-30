@@ -2,7 +2,7 @@
 -- Compatible target: Oracle 12.1 and 12.2, application-user privileges.
 -- DBeaver: change only target_owner, then Execute SQL Script (Alt+X).
 -- Use an unquoted, uppercase Oracle schema name.
-@set target_owner = TTBP
+@set target_owner = UPSTREAM_SCHEMA
 
 -- No DDL/DML is executed. Source bodies, SQL bodies, defaults, DB link names,
 -- grants and optimizer/cardinality statistics are intentionally not exported.

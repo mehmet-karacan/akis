@@ -8,7 +8,7 @@ import { ProjectAccessProvider } from '../../core/auth/ProjectAccessContext'
 import { connectionFixture } from '../topology/testFixtures'
 
 const catalog = Array.from({ length: 30 }, (_, index): ConnectionCatalogProjection => ({
-  connection: connectionFixture({ uuid: `connection-${index}`, code: `SKY_${String(index).padStart(2, '0')}`, name: `Sky ${String(index).padStart(2, '0')}`, lastTestedAt: '2026-01-01T00:00:00Z', lastTestPassed: true }),
+  connection: connectionFixture({ uuid: `connection-${index}`, code: `SOURCE_${String(index).padStart(2, '0')}`, name: `Source ${String(index).padStart(2, '0')}`, lastTestedAt: '2026-01-01T00:00:00Z', lastTestPassed: true }),
   physicalSchemaCount: 2,
   logicalSchemaCount: 1,
 }))
@@ -24,14 +24,14 @@ describe('ConnectionsPage', () => {
   // This integration case renders 30 rich records and queries their accessibility tree.
   // Keep the assertions intact; jsdom on the Windows CI host can exceed the 5s unit default.
   it('keeps filters in the URL and progressively reveals records', { timeout: 15000 }, async () => {
-    const { container } = render(<MemoryRouter initialEntries={['/projects/project/connections?q=sky&provider=ORACLE&status=ACTIVE&sort=code&page=2']}><Routes><Route path="/projects/:projectUuid/connections" element={<><ConnectionsPage /><LocationProbe /></>} /></Routes></MemoryRouter>)
+    const { container } = render(<MemoryRouter initialEntries={['/projects/project/connections?q=source&provider=ORACLE&status=ACTIVE&sort=code&page=2']}><Routes><Route path="/projects/:projectUuid/connections" element={<><ConnectionsPage /><LocationProbe /></>} /></Routes></MemoryRouter>)
     expect(await screen.findByRole('heading', { name: 'Connection Catalog' })).toBeInTheDocument()
     expect(container.querySelectorAll('.ui-grid-record')).toHaveLength(25)
     fireEvent.click(screen.getByText('Load More').closest('button')!)
     expect(container.querySelectorAll('.ui-grid-record')).toHaveLength(30)
     expect(screen.getByTestId('location')).toHaveTextContent('page=2')
     fireEvent.click(screen.getByText('Show Filters').closest('button')!)
-    fireEvent.change(screen.getByPlaceholderText('Search by name, code or provider'), { target: { value: 'SKY_01' } })
+    fireEvent.change(screen.getByPlaceholderText('Search by name, code or provider'), { target: { value: 'SOURCE_01' } })
     fireEvent.click(screen.getByText('Search', { exact: true }).closest('button')!)
     await waitFor(() => expect(screen.getByTestId('location')).not.toHaveTextContent('page=2'))
     expect(screen.getByRole('heading', { name: 'Connection Catalog' })).toBeInTheDocument()
@@ -50,7 +50,7 @@ describe('ConnectionsPage', () => {
     render(<ProjectAccessProvider value={{ roles: ['PROJE_YONETICISI'], permissions: ['BAGLANTI_GORUNTULE', 'BAGLANTI_YONET'] }}><MemoryRouter initialEntries={['/projects/project/connections']}><Routes><Route path="/projects/:projectUuid/connections" element={<ConnectionsPage />} /></Routes></MemoryRouter></ProjectAccessProvider>)
 
     expect(await screen.findByRole('heading', { name: 'Connection Catalog' })).toBeInTheDocument()
-    const view = screen.getByRole('button', { name: 'View: Sky 00' })
+    const view = screen.getByRole('button', { name: 'View: Source 00' })
     fireEvent.click(view)
     expect(screen.queryByRole('menuitem', { name: 'Edit' })).not.toBeInTheDocument()
   })

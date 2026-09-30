@@ -245,7 +245,7 @@ class OracleAtomicPublishFacadeTest {
         RuntimeOracleConnectionProvider provider = new RuntimeOracleConnectionProvider(
                 binding -> Optional.of(profile(binding.connectionVersionUuid())),
                 objectMapper,
-                ignored -> "{\"username\":\"INNOVA_ODI\",\"password\":\"hidden\"}",
+                ignored -> "{\"username\":\"TARGET_SCHEMA\",\"password\":\"hidden\"}",
                 (url, properties) -> {
                     events.add("OPEN");
                     return fixture.connection.proxy();
@@ -311,8 +311,8 @@ class OracleAtomicPublishFacadeTest {
         return new PilotRuntimePlan(
                 1, RUNTIME_HASH, RELEASE_HASH, PLAN_HASH,
                 UUID.randomUUID(), UUID.randomUUID(), 1000,
-                binding(DatasetRole.SOURCE, "TTBP", "HAKEDIS_TIPI"),
-                binding(DatasetRole.TARGET, "INNOVA_ODI", "STG_HAKEDIS_TIPI"),
+                binding(DatasetRole.SOURCE, "UPSTREAM_SCHEMA", "SAMPLE_TABLE"),
+                binding(DatasetRole.TARGET, "TARGET_SCHEMA", "STG_SAMPLE_TABLE"),
                 List.of(new DirectColumnMapping("ID", "ID")),
                 WriteStrategy.ATOMIC_DELETE_INSERT,
                 objectMapper.createObjectNode());

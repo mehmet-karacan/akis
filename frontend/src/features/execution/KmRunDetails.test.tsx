@@ -22,11 +22,11 @@ describe('KM run evidence', () => {
   it('renders the SQL evidence stored with the selected step', () => {
     render(<KmRunDetails data={{ ...data, steps: data.steps.map((step, index) => index === 0 ? {
       ...step,
-      executedSql: [{ step: 'LOAD', site: 'SOURCE', owner: 'TTBP', sql: 'SELECT 1 FROM TTBP.SATIS_KANALI' }],
+      executedSql: [{ step: 'LOAD', site: 'SOURCE', owner: 'UPSTREAM_SCHEMA', sql: 'SELECT 1 FROM UPSTREAM_SCHEMA.CHANNEL' }],
     } : step) }} />)
     fireEvent.click(screen.getByRole('button', { name: /Load|Yükle/ }))
     expect(screen.getByText('1 SQL')).toBeInTheDocument()
-    expect(screen.getByText('TTBP')).toBeInTheDocument()
+    expect(screen.getByText('UPSTREAM_SCHEMA')).toBeInTheDocument()
     expect(screen.getByRole('textbox')).toHaveAttribute('data-language', 'sql')
   })
 })

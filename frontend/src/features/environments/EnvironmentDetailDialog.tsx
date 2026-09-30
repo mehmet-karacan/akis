@@ -24,7 +24,7 @@ interface Props {
   onChanged(deleted: boolean): Promise<void> | void
 }
 
-/** Environment record: definition tab plus one physical mapping per logical schema (the ODI context matrix row). */
+/** Environment record: definition tab plus one physical mapping per logical schema (the context matrix row). */
 export function EnvironmentDetailDialog({ item, physicalSchemas, connections, onClose, onChanged }: Props) {
   const { environment, mappings, mappedCount } = item
   const { t, i18n } = useTranslation()

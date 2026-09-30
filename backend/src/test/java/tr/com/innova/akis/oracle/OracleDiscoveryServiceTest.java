@@ -68,7 +68,7 @@ class OracleDiscoveryServiceTest {
 
         List<String> result = service(repository, gateway).listSchemas(OracleDiscoveryTestFixtures.CONNECTION_UUID);
 
-        assertEquals(List.of("APP_OWNER", "TTBP"), result);
+        assertEquals(List.of("APP_OWNER", "UPSTREAM_SCHEMA"), result);
         assertEquals(1, gateway.schemaListCalls);
         assertArrayEquals(new char[PASSWORD.length()], gateway.passwordReference);
     }
@@ -168,11 +168,11 @@ class OracleDiscoveryServiceTest {
         gateway.discovery = new DiscoveryResult("APP_OWNER", OffsetDateTime.now(ZoneOffset.UTC), false, List.of());
 
         DiscoveryResult result = service(repository, gateway).discover(
-                OracleDiscoveryTestFixtures.CONNECTION_UUID, OracleDiscoveryTestFixtures.PHYSICAL_SCHEMA_UUID, "hakedis_tipi", 50);
+                OracleDiscoveryTestFixtures.CONNECTION_UUID, OracleDiscoveryTestFixtures.PHYSICAL_SCHEMA_UUID, "sample_table", 50);
 
         assertEquals("APP_OWNER", result.owner());
         assertEquals("APP_OWNER", gateway.owner);
-        assertEquals("HAKEDIS_TIPI", gateway.tableName);
+        assertEquals("SAMPLE_TABLE", gateway.tableName);
         assertEquals(50, gateway.limit);
         assertArrayEquals(new char[PASSWORD.length()], gateway.passwordReference);
     }
@@ -213,7 +213,7 @@ class OracleDiscoveryServiceTest {
                 OracleDiscoveryTestFixtures.PHYSICAL_SCHEMA_UUID, UUID.randomUUID());
 
         assertEquals("APP_OWNER", gateway.owner);
-        assertEquals("HAKEDIS_TIPI", gateway.tableName);
+        assertEquals("SAMPLE_TABLE", gateway.tableName);
         assertEquals(1, gateway.captureCalls);
         assertEquals(1, result.targetIdentityVersion());
         assertArrayEquals(new char[PASSWORD.length()], gateway.passwordReference);
@@ -302,7 +302,7 @@ class OracleDiscoveryServiceTest {
             super(null, null);
             this.profile = profile;
             this.physicalSchema = physicalSchema;
-            this.dataObject = new DataObjectCaptureProfile(UUID.randomUUID(), "hakedis_tipi", dataObjectType, "AKTIF");
+            this.dataObject = new DataObjectCaptureProfile(UUID.randomUUID(), "sample_table", dataObjectType, "AKTIF");
         }
 
         @Override
@@ -357,7 +357,7 @@ class OracleDiscoveryServiceTest {
         public List<String> listSchemas(ConnectionProfile profile, Credentials credentials) {
             schemaListCalls++;
             remember(credentials);
-            return List.of("APP_OWNER", "TTBP");
+            return List.of("APP_OWNER", "UPSTREAM_SCHEMA");
         }
 
         @Override

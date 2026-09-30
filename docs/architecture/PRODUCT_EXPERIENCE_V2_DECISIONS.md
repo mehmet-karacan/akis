@@ -42,7 +42,7 @@ Every project object has a stable UUID and deep link. JSON is not a workspace.
 
 The user-facing term “Topology” is replaced with **Connections**.
 
-- The left tree is provider-first: for example `Oracle > SKY > physical schemas`.
+- The left tree is provider-first: for example `Oracle > SOURCE > physical schemas`.
 - The main pane displays connection cards and the selected item detail.
 - **New Connection** opens a drawer: provider, JDBC/JNDI mode, Oracle-specific
   fields, policy, test and activation.

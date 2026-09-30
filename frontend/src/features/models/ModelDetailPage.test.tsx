@@ -31,7 +31,7 @@ beforeEach(async () => {
   vi.spyOn(topologyApi, 'listSchemaSnapshots').mockResolvedValue([])
   vi.spyOn(topologyApi, 'listEnvironments').mockResolvedValue([environmentFixture({ uuid: 'env', name: 'Production' })])
   vi.spyOn(topologyApi, 'listBindings').mockResolvedValue([bindingFixture({ uuid: 'binding', logicalSchemaUuid: 'schema', environmentUuid: 'env', physicalSchemaUuid: 'physical' })])
-  vi.spyOn(topologyApi, 'listPhysicalSchemas').mockResolvedValue([physicalSchemaFixture({ uuid: 'physical', connectionUuid: 'connection', schemaName: 'TTBP' })])
+  vi.spyOn(topologyApi, 'listPhysicalSchemas').mockResolvedValue([physicalSchemaFixture({ uuid: 'physical', connectionUuid: 'connection', schemaName: 'UPSTREAM_SCHEMA' })])
   vi.spyOn(topologyApi, 'listConnections').mockResolvedValue([connectionFixture({ uuid: 'connection' })])
 })
 

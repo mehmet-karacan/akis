@@ -64,7 +64,7 @@ temiz yedek de `pg_restore --list` ile doğrulandı. İşletim adımları
 
 ## Sonraki ürün yol haritası
 
-Bu kilometre taşı ODI'nin tüm modüllerinin bitmiş olduğu anlamına gelmez.
+Bu kilometre taşı ürünün tüm modüllerinin bitmiş olduğu anlamına gelmez.
 Değişken/Sekans/Paket/Load Plan runtime semantiği, zamanlayıcı, bildirimler,
 kurumsal OIDC/SSO, retention/observability, CDC, lineage, ek motorlar ve ölçek
 testleri ayrı ürün dilimleridir. Güvenlik nedeniyle CI/CD, manuel çalıştırma ve

@@ -7,16 +7,16 @@ Bu belge otomatik canlı çalıştırma izni değildir. Yalnız ayrılmış test
 - `PostgresRuntimeConnectionIT`, dinamik sağlayıcı profiliyle gerçek yerel PostgreSQL oturumu açıp `select 1` sorgusunu başarıyla çalıştırdı. Kimlik bilgileri yalnızca test ortamından sağlandı; kaynak veya çıktıya yazılmadı.
 - Sağlayıcı birim testleri PostgreSQL JDBC URL üretimini, timeout ayarlarını, salt-okunur oturumu, rollback ve maskelenmiş hataları doğruluyor.
 - CI workflow'u bu canlı kabul fazında bilinçli olarak devre dışıdır; kalite kapıları yerel olarak çalıştırılmıştır.
-- TTBP erişimi Oracle kabul fixture'ı olarak kullanılabilir; ayrı bir Oracle ortamı zorunlu değildir.
+- UPSTREAM_SCHEMA erişimi Oracle kabul fixture'ı olarak kullanılabilir; ayrı bir Oracle ortamı zorunlu değildir.
 
-## TTBP Oracle erişim kontrolü: 2026-09-17
+## UPSTREAM_SCHEMA Oracle erişim kontrolü: 2026-09-17
 
-- `OracleTtbpConnectivityIT`, `.env` içindeki TTBP kaynak bağlantısıyla gerçek Oracle oturumu açtı ve yalnızca `select 1 from dual` sorgusunu çalıştırdı: başarılı.
-- Bu kabul TTBP erişimini yeterli Oracle fixture olarak kullanır; başka bir Oracle ortamına bağımlı değildir. Prosedür/DML yürütmesi bu salt-okunur probe kapsamında değildir.
+- `OracleConnectivityIT`, `.env` içindeki UPSTREAM_SCHEMA kaynak bağlantısıyla gerçek Oracle oturumu açtı ve yalnızca `select 1 from dual` sorgusunu çalıştırdı: başarılı.
+- Bu kabul UPSTREAM_SCHEMA erişimini yeterli Oracle fixture olarak kullanır; başka bir Oracle ortamına bağımlı değildir. Prosedür/DML yürütmesi bu salt-okunur probe kapsamında değildir.
 
 ## Büyük tablo aktarım kabulü: 2026-09-17
 
-- TTBP `INNOVA_ODI.AKIS_MILLION_TEST` altında ayrılmış test tablosu oluşturuldu ve 1.000.000 sentetik kayıt üretildi.
+- UPSTREAM_SCHEMA `TARGET_SCHEMA.AKIS_MILLION_TEST` altında ayrılmış test tablosu oluşturuldu ve 1.000.000 sentetik kayıt üretildi.
 - Kayıtlar fetch-size 5.000 ve batch insert 5.000 kullanılarak `akis_pg_target."AKIS_MILLION_TEST"` tablosuna aktarıldı.
 - PostgreSQL hedef sayımı `TRANSFERRED_ROWS=1000000` döndürdü; kaynak ve hedef işlemleri test nesnesiyle sınırlıdır.
 

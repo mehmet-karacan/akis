@@ -313,7 +313,7 @@ public final class ProcedureRuntimePlanResolver {
                             "transactionChannel", "transactionIsolation", "commitMode",
                             "logicalSchemaUuid", "environmentUuid", "parameters", "enabled"),
                     "Procedure task", ProcedurePlanFailure.UNSUPPORTED_PROCEDURE_SHAPE);
-            // ODI "Execute" flag: a disabled task is authored but never part of the runtime plan.
+            // "Execute" flag: a disabled task is authored but never part of the runtime plan.
             if (node.has("enabled") && !node.get("enabled").isNull() && !node.get("enabled").asBoolean(true)) {
                 continue;
             }

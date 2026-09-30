@@ -18,7 +18,7 @@ public record WorkObjectPrefixes(String loading, String integration, String erro
             throw new IllegalArgumentException("Prefixler farklı olmalıdır.");
     }
     /**
-     * ODI-style work name: {@code AKIS_<prefix><TARGET>} (e.g. {@code AKIS_C$_STG_MUSTERI}), {@code _2}, {@code _3}… when the
+     * Work name: {@code AKIS_<prefix><TARGET>} (e.g. {@code AKIS_C$_STG_MUSTERI}), {@code _2}, {@code _3}… when the
      * plain name is still held by an earlier attempt. On hosts limited to {@code maxLength} bytes the target part is cut and
      * a 4-hex tail keeps the name unique.
      */
@@ -80,7 +80,7 @@ public record WorkObjectPrefixes(String loading, String integration, String erro
             String identity = "AKIS_NAME/1|" + project + "|" + run + "|" + generation + "|" + slot + "|" + role;
             String hash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(identity.getBytes(StandardCharsets.UTF_8)));
             // Conservative 30-byte ASCII limit, including fixed AKIS ownership marker.
-            // ODI-style prefixes already end with "_"; do not double the separator.
+            // Prefixes already end with "_"; do not double the separator.
             String marker = prefix.endsWith("_") ? prefix : prefix + "_";
             return "AKIS_" + marker + hash.substring(0, 30 - 5 - marker.length()).toUpperCase(java.util.Locale.ROOT);
         } catch (NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }

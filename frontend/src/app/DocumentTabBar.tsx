@@ -15,7 +15,7 @@ function TabIcon({ kind }: { kind: string }) {
   return <span className="definition-type-icon" aria-hidden="true" style={{ width: 21, height: 21 }}><Database size={12} /></span>
 }
 
-/** Opened documents as tabs (ODI editor tabs) plus the workbench maximize toggle; applies to every workspace. */
+/** Opened documents as tabs (editor tabs) plus the workbench maximize toggle; applies to every workspace. */
 export function DocumentTabBar({ onNavigate, dirtyPath }: { onNavigate(path: string): void; dirtyPath?: string | null }) {
   const { t } = useTranslation()
   const { pathname } = useLocation()

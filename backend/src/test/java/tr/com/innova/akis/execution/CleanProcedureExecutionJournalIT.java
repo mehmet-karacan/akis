@@ -18,7 +18,7 @@ import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import tools.jackson.databind.ObjectMapper;
 
 class CleanProcedureExecutionJournalIT {
-    private static final String COMMAND="INSERT INTO INNOVA_ODI.STG_HAKEDIS_TIPI (ID) VALUES (:ID)";
+    private static final String COMMAND="INSERT INTO TARGET_SCHEMA.STG_SAMPLE_TABLE (ID) VALUES (:ID)";
     private static final String RUNTIME="2".repeat(64), RELEASE="7".repeat(64), PLAN="5".repeat(64), TARGET="1".repeat(64);
     private static final UUID DATA_BINDING=UUID.fromString("10000000-0000-0000-0000-000000000001");
     private static final UUID DATA_OBJECT=UUID.fromString("10000000-0000-0000-0000-000000000002");

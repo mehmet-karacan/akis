@@ -52,8 +52,8 @@ class OraclePublishReconciliationReadFacadeTest {
     private static final String PLAN_HASH = "b".repeat(64);
     private static final String RUNTIME_HASH = "c".repeat(64);
     private static final String PAYLOAD_HASH = "d".repeat(64);
-    private static final String OWNER = "INNOVA_ODI";
-    private static final String TABLE = "STG_HAKEDIS_TIPI";
+    private static final String OWNER = "TARGET_SCHEMA";
+    private static final String TABLE = "STG_SAMPLE_TABLE";
     private static final String TARGET_HASH = new OracleTargetIdentityV1().canonicalize(
             new VerifiedDatabaseIdentity("AKISDB", "AKISPDB"),
             OWNER, "TABLE", TABLE).canonicalTargetHash();
@@ -379,7 +379,7 @@ class OraclePublishReconciliationReadFacadeTest {
         return new PilotRuntimePlan(
                 1, RUNTIME_HASH, RELEASE_HASH, PLAN_HASH,
                 UUID.randomUUID(), UUID.randomUUID(), 1000,
-                binding(DatasetRole.SOURCE, "TTBP", "HAKEDIS_TIPI"),
+                binding(DatasetRole.SOURCE, "UPSTREAM_SCHEMA", "SAMPLE_TABLE"),
                 binding(DatasetRole.TARGET, OWNER, TABLE),
                 List.of(new DirectColumnMapping("ID", "ID")),
                 WriteStrategy.ATOMIC_DELETE_INSERT,

@@ -17,9 +17,9 @@ describe('EnvironmentsPage', () => {
     await i18n.changeLanguage('en')
     vi.spyOn(topologyApi, 'listEnvironments').mockResolvedValue([environmentFixture({ uuid: 'test', code: 'TEST', name: 'Test', risk: 'URETIM', defaultEnvironment: true })])
     vi.spyOn(topologyApi, 'listLogicalSchemas').mockResolvedValue([logicalSchemaFixture({ uuid: 'orders', code: 'ORDERS', name: 'Orders' })])
-    vi.spyOn(topologyApi, 'listPhysicalSchemas').mockResolvedValue([physicalSchemaFixture({ uuid: 'physical-sky', connectionUuid: 'sky', schemaName: 'TTBP' })])
-    vi.spyOn(topologyApi, 'listConnections').mockResolvedValue([connectionFixture({ uuid: 'sky', code: 'SKY', name: 'SKY' })])
-    vi.spyOn(topologyApi, 'listBindings').mockResolvedValue([bindingFixture({ uuid: 'b', logicalSchemaUuid: 'orders', environmentUuid: 'test', physicalSchemaUuid: 'physical-sky' })])
+    vi.spyOn(topologyApi, 'listPhysicalSchemas').mockResolvedValue([physicalSchemaFixture({ uuid: 'physical-source', connectionUuid: 'source', schemaName: 'UPSTREAM_SCHEMA' })])
+    vi.spyOn(topologyApi, 'listConnections').mockResolvedValue([connectionFixture({ uuid: 'source', code: 'SOURCE', name: 'SOURCE' })])
+    vi.spyOn(topologyApi, 'listBindings').mockResolvedValue([bindingFixture({ uuid: 'b', logicalSchemaUuid: 'orders', environmentUuid: 'test', physicalSchemaUuid: 'physical-source' })])
   })
 
   it('lists environments with their risk class, default marker and mapping state', async () => {
@@ -27,7 +27,7 @@ describe('EnvironmentsPage', () => {
     expect(await screen.findByText('Test')).toBeInTheDocument()
     expect(screen.getAllByText('Production').length).toBeGreaterThan(0)
     expect(screen.getAllByText('All schemas mapped').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('SKY / TTBP').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('SOURCE / UPSTREAM_SCHEMA').length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: 'Add environment' })).not.toBeInTheDocument()
   })
 

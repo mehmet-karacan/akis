@@ -151,7 +151,7 @@ export function PreRunReportBody({ preview, definitionName, environmentName, tr,
   </div>
 }
 
-/** ODI-style "simulate before run": compiles the physical plan without touching any database, shows it as a standard report and lets the user download it. */
+/** "simulate before run": compiles the physical plan without touching any database, shows it as a standard report and lets the user download it. */
 export function PreRunReport({ projectUuid, scenarioUuid, environmentUuid, environmentName, definitionName, tr, onReady }: {
   projectUuid: string; scenarioUuid: string; environmentUuid: string; environmentName: string; definitionName: string; tr: boolean; onReady: (hash: string) => void
 }) {

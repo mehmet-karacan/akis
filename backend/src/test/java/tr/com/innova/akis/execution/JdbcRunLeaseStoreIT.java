@@ -601,12 +601,12 @@ class JdbcRunLeaseStoreIT {
                 "SOURCE", DatasetRole.SOURCE, DatabaseType.ORACLE, DataObjectType.TABLE,
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 UUID.randomUUID(), UUID.randomUUID(), 1, "1".repeat(64),
-                "TTBP.HAKEDIS_TIPI", "TTBP", "HAKEDIS_TIPI");
+                "UPSTREAM_SCHEMA.SAMPLE_TABLE", "UPSTREAM_SCHEMA", "SAMPLE_TABLE");
         DatasetBinding target = new DatasetBinding(
                 "TARGET", DatasetRole.TARGET, DatabaseType.ORACLE, DataObjectType.TABLE,
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 UUID.randomUUID(), UUID.randomUUID(), 1, "2".repeat(64),
-                "INNOVA_ODI.STG_HAKEDIS_TIPI", "INNOVA_ODI", "STG_HAKEDIS_TIPI");
+                "TARGET_SCHEMA.STG_SAMPLE_TABLE", "TARGET_SCHEMA", "STG_SAMPLE_TABLE");
         return new PilotRuntimePlan(
                 1, RUNTIME_PLAN_HASH, RELEASE_HASH, PLAN_HASH,
                 UUID.randomUUID(), UUID.randomUUID(), 1_000,

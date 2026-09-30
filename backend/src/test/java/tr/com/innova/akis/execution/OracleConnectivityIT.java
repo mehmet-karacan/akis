@@ -7,15 +7,15 @@ import java.sql.DriverManager;
 import java.util.Properties;
 import org.junit.jupiter.api.Test;
 
-/** Read-only TTBP connectivity probe; no procedure, DML or schema mutation. */
-class OracleTtbpConnectivityIT {
+/** Read-only UPSTREAM_SCHEMA connectivity probe; no procedure, DML or schema mutation. */
+class OracleConnectivityIT {
     @Test
-    void reachesTtbpWithConfiguredRuntimeCredential() throws Exception {
+    void reachesOracleWithConfiguredRuntimeCredential() throws Exception {
         String url = System.getenv("AKIS_ORACLE_SOURCE_URL");
         String user = System.getenv("AKIS_ORACLE_SOURCE_USERNAME");
         String password = System.getenv("AKIS_ORACLE_SOURCE_PASSWORD");
         assumeTrue(url != null && user != null && password != null,
-                "TTBP Oracle fixture is not configured");
+                "UPSTREAM_SCHEMA Oracle fixture is not configured");
         Properties properties = new Properties();
         properties.setProperty("user", user);
         properties.setProperty("password", password);

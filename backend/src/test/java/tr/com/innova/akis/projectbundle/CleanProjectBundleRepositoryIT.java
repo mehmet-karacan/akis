@@ -64,22 +64,22 @@ class CleanProjectBundleRepositoryIT {
                         insert into akis.baglanti(
                             kod, ad, saglayici_turu, baglanti_modu, surucu_sinifi,
                             sunucu_adi, port, servis_adi, kullanici_adi, sifre)
-                        values ('SKY', 'SKY Oracle', 'ORACLE', 'JDBC',
+                        values ('SOURCE', 'SOURCE Oracle', 'ORACLE', 'JDBC',
                                 'oracle.jdbc.OracleDriver', '10.6.86.68', 1907,
-                                'TTBP2', 'INNOVA_ODI', 'encrypted-secret')
+                                'UPSTREAM_SCHEMA_2', 'TARGET_SCHEMA', 'encrypted-secret')
                         returning id
                         """).query(Long.class).single();
         long physicalSchemaId = jdbc.sql("""
                         insert into akis.fiziksel_sema(
                             baglanti_id, kod, ad, saglayici_turu,
                             sema_adi, calisma_sema_adi)
-                        values (:connectionId, 'SKY_TTBP', 'SKY TTBP', 'ORACLE',
-                                'TTBP', 'TTBP')
+                        values (:connectionId, 'SRC_UPSTREAM', 'SOURCE UPSTREAM_SCHEMA', 'ORACLE',
+                                'UPSTREAM_SCHEMA', 'UPSTREAM_SCHEMA')
                         returning id
                         """).param("connectionId", connectionId).query(Long.class).single();
         long logicalSchemaId = jdbc.sql("""
                         insert into akis.mantiksal_sema(kod, ad, saglayici_turu)
-                        values ('HAKEDIS', 'Hakediş', 'ORACLE') returning id
+                        values ('SAMPLE', 'Hakediş', 'ORACLE') returning id
                         """).query(Long.class).single();
         long environmentId = jdbc.sql("""
                         insert into akis.ortam(kod, ad) values ('DEV', 'Development') returning id
@@ -160,28 +160,28 @@ class CleanProjectBundleRepositoryIT {
         topology.putArray("environments");
         topology.putArray("schemaBindings");
         topology.putArray("models").addObject()
-                .put("code", "HAKEDIS_MODEL")
+                .put("code", "SAMPLE_MODEL")
                 .put("name", "Hakediş Model")
                 .putNull("description")
-                .put("logicalSchemaCode", "HAKEDIS")
+                .put("logicalSchemaCode", "SAMPLE")
                 .put("reverseEnvironmentCode", "DEV");
         topology.putArray("submodels").addObject()
                 .put("code", "CORE")
                 .put("name", "Core")
                 .putNull("description")
-                .put("modelCode", "HAKEDIS_MODEL")
+                .put("modelCode", "SAMPLE_MODEL")
                 .putNull("parentCode");
         ((tools.jackson.databind.node.ArrayNode) topology.get("submodels")).addObject()
                 .put("code", "DETAIL")
                 .put("name", "Detail")
-                .put("modelCode", "HAKEDIS_MODEL")
+                .put("modelCode", "SAMPLE_MODEL")
                 .put("parentCode", "CORE");
         topology.putArray("dataObjects").addObject()
-                .put("code", "HAKEDIS_TIPI")
+                .put("code", "SAMPLE_TABLE")
                 .put("name", "Hakediş Tipi")
-                .put("reference", "TTBP.HAKEDIS_TIPI")
+                .put("reference", "UPSTREAM_SCHEMA.SAMPLE_TABLE")
                 .put("type", "TABLO")
-                .put("modelCode", "HAKEDIS_MODEL")
+                .put("modelCode", "SAMPLE_MODEL")
                 .put("submodelCode", "DETAIL")
                 .putNull("querySchemaVersion")
                 .putNull("queryDefinition");
@@ -195,7 +195,7 @@ class CleanProjectBundleRepositoryIT {
         assertEquals(DefinitionType.SEQUENCE, snapshot.definitions().getFirst().type());
         assertEquals(1, snapshot.versions().size());
         assertEquals(1, exportedTopology.get("connections").size());
-        assertEquals("SKY", exportedTopology.get("connections").get(0).get("code").asString());
+        assertEquals("SOURCE", exportedTopology.get("connections").get(0).get("code").asString());
         assertFalse(exportedTopology.get("connections").get(0).has("username"));
         assertFalse(exportedTopology.get("connections").get(0).has("password"));
         assertEquals(1, exportedTopology.get("physicalSchemas").size());
@@ -214,7 +214,7 @@ class CleanProjectBundleRepositoryIT {
 
         long sourceDataObjectId = jdbc.sql("""
                 select id from akis.veri_nesnesi
-                 where proje_id = :project and kod = 'HAKEDIS_TIPI'
+                 where proje_id = :project and kod = 'SAMPLE_TABLE'
                 """).param("project", project.id()).query(Long.class).single();
         jdbc.sql("""
                 insert into akis.sema_goruntusu(
@@ -253,15 +253,15 @@ class CleanProjectBundleRepositoryIT {
                 insert into akis.baglanti(
                     kod, ad, saglayici_turu, baglanti_modu, surucu_sinifi,
                     sunucu_adi, port, servis_adi, kullanici_adi, sifre)
-                values ('TARGET_SKY', 'Target Oracle', 'ORACLE', 'JDBC',
+                values ('TARGET_SOURCE', 'Target Oracle', 'ORACLE', 'JDBC',
                         'oracle.jdbc.OracleDriver', '127.0.0.1', 1521,
                         'TARGET', 'TEST', 'test-only') returning id
                 """).query(Long.class).single();
         long targetPhysicalSchemaId = jdbc.sql("""
                 insert into akis.fiziksel_sema(
                     baglanti_id, kod, ad, saglayici_turu, sema_adi, calisma_sema_adi)
-                values (:connection, 'TARGET_TTBP', 'Target TTBP', 'ORACLE',
-                        'TTBP_TEST', 'TTBP_TEST') returning id
+                values (:connection, 'TARGET_DB', 'Target UPSTREAM_SCHEMA', 'ORACLE',
+                        'UPSTREAM_TEST', 'UPSTREAM_TEST') returning id
                 """).param("connection", targetConnectionId).query(Long.class).single();
         UUID targetConnectionUuid = jdbc.sql("select uuid from akis.baglanti where id=:id")
                 .param("id", targetConnectionId).query(UUID.class).single();
@@ -272,13 +272,13 @@ class CleanProjectBundleRepositoryIT {
         UUID environmentUuid = jdbc.sql("select uuid from akis.ortam where id=:id")
                 .param("id", environmentId).query(UUID.class).single();
         List<GlobalBinding> bindings = List.of(
-                new GlobalBinding(GlobalResourceType.CONNECTION, "SKY",
+                new GlobalBinding(GlobalResourceType.CONNECTION, "SOURCE",
                         GlobalBindingMode.BIND_EXISTING, targetConnectionUuid, null, null),
                 // Physical-schema dependency keys are connection-qualified so
                 // two connections may safely expose the same schema code.
-                new GlobalBinding(GlobalResourceType.PHYSICAL_SCHEMA, "SKY::SKY_TTBP",
+                new GlobalBinding(GlobalResourceType.PHYSICAL_SCHEMA, "SOURCE::SRC_UPSTREAM",
                         GlobalBindingMode.BIND_EXISTING, targetPhysicalSchemaUuid, null, null),
-                new GlobalBinding(GlobalResourceType.LOGICAL_SCHEMA, "HAKEDIS",
+                new GlobalBinding(GlobalResourceType.LOGICAL_SCHEMA, "SAMPLE",
                         GlobalBindingMode.BIND_EXISTING, logicalSchemaUuid, null, null),
                 new GlobalBinding(GlobalResourceType.ENVIRONMENT, "DEV",
                         GlobalBindingMode.BIND_EXISTING, environmentUuid, null, null));
@@ -353,41 +353,41 @@ class CleanProjectBundleRepositoryIT {
         assertNotEquals(folder, targetRoot.id());
         assertNotEquals(childFolder, targetChild.id());
         assertNotEquals(snapshot.definitions().getFirst().uuid(), targetSnapshot.definitions().getFirst().uuid());
-        assertNotEquals(ownedUuid(jdbc, "model", project.id(), "HAKEDIS_MODEL"),
-                ownedUuid(jdbc, "model", emptyTarget.id(), "HAKEDIS_MODEL"));
+        assertNotEquals(ownedUuid(jdbc, "model", project.id(), "SAMPLE_MODEL"),
+                ownedUuid(jdbc, "model", emptyTarget.id(), "SAMPLE_MODEL"));
         assertNotEquals(ownedUuid(jdbc, "alt_model", project.id(), "CORE"),
                 ownedUuid(jdbc, "alt_model", emptyTarget.id(), "CORE"));
         assertNotEquals(ownedUuid(jdbc, "alt_model", project.id(), "DETAIL"),
                 ownedUuid(jdbc, "alt_model", emptyTarget.id(), "DETAIL"));
-        assertNotEquals(ownedUuid(jdbc, "veri_nesnesi", project.id(), "HAKEDIS_TIPI"),
-                ownedUuid(jdbc, "veri_nesnesi", emptyTarget.id(), "HAKEDIS_TIPI"));
+        assertNotEquals(ownedUuid(jdbc, "veri_nesnesi", project.id(), "SAMPLE_TABLE"),
+                ownedUuid(jdbc, "veri_nesnesi", emptyTarget.id(), "SAMPLE_TABLE"));
         assertEquals("IMPORTED", repository.loadSnapshot(project.uuid()).project().code());
         assertEquals(1, repository.loadSnapshot(project.uuid()).definitions().size());
         assertEquals(1, targetSnapshot.definitions().size());
         var targetTopology = repository.loadPortableTopology(emptyTarget.id());
         assertEquals(1, targetTopology.get("models").size());
-        assertEquals("HAKEDIS_MODEL", targetTopology.get("models").get(0).get("code").asString());
+        assertEquals("SAMPLE_MODEL", targetTopology.get("models").get(0).get("code").asString());
         assertEquals(2, targetTopology.get("submodels").size());
         assertEquals("CORE", targetTopology.path("submodels").get(1).path("parentCode").asString());
         assertEquals(1, targetTopology.get("dataObjects").size());
-        assertEquals("HAKEDIS_TIPI", targetTopology.get("dataObjects").get(0).get("code").asString());
+        assertEquals("SAMPLE_TABLE", targetTopology.get("dataObjects").get(0).get("code").asString());
         assertEquals(targetPhysicalSchemaId, jdbc.sql("""
                 select sg.fiziksel_sema_id from akis.sema_goruntusu sg
                   join akis.veri_nesnesi vn on vn.id = sg.veri_nesnesi_id
-                 where vn.proje_id = :project and vn.kod = 'HAKEDIS_TIPI'
+                 where vn.proje_id = :project and vn.kod = 'SAMPLE_TABLE'
                 """).param("project", emptyTarget.id()).query(Long.class).single());
         assertEquals(targetConnectionId, jdbc.sql("""
                 select sg.baglanti_id from akis.sema_goruntusu sg
                   join akis.veri_nesnesi vn on vn.id = sg.veri_nesnesi_id
-                 where vn.proje_id = :project and vn.kod = 'HAKEDIS_TIPI'
+                 where vn.proje_id = :project and vn.kod = 'SAMPLE_TABLE'
                 """).param("project", emptyTarget.id()).query(Long.class).single());
         assertEquals(logicalSchemaId, jdbc.sql("""
                         select mantiksal_sema_id from akis.model
-                         where proje_id=:projectId and kod='HAKEDIS_MODEL'
+                         where proje_id=:projectId and kod='SAMPLE_MODEL'
                         """).param("projectId", emptyTarget.id()).query(Long.class).single());
         assertEquals(environmentId, jdbc.sql("""
                         select tersine_muhendislik_ortam_id from akis.model
-                         where proje_id=:projectId and kod='HAKEDIS_MODEL'
+                         where proje_id=:projectId and kod='SAMPLE_MODEL'
                         """).param("projectId", emptyTarget.id()).query(Long.class).single());
         assertEquals(1, repository.loadSnapshot(project.uuid()).definitions().size());
         assertEquals(1, repository.loadPortableTopology(project.id()).get("dataObjects").size());
@@ -434,7 +434,7 @@ class CleanProjectBundleRepositoryIT {
         var procedureTopology = repository.loadPortableTopology(project.id());
         assertTrue(containsCode(procedureTopology.path("logicalSchemas"), "PROC_ONLY"));
         assertTrue(containsCode(procedureTopology.path("environments"), "PROC_ENV"));
-        assertTrue(containsCode(procedureTopology.path("physicalSchemas"), "SKY_TTBP"));
+        assertTrue(containsCode(procedureTopology.path("physicalSchemas"), "SRC_UPSTREAM"));
         assertEquals(2, procedureTopology.path("schemaBindings").size());
 
         var procedureBundle = service.exportBundle(project.uuid());

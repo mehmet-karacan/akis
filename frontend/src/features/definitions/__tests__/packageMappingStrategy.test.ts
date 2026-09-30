@@ -7,7 +7,7 @@ describe('package mapping write behavior', () => {
     const plan: PreRunPlan = {
       physicalPlanHash: 'plan-hash',
       steps: [],
-      bindings: [{ nodeCode: 'TGT', role: 'HEDEF', owner: 'ttbp', objectName: 'tarife' }],
+      bindings: [{ nodeCode: 'TGT', role: 'HEDEF', owner: 'upstream_schema', objectName: 'tarife' }],
       staging: { nonReversibleDdl: true },
       modules: { integration: {
         kind: 'IKM', versionUuid: 'pinned-ikm', contentHash: 'content-hash',
@@ -17,7 +17,7 @@ describe('package mapping write behavior', () => {
 
     expect(packageMappingStrategy(plan)).toEqual({
       ikmVersionUuid: 'pinned-ikm', ikmContentHash: 'content-hash',
-      writeMode: 'APPEND', target: 'ttbp.tarife', truncateTarget: true,
+      writeMode: 'APPEND', target: 'upstream_schema.tarife', truncateTarget: true,
       nonReversibleDdl: true, planHash: 'plan-hash',
     })
   })

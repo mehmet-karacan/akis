@@ -345,9 +345,9 @@ class PilotWorkerOrchestratorTest {
                 UUID.fromString("10000000-0000-0000-0000-000000000009"),
                 1_000,
                 binding(DatasetRole.SOURCE, sourceSnapshotUuid, "1".repeat(64),
-                        "TTBP", "HAKEDIS_TIPI"),
+                        "UPSTREAM_SCHEMA", "SAMPLE_TABLE"),
                 binding(DatasetRole.TARGET, targetSnapshotUuid, "2".repeat(64),
-                        "INNOVA_ODI", "STG_HAKEDIS_TIPI"),
+                        "TARGET_SCHEMA", "STG_SAMPLE_TABLE"),
                 List.of(new DirectColumnMapping("ID", "ID")),
                 WriteStrategy.ATOMIC_DELETE_INSERT, objectMapper.createObjectNode());
         private final PinnedSnapshots snapshots = new PinnedSnapshots(
@@ -356,8 +356,8 @@ class PilotWorkerOrchestratorTest {
                 new PinnedSnapshot(targetSnapshotUuid, "2".repeat(64), null));
         private final TargetIdentityEvidence identity = new TargetIdentityEvidence(
                 OracleTargetIdentityV1.TARGET_IDENTITY_VERSION,
-                "TARGETDB", "PDB1", "INNOVA_ODI", "TABLE",
-                "STG_HAKEDIS_TIPI", TARGET_HASH);
+                "TARGETDB", "PDB1", "TARGET_SCHEMA", "TABLE",
+                "STG_SAMPLE_TABLE", TARGET_HASH);
         private final OraclePilotBatch batch = new OraclePilotBatch(
                 RUNTIME_HASH, List.of(), List.of(), PAYLOAD_HASH, 0);
         private final FakeTransitions transitions = new FakeTransitions();

@@ -45,12 +45,12 @@ class JdbcOraclePilotSourceReaderTest {
                 Arrays.asList(new BigDecimal("2"), null, changedAt));
         FakeSource source = new FakeSource(rows);
 
-        OraclePilotBatch batch = reader.read(source.connection(), plan("TTBP", 1_000));
+        OraclePilotBatch batch = reader.read(source.connection(), plan("UPSTREAM_SCHEMA", 1_000));
         OraclePilotBatch same = reader.read(
-                new FakeSource(rows.reversed()).connection(), plan("TTBP", 1_000));
+                new FakeSource(rows.reversed()).connection(), plan("UPSTREAM_SCHEMA", 1_000));
 
         assertEquals("SELECT \"ID\", \"AD\", \"CHANGED_AT\" FROM "
-                + "\"TTBP\".\"HAKEDIS_TIPI\" FETCH FIRST 1001 ROWS ONLY", source.sql);
+                + "\"UPSTREAM_SCHEMA\".\"SAMPLE_TABLE\" FETCH FIRST 1001 ROWS ONLY", source.sql);
         assertEquals(1001, source.maximumRows);
         assertEquals(250, source.fetchSize);
         assertEquals(List.of("ID", "AD", "CHANGED_AT"), batch.columns().stream()
@@ -77,7 +77,7 @@ class JdbcOraclePilotSourceReaderTest {
 
         OraclePilotDataException error = assertThrows(
                 OraclePilotDataException.class,
-                () -> reader.read(source.connection(), plan("TTBP", 2)));
+                () -> reader.read(source.connection(), plan("UPSTREAM_SCHEMA", 2)));
 
         assertEquals(Failure.SOURCE_ROW_LIMIT_EXCEEDED, error.failure());
         assertEquals(0, source.commits);
@@ -92,7 +92,7 @@ class JdbcOraclePilotSourceReaderTest {
 
         OraclePilotDataException error = assertThrows(
                 OraclePilotDataException.class,
-                () -> reader.read(source.connection(), plan("TTBP", 100)));
+                () -> reader.read(source.connection(), plan("UPSTREAM_SCHEMA", 100)));
 
         assertEquals(Failure.UNSUPPORTED_SOURCE_TYPE, error.failure());
         assertEquals(0, source.cellReads);
@@ -105,7 +105,7 @@ class JdbcOraclePilotSourceReaderTest {
 
         OraclePilotDataException error = assertThrows(
                 OraclePilotDataException.class,
-                () -> reader.read(source.connection(), plan("TTBP", 100)));
+                () -> reader.read(source.connection(), plan("UPSTREAM_SCHEMA", 100)));
 
         assertEquals(Failure.SOURCE_CELL_LIMIT_EXCEEDED, error.failure());
     }
@@ -121,7 +121,7 @@ class JdbcOraclePilotSourceReaderTest {
 
         OraclePilotDataException error = assertThrows(
                 OraclePilotDataException.class,
-                () -> reader.read(source.connection(), plan("TTBP", 100)));
+                () -> reader.read(source.connection(), plan("UPSTREAM_SCHEMA", 100)));
 
         assertEquals(Failure.SOURCE_BATCH_LIMIT_EXCEEDED, error.failure());
     }
@@ -132,7 +132,7 @@ class JdbcOraclePilotSourceReaderTest {
 
         OraclePilotDataException error = assertThrows(
                 OraclePilotDataException.class,
-                () -> reader.read(source.connection(), plan("TTBP;DROP_TABLE", 100)));
+                () -> reader.read(source.connection(), plan("UPSTREAM_SCHEMA;DROP_TABLE", 100)));
 
         assertEquals(Failure.INVALID_PLAN, error.failure());
         assertNull(source.sql);
@@ -146,7 +146,7 @@ class JdbcOraclePilotSourceReaderTest {
 
         OraclePilotDataException error = assertThrows(
                 OraclePilotDataException.class,
-                () -> reader.read(source.connection(), plan("TTBP", 100)));
+                () -> reader.read(source.connection(), plan("UPSTREAM_SCHEMA", 100)));
 
         assertEquals(Failure.SOURCE_READ_FAILED, error.failure());
         assertEquals("08006", error.sqlState());
@@ -165,8 +165,8 @@ class JdbcOraclePilotSourceReaderTest {
         return new PilotRuntimePlan(
                 PilotRuntimePlan.CURRENT_VERSION, "a".repeat(64), "b".repeat(64),
                 "c".repeat(64), UUID.randomUUID(), UUID.randomUUID(), maximumRows,
-                binding(DatasetRole.SOURCE, sourceOwner, "HAKEDIS_TIPI"),
-                binding(DatasetRole.TARGET, "INNOVA_ODI", "STG_HAKEDIS_TIPI"),
+                binding(DatasetRole.SOURCE, sourceOwner, "SAMPLE_TABLE"),
+                binding(DatasetRole.TARGET, "TARGET_SCHEMA", "STG_SAMPLE_TABLE"),
                 List.of(new DirectColumnMapping("ID", "ID"),
                         new DirectColumnMapping("AD", "AD"),
                         new DirectColumnMapping("CHANGED_AT", "CHANGED_AT")),

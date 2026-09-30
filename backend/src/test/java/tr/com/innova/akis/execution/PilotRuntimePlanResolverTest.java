@@ -42,8 +42,8 @@ class PilotRuntimePlanResolverTest {
         assertEquals(inputs.releaseHash(), plan.releaseHash());
         assertEquals(inputs.scenarioPlanHash(), plan.scenarioPlanHash());
         assertEquals(PilotRuntimePlan.MAXIMUM_SOURCE_ROWS, plan.maximumSourceRows());
-        assertEquals("TTBP.HAKEDIS_TIPI", plan.source().physicalIdentity());
-        assertEquals("INNOVA_ODI.STG_HAKEDIS_TIPI", plan.target().physicalIdentity());
+        assertEquals("UPSTREAM_SCHEMA.SAMPLE_TABLE", plan.source().physicalIdentity());
+        assertEquals("TARGET_SCHEMA.STG_SAMPLE_TABLE", plan.target().physicalIdentity());
         assertEquals(List.of("ID", "AD"), plan.columnMappings().stream()
                 .map(PilotRuntimePlan.DirectColumnMapping::targetColumn).toList());
         assertEquals(PilotRuntimePlan.WriteStrategy.ATOMIC_DELETE_INSERT, plan.writeStrategy());
@@ -335,9 +335,9 @@ class PilotRuntimePlanResolverTest {
     private ObjectNode signedManifest(String scenarioPlanHash, String contentHash) {
         ObjectNode manifest = objectMapper.createObjectNode();
         ArrayNode bindings = objectMapper.createArrayNode();
-        bindings.add(binding("SOURCE_1", "KAYNAK", "TTBP", "HAKEDIS_TIPI",
+        bindings.add(binding("SOURCE_1", "KAYNAK", "UPSTREAM_SCHEMA", "SAMPLE_TABLE",
                 "20000000-0000-0000-0000-000000000001", "b".repeat(64)));
-        bindings.add(binding("TARGET_1", "HEDEF", "INNOVA_ODI", "STG_HAKEDIS_TIPI",
+        bindings.add(binding("TARGET_1", "HEDEF", "TARGET_SCHEMA", "STG_SAMPLE_TABLE",
                 "20000000-0000-0000-0000-000000000002", "c".repeat(64)));
         manifest.set("bindings", bindings);
         manifest.set("definition", objectMapper.createObjectNode()

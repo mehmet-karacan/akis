@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 
-/** ODI-style document tabs: every opened object (definition, model, …) keeps a tab until the user closes it. */
+/** Document tabs: every opened object (definition, model, …) keeps a tab until the user closes it. */
 export interface DocumentTab {
   path: string
   title: string

@@ -7,20 +7,13 @@ bakışta göstermelidir. Ekran bir sürüm geçmişi veya genel topoloji diyagr
 
 ## Bilgi mimarisi
 
-- **Bağlantı**, ODI terminolojisindeki data server karşılığıdır. Sağlayıcı ve erişim
-  noktasını temsil eder.
+- **Bağlantı**, bir veri sunucusunu temsil eder: sağlayıcı ve erişim noktası.
 - **Fiziksel şema**, tek bir bağlantının altındadır.
 - **Mantıksal şema**, bağlantının çocuğu değildir. Yeniden kullanılabilir bir iş
   takma adıdır.
 - **Bağlam**, bir mantıksal şemayı belirli bir fiziksel şema ve bağlantı sürümüyle
   eşler.
 - **Model**, mantıksal şemaya dayanır ve bağlantı ekranında yönetilmez.
-
-Bu ayrım Oracle ODI'nin data server, physical schema, logical schema ve context
-modeliyle uyumludur:
-
-- <https://docs.oracle.com/middleware/11119/odi/develop/setup_topology.htm>
-- <https://docs.oracle.com/middleware/1212/odi/ODIDG/intro.htm>
 
 ## Ekran sözleşmesi
 

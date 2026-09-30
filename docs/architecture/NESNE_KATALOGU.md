@@ -2,7 +2,7 @@
 
 ## Karar
 
-Akış, Oracle Data Integrator'ın ekranlarını veya repository şemasını bire bir
+Akış, başka bir entegrasyon ürününün ekranlarını veya repository şemasını bire bir
 kopyalamaz. Ancak kullanıcının bir entegrasyon projesini tanımlamak, sürümlemek,
 yayınlamak ve işletmek için ihtiyaç duyduğu nesneleri eksiksiz ve açık sınırlarla
 modeller.
@@ -169,7 +169,7 @@ flowchart LR
     P --> R[Run / Session]
 ```
 
-## Kapsama alınan ve ertelenen ODI kavramları
+## Kapsama alınan ve ertelenen kavramlar
 
 İlk ürün modelinde Proje, Klasör, Mapping, Yeniden Kullanılabilir Mapping, Paket,
 Prosedür, Değişken, Sequence, Kullanıcı Fonksiyonu, Knowledge Module, Scenario,
@@ -177,7 +177,7 @@ Load Plan ve Zamanlama katalogda yer alır. Her ekranın aynı anda etkin olmas�
 gerekmez; fakat nesne kimliği, sürüm ve dependency sözleşmesi sonradan eklenmez.
 
 CDC/journal, dimension/cube, web service, shortcut, marker/memo, SDK/Groovy ve
-genel amaçlı ODI Tool uyumluluğu katalogda `ERTELENDI` capability olarak izlenir.
+genel amaçlı Tool uyumluluğu katalogda `ERTELENDI` capability olarak izlenir.
 Bunlar sessizce Prosedür içine kaçırılmaz.
 
 ## Veritabanı kapısı kabul kriterleri
@@ -190,11 +190,3 @@ Bunlar sessizce Prosedür içine kaçırılmaz.
 - Secret değeri tutan kolon yoktur.
 - Temiz PostgreSQL üzerinde tüm migrasyonlar ve şema lint testi geçer.
 - Aynı migrasyon ikinci kez şema değiştirmez.
-
-## Resmî davranış dayanakları
-
-- [Oracle ODI Projects and Folders](https://docs.oracle.com/en/middleware/fusion-middleware/data-integrator/12.2.1.4/quick-ref/projects.html)
-- [Oracle ODI Packages](https://docs.oracle.com/en/middleware/fusion-middleware/data-integrator/12.2.1.4/quick-ref/packages.html)
-- [Oracle ODI Procedures, Variables, Sequences and User Functions](https://docs.oracle.com/en/middleware/fusion-middleware/data-integrator/12.2.1.4/odidg/creating-and-using-procedures-variables-sequences-and-user-functions.html)
-- [Oracle ODI Mappings](https://docs.oracle.com/en/middleware/fusion-middleware/data-integrator/12.2.1.4/quick-ref/mappings.html)
-- [Oracle ODI Knowledge Modules](https://docs.oracle.com/en/middleware/fusion-middleware/data-integrator/12.2.1.4/quick-ref/knowledge-modules.html)

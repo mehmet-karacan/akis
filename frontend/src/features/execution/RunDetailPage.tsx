@@ -61,7 +61,7 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
     ? executionApi.listChunks(project, uuid, selected, chunkCursor)
     : Promise.resolve({ items: [], nextCursor: null, hasMore: false }), [project, uuid, selected, chunkCursor])
   // Package runs: the steps of each child run are shown inline under the package step (procedure steps, or the KM
-  // journal of a mapping), so the package page reads like ODI's session tree without opening every child.
+  // journal of a mapping), so the package page reads like a session tree without opening every child.
   const childKeys = (steps.data ?? []).filter(item => item.type === 'PAKET' && item.childRunUuid).map(item => `${item.uuid}:${item.childRunUuid}`).join(',')
   const childSteps = useRemoteData(async () => {
     const result = new Map<string, RunStep[]>()

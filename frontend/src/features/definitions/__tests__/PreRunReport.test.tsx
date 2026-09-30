@@ -8,15 +8,15 @@ const response: PreRunPreview = {
     physicalPlanHash: 'a'.repeat(64), planVersion: 1, language: 'AKIS_KM/2',
     steps: [{ id: 'LOAD', site: 'STAGING', operation: 'TRANSFER_JDBC', slot: 'WORK_SOURCE_1' }, { id: 'WRITE', site: 'TARGET', operation: 'ATOMIC_REPLACE', slot: 'WORK_SOURCE_1' }],
     columns: [{ source: { object: 'SOURCE_1', column: 'ID' }, target: { object: 'TARGET', column: 'ID' } }],
-    bindings: [{ nodeCode: 'SOURCE_1', role: 'KAYNAK', owner: 'TTBP', objectName: 'HAKEDIS_TIPI' }, { nodeCode: 'TARGET', role: 'HEDEF', owner: 'INNOVA_ODI', objectName: 'STG_HAKEDIS_TIPI' }],
-    staging: { owner: 'INNOVA_ODI', prefixes: { loading: 'C$_', integration: 'I$_', error: 'E$_' }, nonReversibleDdl: true, workAreaPolicy: { policy: { enabled: true, allowSameSchema: true, maxRowsPerRun: 100000 }, version: 1 } },
+    bindings: [{ nodeCode: 'SOURCE_1', role: 'KAYNAK', owner: 'UPSTREAM_SCHEMA', objectName: 'SAMPLE_TABLE' }, { nodeCode: 'TARGET', role: 'HEDEF', owner: 'TARGET_SCHEMA', objectName: 'STG_SAMPLE_TABLE' }],
+    staging: { owner: 'TARGET_SCHEMA', prefixes: { loading: 'C$_', integration: 'I$_', error: 'E$_' }, nonReversibleDdl: true, workAreaPolicy: { policy: { enabled: true, allowSameSchema: true, maxRowsPerRun: 100000 }, version: 1 } },
     options: { batchRows: 500, fetchRows: 500, maxRows: 100000, maxBytes: 268435456, allowEmptySource: false },
     modules: { loading: { kind: 'LKM', versionUuid: 'l'.repeat(36), contentHash: 'b'.repeat(64), options: { DISTINCT: false } }, integration: { kind: 'IKM', versionUuid: 'i'.repeat(36), contentHash: 'c'.repeat(64), options: { WRITE_MODE: 'TRUNCATE_LOAD', TRUNCATE_TARGET: true } } },
   },
   executionVerified: false, message: 'Execution not verified',
-  sqlPreview: [{ step: 'TRANSFER_JDBC', site: 'SOURCE', owner: 'TTBP', sql: 'SELECT "SRC_1"."ID" FROM "TTBP"."HAKEDIS_TIPI" "SRC_1"' }, { step: 'ATOMIC_REPLACE', site: 'TARGET', owner: 'INNOVA_ODI', sql: 'TRUNCATE TABLE "INNOVA_ODI"."STG_HAKEDIS_TIPI"' }],
+  sqlPreview: [{ step: 'TRANSFER_JDBC', site: 'SOURCE', owner: 'UPSTREAM_SCHEMA', sql: 'SELECT "SRC_1"."ID" FROM "UPSTREAM_SCHEMA"."SAMPLE_TABLE" "SRC_1"' }, { step: 'ATOMIC_REPLACE', site: 'TARGET', owner: 'TARGET_SCHEMA', sql: 'TRUNCATE TABLE "TARGET_SCHEMA"."STG_SAMPLE_TABLE"' }],
 }
-const props = { projectUuid: 'p', scenarioUuid: 's', environmentName: 'Test', definitionName: 'I_HAKEDIS_TIPI', tr: false }
+const props = { projectUuid: 'p', scenarioUuid: 's', environmentName: 'Test', definitionName: 'I_SAMPLE_TABLE', tr: false }
 beforeEach(() => vi.restoreAllMocks())
 
 it('simulates only on request, opens the report and returns the precise reviewed hash', async () => {
@@ -26,7 +26,7 @@ it('simulates only on request, opens the report and returns the precise reviewed
   expect(api).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: 'Simulate' }))
   expect(await screen.findByText('TRANSFER_JDBC')).toBeInTheDocument()
-  expect(screen.getAllByText('TTBP.HAKEDIS_TIPI').length).toBeGreaterThan(0)
+  expect(screen.getAllByText('UPSTREAM_SCHEMA.SAMPLE_TABLE').length).toBeGreaterThan(0)
   expect(screen.getByRole('alert')).toHaveTextContent('TRUNCATE TABLE')
   expect(screen.getByRole('button', { name: 'Download Report (.md)' })).toBeInTheDocument()
   expect(screen.getByText('SQL to Execute')).toBeInTheDocument()
@@ -46,12 +46,12 @@ it('discards a response for an environment that is no longer selected', async ()
 })
 
 it('renders the same facts into the downloadable markdown report', () => {
-  const markdown = preRunReportMarkdown(response, { definitionName: 'I_HAKEDIS_TIPI', environmentName: 'Test', tr: false, generatedAt: new Date('2026-09-20T00:00:00Z') })
-  expect(markdown).toContain('# Pre-Run Report — I_HAKEDIS_TIPI')
-  expect(markdown).toContain('**TTBP.HAKEDIS_TIPI** — SELECT only')
+  const markdown = preRunReportMarkdown(response, { definitionName: 'I_SAMPLE_TABLE', environmentName: 'Test', tr: false, generatedAt: new Date('2026-09-20T00:00:00Z') })
+  expect(markdown).toContain('# Pre-Run Report — I_SAMPLE_TABLE')
+  expect(markdown).toContain('**UPSTREAM_SCHEMA.SAMPLE_TABLE** — SELECT only')
   expect(markdown).toContain('Non-reversible DDL: **YES (TRUNCATE TABLE)**')
   expect(markdown).toContain('| 1 | LOAD | STAGING | TRANSFER_JDBC — Load Source into Work Area |')
   expect(markdown).toContain('## SQL to Execute')
-  expect(markdown).toContain('TRUNCATE TABLE "INNOVA_ODI"."STG_HAKEDIS_TIPI"')
+  expect(markdown).toContain('TRUNCATE TABLE "TARGET_SCHEMA"."STG_SAMPLE_TABLE"')
   expect(markdown).not.toContain('undefined')
 })

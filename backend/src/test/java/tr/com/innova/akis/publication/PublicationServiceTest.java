@@ -192,7 +192,7 @@ class PublicationServiceTest {
         PublicationRow first = service(new FakeStore(context, bindings()))
                 .create(PROJECT_UUID, SCENARIO_UUID, ENVIRONMENT_UUID).publication();
         ResolvedBinding changedTarget = binding(
-                "TARGET", "HEDEF", "INNOVA_ODI", "STG_HAKEDIS_TIPI",
+                "TARGET", "HEDEF", "TARGET_SCHEMA", "STG_SAMPLE_TABLE",
                 "c".repeat(64));
         PublicationRow changed = service(new FakeStore(
                 context, List.of(sourceBinding(), changedTarget)))
@@ -305,7 +305,7 @@ class PublicationServiceTest {
     void invalidProcedureV2IsRejectedInsteadOfPublishedAsDefinitionOnly() {
         ObjectNode invalid = procedureDefinition();
         ((ObjectNode) invalid.get("tasks").get(1))
-                .put("command", "DELETE FROM TTBP.HAKEDIS_TIPI");
+                .put("command", "DELETE FROM UPSTREAM_SCHEMA.SAMPLE_TABLE");
         PublicationContext context = context("DUSUK", "PROCEDURE", 2, invalid);
 
         ApiException error = assertThrows(ApiException.class, () -> service(new FakeStore(
@@ -390,11 +390,11 @@ class PublicationServiceTest {
     }
 
     private ResolvedBinding binding() {
-        return binding("TARGET", "HEDEF", "INNOVA_ODI", "STG_HAKEDIS_TIPI");
+        return binding("TARGET", "HEDEF", "TARGET_SCHEMA", "STG_SAMPLE_TABLE");
     }
 
     private ResolvedBinding sourceBinding() {
-        return binding("SOURCE", "KAYNAK", "TTBP", "HAKEDIS_TIPI");
+        return binding("SOURCE", "KAYNAK", "UPSTREAM_SCHEMA", "SAMPLE_TABLE");
     }
 
     private List<ResolvedBinding> bindings() {
@@ -472,28 +472,28 @@ class PublicationServiceTest {
                 {"tasks":[
                   {"id":"TRUNCATE_TARGET","type":"SQL","connectionRole":"TARGET",
                    "riskClass":"DESTRUCTIVE","requiresApproval":true,"onError":"STOP",
-                   "timeoutSeconds":60,"command":"TRUNCATE TABLE INNOVA_ODI.STG_HAKEDIS_TIPI"},
+                   "timeoutSeconds":60,"command":"TRUNCATE TABLE TARGET_SCHEMA.STG_SAMPLE_TABLE"},
                   {"id":"READ_SOURCE","type":"SQL","connectionRole":"SOURCE",
                    "riskClass":"READ_ONLY","onError":"STOP","timeoutSeconds":300,
-                   "command":"SELECT ID FROM TTBP.HAKEDIS_TIPI",
+                   "command":"SELECT ID FROM UPSTREAM_SCHEMA.SAMPLE_TABLE",
                    "output":{"kind":"ROWSET","maxRows":1000}},
                   {"id":"INSERT_TARGET","type":"SQL","connectionRole":"TARGET",
                    "riskClass":"DML","onError":"STOP","timeoutSeconds":300,
-                   "command":"INSERT INTO INNOVA_ODI.STG_HAKEDIS_TIPI (ID) VALUES (:ID)",
+                   "command":"INSERT INTO TARGET_SCHEMA.STG_SAMPLE_TABLE (ID) VALUES (:ID)",
                    "input":{"fromTask":"READ_SOURCE","mode":"BATCH","batchSize":250}},
                    {"id":"GATHER_TARGET_STATS","type":"PLSQL","connectionRole":"TARGET",
                     "riskClass":"DESTRUCTIVE","requiresApproval":true,"onError":"STOP",
                    "timeoutSeconds":300,
-                   "command":"BEGIN DBMS_STATS.GATHER_TABLE_STATS('INNOVA_ODI','STG_HAKEDIS_TIPI'); END;"}
+                   "command":"BEGIN DBMS_STATS.GATHER_TABLE_STATS('TARGET_SCHEMA','STG_SAMPLE_TABLE'); END;"}
                 ]}
                 """);
     }
 
     private List<ResolvedBinding> procedureBindings() {
         ResolvedBinding source = binding(
-                "READ_SOURCE", "KAYNAK", "TTBP", "HAKEDIS_TIPI");
+                "READ_SOURCE", "KAYNAK", "UPSTREAM_SCHEMA", "SAMPLE_TABLE");
         ResolvedBinding target = binding(
-                "TRUNCATE_TARGET", "HEDEF", "INNOVA_ODI", "STG_HAKEDIS_TIPI");
+                "TRUNCATE_TARGET", "HEDEF", "TARGET_SCHEMA", "STG_SAMPLE_TABLE");
         return List.of(
                 source,
                 target,

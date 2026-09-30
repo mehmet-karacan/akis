@@ -349,7 +349,7 @@
   "models.bindingMissing": "This model's logical schema is not mapped in the selected environment.",
   "models.openBindings": "Open schema mappings",
   "models.discoveryScope": "Table or view name (optional)",
-  "models.scopePlaceholder": "For example HAKEDIS_TIPI",
+  "models.scopePlaceholder": "For example SAMPLE_TABLE",
   "models.discover": "Discover Objects",
   "models.metadataOnly": "Only schema metadata is read. Table rows and DDL operations are outside this action.",
   "models.discoveryFailed": "Metadata discovery failed.",

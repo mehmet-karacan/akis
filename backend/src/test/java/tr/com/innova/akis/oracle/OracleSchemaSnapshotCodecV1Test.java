@@ -23,16 +23,16 @@ class OracleSchemaSnapshotCodecV1Test {
             new OracleSchemaSnapshotCodecV1(objectMapper);
 
     @Test
-    void convertsHakedisTipiFixtureToTheGoldenSnapshotContract() throws Exception {
+    void convertsSampleTipiFixtureToTheGoldenSnapshotContract() throws Exception {
         SnapshotDefinition result = codec.decode(
-                " ttbp ", " hakedis_tipi ", shuffledColumns(), shuffledConstraints());
+                " upstream_schema ", " sample_table ", shuffledColumns(), shuffledConstraints());
 
         assertEquals("ORACLE_19C", result.engineVersion());
         assertEquals(1, result.propertyVersion());
         assertEquals(
                 objectMapper.readTree("""
                         {"codec":"ORACLE_SCHEMA_V1","objectType":"TABLE",
-                         "owner":"TTBP","table":"HAKEDIS_TIPI"}
+                         "owner":"UPSTREAM_SCHEMA","table":"SAMPLE_TABLE"}
                         """),
                 result.properties());
         assertEquals(List.of(
@@ -50,17 +50,17 @@ class OracleSchemaSnapshotCodecV1Test {
                         null, null, null, 6, true, "SYSTIMESTAMP")), result.columns());
 
         assertEquals(List.of(
-                constraint("CK_HAKEDIS_TUTAR", "CHECK", true,
+                constraint("CK_SAMPLE_TUTAR", "CHECK", true,
                         "{\"expression\":\"TUTAR >= 0\"}", List.of("TUTAR")),
-                constraint("FK_HAKEDIS_TIPI", "FK", true,
+                constraint("FK_SAMPLE_TABLE", "FK", true,
                         """
                                 {"deferrability":"NOT_DEFERRABLE","deleteRule":"NO_ACTION",
-                                 "referencedOwner":"TTBP","referencedTable":"HAKEDIS_TIP",
+                                 "referencedOwner":"UPSTREAM_SCHEMA","referencedTable":"SAMPLE_TIP",
                                  "referencedColumns":["ID","SIRA_NO"]}
                                 """,
                         List.of("TIP_ID", "SIRA_NO")),
-                constraint("PK_HAKEDIS_TIPI", "PK", true, "{}", List.of("ID")),
-                constraint("UK_HAKEDIS_KOD", "UK", true, "{}", List.of("KOD"))),
+                constraint("PK_SAMPLE_TABLE", "PK", true, "{}", List.of("ID")),
+                constraint("UK_SAMPLE_KOD", "UK", true, "{}", List.of("KOD"))),
                 result.constraints());
     }
 
@@ -83,9 +83,9 @@ class OracleSchemaSnapshotCodecV1Test {
     @Test
     void outputIsIndependentOfDictionaryRowArrivalOrder() {
         SnapshotDefinition shuffled = codec.decode(
-                "TTBP", "HAKEDIS_TIPI", shuffledColumns(), shuffledConstraints());
+                "UPSTREAM_SCHEMA", "SAMPLE_TABLE", shuffledColumns(), shuffledConstraints());
         SnapshotDefinition ordered = codec.decode(
-                "TTBP", "HAKEDIS_TIPI",
+                "UPSTREAM_SCHEMA", "SAMPLE_TABLE",
                 List.of(
                         number("ID", 19, 0, 1),
                         varchar("KOD", 50, 2),
@@ -103,7 +103,7 @@ class OracleSchemaSnapshotCodecV1Test {
     @Test
     void preservesBareNumberAndUsesDecimalWithoutInventingPrecision() {
         Column result = codec.decode(
-                "TTBP", "VALUES_TABLE",
+                "UPSTREAM_SCHEMA", "VALUES_TABLE",
                 List.of(number("VALUE", null, null, 1)), List.of()).columns().getFirst();
 
         assertEquals("NUMBER", result.producerType());
@@ -115,7 +115,7 @@ class OracleSchemaSnapshotCodecV1Test {
     @Test
     void decodesClobAsAnUnboundedTransferableStringColumn() {
         Column result = codec.decode(
-                "TTBP", "VALUES_TABLE",
+                "UPSTREAM_SCHEMA", "VALUES_TABLE",
                 List.of(new RawColumn("VALUE", "CLOB", null, null, null, null, 1, true, null)),
                 List.of()).columns().getFirst();
 
@@ -130,7 +130,7 @@ class OracleSchemaSnapshotCodecV1Test {
     @Test
     void catalogsBlobDateAndFloatWithoutLosingTheirProducerTypes() {
         List<Column> result = codec.decode(
-                "TTBP", "VALUES_TABLE",
+                "UPSTREAM_SCHEMA", "VALUES_TABLE",
                 List.of(
                         new RawColumn("PAYLOAD", "BLOB", null, null, null, null, 1, true, null),
                         new RawColumn("BUSINESS_DATE", "DATE", null, null, null, null, 2, true, null),
@@ -147,7 +147,7 @@ class OracleSchemaSnapshotCodecV1Test {
     @Test
     void numberIntegerBoundaryIsNineteenDigits() {
         SnapshotDefinition result = codec.decode(
-                "TTBP", "VALUES_TABLE",
+                "UPSTREAM_SCHEMA", "VALUES_TABLE",
                 List.of(number("SMALL_VALUE", 19, 0, 1), number("BIG_VALUE", 20, 0, 2)),
                 List.of());
 
@@ -181,22 +181,22 @@ class OracleSchemaSnapshotCodecV1Test {
         List<RawColumn> columns = List.of(
                 number("TIP_ID", 19, 0, 1), number("SIRA_NO", 10, 0, 2));
         RawConstraint duplicatePosition = new RawConstraint(
-                "FK_TEST", "R", "ENABLED", "TTBP", "TIP", "NO ACTION",
+                "FK_TEST", "R", "ENABLED", "UPSTREAM_SCHEMA", "TIP", "NO ACTION",
                 "NOT DEFERRABLE", null,
                 List.of(
                         new RawConstraintColumn("TIP_ID", 1, "ID"),
                         new RawConstraintColumn("SIRA_NO", 1, "SIRA_NO")));
         RawConstraint missingReferencedColumn = new RawConstraint(
-                "FK_TEST", "R", "ENABLED", "TTBP", "TIP", "NO ACTION",
+                "FK_TEST", "R", "ENABLED", "UPSTREAM_SCHEMA", "TIP", "NO ACTION",
                 "NOT DEFERRABLE", null,
                 List.of(new RawConstraintColumn("TIP_ID", 1, null)));
 
         assertThrows(
                 OracleSchemaSnapshotCodecException.class,
-                () -> codec.decode("TTBP", "TEST", columns, List.of(duplicatePosition)));
+                () -> codec.decode("UPSTREAM_SCHEMA", "TEST", columns, List.of(duplicatePosition)));
         assertThrows(
                 OracleSchemaSnapshotCodecException.class,
-                () -> codec.decode("TTBP", "TEST", columns, List.of(missingReferencedColumn)));
+                () -> codec.decode("UPSTREAM_SCHEMA", "TEST", columns, List.of(missingReferencedColumn)));
     }
 
     private List<RawColumn> shuffledColumns() {
@@ -219,21 +219,21 @@ class OracleSchemaSnapshotCodecV1Test {
 
     private RawConstraint primaryKeyConstraint() {
         return new RawConstraint(
-                "PK_HAKEDIS_TIPI", "P", "ENABLED", null, null, null,
+                "PK_SAMPLE_TABLE", "P", "ENABLED", null, null, null,
                 "NOT DEFERRABLE", null,
                 List.of(new RawConstraintColumn("ID", 1, null)));
     }
 
     private RawConstraint uniqueConstraint() {
         return new RawConstraint(
-                "UK_HAKEDIS_KOD", "U", "ENABLED", null, null, null,
+                "UK_SAMPLE_KOD", "U", "ENABLED", null, null, null,
                 "NOT DEFERRABLE", null,
                 List.of(new RawConstraintColumn("KOD", 1, null)));
     }
 
     private RawConstraint foreignKeyConstraint() {
         return new RawConstraint(
-                "FK_HAKEDIS_TIPI", "R", "ENABLED", "TTBP", "HAKEDIS_TIP",
+                "FK_SAMPLE_TABLE", "R", "ENABLED", "UPSTREAM_SCHEMA", "SAMPLE_TIP",
                 "NO ACTION", "NOT DEFERRABLE", null,
                 List.of(
                         new RawConstraintColumn("SIRA_NO", 2, "SIRA_NO"),
@@ -242,7 +242,7 @@ class OracleSchemaSnapshotCodecV1Test {
 
     private RawConstraint checkConstraint() {
         return new RawConstraint(
-                "CK_HAKEDIS_TUTAR", "C", "ENABLED", null, null, null,
+                "CK_SAMPLE_TUTAR", "C", "ENABLED", null, null, null,
                 "NOT DEFERRABLE", " TUTAR >= 0 ",
                 List.of(new RawConstraintColumn("TUTAR", 1, null)));
     }
@@ -308,6 +308,6 @@ class OracleSchemaSnapshotCodecV1Test {
     private void assertCodecFailure(RawColumn column) {
         assertThrows(
                 OracleSchemaSnapshotCodecException.class,
-                () -> codec.decode("TTBP", "TEST", List.of(column), List.of()));
+                () -> codec.decode("UPSTREAM_SCHEMA", "TEST", List.of(column), List.of()));
     }
 }

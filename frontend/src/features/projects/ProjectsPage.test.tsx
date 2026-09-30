@@ -16,9 +16,9 @@ vi.mock('./projectsApi', () => ({
 
 const firstProject = {
   uuid: '11111111-1111-4111-8111-111111111111',
-  code: 'SKY_GPU',
+  code: 'SOURCE_TARGET',
   status: 'AKTIF',
-  name: 'SKY GPU Transfer',
+  name: 'SOURCE TARGET Transfer',
   description: 'Oracle transfer project',
   version: 1,
   createdAt: '2026-09-12T00:00:00Z',
@@ -55,7 +55,7 @@ describe('ProjectsPage', () => {
     renderPage()
 
     expect(await screen.findByRole('heading', { name: 'Select A Project' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /SKY GPU Transfer/ }))
+    fireEvent.click(screen.getByRole('button', { name: /SOURCE TARGET Transfer/ }))
     expect(await screen.findByRole('heading', { name: 'Selected project' })).toBeInTheDocument()
   })
 
@@ -81,13 +81,13 @@ describe('ProjectsPage', () => {
 
     await screen.findByText('No visible projects yet.')
     fireEvent.click(screen.getAllByRole('button', { name: 'New Project' })[0]!)
-    fireEvent.change(screen.getByLabelText('Project code'), { target: { value: 'sky_gpu' } })
-    fireEvent.change(screen.getByLabelText('Project name'), { target: { value: 'SKY GPU Transfer' } })
+    fireEvent.change(screen.getByLabelText('Project code'), { target: { value: 'source_target' } })
+    fireEvent.change(screen.getByLabelText('Project name'), { target: { value: 'SOURCE TARGET Transfer' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create Project' }))
 
     expect(projectApi.createProject).toHaveBeenCalledWith({
-      code: 'SKY_GPU',
-      name: 'SKY GPU Transfer',
+      code: 'SOURCE_TARGET',
+      name: 'SOURCE TARGET Transfer',
       description: undefined,
     })
     expect(await screen.findByRole('heading', { name: 'Selected project' })).toBeInTheDocument()

@@ -40,7 +40,7 @@ class JdbcOracleAtomicRefreshWriterTest {
 
     private static final String TARGET_HASH = new OracleTargetIdentityV1().canonicalize(
             new VerifiedDatabaseIdentity("AKISDB", "AKISPDB"),
-            "INNOVA_ODI", "TABLE", "STG_HAKEDIS_TIPI").canonicalTargetHash();
+            "TARGET_SCHEMA", "TABLE", "STG_SAMPLE_TABLE").canonicalTargetHash();
 
     private final JdbcOracleAtomicRefreshWriter writer =
             new JdbcOracleAtomicRefreshWriter();
@@ -65,10 +65,10 @@ class JdbcOracleAtomicRefreshWriterTest {
                 "LOCK", "IDENTITY_DATABASE", "IDENTITY_OBJECT", "LOCKED_PREFLIGHT",
                 "DELETE", "INSERT_BATCH", "VERIFY"),
                 target.events);
-        assertEquals("LOCK TABLE \"INNOVA_ODI\".\"STG_HAKEDIS_TIPI\" "
+        assertEquals("LOCK TABLE \"TARGET_SCHEMA\".\"STG_SAMPLE_TABLE\" "
                 + "IN EXCLUSIVE MODE NOWAIT", target.lockSql);
-        assertEquals("DELETE FROM \"INNOVA_ODI\".\"STG_HAKEDIS_TIPI\"", target.deleteSql);
-        assertEquals("INSERT INTO \"INNOVA_ODI\".\"STG_HAKEDIS_TIPI\" "
+        assertEquals("DELETE FROM \"TARGET_SCHEMA\".\"STG_SAMPLE_TABLE\"", target.deleteSql);
+        assertEquals("INSERT INTO \"TARGET_SCHEMA\".\"STG_SAMPLE_TABLE\" "
                 + "(\"ID\", \"AD\", \"CHANGED_AT\") VALUES (?, ?, ?)",
                 target.insertSql);
         assertEquals(new BigDecimal("1"), target.rows.getFirst().getFirst());
@@ -262,8 +262,8 @@ class JdbcOracleAtomicRefreshWriterTest {
         return new PilotRuntimePlan(
                 PilotRuntimePlan.CURRENT_VERSION, "a".repeat(64), "b".repeat(64),
                 "c".repeat(64), UUID.randomUUID(), UUID.randomUUID(), 1_000,
-                binding(DatasetRole.SOURCE, "TTBP", "HAKEDIS_TIPI"),
-                binding(DatasetRole.TARGET, "INNOVA_ODI", "STG_HAKEDIS_TIPI"),
+                binding(DatasetRole.SOURCE, "UPSTREAM_SCHEMA", "SAMPLE_TABLE"),
+                binding(DatasetRole.TARGET, "TARGET_SCHEMA", "STG_SAMPLE_TABLE"),
                 List.of(new DirectColumnMapping("ID", "ID"),
                         new DirectColumnMapping("AD", "AD"),
                         new DirectColumnMapping("CHANGED_AT", "CHANGED_AT")),

@@ -54,7 +54,7 @@ final class PackageVariableEvaluator {
         return value;
     }
 
-    /** ODI "Evaluate Variable": {operator: EQUALS|NOT_EQUALS|GREATER|GREATER_OR_EQUAL|LESS|LESS_OR_EQUAL|IS_NULL|IS_NOT_NULL, value}. Missing spec = TRUE. */
+    /** "Evaluate Variable": {operator: EQUALS|NOT_EQUALS|GREATER|GREATER_OR_EQUAL|LESS|LESS_OR_EQUAL|IS_NULL|IS_NOT_NULL, value}. Missing spec = TRUE. */
     static boolean evaluate(Object value, JsonNode spec) {
         if (spec == null || !spec.isObject()) return true;
         String operator = spec.path("operator").asText("EQUALS");

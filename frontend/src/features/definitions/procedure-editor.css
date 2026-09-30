@@ -103,7 +103,7 @@
 .definition-scenario-list > article > code { color: var(--ink-soft); font-size: 11px; }
 .definition-panel-heading h3 { display: inline-flex; align-items: center; gap: 8px; }
 
-/* ODI Properties layout: vertical tab rail on the left, content on the right. */
+/* Properties layout: vertical tab rail on the left, content on the right. */
 .procedure-detail-body { display: grid; grid-template-columns: 200px minmax(0, 1fr); min-height: 0; height: 100%; }
 .procedure-command-tabs--vertical { display: flex; flex-direction: column; align-items: stretch; gap: 2px; padding: 10px 8px; border-bottom: 0; border-right: 1px solid var(--line); background: color-mix(in srgb, var(--ink-soft) 4%, var(--surface)); }
 .procedure-command-tabs--vertical .procedure-tab.ant-btn { justify-content: flex-start; width: 100%; height: 38px; border-radius: 8px; border-bottom: 0; border-left: 3px solid transparent; text-align: left; }
@@ -114,7 +114,7 @@
 .procedure-command-detail { min-height: 0; overflow: auto; }
 @media (max-width: 900px) { .procedure-detail-body { grid-template-columns: 1fr; } .procedure-command-tabs--vertical { flex-direction: row; border-right: 0; border-bottom: 1px solid var(--line); } }
 
-/* Step detail: ODI-style top tabs (General · Target Command · Source Command) so the screen keeps a single left rail. */
+/* Step detail: top tabs (General · Target Command · Source Command) so the screen keeps a single left rail. */
 .procedure-detail-body--stacked { display: flex; flex-direction: column; grid-template-columns: none; }
 .procedure-command-tabs--horizontal { display: flex; align-items: flex-end; gap: 2px; padding: 6px 12px 0; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--ink-soft) 4%, var(--surface)); }
 .procedure-command-tabs--horizontal .procedure-tab.ant-btn { height: 36px; padding: 0 14px; border-radius: 8px 8px 0 0; border-bottom: 2px solid transparent; }
@@ -131,7 +131,7 @@
 .procedure-tab--target[aria-selected="true"] { color: var(--schema-color-info); }
 .procedure-tab--source[aria-selected="true"] { color: var(--schema-color-teal); }
 
-/* Definition-level vertical rail (ODI: Definition · Tasks · Versions). */
+/* Definition-level vertical rail (Definition · Tasks · Versions). */
 .definition-rail-layout { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 0; margin-top: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
 .definition-tabs.definition-tabs--vertical { display: flex; flex-direction: column; align-items: stretch; width: auto; gap: 2px; padding: 10px 8px; border-right: 1px solid var(--line); background: color-mix(in srgb, var(--ink-soft) 4%, var(--surface)); }
 .definition-tabs--vertical .definition-tab.ant-btn { justify-content: flex-start; width: 100%; height: 38px; border-radius: 8px; border-left: 3px solid transparent; text-align: left; color: var(--ink-soft); }
@@ -175,7 +175,7 @@ body .explorer-resize-handle:hover::before, body .explorer-resize-handle:focus-v
 
 .definition-multi-connection { display: flex !important; align-items: center; gap: 8px; }
 
-/* Mapping editor: ODI Logical · Column Mappings · Joins and Filters · Physical on a vertical rail, one color per view. */
+/* Mapping editor: Logical · Column Mappings · Joins and Filters · Physical on a vertical rail, one color per view. */
 .mapping-editor-body { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
 .mapping-editor-detail { padding: 10px 12px 12px; }
 .mapping-editor-detail > [hidden] { display: none; }

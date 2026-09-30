@@ -3,7 +3,7 @@ import { DataGrid } from '../../core/ui/DataGrid'
 import { databaseProviderVisual } from '../topology/DatabaseProviderIcon'
 import type { Connection, PhysicalSchema } from '../topology/api'
 
-/** One line per connection a run will open: which system, where, as whom, which schema — the part ODI shows in the physical tab. */
+/** One line per connection a run will open: which system, where, as whom, which schema — the part shown in the physical tab. */
 export interface ConnectionUse { role: 'SOURCE' | 'TARGET' | 'STAGING'; label: string; connection?: Connection; physical?: PhysicalSchema; owner: string; object?: string; readOnly?: boolean }
 
 export function connectionEndpoint(connection?: Connection) {

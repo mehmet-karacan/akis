@@ -49,8 +49,8 @@ describe('ProcedureEditor', () => {
     await renderHarness()
     openTasks()
     expect(screen.queryByLabelText('Step ID')).not.toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Step Name'), { target: { value: 'Load Hakedis' } })
-    await waitFor(() => expect(screen.getByDisplayValue('Load Hakedis')).toBeInTheDocument())
+    fireEvent.change(screen.getByLabelText('Step Name'), { target: { value: 'Load Sample' } })
+    await waitFor(() => expect(screen.getByDisplayValue('Load Sample')).toBeInTheDocument())
   })
 
   it('moves an automatically paired row producer and consumer together', async () => {
@@ -90,7 +90,7 @@ describe('ProcedureEditor', () => {
 
   it('infers hidden execution metadata from free-form SQL', () => {
     const target = DEFAULT_PROCEDURE.tasks[1]!
-    expect(inferProcedureTaskMetadata(target, 'truncate table INNOVA_ODI.STG_X')).toEqual({ type: 'SQL', riskClass: 'DESTRUCTIVE', requiresApproval: true })
+    expect(inferProcedureTaskMetadata(target, 'truncate table TARGET_SCHEMA.STG_X')).toEqual({ type: 'SQL', riskClass: 'DESTRUCTIVE', requiresApproval: true })
     expect(inferProcedureTaskMetadata(target, "begin dbms_stats.gather_table_stats('A', 'B'); end;")).toEqual({ type: 'PLSQL', riskClass: 'DESTRUCTIVE', requiresApproval: true })
     expect(inferProcedureTaskMetadata(target, 'insert into T values (:ID)')).toEqual({ type: 'SQL', riskClass: 'DML', requiresApproval: undefined })
   })

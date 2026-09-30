@@ -7,7 +7,7 @@ import java.sql.Statement;
 public final class OracleStressDataGenerator {
   private static final long DEFAULT_TARGET_ROWS = 200_000_000L;
   private static final long DEFAULT_BATCH_ROWS = 1_000_000L;
-  private static final String OWNER = "INNOVA_ODI";
+  private static final String OWNER = "TARGET_SCHEMA";
   private static final String TABLE = "AKIS_STRESS_200M";
 
   public static void main(String[] args) throws Exception {
@@ -39,7 +39,7 @@ public final class OracleStressDataGenerator {
       // Table does not exist yet.
     }
     statement.executeUpdate("""
-        create table INNOVA_ODI.AKIS_STRESS_200M (
+        create table TARGET_SCHEMA.AKIS_STRESS_200M (
           ID number(18) not null,
           BATCH_NO number(10) not null,
           CUSTOMER_NO number(18) not null,
@@ -104,7 +104,7 @@ public final class OracleStressDataGenerator {
 
   private static void insertRange(Connection connection, long from, long to) throws Exception {
     String sql = """
-        insert /*+ append parallel(8) */ into INNOVA_ODI.AKIS_STRESS_200M
+        insert /*+ append parallel(8) */ into TARGET_SCHEMA.AKIS_STRESS_200M
         select
           g,
           trunc(g / 100000),

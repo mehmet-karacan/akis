@@ -19,15 +19,15 @@ class OracleTargetIdentityV1Test {
     @Test
     void producesStableLengthPrefixedUtf8PayloadAndLowercaseSha256() {
         CanonicalTargetIdentity identity = canonicalizer.canonicalize(
-                new VerifiedDatabaseIdentity("ct_gpu_testdb", "CT_GPU_TESTDB"),
-                "INNOVA_ODI",
+                new VerifiedDatabaseIdentity("ct_target_testdb", "CT_TARGET_TESTDB"),
+                "TARGET_SCHEMA",
                 "TABLE",
-                "STG_HAKEDIS_TIPI");
+                "STG_SAMPLE_TABLE");
 
         assertEquals("ORACLE", identity.technologyCode());
         assertEquals(1, identity.targetIdentityVersion());
-        assertEquals("CT_GPU_TESTDB", identity.site());
-        assertEquals("CT_GPU_TESTDB", identity.container());
+        assertEquals("CT_TARGET_TESTDB", identity.site());
+        assertEquals("CT_TARGET_TESTDB", identity.container());
         assertEquals(
                 "0000001b414b49535f4f5241434c455f5441524745545f4944454e54495459"
                         + "00000001310000000d43545f4750555f5445535444420000000d43545f4750"
@@ -47,30 +47,30 @@ class OracleTargetIdentityV1Test {
         VerifiedDatabaseIdentity database =
                 new VerifiedDatabaseIdentity("AKISDB", "AKISPDB");
 
-        assertInvalid(database, "innova_odi", "TABLE", "STG_TABLE");
-        assertInvalid(database, "\"INNOVA_ODI\"", "TABLE", "STG_TABLE");
+        assertInvalid(database, "target_schema", "TABLE", "STG_TABLE");
+        assertInvalid(database, "\"TARGET_SCHEMA\"", "TABLE", "STG_TABLE");
         assertInvalid(database, "", "TABLE", "STG_TABLE");
-        assertInvalid(database, "INNOVA_ODI", "VIEW", "STG_TABLE");
-        assertInvalid(database, "INNOVA_ODI", "TABLE", "MixedCase");
-        assertInvalid(database, "INNOVA_ODI", "TABLE", "\"STG_TABLE\"");
-        assertInvalid(database, "INNOVA_ODI", "TABLE", "1_INVALID");
+        assertInvalid(database, "TARGET_SCHEMA", "VIEW", "STG_TABLE");
+        assertInvalid(database, "TARGET_SCHEMA", "TABLE", "MixedCase");
+        assertInvalid(database, "TARGET_SCHEMA", "TABLE", "\"STG_TABLE\"");
+        assertInvalid(database, "TARGET_SCHEMA", "TABLE", "1_INVALID");
     }
 
     @Test
     void failsClosedWhenVerifiedDatabaseOrContainerIdentityIsMissing() {
         assertInvalid(
                 new VerifiedDatabaseIdentity(null, "AKISPDB"),
-                "INNOVA_ODI", "TABLE", "STG_TABLE");
+                "TARGET_SCHEMA", "TABLE", "STG_TABLE");
         assertInvalid(
                 new VerifiedDatabaseIdentity("AKISDB", "  "),
-                "INNOVA_ODI", "TABLE", "STG_TABLE");
+                "TARGET_SCHEMA", "TABLE", "STG_TABLE");
     }
 
     @Test
     void canonicalPayloadIsDefensivelyCopied() {
         CanonicalTargetIdentity identity = canonicalizer.canonicalize(
                 new VerifiedDatabaseIdentity("AKISDB", "AKISPDB"),
-                "INNOVA_ODI", "TABLE", "STG_TABLE");
+                "TARGET_SCHEMA", "TABLE", "STG_TABLE");
         byte[] first = identity.canonicalPayload();
         first[0] = 127;
 

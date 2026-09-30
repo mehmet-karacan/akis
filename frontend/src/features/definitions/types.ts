@@ -145,7 +145,7 @@ export interface ProcedureTask {
   connectionRole: ProcedureConnectionRole
   riskClass: ProcedureRiskClass
   command: string
-  /** Legacy values are accepted only to migrate drafts created before the ODI counter contract was corrected. */
+  /** Legacy values are accepted only to migrate drafts created before the counter contract was corrected. */
   logCounter?: ProcedureLogCounter | 'ANALYSIS' | 'STATISTICS'
   transactionMode?: 'AUTOCOMMIT' | 'TRANSACTION'
   transactionChannel?: number
@@ -155,7 +155,7 @@ export interface ProcedureTask {
   environmentUuid?: string
   requiresApproval?: boolean
   onError?: 'STOP' | 'CONTINUE'
-  /** ODI "Execute" flag; a disabled step stays authored but is left out of the runtime plan. */
+  /** "Execute" flag; a disabled step stays authored but is left out of the runtime plan. */
   enabled?: boolean
   timeoutSeconds?: number
   output?: { kind: 'ROWSET'; maxRows: number }
@@ -165,7 +165,7 @@ export interface ProcedureTask {
 
 export interface ProcedureContent {
   tasks: ProcedureTask[]
-  /** ODI Definition tab: source/target technology chosen for the whole procedure; steps pick logical schemas of that technology. */
+  /** Definition tab: source/target technology chosen for the whole procedure; steps pick logical schemas of that technology. */
   technology?: { source?: string; target?: string; multiConnection?: boolean }
   [key: string]: unknown
 }

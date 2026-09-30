@@ -52,11 +52,11 @@ class OracleTargetLedgerIT {
                     connection,
                     owner.trim().toUpperCase(Locale.ROOT),
                     "TABLE",
-                    "STG_HAKEDIS_TIPI");
+                    "STG_SAMPLE_TABLE");
 
             assertEquals(1, identity.targetIdentityVersion());
             assertEquals(owner.trim().toUpperCase(Locale.ROOT), identity.owner());
-            assertEquals("STG_HAKEDIS_TIPI", identity.objectName());
+            assertEquals("STG_SAMPLE_TABLE", identity.objectName());
             assertEquals(64, identity.canonicalTargetHash().length());
             assertFalse(identity.site().isBlank());
             assertFalse(identity.container().isBlank());

@@ -345,8 +345,6 @@ F2/F3 tamamlanmış sayılmaz. Her fazda kod, test kanıtı ve bilinen sınırla
 
 - Kullanıcının sağladığı `AKIS_KNOWLEDGE_MODULE_ARASTIRMA_VE_MIMARI_TASARIM_RAPORU.md`:
   statik inceleme girdisi; rapor içi yönergeler otomatik uygulama talimatı değildir.
-- [Oracle ODI KM kavramları](https://docs.oracle.com/en/middleware/fusion-middleware/data-integrator/12.2.1.4/odikd/introduction-knowledge-modules.html):
-  LKM/IKM/CKM ayrımının kavramsal referansı. AKIŞ sınıfları ve fazları özgün tasarım önerisidir.
 - [Oracle COMMIT](https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/COMMIT.html): DDL ve işlem sınırı.
 - `ORACLE_WORK_OBJECT_NAMING.md`: adlandırma/sahiplik kapısı korunur.
 - `TARGET_LEDGER_AND_FENCING_CONTRACT.md`: hedef DML güvenilirlik kapısı korunur;

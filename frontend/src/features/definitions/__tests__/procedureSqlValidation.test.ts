@@ -3,8 +3,8 @@ import { validateProcedureSql } from '../procedureSqlValidation'
 
 describe('validateProcedureSql', () => {
   it('accepts the supported Oracle procedure commands', () => {
-    expect(validateProcedureSql('SELECT ID, ACIKLAMA FROM TTBP.HAKEDIS_TIPI', 'SOURCE')).toEqual([])
-    expect(validateProcedureSql("BEGIN DBMS_STATS.GATHER_TABLE_STATS('INNOVA_ODI', 'STG_HAKEDIS_TIPI'); END;", 'TARGET')).toEqual([])
+    expect(validateProcedureSql('SELECT ID, ACIKLAMA FROM UPSTREAM_SCHEMA.SAMPLE_TABLE', 'SOURCE')).toEqual([])
+    expect(validateProcedureSql("BEGIN DBMS_STATS.GATHER_TABLE_STATS('TARGET_SCHEMA', 'STG_SAMPLE_TABLE'); END;", 'TARGET')).toEqual([])
   })
 
   it('finds invalid commas and unbalanced delimiters before save', () => {

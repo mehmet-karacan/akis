@@ -14,13 +14,13 @@ interface Props {
   projectUuid: string
   definition: Definition
   canWrite: boolean
-  /** Procedure technology (ODI Definition tab); saved into the draft, steps then pick logical schemas of that technology. */
+  /** Procedure technology (Definition tab); saved into the draft, steps then pick logical schemas of that technology. */
   technology?: { source?: string; target?: string; multiConnection?: boolean }
   onTechnologyChange?(technology: { source?: string; target?: string; multiConnection?: boolean }): void
   onUpdated(definition: Definition): void
 }
 
-/** ODI "Definition" tab: name and description are editable; code, type and folder are identity and stay fixed. */
+/** "Definition" tab: name and description are editable; code, type and folder are identity and stay fixed. */
 export function DefinitionPropertiesPanel({ projectUuid, definition, canWrite, technology, onTechnologyChange, onUpdated }: Props) {
   const { language, t } = useDefinitionsI18n()
   const tr = language.startsWith('tr')

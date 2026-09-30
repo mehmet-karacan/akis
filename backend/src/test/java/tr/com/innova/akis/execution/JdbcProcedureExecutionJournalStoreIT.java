@@ -46,9 +46,9 @@ class JdbcProcedureExecutionJournalStoreIT {
 
     private static final String TARGET_HASH = "1".repeat(64);
     private static final String RUNTIME_PLAN_HASH = "2".repeat(64);
-    private static final String READ_COMMAND = "SELECT ID FROM TTBP.HAKEDIS_TIPI";
+    private static final String READ_COMMAND = "SELECT ID FROM UPSTREAM_SCHEMA.SAMPLE_TABLE";
     private static final String INSERT_COMMAND =
-            "INSERT INTO INNOVA_ODI.STG_HAKEDIS_TIPI (ID) VALUES (:ID)";
+            "INSERT INTO TARGET_SCHEMA.STG_SAMPLE_TABLE (ID) VALUES (:ID)";
 
     private static AnnotationConfigApplicationContext context;
     private static JdbcClient jdbc;
@@ -89,7 +89,7 @@ class JdbcProcedureExecutionJournalStoreIT {
                  WHERE p.kod = 'PROC_JOURNAL_IT';
                 INSERT INTO tanim_surumu(tanim_id, surum_no, sema_surumu, icerik_ozeti, icerik)
                 SELECT id, 1, 2, repeat('4', 64),
-                       cast('{"tasks":[{"id":"READ_SOURCE","name":"Read source","type":"SQL","connectionRole":"SOURCE","riskClass":"READ_ONLY","onError":"CONTINUE","timeoutSeconds":60,"command":"SELECT ID FROM TTBP.HAKEDIS_TIPI"},{"id":"INSERT_TARGET","name":"Insert target","type":"SQL","connectionRole":"TARGET","riskClass":"DML","onError":"STOP","timeoutSeconds":60,"command":"INSERT INTO INNOVA_ODI.STG_HAKEDIS_TIPI (ID) VALUES (:ID)"}]}' as jsonb)
+                       cast('{"tasks":[{"id":"READ_SOURCE","name":"Read source","type":"SQL","connectionRole":"SOURCE","riskClass":"READ_ONLY","onError":"CONTINUE","timeoutSeconds":60,"command":"SELECT ID FROM UPSTREAM_SCHEMA.SAMPLE_TABLE"},{"id":"INSERT_TARGET","name":"Insert target","type":"SQL","connectionRole":"TARGET","riskClass":"DML","onError":"STOP","timeoutSeconds":60,"command":"INSERT INTO TARGET_SCHEMA.STG_SAMPLE_TABLE (ID) VALUES (:ID)"}]}' as jsonb)
                   FROM tanim WHERE kod = 'JOURNAL_LOAD';
                 INSERT INTO ortam(proje_id, kod, risk_kodu, ad)
                 SELECT id, 'TEST', 'DUSUK', 'Test' FROM proje WHERE kod = 'PROC_JOURNAL_IT';

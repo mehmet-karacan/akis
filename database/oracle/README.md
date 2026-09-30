@@ -7,7 +7,7 @@ ayrı kontrol şeması zorunlu değildir. Bütün nesneler `ETL_` öneklidir.
 
 Bu kurulum herhangi bir host, kullanıcı veya parola içermez; bağlantı bilgisi
 komut satırına ya da repository dosyasına yazılmamalıdır. Scriptler hiçbir
-business/staging tablosuna, özellikle `STG_HAKEDIS_TIPI` tablosuna dokunmaz.
+business/staging tablosuna, özellikle `STG_SAMPLE_TABLE` tablosuna dokunmaz.
 
 ## Nesneler
 

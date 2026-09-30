@@ -3,8 +3,8 @@
 ## Durum
 
 Gerçek Oracle 19c kaynak ve hedef bağlantıları doğrulandı. 10 Eylül 2026 tarihli
-çalıştırmada `TTBP.HAKEDIS_TIPI` tablosunun 13 kolonlu şeması hedefte
-`INNOVA_ODI.STG_HAKEDIS_TIPI` olarak oluşturuldu ve 33 satır aktarıldı. Commit
+çalıştırmada `UPSTREAM_SCHEMA.SAMPLE_TABLE` tablosunun 13 kolonlu şeması hedefte
+`TARGET_SCHEMA.STG_SAMPLE_TABLE` olarak oluşturuldu ve 33 satır aktarıldı. Commit
 sonrasında açılan yeni bağlantıda hedef satır sayısı tekrar 33 olarak doğrulandı.
 
 ## Sabitlenen başlangıç profili

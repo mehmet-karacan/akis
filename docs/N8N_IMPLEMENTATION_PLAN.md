@@ -198,7 +198,7 @@ hedefi olarak kullanmak onaylanmış bir test sınırı sayılmaz.
 
 ### Değişkenli canlı çalıştırma denemesi (2026-09-15)
 
-- `PRC_HAKEDIS_TIPI` yeni sürümüne `DUN_TARIHI` bağlandı: `SELECT SYSDATE - 1 FROM DUAL`,
+- `PRC_SAMPLE_TABLE` yeni sürümüne `DUN_TARIHI` bağlandı: `SELECT SYSDATE - 1 FROM DUAL`,
   DATE, kendi mantıksal şeması ve ALL geçmiş modu. Kaynak koşulu
   `TANIMLAMA_ZAMANI >= :DUN_TARIHI AND TANIMLAMA_ZAMANI < :DUN_TARIHI + 1`.
 - Biçimlendirilmiş SELECT ve INSERT satır sonlarını reddeden doğrulamalar düzeltildi;

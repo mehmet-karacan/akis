@@ -730,7 +730,7 @@ function VersionsPanel(props: VersionsPanelProps) {
   const { language, t } = useDefinitionsI18n()
   const formatter = useMemo(() => new Intl.DateTimeFormat(language, { dateStyle: 'medium', timeStyle: 'short' }), [language])
   const selected = props.versions.find((version) => version.uuid === props.selectedVersionUuid)
-  // Runnable versions target the project's default environment (ODI: the context of the object); no per-scenario choice.
+  // Runnable versions target the project's default environment (the context of the object); no per-scenario choice.
   const environment = props.environments.find((item) => item.defaultEnvironment) ?? props.environments[0]
   const environmentUuid = environment?.uuid ?? ''
   const [preparingScenarioUuid, setPreparingScenarioUuid] = useState('')

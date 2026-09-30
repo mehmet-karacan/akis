@@ -13,7 +13,7 @@ const ICONS: Record<ThemeMode, ReactNode> = {
 const NEXT: Record<ThemeMode, ThemeMode> = { system: 'light', light: 'dark', dark: 'system' }
 
 /** Shared theme control for the login screen and the app shell header: a single button that
- *  cycles Sistem -> Açık -> Koyu -> Sistem on each click, the same interaction as mkaracan.com. */
+ *  cycles Sistem -> Açık -> Koyu -> Sistem on each click, a standard system/light/dark toggle. */
 export function ThemeSwitcher({ className }: { className?: string }) {
   const { t } = useTranslation()
   const { mode, setMode } = useTheme()

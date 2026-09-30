@@ -334,7 +334,7 @@ class RuntimeOracleConnectionProviderTest {
     }
 
     private String credential() {
-        return "{\"username\":\"INNOVA_ODI\",\"password\":\"not-real\"}";
+        return "{\"username\":\"TARGET_SCHEMA\",\"password\":\"not-real\"}";
     }
 
     private static final UUID CONNECTION_VERSION_UUID = UUID.fromString(

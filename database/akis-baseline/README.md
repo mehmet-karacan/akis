@@ -120,7 +120,7 @@ yeniden keşfedildiğinde tek parmak izli görüntüye çözülür; kolon ve kı
 sıraları ilişkisel tutulur. Oracle görüntüsü ayrıca başarılı bağlantı testine ve
 hedef parmak izine sabitlenmiş değişmez bir kanıt kaydı taşır.
 
-Doğrulama sonuçları ve ODI karşılığı olan üretilmiş Scenario kayıtları için:
+Doğrulama sonuçları ve üretilmiş Scenario kayıtları için:
 
 ```powershell
 .\database\akis-baseline\test-scenarios.ps1

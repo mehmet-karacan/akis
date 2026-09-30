@@ -15,7 +15,7 @@ class ProcedureOracleSourceSqlContractTest {
     @Test
     void acceptsOnlyThePinnedBoundSourceSelectAndExtractsOrderedColumns() {
         ProcedureRuntimePlan.Task task = task(
-                "SELECT ID, ACIKLAMA, TANIMLAMA_ZAMANI FROM TTBP.HAKEDIS_TIPI");
+                "SELECT ID, ACIKLAMA, TANIMLAMA_ZAMANI FROM UPSTREAM_SCHEMA.SAMPLE_TABLE");
         ProcedureRuntimePlan plan = plan(task);
 
         var validated = ProcedureOracleSourceSqlContract.validate(
@@ -29,9 +29,9 @@ class ProcedureOracleSourceSqlContractTest {
     @Test
     void rejectsPredicateBindObjectEscapeAndMultipleStatements() {
         for (String command : List.of(
-                "SELECT ID FROM TTBP.HAKEDIS_TIPI WHERE ID = :ID",
-                "SELECT ID FROM TTBP.OTHER_TABLE",
-                "SELECT ID FROM TTBP.HAKEDIS_TIPI; DELETE FROM TTBP.HAKEDIS_TIPI")) {
+                "SELECT ID FROM UPSTREAM_SCHEMA.SAMPLE_TABLE WHERE ID = :ID",
+                "SELECT ID FROM UPSTREAM_SCHEMA.OTHER_TABLE",
+                "SELECT ID FROM UPSTREAM_SCHEMA.SAMPLE_TABLE; DELETE FROM UPSTREAM_SCHEMA.SAMPLE_TABLE")) {
             ProcedureRuntimePlan.Task task = task(command);
             ProcedureRuntimePlan plan = plan(task);
             assertThrows(IllegalArgumentException.class, () ->
@@ -42,7 +42,7 @@ class ProcedureOracleSourceSqlContractTest {
 
     @Test
     void acceptsTypedDateVariableAsAParameterizedPredicate() {
-        String sql = "SELECT ID, TANIMLAMA_ZAMANI FROM TTBP.HAKEDIS_TIPI "
+        String sql = "SELECT ID, TANIMLAMA_ZAMANI FROM UPSTREAM_SCHEMA.SAMPLE_TABLE "
                 + "WHERE TANIMLAMA_ZAMANI >= :KAYIT_TARIHI "
                 + "AND TANIMLAMA_ZAMANI < :KAYIT_TARIHI + 1";
         ProcedureRuntimePlan.Task task = new ProcedureRuntimePlan.Task(
@@ -62,13 +62,13 @@ class ProcedureOracleSourceSqlContractTest {
         var validated = ProcedureOracleSourceSqlContract.validate(
                 plan(task), task, plan(task).bindings().get(task.id()));
 
-        assertEquals("SELECT ID, TANIMLAMA_ZAMANI FROM TTBP.HAKEDIS_TIPI "
+        assertEquals("SELECT ID, TANIMLAMA_ZAMANI FROM UPSTREAM_SCHEMA.SAMPLE_TABLE "
                 + "WHERE TANIMLAMA_ZAMANI >= ? AND TANIMLAMA_ZAMANI < ? + 1", validated.sql());
     }
 
     @Test
     void acceptsRownumLimitBoundToAnIntegerVariableWithOrderBy() {
-        String sql = "SELECT ID, KOD FROM TTBP.HAKEDIS_TIPI WHERE ROWNUM <= :SATIR_LIMITI ORDER BY ID";
+        String sql = "SELECT ID, KOD FROM UPSTREAM_SCHEMA.SAMPLE_TABLE WHERE ROWNUM <= :SATIR_LIMITI ORDER BY ID";
         ProcedureRuntimePlan.Task task = new ProcedureRuntimePlan.Task(
                 "READ_SOURCE", "Read source", ProcedureRuntimePlan.TaskType.SQL,
                 ProcedureRuntimePlan.ConnectionRole.SOURCE,
@@ -83,10 +83,10 @@ class ProcedureOracleSourceSqlContractTest {
                 ProcedureRuntimePlan.TransactionIsolation.DRIVER_DEFAULT,
                 ProcedureRuntimePlan.CommitMode.COMMIT);
         var validated = ProcedureOracleSourceSqlContract.validate(plan(task), task, plan(task).bindings().get(task.id()));
-        assertEquals("SELECT ID, KOD FROM TTBP.HAKEDIS_TIPI WHERE ROWNUM <= ? ORDER BY ID", validated.sql());
-        for (String rejected : List.of("SELECT ID FROM TTBP.HAKEDIS_TIPI WHERE ROWNUM <= 1000",
-                "SELECT ID FROM TTBP.HAKEDIS_TIPI ORDER BY LOWER(ID)",
-                "SELECT ID FROM TTBP.HAKEDIS_TIPI WHERE ID IN (SELECT ID FROM TTBP.X)")) {
+        assertEquals("SELECT ID, KOD FROM UPSTREAM_SCHEMA.SAMPLE_TABLE WHERE ROWNUM <= ? ORDER BY ID", validated.sql());
+        for (String rejected : List.of("SELECT ID FROM UPSTREAM_SCHEMA.SAMPLE_TABLE WHERE ROWNUM <= 1000",
+                "SELECT ID FROM UPSTREAM_SCHEMA.SAMPLE_TABLE ORDER BY LOWER(ID)",
+                "SELECT ID FROM UPSTREAM_SCHEMA.SAMPLE_TABLE WHERE ID IN (SELECT ID FROM UPSTREAM_SCHEMA.X)")) {
             ProcedureRuntimePlan.Task bad = task(rejected);
             ProcedureRuntimePlan plan = plan(bad);
             assertThrows(IllegalArgumentException.class, () -> ProcedureOracleSourceSqlContract.validate(plan, bad, plan.bindings().get(bad.id())));
@@ -125,7 +125,7 @@ class ProcedureOracleSourceSqlContractTest {
                 "READ_SOURCE", ProcedureRuntimePlan.ConnectionRole.SOURCE,
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), 1,
-                "e".repeat(64), "TTBP.HAKEDIS_TIPI", "TTBP",
-                "HAKEDIS_TIPI", objectType);
+                "e".repeat(64), "UPSTREAM_SCHEMA.SAMPLE_TABLE", "UPSTREAM_SCHEMA",
+                "SAMPLE_TABLE", objectType);
     }
 }

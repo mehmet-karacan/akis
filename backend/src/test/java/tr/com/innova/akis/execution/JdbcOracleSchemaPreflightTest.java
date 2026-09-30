@@ -40,9 +40,9 @@ import tr.com.innova.akis.execution.PinnedSchemaSnapshotPort.PinnedSnapshots;
 
 class JdbcOracleSchemaPreflightTest {
 
-    private static final String OWNER = "INNOVA_ODI";
-    private static final String SOURCE_TABLE = "HAKEDIS_TIPI";
-    private static final String TARGET_TABLE = "STG_HAKEDIS_TIPI";
+    private static final String OWNER = "TARGET_SCHEMA";
+    private static final String SOURCE_TABLE = "SAMPLE_TABLE";
+    private static final String TARGET_TABLE = "STG_SAMPLE_TABLE";
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final SchemaFingerprint fingerprint = new SchemaFingerprint(objectMapper);
@@ -53,10 +53,10 @@ class JdbcOracleSchemaPreflightTest {
     void verifiesBothPinnedSnapshotsAgainstLiveOracleUsingSelectsOnly() {
         SchemaFingerprintInput sourceInput = snapshotInput(
                 List.of(numberColumn("ID", 1), stringColumn("NAME", 2)),
-                List.of(primaryKey("PK_HAKEDIS_TIPI", "ID")));
+                List.of(primaryKey("PK_SAMPLE_TABLE", "ID")));
         SchemaFingerprintInput targetInput = snapshotInput(
                 List.of(numberColumn("ID", 1), stringColumn("NAME", 2)),
-                List.of(primaryKey("PK_STG_HAKEDIS_TIPI", "ID")));
+                List.of(primaryKey("PK_STG_SAMPLE_TABLE", "ID")));
         Inputs inputs = inputs(sourceInput, targetInput);
         FakeOracle source = new FakeOracle(
                 columnRows(sourceInput.columns()), constraintRows(sourceInput.constraints()));

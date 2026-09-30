@@ -322,7 +322,7 @@ public class MetadataRepository {
                 .single();
     }
 
-    /** Active packages whose draft or any version still references the definition (ODI: an object cannot be deleted while a package step uses it). */
+    /** Active packages whose draft or any version still references the definition (an object cannot be deleted while a package step uses it). */
     List<String> findPackagesReferencing(long projectId, UUID definitionUuid) {
         return jdbc.sql("""
                         select distinct p.ad || ' (' || p.kod || ')' as etiket
@@ -521,7 +521,7 @@ public class MetadataRepository {
 
     /**
      * Procedure tasks name their tables in SQL, not through a picker. Bind each task to the one registered data object of its
-     * logical schema's models whose reference appears in the command (ODI-style implicit datastore); the publication later
+     * logical schema's models whose reference appears in the command (implicit datastore); the publication later
      * pins that object's newest schema snapshot as the task's target identity. Ambiguous or unmatched tasks stay unbound and
      * the publication reports it.
      */

@@ -316,7 +316,7 @@ body .connections-page .ui-collection--card .connection-record-card .ui-record-c
 body .connections-page .ui-collection--card .connection-record-card .ant-card-body > header { padding-bottom: 4px; }
 @media (max-width: 700px) { .connection-work-schema { grid-template-columns: 1fr; } }
 
-/* Physical schema list and dialog (ODI-style schema / work schema / prefixes). */
+/* Physical schema list and dialog (schema / work schema / prefixes). */
 .physical-schema-toolbar { display: flex; justify-content: flex-end; margin-bottom: 8px; }
 .physical-schema-name code { font-size: 0.8em; color: var(--text-muted, #64748b); }
 .physical-schema-default { display: inline-flex; align-items: center; gap: 4px; color: var(--schema-color-success); font-weight: 600; }

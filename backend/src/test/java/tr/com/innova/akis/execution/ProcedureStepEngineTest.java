@@ -497,8 +497,8 @@ class ProcedureStepEngineTest {
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 1, "e".repeat(64),
                 task.connectionRole() == ConnectionRole.SOURCE
-                        ? "TTBP.SOURCE_TABLE" : "INNOVA_ODI.TARGET_TABLE",
-                task.connectionRole() == ConnectionRole.SOURCE ? "TTBP" : "INNOVA_ODI",
+                        ? "UPSTREAM_SCHEMA.SOURCE_TABLE" : "TARGET_SCHEMA.TARGET_TABLE",
+                task.connectionRole() == ConnectionRole.SOURCE ? "UPSTREAM_SCHEMA" : "TARGET_SCHEMA",
                 task.connectionRole() == ConnectionRole.SOURCE ? "SOURCE_TABLE" : "TARGET_TABLE",
                 "TABLO");
     }

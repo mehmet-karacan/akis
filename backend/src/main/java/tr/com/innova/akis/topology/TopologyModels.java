@@ -5,7 +5,7 @@ import java.util.UUID;
 
 import tools.jackson.databind.JsonNode;
 
-/** Global topology rows (ODI master-repository model): no project scope, no versioning. */
+/** Global topology rows (global model): no project scope, no versioning. */
 final class TopologyModels {
 
     private TopologyModels() {

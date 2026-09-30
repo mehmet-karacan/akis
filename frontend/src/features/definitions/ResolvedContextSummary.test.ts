@@ -7,8 +7,8 @@ describe('procedure context resolution', () => {
     const result = resolveProcedureContext('logical', 'test',
       [bindingFixture({ uuid: 'b', logicalSchemaUuid: 'logical', environmentUuid: 'test', physicalSchemaUuid: 'p' })],
       [physicalSchemaFixture({ uuid: 'p', connectionUuid: 'c', schemaName: 'SCOTT' })],
-      [connectionFixture({ uuid: 'c', code: 'SKY', name: 'SKY' })])
+      [connectionFixture({ uuid: 'c', code: 'SOURCE', name: 'SOURCE' })])
     expect(result.physicalSchema?.schemaName).toBe('SCOTT')
-    expect(result.connection?.code).toBe('SKY')
+    expect(result.connection?.code).toBe('SOURCE')
   })
 })

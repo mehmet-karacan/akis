@@ -4,7 +4,7 @@ ALTER TABLE baglanti_surumu
     ADD COLUMN baglanti_modu TEXT NOT NULL DEFAULT 'JDBC',
     ADD COLUMN jndi_adi TEXT;
 
--- Existing connection versions (including SKY and GPU) are JDBC definitions.
+-- Existing connection versions (including SOURCE and TARGET) are JDBC definitions.
 -- JNDI definitions deliberately carry no host, port or driver metadata: the
 -- application server owns that configuration and the secret material.
 ALTER TABLE baglanti_surumu

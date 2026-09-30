@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 class OracleColumnCapabilityTest {
 
     @Test
-    void classifiesTransferTypesObservedInTheOdiRepositoryInventory() {
+    void classifiesTransferTypesObservedInSourceRepositoryInventory() {
         assertClassification("NUMBER", 19, 0, "INTEGER", "TRANSFER_SUPPORTED");
         assertClassification("NUMBER", 20, 0, "DECIMAL", "TRANSFER_SUPPORTED");
         assertClassification("NUMBER", null, null, "DECIMAL", "TRANSFER_SUPPORTED");

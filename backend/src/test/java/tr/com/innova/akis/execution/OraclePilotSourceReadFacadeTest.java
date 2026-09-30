@@ -238,8 +238,8 @@ class OraclePilotSourceReadFacadeTest {
         return new PilotRuntimePlan(
                 1, RUNTIME_HASH, RELEASE_HASH, PLAN_HASH,
                 UUID.randomUUID(), UUID.randomUUID(), 1000,
-                binding(DatasetRole.SOURCE, "TTBP", "HAKEDIS_TIPI", sourceFingerprint),
-                binding(DatasetRole.TARGET, "INNOVA_ODI", "STG_HAKEDIS_TIPI",
+                binding(DatasetRole.SOURCE, "UPSTREAM_SCHEMA", "SAMPLE_TABLE", sourceFingerprint),
+                binding(DatasetRole.TARGET, "TARGET_SCHEMA", "STG_SAMPLE_TABLE",
                         targetFingerprint),
                 List.of(new DirectColumnMapping("ID", "ID")),
                 WriteStrategy.ATOMIC_DELETE_INSERT,

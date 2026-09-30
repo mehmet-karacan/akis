@@ -165,7 +165,7 @@ As of 2026-09-11:
 - definition selection is deep-linkable with the `definition` query parameter,
 - unsaved draft switching is guarded and stale definition responses cannot overwrite a newer selection,
 - route-level code splitting keeps the initial application bundle independent from the large design and topology workspaces.
-- V016/V017 preserve existing SKY/GPU connection-version identities while adding immutable JDBC/JNDI mode invariants,
+- V016/V017 preserve existing SOURCE/TARGET connection-version identities while adding immutable JDBC/JNDI mode invariants,
 - Oracle JDBC drivers are server-pinned; local-only JNDI DataSources are supported for test/discovery while execution remains fail-closed until an immutable target fingerprint is enforced,
 - the connection-version UI is a localized JDBC/JNDI wizard with explicit Service Name/SID, TCP-only creation until verified TCPS is delivered, active ENV secret-reference-only credentials, review, create and revision-specific test actions.
 
@@ -176,8 +176,5 @@ Folder archive/delete is intentionally deferred. Its non-empty-folder and subtre
 ## References
 
 - [Apache Airflow UI](https://airflow.apache.org/docs/apache-airflow/stable/ui.html)
-- [Oracle Data Integrator Designer Navigator](https://docs.oracle.com/middleware/12212/odi/ODISH/f1_designer_navigator.htm)
-- [Oracle Data Integrator projects and folders](https://docs.oracle.com/en/middleware/fusion-middleware/data-integrator/12.2.1.3/using/projects.html)
-- [Oracle Data Integrator packages](https://docs.oracle.com/en/middleware/fusion-middleware/data-integrator/12.2.1.4/odidg/creating-and-using-packages.html)
 - [Oracle JDBC data sources and URLs for 19c](https://docs.oracle.com/en/database/oracle/oracle-database/19/jjdbc/data-sources-and-URLs.html)
 - [Oracle Database 19c TLS](https://docs.oracle.com/en/database/oracle/oracle-database/19/dbseg/tls-and-oracle-database.html)

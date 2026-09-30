@@ -123,15 +123,15 @@ describe('topology API contracts', () => {
   })
 
   it('loads database schemas and creates a physical schema with its work schema and prefixes', async () => {
-    const fetchMock = mockResponse(['TTBP', 'INNOVA_ODI'])
+    const fetchMock = mockResponse(['UPSTREAM_SCHEMA', 'TARGET_SCHEMA'])
 
     await topologyApi.listDatabaseSchemas('project', 'connection')
-    await topologyApi.createPhysicalSchema('project', { connectionUuid: 'connection', schemaName: 'TTBP', workSchemaName: 'TTBP_WORK', loadingPrefix: 'C$_' })
+    await topologyApi.createPhysicalSchema('project', { connectionUuid: 'connection', schemaName: 'UPSTREAM_SCHEMA', workSchemaName: 'UPSTREAM_WORK', loadingPrefix: 'C$_' })
 
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/projects/project/connections/connection/schemas')
     const [createPath, createInit] = fetchMock.mock.calls[1] as [string, RequestInit]
     expect(createPath).toBe('/api/v1/projects/project/physical-schemas')
-    expect(JSON.parse(String(createInit.body))).toEqual({ connectionUuid: 'connection', schemaName: 'TTBP', workSchemaName: 'TTBP_WORK', loadingPrefix: 'C$_' })
+    expect(JSON.parse(String(createInit.body))).toEqual({ connectionUuid: 'connection', schemaName: 'UPSTREAM_SCHEMA', workSchemaName: 'UPSTREAM_WORK', loadingPrefix: 'C$_' })
   })
 
   it('updates and deletes a physical schema by its identity', async () => {

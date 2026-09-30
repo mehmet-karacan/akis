@@ -17,7 +17,7 @@ export async function login(page: Page) {
   await page.evaluate(async () => {
     const response = await fetch('/api/v1/projects')
     const projects = await response.json() as Array<{ uuid: string; code: string }>
-    const selected = projects.find((project) => project.code === 'SKY') ?? projects[0]
+    const selected = projects.find((project) => project.code === 'SOURCE') ?? projects[0]
     if (selected) localStorage.setItem('akis.lastProjectUuid', selected.uuid)
   })
   await page.goto('/project')

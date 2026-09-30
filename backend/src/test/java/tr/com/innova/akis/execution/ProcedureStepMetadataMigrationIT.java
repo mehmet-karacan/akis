@@ -65,7 +65,7 @@ class ProcedureStepMetadataMigrationIT {
                 INSERT INTO tanim_surumu(
                     tanim_id, surum_no, sema_surumu, icerik_ozeti, icerik)
                 SELECT id, 1, 2, repeat('4', 64),
-                       cast('{"tasks":[{"id":"READ_SOURCE","name":"Read source","type":"SQL","connectionRole":"SOURCE","riskClass":"READ_ONLY","onError":"STOP","timeoutSeconds":60,"command":"SELECT ID FROM TTBP.HAKEDIS_TIPI"},{"id":"INSERT_TARGET","name":"Insert target","type":"SQL","connectionRole":"TARGET","riskClass":"DML","onError":"STOP","timeoutSeconds":60,"command":"INSERT INTO INNOVA_ODI.STG_HAKEDIS_TIPI (ID) VALUES (:ID)"}]}' as jsonb)
+                       cast('{"tasks":[{"id":"READ_SOURCE","name":"Read source","type":"SQL","connectionRole":"SOURCE","riskClass":"READ_ONLY","onError":"STOP","timeoutSeconds":60,"command":"SELECT ID FROM UPSTREAM_SCHEMA.SAMPLE_TABLE"},{"id":"INSERT_TARGET","name":"Insert target","type":"SQL","connectionRole":"TARGET","riskClass":"DML","onError":"STOP","timeoutSeconds":60,"command":"INSERT INTO TARGET_SCHEMA.STG_SAMPLE_TABLE (ID) VALUES (:ID)"}]}' as jsonb)
                   FROM tanim WHERE kod = 'LOAD_TEST';
                 INSERT INTO ortam(proje_id, kod, risk_kodu, ad)
                 SELECT id, 'TEST', 'DUSUK', 'Test' FROM proje WHERE kod = 'PROC_STEP_IT';

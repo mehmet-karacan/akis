@@ -22,10 +22,10 @@ class OracleDatabaseIdentityFingerprintV1Test {
     @Test
     void canonicalizesValuesAndMatchesTheStableV1Vector() {
         OracleDatabaseIdentityFingerprintV1.CanonicalDatabaseIdentity identity =
-                fingerprint.canonicalize("  ttbp2  ", " pdb1 ");
+                fingerprint.canonicalize("  upstream_schema_2  ", " pdb1 ");
 
         assertEquals(1, identity.identityVersion());
-        assertEquals("TTBP2", identity.databaseUniqueName());
+        assertEquals("UPSTREAM_SCHEMA_2", identity.databaseUniqueName());
         assertEquals("PDB1", identity.containerName());
         assertArrayEquals(HexFormat.of().parseHex(EXPECTED_PAYLOAD), identity.canonicalPayload());
         assertEquals(EXPECTED_FINGERPRINT, identity.fingerprint());
@@ -36,9 +36,9 @@ class OracleDatabaseIdentityFingerprintV1Test {
         assertThrows(IllegalArgumentException.class, () -> fingerprint.canonicalize(null, "PDB1"));
         assertThrows(IllegalArgumentException.class, () -> fingerprint.canonicalize(" ", "PDB1"));
         assertThrows(IllegalArgumentException.class, () -> fingerprint.canonicalize("DB\0X", "PDB1"));
-        assertThrows(IllegalArgumentException.class, () -> fingerprint.canonicalize("TTBP2", null));
-        assertThrows(IllegalArgumentException.class, () -> fingerprint.canonicalize("TTBP2", "\t"));
-        assertThrows(IllegalArgumentException.class, () -> fingerprint.canonicalize("TTBP2", "PDB\0X"));
+        assertThrows(IllegalArgumentException.class, () -> fingerprint.canonicalize("UPSTREAM_SCHEMA_2", null));
+        assertThrows(IllegalArgumentException.class, () -> fingerprint.canonicalize("UPSTREAM_SCHEMA_2", "\t"));
+        assertThrows(IllegalArgumentException.class, () -> fingerprint.canonicalize("UPSTREAM_SCHEMA_2", "PDB\0X"));
     }
 
     @Test
@@ -52,7 +52,7 @@ class OracleDatabaseIdentityFingerprintV1Test {
     @Test
     void canonicalPayloadIsDefensivelyCopied() {
         OracleDatabaseIdentityFingerprintV1.CanonicalDatabaseIdentity identity =
-                fingerprint.canonicalize("TTBP2", "PDB1");
+                fingerprint.canonicalize("UPSTREAM_SCHEMA_2", "PDB1");
         byte[] exposed = identity.canonicalPayload();
         exposed[0] = (byte) (exposed[0] + 1);
 

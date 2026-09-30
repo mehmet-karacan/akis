@@ -13,7 +13,7 @@ import tr.com.innova.akis.publication.PublicationModels.PublicationContext;
 
 /**
  * Pins what a package run needs: for every MAPPING/PROCEDURE step the step object's newest active publication
- * in the same environment (ODI: a package scenario references generated scenarios), for every variable step the
+ * in the same environment (a package scenario references generated scenarios), for every variable step the
  * variable's refresh contract and its Oracle binding in the environment. Nothing is resolved again at run time.
  */
 @Component

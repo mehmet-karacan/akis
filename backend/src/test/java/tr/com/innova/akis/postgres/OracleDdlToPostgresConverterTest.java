@@ -9,22 +9,22 @@ class OracleDdlToPostgresConverterTest {
     @Test
     void convertsPortableTableDefinitionToLowercasePostgresIdentifiers() {
         String oracle = """
-                CREATE TABLE "TTBP"."SATIS_KANALI" (
+                CREATE TABLE "UPSTREAM_SCHEMA"."CHANNEL" (
                   "ID" NUMBER NOT NULL ENABLE,
                   "ACIKLAMA" VARCHAR2(64) NOT NULL ENABLE,
-                  "SATIS_KANALI_GRUBU_ID" NUMBER(19,0),
-                  SUPPLEMENTAL LOG GROUP "GGS_SATIS_KANALI_71815" ("ID") ALWAYS
+                  "CHANNEL_GROUP_ID" NUMBER(19,0),
+                  SUPPLEMENTAL LOG GROUP "GGS_CHANNEL_71815" ("ID") ALWAYS
                 ) SEGMENT CREATION IMMEDIATE TABLESPACE "DATA";
-                ALTER TABLE "TTBP"."SATIS_KANALI" ADD CONSTRAINT "PK_SATIS_KANALI" PRIMARY KEY ("ID") ENABLE
+                ALTER TABLE "UPSTREAM_SCHEMA"."CHANNEL" ADD CONSTRAINT "PK_CHANNEL" PRIMARY KEY ("ID") ENABLE
                 """;
 
-        var result = OracleDdlToPostgresConverter.convert(oracle, "TTBP", "SATIS_KANALI");
+        var result = OracleDdlToPostgresConverter.convert(oracle, "UPSTREAM_SCHEMA", "CHANNEL");
 
-        assertTrue(result.ddl().contains("CREATE SCHEMA IF NOT EXISTS ttbp;"));
-        assertTrue(result.ddl().contains("CREATE TABLE ttbp.satis_kanali"));
+        assertTrue(result.ddl().contains("CREATE SCHEMA IF NOT EXISTS upstream_schema;"));
+        assertTrue(result.ddl().contains("CREATE TABLE upstream_schema.channel"));
         assertTrue(result.ddl().contains("id numeric NOT NULL"));
         assertTrue(result.ddl().contains("aciklama varchar(64) NOT NULL"));
-        assertTrue(result.ddl().contains("satis_kanali_grubu_id numeric(19,0)"));
+        assertTrue(result.ddl().contains("channel_group_id numeric(19,0)"));
         assertTrue(result.ddl().contains("PRIMARY KEY (id)"));
         assertFalse(result.ddl().contains("\""));
         assertTrue(result.ignoredClauses().contains("SUPPLEMENTAL LOG GROUP"));

@@ -32,7 +32,7 @@ class ProcedureRuntimePlanResolverTest {
     void rejectsDateRefreshWithBooleanParameterBeforePublication() {
         ObjectNode definition = definition();
         ObjectNode source = (ObjectNode) definition.get("tasks").get(1);
-        source.put("command", "SELECT ID, ACIKLAMA FROM TTBP.HAKEDIS_TIPI WHERE ID = :D");
+        source.put("command", "SELECT ID, ACIKLAMA FROM UPSTREAM_SCHEMA.SAMPLE_TABLE WHERE ID = :D");
         source.putObject("parameters").putObject("D").put("type", "BOOLEAN")
             .put("valueSource", "REFRESH_QUERY").put("query", "SELECT SYSDATE - 1 FROM DUAL");
         ObjectNode scenario = scenario(definition);
@@ -47,7 +47,7 @@ class ProcedureRuntimePlanResolverTest {
         ObjectNode definition = definition();
         UUID variable = UUID.randomUUID(), logical = UUID.randomUUID();
         ObjectNode source = (ObjectNode) definition.get("tasks").get(1);
-        source.put("command", "SELECT ID, ACIKLAMA FROM TTBP.HAKEDIS_TIPI WHERE ID = :D");
+        source.put("command", "SELECT ID, ACIKLAMA FROM UPSTREAM_SCHEMA.SAMPLE_TABLE WHERE ID = :D");
         source.putObject("parameters").putObject("D").put("type", "DATE").put("valueSource", "REFRESH_QUERY")
             .put("query", "SELECT SYSDATE - 1 FROM DUAL").put("definitionUuid", variable.toString())
             .put("logicalSchemaUuid", logical.toString()).put("historyMode", "ALL");
@@ -99,7 +99,7 @@ class ProcedureRuntimePlanResolverTest {
     void publicationAcceptsTheSameTypedSourceFilterAsTheReader() {
         ObjectNode definition = definition();
         ObjectNode source = (ObjectNode) definition.get("tasks").get(1);
-        source.put("command", "SELECT ID, ACIKLAMA FROM TTBP.HAKEDIS_TIPI WHERE ID = :id");
+        source.put("command", "SELECT ID, ACIKLAMA FROM UPSTREAM_SCHEMA.SAMPLE_TABLE WHERE ID = :id");
         source.putObject("parameters").putObject("ID").put("type", "INTEGER").put("value", "7");
         ObjectNode scenario = scenario(definition);
         String hash = sha256(canonicalize(scenario).toString());
@@ -174,7 +174,7 @@ class ProcedureRuntimePlanResolverTest {
     void acceptsFormattedInsertWithoutWeakeningTargetOrBindChecks() {
         ObjectNode definition = definition();
         ((ObjectNode) definition.path("tasks").get(2)).put("command",
-                "INSERT INTO INNOVA_ODI.STG_HAKEDIS_TIPI (\n ID,\n ACIKLAMA\n)\nVALUES (\n :ID,\n :ACIKLAMA\n)");
+                "INSERT INTO TARGET_SCHEMA.STG_SAMPLE_TABLE (\n ID,\n ACIKLAMA\n)\nVALUES (\n :ID,\n :ACIKLAMA\n)");
         ObjectNode scenario = scenario(definition);
         String hash = sha256(canonicalize(scenario).toString());
         ObjectNode manifest = manifest(definition, scenario, hash);
@@ -228,7 +228,7 @@ class ProcedureRuntimePlanResolverTest {
         Fixture objects = fixture();
         ObjectNode binding = (ObjectNode) objects.unsignedManifest().get("bindings").get(2);
         binding.put("dataObjectReference", "OTHER_TABLE");
-        binding.put("physicalIdentity", "INNOVA_ODI.OTHER_TABLE");
+        binding.put("physicalIdentity", "TARGET_SCHEMA.OTHER_TABLE");
         assertThrows(ProcedureRuntimePlanException.class, () -> resolver.compileHashForPublication(
                 objects.scenarioHash(), objects.scenarioPlan(), objects.unsignedManifest()));
 
@@ -255,7 +255,7 @@ class ProcedureRuntimePlanResolverTest {
         source.put("type", "PLSQL");
         source.put("riskClass", "DESTRUCTIVE");
         source.put("requiresApproval", true);
-        source.put("command", "BEGIN DELETE FROM TTBP.HAKEDIS_TIPI; END;");
+        source.put("command", "BEGIN DELETE FROM UPSTREAM_SCHEMA.SAMPLE_TABLE; END;");
         assertFalse(resolver.isProcedureCandidate(scenario(sourcePlsql)));
 
         ObjectNode disguisedTruncate = definition();
@@ -266,7 +266,7 @@ class ProcedureRuntimePlanResolverTest {
 
         ObjectNode multipleStatements = definition();
         ((ObjectNode) multipleStatements.get("tasks").get(1))
-                .put("command", "SELECT ID FROM TTBP.HAKEDIS_TIPI; DELETE FROM TTBP.HAKEDIS_TIPI");
+                .put("command", "SELECT ID FROM UPSTREAM_SCHEMA.SAMPLE_TABLE; DELETE FROM UPSTREAM_SCHEMA.SAMPLE_TABLE");
         assertFalse(resolver.isProcedureCandidate(scenario(multipleStatements)));
     }
 
@@ -274,22 +274,22 @@ class ProcedureRuntimePlanResolverTest {
     void rejectsCommandsThatEscapeTheirBoundObjectsOrNeedUnresolvedValues() {
         ObjectNode wrongSource = definition();
         ((ObjectNode) wrongSource.get("tasks").get(1))
-                .put("command", "SELECT ID, ACIKLAMA FROM TTBP.OTHER_TABLE");
+                .put("command", "SELECT ID, ACIKLAMA FROM UPSTREAM_SCHEMA.OTHER_TABLE");
         assertRejectedAtPublication(wrongSource);
 
         ObjectNode sourceBind = definition();
         ((ObjectNode) sourceBind.get("tasks").get(1))
-                .put("command", "SELECT ID, ACIKLAMA FROM TTBP.HAKEDIS_TIPI WHERE ID = :ID");
+                .put("command", "SELECT ID, ACIKLAMA FROM UPSTREAM_SCHEMA.SAMPLE_TABLE WHERE ID = :ID");
         assertRejectedAtPublication(sourceBind);
 
         ObjectNode wrongTarget = definition();
         ((ObjectNode) wrongTarget.get("tasks").get(2)).put(
-                "command", "INSERT INTO INNOVA_ODI.OTHER_TABLE (ID, ACIKLAMA) VALUES (:ID, :ACIKLAMA)");
+                "command", "INSERT INTO TARGET_SCHEMA.OTHER_TABLE (ID, ACIKLAMA) VALUES (:ID, :ACIKLAMA)");
         assertRejectedAtPublication(wrongTarget);
 
         ObjectNode wrongStatsTarget = definition();
         ((ObjectNode) wrongStatsTarget.get("tasks").get(3)).put(
-                "command", "BEGIN DBMS_STATS.GATHER_TABLE_STATS(ownname => 'INNOVA_ODI', tabname => 'OTHER_TABLE'); END;");
+                "command", "BEGIN DBMS_STATS.GATHER_TABLE_STATS(ownname => 'TARGET_SCHEMA', tabname => 'OTHER_TABLE'); END;");
         assertRejectedAtPublication(wrongStatsTarget);
     }
 
@@ -352,12 +352,12 @@ class ProcedureRuntimePlanResolverTest {
                    "connectionRole":"TARGET","riskClass":"DESTRUCTIVE",
                    "logCounter":"NONE",
                    "requiresApproval":true,"onError":"STOP","timeoutSeconds":60,
-                   "command":"TRUNCATE TABLE INNOVA_ODI.STG_HAKEDIS_TIPI"},
+                   "command":"TRUNCATE TABLE TARGET_SCHEMA.STG_SAMPLE_TABLE"},
                   {"id":"READ_SOURCE","name":"Read","type":"SQL",
                    "connectionRole":"SOURCE","riskClass":"READ_ONLY",
                    "logCounter":"ANALYSIS",
                    "onError":"STOP","timeoutSeconds":300,
-                   "command":"SELECT ID, ACIKLAMA FROM TTBP.HAKEDIS_TIPI",
+                   "command":"SELECT ID, ACIKLAMA FROM UPSTREAM_SCHEMA.SAMPLE_TABLE",
                    "output":{"kind":"ROWSET","maxRows":1000}},
                   {"id":"INSERT_TARGET","name":"Write","type":"SQL",
                    "connectionRole":"TARGET","riskClass":"DML",
@@ -365,13 +365,13 @@ class ProcedureRuntimePlanResolverTest {
                    "transactionChannel":0,"transactionIsolation":"READ_COMMITTED",
                    "commitMode":"COMMIT",
                    "onError":"STOP","timeoutSeconds":300,
-                   "command":"INSERT INTO INNOVA_ODI.STG_HAKEDIS_TIPI (ID, ACIKLAMA) VALUES (:ID, :ACIKLAMA)",
+                   "command":"INSERT INTO TARGET_SCHEMA.STG_SAMPLE_TABLE (ID, ACIKLAMA) VALUES (:ID, :ACIKLAMA)",
                    "input":{"fromTask":"READ_SOURCE","mode":"BATCH","batchSize":250}},
                    {"id":"GATHER_STATS","name":"Stats","type":"PLSQL",
                     "connectionRole":"TARGET","riskClass":"DESTRUCTIVE",
                    "logCounter":"STATISTICS",
                    "requiresApproval":true,"onError":"STOP","timeoutSeconds":300,
-                   "command":"BEGIN DBMS_STATS.GATHER_TABLE_STATS('INNOVA_ODI','STG_HAKEDIS_TIPI'); END;"}
+                   "command":"BEGIN DBMS_STATS.GATHER_TABLE_STATS('TARGET_SCHEMA','STG_SAMPLE_TABLE'); END;"}
                 ]}
                 """);
     }
@@ -419,9 +419,9 @@ class ProcedureRuntimePlanResolverTest {
         UUID targetConnection = UUID.randomUUID();
         ArrayNode bindings = objectMapper.createArrayNode();
         bindings.add(binding("TRUNCATE_TARGET", "HEDEF", targetConnection,
-                "INNOVA_ODI", "STG_HAKEDIS_TIPI", "TABLO"));
+                "TARGET_SCHEMA", "STG_SAMPLE_TABLE", "TABLO"));
         bindings.add(binding("READ_SOURCE", "KAYNAK", sourceConnection,
-                "TTBP", "HAKEDIS_TIPI", "TABLO"));
+                "UPSTREAM_SCHEMA", "SAMPLE_TABLE", "TABLO"));
         ObjectNode target = (ObjectNode) bindings.get(0);
         bindings.add(copyBinding(target, "INSERT_TARGET"));
         bindings.add(copyBinding(target, "GATHER_STATS"));

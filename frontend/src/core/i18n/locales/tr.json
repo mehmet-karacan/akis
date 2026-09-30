@@ -349,7 +349,7 @@
   "models.bindingMissing": "Bu modelin mantıksal şeması seçili ortamda eşleştirilmemiş.",
   "models.openBindings": "Şema Eşleştirmelerini Aç",
   "models.discoveryScope": "Tablo veya görünüm adı (isteğe bağlı)",
-  "models.scopePlaceholder": "Örneğin HAKEDIS_TIPI",
+  "models.scopePlaceholder": "Örneğin SAMPLE_TABLE",
   "models.discover": "Nesneleri Keşfet",
   "models.metadataOnly": "Yalnızca şema metadatası okunur. Tablo satırları ve DDL işlemleri bu işlemin dışındadır.",
   "models.discoveryFailed": "Metadata keşfi başarısız oldu.",
