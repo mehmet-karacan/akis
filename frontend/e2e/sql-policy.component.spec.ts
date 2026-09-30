@@ -5,6 +5,9 @@ test('SQL check is explicit, errors are visible, and the editor fits both viewpo
   let requests = 0
   const failures: string[] = []
   page.on('pageerror', (error) => failures.push(error.message))
+  await page.route('**/api/v1/auth/csrf', async route => {
+    await route.fulfill({ json: { headerName: 'X-CSRF-TOKEN', token: 'component-test-token' } })
+  })
   await page.route('**/api/v1/projects/test-project/sql/validate', async (route) => {
     requests++
     await route.fulfill({ status: 422, contentType: 'application/problem+json', body: JSON.stringify({ detail: 'Unsupported SQL policy', code: 'SQL_POLICY_REJECTED' }) })

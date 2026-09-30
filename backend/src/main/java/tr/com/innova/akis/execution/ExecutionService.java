@@ -289,14 +289,13 @@ public class ExecutionService {
 
     @Transactional
     RunRow cancel(UUID projectUuid, UUID runUuid, Actor actor) {
-        requireManualRequestsEnabled();
         RunRow run = store.lock(projectUuid, runUuid)
                 .orElseThrow(() -> notFound("Çalıştırma bulunamadı."));
-        if (stateMachine.queuedCancellation(run.status())
-                == RunStateMachine.CancellationDecision.ALREADY_CANCELLED) {
-            return run;
-        }
-        return store.cancelQueued(run, actor, UUID.randomUUID());
+        return switch (stateMachine.cancellation(run.status())) {
+            case ALREADY_CANCELLED, ALREADY_REQUESTED -> run;
+            case TRANSITION -> store.cancelQueued(run, actor, UUID.randomUUID());
+            case REQUEST -> store.requestCancellation(run, actor, UUID.randomUUID());
+        };
     }
 
     /** Human decision after a reconciliation conflict: release the target so runs can fence it again. Reason is mandatory. */

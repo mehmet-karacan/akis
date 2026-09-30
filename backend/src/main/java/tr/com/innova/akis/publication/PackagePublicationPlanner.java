@@ -39,10 +39,16 @@ public class PackagePublicationPlanner {
             pinned.put("id", id);
             pinned.put("type", type);
             pinned.put("name", step.path("name").asText(id));
+            String executionMode = step.path("executionMode").asText("SYNC");
+            if (!Set.of("SYNC", "ASYNC").contains(executionMode)
+                    || (executionMode.equals("ASYNC") && type.startsWith("VARIABLE_"))) {
+                throw validation("Paket adımının yürütme modu geçersiz: " + pinned.path("name").asText());
+            }
+            pinned.put("executionMode", executionMode);
             UUID definitionUuid = uuid(step.path("definitionUuid").asText(), "Paket adımı '" + pinned.path("name").asText() + "' bir nesneye bağlı değil.");
             pinned.put("definitionUuid", definitionUuid.toString());
             switch (type) {
-                case "MAPPING", "PROCEDURE" -> pinned.set("publication", childPublication(context, definitionUuid, pinned.path("name").asText()));
+                case "MAPPING", "PROCEDURE", "PACKAGE" -> pinned.set("publication", childPublication(context, definitionUuid, pinned.path("name").asText()));
                 case "VARIABLE_REFRESH", "VARIABLE_EVALUATE" -> {
                     pinned.set("variable", variableBinding(context, definitionUuid, pinned.path("name").asText()));
                     if (step.has("evaluate")) pinned.set("evaluate", step.get("evaluate").deepCopy());
@@ -60,7 +66,23 @@ public class PackagePublicationPlanner {
             ObjectNode t = mapper.createObjectNode();
             t.put("fromStepId", edge.path("fromStepId").asText());
             t.put("toStepId", edge.path("toStepId").asText());
-            t.put("outcome", edge.path("outcome").asText("SUCCESS"));
+            String outcome = edge.path("outcome").asText("SUCCESS");
+            String sourceMode = "SYNC";
+            String sourceType = "";
+            for (JsonNode candidate : content.path("steps")) {
+                if (candidate.path("id").asText().equals(edge.path("fromStepId").asText())) {
+                    sourceMode = candidate.path("executionMode").asText("SYNC");
+                    sourceType = candidate.path("type").asText();
+                    break;
+                }
+            }
+            if ("ASYNC".equals(sourceMode) && !Set.of("DISPATCHED", "FAILURE", "ALWAYS").contains(outcome))
+                throw validation("ASYNC paket adımı yalnız DISPATCHED, FAILURE veya ALWAYS geçişi kullanabilir.");
+            if ("SYNC".equals(sourceMode) && "DISPATCHED".equals(outcome))
+                throw validation("SYNC paket adımı DISPATCHED geçişi kullanamaz.");
+            if ("VARIABLE_EVALUATE".equals(sourceType) && !Set.of("TRUE", "FALSE", "FAILURE", "ALWAYS").contains(outcome))
+                throw validation("VARIABLE_EVALUATE yalnız TRUE, FALSE, FAILURE veya ALWAYS geçişi kullanabilir.");
+            t.put("outcome", outcome);
             transitions.add(t);
         }
         plan.set("transitions", transitions);

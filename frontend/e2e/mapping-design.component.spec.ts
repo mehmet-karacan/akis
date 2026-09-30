@@ -5,6 +5,9 @@ test('mapping compatibility is explicit, versioned and fits narrow screens', asy
   let requests = 0
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
+  await page.route('**/api/v1/auth/csrf', async route => {
+    await route.fulfill({ json: { headerName: 'X-CSRF-TOKEN', token: 'component-test-token' } })
+  })
   await page.route('**/mapping-design/assess', async route => {
     requests++
     const input = route.request().postDataJSON()

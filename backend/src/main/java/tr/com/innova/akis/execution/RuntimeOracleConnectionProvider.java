@@ -501,6 +501,17 @@ final class RuntimeOracleConnectionProvider {
             }
         }
 
+        /** Best-effort owner-scoped interruption; outcome remains unknown until journal reconciliation. */
+        void cancelActive() {
+            if (closed) return;
+            try {
+                connection.abort(Runnable::run);
+            }
+            catch (SQLException | RuntimeException ignored) {
+                // The worker will enter the existing unknown/cleanup path.
+            }
+        }
+
         @Override
         public void close() {
             if (closed) {

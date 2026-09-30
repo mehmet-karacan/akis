@@ -46,6 +46,7 @@ final class JdbcOracleProcedureTaskExecutorSessionFactory
     private final JdbcPinnedSchemaSnapshotStore snapshots;
     private final ProcedurePreflightContextPort contexts;
     private final RuntimeOracleConnectionProvider connections;
+    private final RuntimeOperationRegistry operations;
     private final JdbcOracleProcedureSourceReader sourceReader;
     private final ObjectMapper objectMapper;
     private JdbcProcedureVariableRuntime variableRuntime;
@@ -58,12 +59,14 @@ final class JdbcOracleProcedureTaskExecutorSessionFactory
             ProcedurePreflightContextPort contexts,
             RuntimeOracleConnectionProvider connections,
             JdbcOracleProcedureSourceReader sourceReader,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            RuntimeOperationRegistry operations) {
         this.snapshots = snapshots;
         this.contexts = contexts;
         this.connections = connections;
         this.sourceReader = sourceReader;
         this.objectMapper = objectMapper;
+        this.operations = operations;
     }
 
     @Override
@@ -118,6 +121,7 @@ final class JdbcOracleProcedureTaskExecutorSessionFactory
                 PilotRuntimePlan.DatasetBinding binding =
                         ProcedureOracleBindingAdapter.source(command.binding());
                 session = connections.openSource(binding);
+                operations.register(token.run().runUuid(), token.run().generation(), session);
                 session.applyTransactionIsolation(command.task().transactionIsolation());
                 new JdbcOracleSchemaPreflight(objectMapper).verifySource(
                         sourcePlan(command.task(), binding), session.connection(),
@@ -153,6 +157,7 @@ final class JdbcOracleProcedureTaskExecutorSessionFactory
                 return new SafeFailure("PROCEDURE_SOURCE_READ_FAILED", true);
             }
             finally {
+                if (session != null) operations.unregister(token.run().runUuid(), token.run().generation(), session);
                 closeQuietly(session);
             }
         }
@@ -172,6 +177,7 @@ final class JdbcOracleProcedureTaskExecutorSessionFactory
                 session = managed
                         ? managedTransaction(transactionKey, command, binding).session()
                         : connections.openTargetData(binding, new ProcedurePermit());
+                operations.register(token.run().runUuid(), token.run().generation(), session);
                 if (!managed) {
                     session.applyTransactionIsolation(command.task().transactionIsolation());
                 }
@@ -185,6 +191,7 @@ final class JdbcOracleProcedureTaskExecutorSessionFactory
                     commitEntered = true;
                     session.commitConfirmed();
                     if (managed) transactions.remove(transactionKey);
+                    operations.unregister(token.run().runUuid(), token.run().generation(), session);
                     closeQuietly(session);
                     session = null;
                 }
@@ -198,6 +205,7 @@ final class JdbcOracleProcedureTaskExecutorSessionFactory
                 if (managed) transactions.remove(transactionKey);
                 if (!statementEntered) {
                     rollbackQuietly(session);
+                    operations.unregister(token.run().runUuid(), token.run().generation(), session);
                     closeQuietly(session);
                     return new NotAttempted("PROCEDURE_TARGET_PREFLIGHT_FAILED");
                 }
@@ -207,10 +215,12 @@ final class JdbcOracleProcedureTaskExecutorSessionFactory
                     closeQuietly(session);
                     return new SafeFailure("PROCEDURE_TARGET_DML_FAILED", true);
                 }
+                if (session != null) operations.unregister(token.run().runUuid(), token.run().generation(), session);
                 closeQuietly(session);
                 return new OutcomeUnknown("PROCEDURE_TARGET_OUTCOME_UNKNOWN");
             }
             finally {
+                if (session != null) operations.unregister(token.run().runUuid(), token.run().generation(), session);
                 if (!managed) closeQuietly(session);
             }
         }

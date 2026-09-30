@@ -79,7 +79,7 @@ describe('execution UI states', () => {
   it('localizes every canonical control-plane status', () => {
     const statuses = [
       'BEKLIYOR', 'HAZIRLANIYOR', 'CALISIYOR', 'YAYINLANIYOR',
-      'IPTAL_ISTENDI', 'SONUC_BELIRSIZ', 'MUTABAKAT',
+      'IPTAL_ISTENDI', 'DISPATCHED', 'SONUC_BELIRSIZ', 'MUTABAKAT',
       'YENIDEN_DENENEBILIR', 'MUDAHALE_GEREKLI',
       'BASARILI', 'BASARISIZ', 'IPTAL',
     ]
@@ -104,6 +104,24 @@ describe('execution UI states', () => {
     renderRunDetail()
     expect(await screen.findByText('Başarılı')).toBeInTheDocument()
     expect(screen.queryByText('Teknik tanımlayıcılar')).not.toBeInTheDocument()
+  })
+
+  it('offers the shared cancel dialog only when the backend allows cancellation', async () => {
+    vi.mocked(executionApi.getRun).mockResolvedValue({
+      ...run,
+      status: 'BEKLIYOR',
+      startedAt: null,
+      finishedAt: null,
+      allowedActions: [{ action: 'CANCEL', allowed: true, reasonCode: null }],
+    })
+    vi.mocked(executionApi.cancelRun).mockResolvedValue({ ...run, status: 'IPTAL' })
+    renderRunDetail()
+
+    const cancelButtons = await screen.findAllByRole('button', { name: 'Cancel Run' })
+    fireEvent.click(cancelButtons[0]!)
+    expect(await screen.findByText('Only a queued run can be cancelled safely. This action records a cancellation event.')).toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Cancel Run' }).at(-1)!)
+    expect(executionApi.cancelRun).toHaveBeenCalledWith('project-id', 'run-id')
   })
 
   it('opens run evidence in a panel with a run tree and transfer row metrics', async () => {

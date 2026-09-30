@@ -98,6 +98,18 @@ class PilotWorkerOrchestratorTest {
     }
 
     @Test
+    void preservesUserCancellationAsDistinctFromControlPlaneFailure() {
+        Fixture fixture = new Fixture();
+        fixture.cancellationAtCheckpoint = 1;
+
+        PilotWorkerOrchestrator.StoppedFailClosed result = assertInstanceOf(
+                PilotWorkerOrchestrator.StoppedFailClosed.class, fixture.run());
+
+        assertEquals(PilotWorkerOrchestrator.FailureCode.USER_CANCEL, result.failure());
+        assertEquals(0, occurrences(fixture.events, "TARGET_ACQUIRE"));
+    }
+
+    @Test
     void retriesTargetAcquireExactlyOnceWithTheSameAuthority() {
         Fixture fixture = new Fixture();
         fixture.targetAcquireFailures = 1;
@@ -358,6 +370,7 @@ class PilotWorkerOrchestratorTest {
         private int successFailures;
         private int markUnknownFailures;
         private int gateFailureAtCheckpoint;
+        private int cancellationAtCheckpoint;
         private Error sourceError;
         private Error publishError;
         private OraclePilotSourceReadPort.SourceReadResult sourceResult =
@@ -478,7 +491,12 @@ class PilotWorkerOrchestratorTest {
             @Override
             public RunLeaseToken checkpoint() {
                 events.add("CHECKPOINT");
-                if (++checkpoints == gateFailureAtCheckpoint) {
+                int checkpoint = ++checkpoints;
+                if (checkpoint == cancellationAtCheckpoint) {
+                    throw new LeaseGateException(
+                            LeaseGateException.Failure.CANCELLATION_REQUESTED);
+                }
+                if (checkpoint == gateFailureAtCheckpoint) {
                     throw new LeaseGateException(
                             LeaseGateException.Failure.LEASE_AUTHORITY_LOST);
                 }

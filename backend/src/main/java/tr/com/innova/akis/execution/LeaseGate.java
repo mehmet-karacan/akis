@@ -65,6 +65,7 @@ final class LeaseGateException extends RuntimeException {
             case INVALID_CONTRACT -> "Heartbeat lease gate contract is invalid.";
             case START_FAILED -> "Heartbeat supervision could not be started.";
             case LEASE_AUTHORITY_LOST -> "Heartbeat lease authority was lost.";
+            case CANCELLATION_REQUESTED -> "Cancellation was durably requested for this run.";
             case AUTHORITY_OPERATION_UNCONFIRMED ->
                     "Lease-authorized PostgreSQL operation could not be confirmed.";
             case TERMINAL -> "Heartbeat lease gate already completed terminal work.";
@@ -76,6 +77,7 @@ final class LeaseGateException extends RuntimeException {
         INVALID_CONTRACT,
         START_FAILED,
         LEASE_AUTHORITY_LOST,
+        CANCELLATION_REQUESTED,
         AUTHORITY_OPERATION_UNCONFIRMED,
         TERMINAL,
         CLOSED

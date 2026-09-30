@@ -3,6 +3,9 @@ package tr.com.innova.akis.execution;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -88,11 +91,24 @@ class WorkerLeaseServiceTest {
         assertEquals(port.heartbeatFailure, failure.getCause());
     }
 
+    @Test
+    void cancellationRequestCancelsOnlyTheCurrentRunGeneration() {
+        FakeLeasePort port = new FakeLeasePort();
+        port.cancelRequested = true;
+        RuntimeOperationRegistry operations = mock(RuntimeOperationRegistry.class);
+        WorkerLeaseService service = new WorkerLeaseService(port, operations);
+
+        assertTrue(service.cancellationRequested(port.runToken));
+
+        verify(operations).cancel(port.runToken.runUuid(), port.runToken.generation());
+    }
+
     private static final class FakeLeasePort implements RunLeasePort {
 
         private final RunLeaseToken runToken = new RunLeaseToken(
                 UUID.randomUUID(), "worker-1", 3, FIRST_DEADLINE);
         private boolean acceptHeartbeat = true;
+        private boolean cancelRequested;
         private RuntimeException heartbeatFailure;
 
         @Override
@@ -120,6 +136,11 @@ class WorkerLeaseServiceTest {
             return new TargetFenceToken(
                     token.runUuid(), token.workerReference(), token.generation(),
                     UUID.randomUUID(), 9, canonicalTargetHash, identityVersion);
+        }
+
+        @Override
+        public boolean cancellationRequested(RunLeaseToken token) {
+            return cancelRequested;
         }
     }
 }

@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import tr.com.innova.akis.execution.RunLeasePort.ClaimedRun;
 import tr.com.innova.akis.execution.RunLeasePort.HeartbeatOutcome;
@@ -17,9 +18,16 @@ import tr.com.innova.akis.execution.RunLeasePort.WorkerIdentity;
 final class WorkerLeaseService {
 
     private final RunLeasePort leases;
+    private final RuntimeOperationRegistry operations;
+
+    @Autowired
+    WorkerLeaseService(RunLeasePort leases, RuntimeOperationRegistry operations) {
+        this.leases = leases;
+        this.operations = operations;
+    }
 
     WorkerLeaseService(RunLeasePort leases) {
-        this.leases = leases;
+        this(leases, new RuntimeOperationRegistry());
     }
 
     Optional<ClaimedRun> claimForPreflight(WorkerIdentity worker, Duration lease) {
@@ -42,6 +50,12 @@ final class WorkerLeaseService {
                     "Worker lease heartbeat was rejected; no further work is authorized.");
         }
         return result.refreshedToken();
+    }
+
+    boolean cancellationRequested(RunLeaseToken token) {
+        boolean requested = leases.cancellationRequested(token);
+        if (requested) operations.cancel(token.runUuid(), token.generation());
+        return requested;
     }
 
     TargetFenceToken acquireTarget(

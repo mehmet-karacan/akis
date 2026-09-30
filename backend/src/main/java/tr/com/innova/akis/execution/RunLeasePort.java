@@ -11,6 +11,8 @@ interface RunLeasePort {
 
     HeartbeatResult heartbeat(RunLeaseToken token, Duration lease);
 
+    default boolean cancellationRequested(RunLeaseToken token) { return false; }
+
     TargetFenceToken acquireTarget(
             RunLeaseToken token, String canonicalTargetHash, int identityVersion);
 

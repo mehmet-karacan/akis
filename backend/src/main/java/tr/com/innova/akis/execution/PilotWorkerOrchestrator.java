@@ -498,9 +498,11 @@ final class PilotWorkerOrchestrator {
     }
 
     private RunOnceResult stoppedForGate(LeaseGateException exception) {
-        FailureCode failure = exception.failure() == LeaseGateException.Failure.LEASE_AUTHORITY_LOST
-                ? FailureCode.LEASE_AUTHORITY_LOST
-                : FailureCode.CONTROL_PLANE_UNCONFIRMED;
+        FailureCode failure = switch (exception.failure()) {
+            case CANCELLATION_REQUESTED -> FailureCode.USER_CANCEL;
+            case LEASE_AUTHORITY_LOST -> FailureCode.LEASE_AUTHORITY_LOST;
+            default -> FailureCode.CONTROL_PLANE_UNCONFIRMED;
+        };
         return new StoppedFailClosed(failure);
     }
 
@@ -534,6 +536,7 @@ final class PilotWorkerOrchestrator {
     }
 
     enum FailureCode {
+        USER_CANCEL,
         CONTROL_PLANE_UNCONFIRMED,
         LEASE_GATE_UNAVAILABLE,
         LEASE_AUTHORITY_LOST,

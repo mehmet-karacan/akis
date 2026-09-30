@@ -3,6 +3,7 @@ package tr.com.innova.akis.execution;
 import java.net.URI;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import jakarta.validation.Valid;
@@ -257,9 +258,9 @@ final class ExecutionController {
             List<ActionAvailability> allowedActions) {
 
         static RunView from(RunRow row, ExecutionFeatureFlags flags) {
-            boolean canCancel = "BEKLIYOR".equals(row.status()) && flags.acceptManualRequests();
-            String cancelReason = canCancel ? null
-                    : !flags.acceptManualRequests() ? "RUNTIME_DISABLED" : "RUN_NOT_QUEUED";
+            boolean canCancel = Set.of("BEKLIYOR", "SAHIPLENILDI", "CALISIYOR", "YAYINLANIYOR")
+                    .contains(row.status());
+            String cancelReason = canCancel ? null : "RUN_NOT_CANCELLABLE";
             return new RunView(
                     row.jobRequestUuid(), row.runUuid(), row.publicationUuid(),
                     row.attemptNumber(), row.startType(), row.status(), row.releaseHash(),

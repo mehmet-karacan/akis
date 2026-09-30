@@ -99,6 +99,10 @@ interface ExecutionStore {
 
     RunRow cancelQueued(RunRow run, Actor actor, UUID eventUuid);
 
+    default RunRow requestCancellation(RunRow run, Actor actor, UUID eventUuid) {
+        throw new UnsupportedOperationException("Cancellation request is not implemented by this store.");
+    }
+
     /**
      * Operator intervention: the run's quarantined target (ASKIDA after a reconciliation conflict) goes back to BOS with a
      * new generation, and the run closes as BASARISIZ so a restart becomes possible. Returns false when nothing was quarantined.

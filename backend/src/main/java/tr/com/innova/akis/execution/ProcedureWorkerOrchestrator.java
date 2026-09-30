@@ -84,6 +84,9 @@ final class ProcedureWorkerOrchestrator {
         try (gate) {
             return runClaimed(claimed.get(), gate, worker, lease);
         }
+        catch (LeaseGateException exception) {
+            return stoppedForGate(exception);
+        }
         catch (RuntimeException exception) {
             return new StoppedFailClosed("WORKER_BOUNDARY_FAILED");
         }
@@ -118,6 +121,9 @@ final class ProcedureWorkerOrchestrator {
             pinned = snapshots.loadProcedureTarget(plan, targetTask, binding, "AKTIF");
         }
         catch (RuntimeException exception) {
+            if (exception instanceof LeaseGateException gateFailure) {
+                return stoppedForGate(gateFailure);
+            }
             failPreflight(gate, "PROCEDURE_PINNED_CONTEXT_INVALID");
             return new FailedSafely("PROCEDURE_PINNED_CONTEXT_INVALID");
         }
@@ -137,6 +143,9 @@ final class ProcedureWorkerOrchestrator {
             gate.checkpoint();
         }
         catch (RuntimeException exception) {
+            if (exception instanceof LeaseGateException gateFailure) {
+                return stoppedForGate(gateFailure);
+            }
             failPreflight(gate, "PROCEDURE_TARGET_IDENTITY_FAILED");
             return new FailedSafely("PROCEDURE_TARGET_IDENTITY_FAILED");
         }
@@ -150,6 +159,9 @@ final class ProcedureWorkerOrchestrator {
                     identity.canonicalTargetHash(), identity.targetIdentityVersion()));
         }
         catch (RuntimeException exception) {
+            if (exception instanceof LeaseGateException gateFailure) {
+                return stoppedForGate(gateFailure);
+            }
             return new StoppedFailClosed("TARGET_FENCE_UNCONFIRMED");
         }
 
@@ -189,6 +201,14 @@ final class ProcedureWorkerOrchestrator {
         catch (RuntimeException ignored) {
             // Lease expiry reaper remains the authoritative recovery path.
         }
+    }
+
+    private StoppedFailClosed stoppedForGate(LeaseGateException exception) {
+        return switch (exception.failure()) {
+            case CANCELLATION_REQUESTED -> new StoppedFailClosed("USER_CANCEL");
+            case LEASE_AUTHORITY_LOST -> new StoppedFailClosed("LEASE_AUTHORITY_LOST");
+            default -> new StoppedFailClosed("CONTROL_PLANE_UNCONFIRMED");
+        };
     }
 
     private ProcedureRuntimePlan.Task representativeTarget(ProcedureRuntimePlan plan) {

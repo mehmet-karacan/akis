@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addPackageTransition, duplicatePackageStep, packageValidation, removePackageStep, withoutPackageLayout, type PackageContent } from './packageGraph'
+import { addPackageTransition, duplicatePackageStep, packageValidation, removePackageStep, setPackageExecutionMode, withoutPackageLayout, type PackageContent } from './packageGraph'
 
 const content: PackageContent = { firstStepId: 'A', steps: [{ id: 'A', type: 'PROCEDURE' }, { id: 'B', type: 'MAPPING' }], transitions: [{ fromStepId: 'A', toStepId: 'B', outcome: 'SUCCESS' }] }
 describe('package graph domain adapter', () => {
@@ -9,4 +9,6 @@ describe('package graph domain adapter', () => {
   it('detects unreachable steps and duplicate persisted ports', () => { const invalid = { ...content, steps: [...content.steps, { id: 'C', type: 'PROCEDURE' as const }, { id: 'D', type: 'MAPPING' as const }], transitions: [...content.transitions, { fromStepId: 'A', toStepId: 'C', outcome: 'SUCCESS' as const }] }; expect(packageValidation(invalid)).toEqual(expect.arrayContaining(['DUPLICATE_OUTCOME', 'UNREACHABLE_STEP'])) })
   it('keeps canvas coordinates outside the semantic package model', () => { expect(withoutPackageLayout({ ...content, steps: [{ ...content.steps[0]!, x: 40, y: 80 }, content.steps[1]!] })).toEqual(content) })
   it('validates a 500 step graph without recursive overflow', () => { const steps = Array.from({ length: 500 }, (_, index) => ({ id: `S${index}`, type: 'PROCEDURE' as const })); const transitions = steps.slice(1).map((step, index) => ({ fromStepId: `S${index}`, toStepId: step.id, outcome: 'SUCCESS' as const })); expect(packageValidation({ firstStepId: 'S0', steps, transitions })).toEqual([]) })
+  it('converts the default success edge when switching execution mode', () => { const next = setPackageExecutionMode(content, 'A', 'ASYNC'); expect(next.steps[0]?.executionMode).toBe('ASYNC'); expect(next.transitions[0]?.outcome).toBe('DISPATCHED'); expect(packageValidation(next)).toEqual([]); const restored = setPackageExecutionMode(next, 'A', 'SYNC'); expect(restored.transitions[0]?.outcome).toBe('SUCCESS'); expect(packageValidation(restored)).toEqual([]) })
+  it('rejects async variable steps and invalid mode edges', () => { const variable = { firstStepId: 'A', steps: [{ id: 'A', type: 'VARIABLE_REFRESH' as const, executionMode: 'ASYNC' as const }], transitions: [] }; expect(packageValidation(variable)).toEqual(expect.arrayContaining(['VARIABLE_ASYNC_UNSUPPORTED'])); const invalid = { ...content, steps: [{ ...content.steps[0]!, executionMode: 'ASYNC' as const }], transitions: content.transitions }; expect(packageValidation(invalid)).toContain('INVALID_OUTCOME') })
 })

@@ -14,16 +14,28 @@ final class RunStateMachine {
             "YENIDEN_DENENEBILIR", "MUDAHALE_GEREKLI",
             "BASARILI", "BASARISIZ", "IPTAL");
 
-    CancellationDecision queuedCancellation(String currentStatus) {
+    CancellationDecision cancellation(String currentStatus) {
         if ("IPTAL".equals(currentStatus)) {
             return CancellationDecision.ALREADY_CANCELLED;
+        }
+        if ("IPTAL_ISTENDI".equals(currentStatus)) {
+            return CancellationDecision.ALREADY_REQUESTED;
         }
         if ("BEKLIYOR".equals(currentStatus)) {
             return CancellationDecision.TRANSITION;
         }
-        throw new ApiException(
-                HttpStatus.CONFLICT,
-                "RUN_NOT_CANCELLABLE",
+        if (Set.of("SAHIPLENILDI", "CALISIYOR", "YAYINLANIYOR").contains(currentStatus)) {
+            return CancellationDecision.REQUEST;
+        }
+        throw new ApiException(HttpStatus.CONFLICT, "RUN_NOT_CANCELLABLE",
+                "Bu çalıştırma mevcut durumunda güvenli biçimde durdurulamaz.");
+    }
+
+    /** Backward-compatible queued-only view used by older callers/tests. */
+    CancellationDecision queuedCancellation(String currentStatus) {
+        if ("IPTAL".equals(currentStatus)) return CancellationDecision.ALREADY_CANCELLED;
+        if ("BEKLIYOR".equals(currentStatus)) return CancellationDecision.TRANSITION;
+        throw new ApiException(HttpStatus.CONFLICT, "RUN_NOT_CANCELLABLE",
                 "Yalnız bekleyen çalıştırma güvenli biçimde iptal edilebilir.");
     }
 
@@ -33,6 +45,8 @@ final class RunStateMachine {
 
     enum CancellationDecision {
         TRANSITION,
+        REQUEST,
+        ALREADY_REQUESTED,
         ALREADY_CANCELLED
     }
 }

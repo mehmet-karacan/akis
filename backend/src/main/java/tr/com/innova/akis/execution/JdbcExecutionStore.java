@@ -661,6 +661,30 @@ public class JdbcExecutionStore implements ExecutionStore {
         return findInternal(run.runId()).orElseThrow();
     }
 
+    @Override
+    public RunRow requestCancellation(RunRow run, Actor actor, UUID eventUuid) {
+        long nextEvent = run.lastEventNumber() + 1;
+        int updated = jdbc.sql("""
+                        update akis.calistirma_durumu
+                           set durum = 'IPTAL_ISTENDI',
+                               iptal_isteme_zamani = coalesce(iptal_isteme_zamani, clock_timestamp()),
+                               son_olay_no = :eventNumber,
+                               guncellenme_zamani = clock_timestamp(),
+                               guncelleyen_kullanici_id = :actorId,
+                               versiyon_no = versiyon_no + 1
+                         where id = :stateId
+                           and durum in ('SAHIPLENILDI', 'CALISIYOR', 'YAYINLANIYOR')
+                        """)
+                .param("eventNumber", nextEvent)
+                .param("actorId", actor.id())
+                .param("stateId", run.stateId())
+                .update();
+        if (updated != 1) throw new IllegalStateException("Active run state changed while requesting cancellation.");
+        insertEvent(projectId(run.runId()), run.runId(), nextEvent, "RUN_CANCELLATION_REQUESTED",
+                objectMapper.createObjectNode(), eventUuid, actor.id());
+        return findInternal(run.runId()).orElseThrow();
+    }
+
     private long projectId(long runId) {
         return jdbc.sql("select proje_id from akis.calistirma where id = :runId")
                 .param("runId", runId)

@@ -58,10 +58,10 @@ final class PackageWorkerOrchestrator {
         Optional<UUID> origin = contexts.resumeOrigin(token.runUuid());
         Map<String, PreviousStep> previous = origin.map(this::previousSteps).orElse(Map.of());
         if (origin.isPresent()) LOG.info("Package run {} resumes from {}: {} completed step(s) adopted", token.runUuid(), origin.get(), previous.values().stream().filter(PreviousStep::succeeded).count());
-        String current = plan.path("firstStepId").asText();
+        String current = cursor(token).orElse(plan.path("firstStepId").asText());
         int executed = 0;
         try {
-            while (current != null) {
+            while (current != null && !"__JOIN__".equals(current)) {
                 if (++executed > MAXIMUM_STEPS_PER_RUN) throw new IllegalStateException("Paket adım döngüsü sınırı aşıldı.");
                 gate.checkpoint();
                 JsonNode step = steps.get(current);
@@ -86,25 +86,45 @@ final class PackageWorkerOrchestrator {
                         boolean evaluation = !"VARIABLE_EVALUATE".equals(type) || PackageVariableEvaluator.evaluate(value, step.path("evaluate"));
                         outcome = "VARIABLE_EVALUATE".equals(type) ? (evaluation ? "TRUE" : "FALSE") : "SUCCESS";
                         stepState(token, current, "BASARILI", null, String.valueOf(value), null);
+                    } else if ("ASYNC".equals(step.path("executionMode").asText("SYNC"))) {
+                        JsonNode publication = step.path("publication");
+                        UUID childRun = createChildRun(context, token, step.path("id").asText(), UUID.fromString(publication.path("publicationUuid").asText()));
+                        seedVariables(childRun, publication.path("runtimePlanHash").asText(), values, publication);
+                        stepState(token, current, "DISPATCHED", childRun, null, null);
+                        outcome = "DISPATCHED";
                     } else {
                         ChildOutcome child = runChild(context, token, step, values, worker, lease, children, adopted == null ? null : adopted.childRunUuid());
                         outcome = child.succeeded() ? "SUCCESS" : "FAILURE";
                         stepState(token, current, child.succeeded() ? "BASARILI" : "BASARISIZ", child.runUuid(), null, child.errorCode());
                     }
+                } catch (LeaseGateException gateFailure) {
+                    // Cancellation and lease loss are control-plane outcomes,
+                    // not package business failures. Preserve the gate signal
+                    // so the outer worker cannot follow a failure edge or mark
+                    // the parent successful after authority was lost.
+                    throw gateFailure;
                 } catch (RuntimeException failure) {
                     LOG.warn("Package run {} step {} failed: {}", token.runUuid(), current, failure.toString());
                     stepState(token, current, "BASARISIZ", null, null, "PACKAGE_STEP_FAILED");
                     outcome = "FAILURE";
                 }
                 String next = nextStep(plan, current, outcome);
-                if (next == null && !"SUCCESS".equals(outcome) && !"TRUE".equals(outcome) && !"FALSE".equals(outcome)) {
+                String persistedNext = next == null ? "__JOIN__" : next;
+                if (!cursorUpdate(token, persistedNext)) throw new IllegalStateException("Paket cursor kaydedilemedi.");
+                if (next == null && !"SUCCESS".equals(outcome) && !"TRUE".equals(outcome) && !"FALSE".equals(outcome) && !"DISPATCHED".equals(outcome)) {
                     finish(token, "BASARISIZ", "PACKAGE_STEP_FAILED");
                     return new FailedSafely("PACKAGE_STEP_FAILED");
                 }
                 current = next;
             }
+            if (openChildren(token)) {
+                if (!yieldPackage(token)) return new StoppedFailClosed("PACKAGE_YIELD_UNCONFIRMED");
+                return new Idle();
+            }
             finish(token, "BASARILI", null);
             return new Succeeded(executed, 0, 0, 0);
+        } catch (LeaseGateException gateFailure) {
+            throw gateFailure;
         } catch (RuntimeException failure) {
             LOG.warn("Package run {} failed: {}", token.runUuid(), failure.toString());
             finish(token, "BASARISIZ", "PACKAGE_EXECUTION_REJECTED");
@@ -188,27 +208,21 @@ final class PackageWorkerOrchestrator {
 
     private UUID createChildRun(PinnedExecutionContextPort.PinnedExecutionContext parent, RunLeaseToken token, String stepCode, UUID publicationUuid) {
         UUID jobUuid = UUID.randomUUID(), runUuid = UUID.randomUUID();
-        Long jobId = jdbc.sql("""
-                insert into akis.is_talebi(proje_id, yayin_id, istek_ozeti, is_turu, oncelik, parametre_sema_surumu, parametre, uuid, olusturan_kullanici_id)
-                select y.proje_id, y.id, encode(sha256(convert_to(:runUuid || '|' || :step, 'UTF8')), 'hex'), 'CALISTIR', 60, 1,
-                       jsonb_build_object('packageRunUuid', :parentRun, 'packageStepCode', :step) || (parentJob.parametre - 'packageRunUuid' - 'packageStepCode'),
-                       :jobUuid, parent.olusturan_kullanici_id
-                  from akis.yayin y, akis.calistirma parent join akis.is_talebi parentJob on parentJob.id = parent.is_talebi_id
-                 where y.uuid = :publication and y.durum = 'AKTIF' and parent.uuid = :parentRun
-                returning id
-                """).param("runUuid", runUuid.toString()).param("step", stepCode).param("parentRun", token.runUuid()).param("jobUuid", jobUuid)
-                .param("publication", publicationUuid).query(Long.class).optional()
-                .orElseThrow(() -> new IllegalStateException("Adımın yayını artık aktif değil: " + publicationUuid));
-        Long runId = jdbc.sql("""
-                insert into akis.calistirma(proje_id, is_talebi_id, deneme_no, yayin_ozeti, plan_ozeti, baslatma_turu, uuid, olusturan_kullanici_id, ust_calistirma_id, ust_adim_kodu)
-                select y.proje_id, :jobId, 1, y.fiziksel_manifesto->>'releaseHash', s.plan_ozeti, 'ILK', :runUuid, parent.olusturan_kullanici_id, parent.id, :step
-                  from akis.yayin y join akis.senaryo s on s.id = y.senaryo_id, akis.calistirma parent
-                 where y.uuid = :publication and parent.uuid = :parentRun
-                returning id
-                """).param("jobId", jobId).param("runUuid", runUuid).param("step", stepCode).param("publication", publicationUuid).param("parentRun", token.runUuid())
-                .query(Long.class).single();
+        UUID created = jdbc.sql("select akis.paket_alt_calistirma_olustur(:parent,:worker,:generation,:step,:publication,:job,:run)")
+                .param("parent", token.runUuid()).param("worker", token.workerReference())
+                .param("generation", token.generation()).param("step", stepCode)
+                .param("publication", publicationUuid).param("job", jobUuid).param("run", runUuid)
+                .query(UUID.class).optional().orElse(null);
+        if (created == null) {
+            if (leases.cancellationRequested(token)) {
+                throw new LeaseGateException(LeaseGateException.Failure.CANCELLATION_REQUESTED);
+            }
+            throw new IllegalStateException("Paket alt çalıştırması atomik olarak oluşturulamadı.");
+        }
+        Long runId = jdbc.sql("select id from akis.calistirma where uuid=:run")
+                .param("run", created).query(Long.class).single();
         initializeChildState(runId, "RUN_REQUESTED", mapper.createObjectNode().put("publicationUuid", publicationUuid.toString()).put("packageRunUuid", token.runUuid().toString()).put("packageStepCode", stepCode));
-        return runUuid;
+        return created;
     }
 
     private void initializeChildState(long runId, String eventType, ObjectNode data) {
@@ -256,6 +270,30 @@ final class PackageWorkerOrchestrator {
             if ("ALWAYS".equals(edgeOutcome)) fallback = edge.path("toStepId").asText();
         }
         return fallback;
+    }
+
+    private Optional<String> cursor(RunLeaseToken token) {
+        return jdbc.sql("select sonraki_adim_kodu from akis.paket_yurutme_cursor_get(:run)")
+                .param("run", token.runUuid())
+                .query((row, rowNumber) -> row.getString("sonraki_adim_kodu"))
+                .optional();
+    }
+
+    private boolean cursorUpdate(RunLeaseToken token, String next) {
+        return Boolean.TRUE.equals(jdbc.sql("select akis.paket_yurutme_cursor_guncelle(:run,:worker,:generation,:next)")
+                .param("run", token.runUuid()).param("worker", token.workerReference()).param("generation", token.generation())
+                .param("next", next).query(Boolean.class).single());
+    }
+
+    private boolean openChildren(RunLeaseToken token) {
+        return Boolean.TRUE.equals(jdbc.sql("select akis.paket_acik_alt_calistirma_var(:run)")
+                .param("run", token.runUuid()).query(Boolean.class).single());
+    }
+
+    private boolean yieldPackage(RunLeaseToken token) {
+        return Boolean.TRUE.equals(jdbc.sql("select akis.paket_yurutmeyi_beklet(:run,:worker,:generation)")
+                .param("run", token.runUuid()).param("worker", token.workerReference()).param("generation", token.generation())
+                .query(Boolean.class).single());
     }
 
     private void stepState(RunLeaseToken token, String stepCode, String state, UUID childRun, String value, String errorCode) {

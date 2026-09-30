@@ -34,14 +34,15 @@ final class StagedWorkerOrchestrator {
     private final KmStepJournal journal;
     private final PinnedExecutionContextPort contexts;
     private final TargetTechnologyRegistry targets;
+    private final RuntimeOperationRegistry operations;
     StagedWorkerOrchestrator(StagedRuntimePlanResolver plans,JdbcPinnedSchemaSnapshotStore snapshots,RuntimeOracleConnectionProvider connections,
             StagedWorkSessionFactory workSessions,WorkerLeaseService leases,OracleTargetFencePort fences,RunExecutionTransitionPort transitions,
             StagedPublishFacade publisher,WorkObjectStore objects,WorkAreaPolicyService policies,ObjectMapper mapper,JdbcClient jdbc,KmStepJournal journal,
-            PinnedExecutionContextPort contexts,TargetTechnologyRegistry targets,@Value("${akis.execution.staged-runtime-enabled:false}") boolean enabled,
+            PinnedExecutionContextPort contexts,TargetTechnologyRegistry targets,RuntimeOperationRegistry operations,@Value("${akis.execution.staged-runtime-enabled:false}") boolean enabled,
             @Value("${akis.execution.staged-fault-injection:}") String faultInjection) {
         this.plans=plans;this.snapshots=snapshots;this.connections=connections;this.workSessions=workSessions;this.leases=leases;
         this.fences=fences;this.transitions=transitions;this.publisher=publisher;this.objects=objects;this.policies=policies;this.mapper=mapper;this.jdbc=jdbc;this.enabled=enabled;this.journal=journal;
-        this.contexts=contexts;this.targets=targets;this.faultInjection=faultInjection==null?"":faultInjection.trim();
+        this.contexts=contexts;this.targets=targets;this.operations=operations;this.faultInjection=faultInjection==null?"":faultInjection.trim();
     }
     /**
      * Test-only: "PUBLISH" fails the target publication after the publish intent is recorded (outcome unknown, reconcile first);
@@ -107,6 +108,9 @@ final class StagedWorkerOrchestrator {
                     || !databaseIdentity.equals(technology.databaseIdentity(data.connection()))) throw new IllegalStateException("Çalışma oturumları hedef veritabanına ait değil.");
             targetFence=gate.execute(run->leases.acquireTarget(run,identity.canonicalTargetHash(),identity.targetIdentityVersion()));
             var fence=targetFence;
+            operations.register(context.runUuid(), fence.runGeneration(), source);
+            operations.register(context.runUuid(), fence.runGeneration(), control);
+            operations.register(context.runUuid(), fence.runGeneration(), data);
             var fenceResult=fences.acquire(new OracleTargetFencePort.OracleTargetFenceCommand(plan,context,fence));
             if(!(fenceResult instanceof OracleTargetFencePort.CommitConfirmed)) throw new IllegalStateException("Hedef çiti alınamadı: "+fenceResult);
             requireAccepted(gate.execute(run->transitions.completePreflight(new ActiveExecutionToken(run,fence))));
@@ -211,7 +215,14 @@ final class StagedWorkerOrchestrator {
             if(fence==null) failPreflight(gate);
             else try { gate.completeTerminal(run->transitions.failSafely(new ActiveExecutionToken(run,fence),"KM_EXECUTION_REJECTED"),StagedWorkerOrchestrator::accepted); } catch(RuntimeException ignored) { }
             return new FailedSafely("KM_EXECUTION_REJECTED");
-        } finally { close(data);close(control);close(source); }
+        } finally {
+            if (targetFence != null) {
+                operations.unregister(context.runUuid(), targetFence.runGeneration(), source);
+                operations.unregister(context.runUuid(), targetFence.runGeneration(), control);
+                operations.unregister(context.runUuid(), targetFence.runGeneration(), data);
+            }
+            close(data);close(control);close(source);
+        }
     }
     private void failPreflight(LeaseGate gate) {
         try { gate.completeTerminal(run->transitions.failPreflightSafely(run,"KM_PREFLIGHT_REJECTED"),StagedWorkerOrchestrator::accepted); } catch(RuntimeException ignored) { }

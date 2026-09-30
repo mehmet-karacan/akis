@@ -30,7 +30,7 @@ public final class DefinitionContentValidator {
             "MAPPING", "PROCEDURE", "VARIABLE_DECLARE", "VARIABLE_REFRESH",
             "VARIABLE_SET", "VARIABLE_INCREMENT", "VARIABLE_EVALUATE", "PACKAGE");
     private static final Set<String> TRANSITION_OUTCOMES = Set.of(
-            "SUCCESS", "FAILURE", "TRUE", "FALSE", "ALWAYS");
+            "SUCCESS", "FAILURE", "TRUE", "FALSE", "ALWAYS", "DISPATCHED");
     private static final Set<String> PROCEDURE_TASK_TYPES = Set.of(
             "SQL", "PLSQL", "STORED_PROCEDURE");
     private static final Set<String> PROCEDURE_CONNECTION_ROLES = Set.of("SOURCE", "TARGET");
@@ -174,6 +174,7 @@ public final class DefinitionContentValidator {
         }
 
         Set<String> stepIds = new HashSet<>();
+        Map<String, JsonNode> stepsById = new HashMap<>();
         for (int index = 0; index < steps.size(); index++) {
             JsonNode step = steps.get(index);
             requireObject(step, "steps[" + index + "]");
@@ -181,7 +182,15 @@ public final class DefinitionContentValidator {
             if (!stepIds.add(id)) {
                 fail("Paket adım kimliği benzersiz olmalıdır: " + id);
             }
-            requireAllowed(step, "type", PACKAGE_STEP_TYPES, "steps[" + index + "]");
+            String type = requireAllowed(step, "type", PACKAGE_STEP_TYPES, "steps[" + index + "]");
+            stepsById.put(id, step);
+            String mode = step.path("executionMode").asText("SYNC");
+            if (!Set.of("SYNC", "ASYNC").contains(mode)) {
+                fail("steps[" + index + "].executionMode yalnız SYNC veya ASYNC olabilir.");
+            }
+            if (mode.equals("ASYNC") && type.startsWith("VARIABLE_")) {
+                fail("Değişken paket adımları yalnız SYNC çalıştırılabilir.");
+            }
         }
         if (!stepIds.contains(firstStepId)) {
             fail("Paket firstStepId var olan bir adıma referans vermelidir.");
@@ -211,6 +220,17 @@ public final class DefinitionContentValidator {
             JsonNode outcomeNode = transition.get("outcome");
             if (outcomeNode != null && !outcomeNode.isNull()) {
                 String outcome = requireAllowed(transition, "outcome", TRANSITION_OUTCOMES, path);
+                JsonNode source = stepsById.get(from);
+                String mode = source == null ? "SYNC" : source.path("executionMode").asText("SYNC");
+                if ("ASYNC".equals(mode) && !Set.of("DISPATCHED", "FAILURE", "ALWAYS").contains(outcome)) {
+                    fail(path + " ASYNC adımında yalnız DISPATCHED, FAILURE veya ALWAYS geçişi kullanılabilir.");
+                }
+                if ("SYNC".equals(mode) && "DISPATCHED".equals(outcome)) {
+                    fail(path + " SYNC adımında DISPATCHED geçişi kullanılamaz.");
+                }
+                if (source != null && "VARIABLE_EVALUATE".equals(source.path("type").asText()) && !Set.of("TRUE", "FALSE", "FAILURE", "ALWAYS").contains(outcome)) {
+                    fail(path + " VARIABLE_EVALUATE adımında geçiş sonucu geçersiz.");
+                }
                 if (!outcomeSlots.add(from + "\u0000" + outcome)) {
                     fail("Bir paket adımında aynı sonuç için birden fazla geçiş olamaz: "
                             + from + "/" + outcome);

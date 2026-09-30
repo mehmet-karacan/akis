@@ -88,6 +88,29 @@ public class JdbcRunLeaseStore implements RunLeasePort {
     }
 
     @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
+    public boolean cancellationRequested(RunLeaseToken token) {
+        RunLeaseToken safeToken = token(token);
+        return jdbc.sql("""
+                        select exists (
+                            select 1
+                              from akis.calistirma c
+                              join akis.calistirma_durumu cd
+                                on cd.proje_id = c.proje_id and cd.calistirma_id = c.id
+                             where c.uuid = :runUuid
+                               and cd.durum = 'IPTAL_ISTENDI'
+                               and cd.isleyici_referansi = :workerReference
+                               and cd.nesil_no = :generation
+                        )
+                        """)
+                .param("runUuid", safeToken.runUuid())
+                .param("workerReference", safeToken.workerReference())
+                .param("generation", safeToken.generation())
+                .query(Boolean.class)
+                .single();
+    }
+
+    @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public TargetFenceToken acquireTarget(
             RunLeaseToken token, String canonicalTargetHash, int identityVersion) {

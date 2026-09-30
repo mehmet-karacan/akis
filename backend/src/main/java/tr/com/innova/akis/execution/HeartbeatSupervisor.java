@@ -161,13 +161,19 @@ final class HeartbeatSupervisor implements LeaseGate {
                 throw new IllegalStateException("Refreshed lease " + refreshed + " does not extend " + freshest);
             }
             freshest = refreshed;
+            if (leases.cancellationRequested(freshest)) {
+                failure = Failure.CANCELLATION_REQUESTED;
+                cancelLocked();
+                throw new LeaseGateException(failure);
+            }
             return freshest;
         }
         catch (RuntimeException exception) {
             LOG.warn("Heartbeat for run {} generation {} lost lease authority: {}{}", freshest.runUuid(), freshest.generation(),
                     exception, exception.getCause() == null ? "" : " <- " + exception.getCause());
-            failure = Failure.LEASE_AUTHORITY_LOST;
+            if (!(exception instanceof LeaseGateException)) failure = Failure.LEASE_AUTHORITY_LOST;
             cancelLocked();
+            if (exception instanceof LeaseGateException gateException) throw gateException;
             throw new LeaseGateException(failure);
         }
     }

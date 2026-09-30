@@ -150,6 +150,19 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
   }
   const [releaseOpen, setReleaseOpen] = useState(false)
   const [releaseReason, setReleaseReason] = useState('')
+  const [cancelOpen, setCancelOpen] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
+  const cancelAllowed = run.data?.allowedActions.some(item => item.action === 'CANCEL' && item.allowed) === true
+  const cancel = async () => {
+    setCancelling(true)
+    try {
+      await executionApi.cancelRun(project, uuid)
+      setCancelOpen(false)
+      await refresh()
+    } catch (error) {
+      setRecoveryNotice({ tone: 'error', text: apiErrorMessage(error, t('requestFailed')) })
+    } finally { setCancelling(false) }
+  }
   const releaseTarget = async () => {
     setRecovering('RESTART'); setRecoveryNotice(null)
     try { await executionApi.releaseTarget(project, uuid, releaseReason.trim()); setReleaseOpen(false); setReleaseReason(''); setRecoveryNotice({ tone: 'success', text: t('releaseTargetDone') }); await refresh() }
@@ -158,6 +171,7 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
   }
   const quarantined = run.data?.status === 'MUDAHALE_GEREKLI'
   const headerActions = <div className="connection-row-actions">
+    {cancelAllowed && <Button tone="danger" disabled={!!recovering || cancelling} onClick={() => setCancelOpen(true)}>{t('cancelRun')}</Button>}
     {quarantined && <Button tone="danger" icon={<Unlock size={16} />} disabled={!!recovering} title={t('releaseTargetHelp')} onClick={() => setReleaseOpen(true)}>{t('releaseTarget')}</Button>}
     {recoverable && <Button tone="primary" icon={<StepForward size={16} />} disabled={!!recovering} title={t('resumeHelp')} onClick={() => void recover('RESUME')}>{t('resumeSafely')}</Button>}
     {recoverable && <Button icon={<RotateCcw size={16} />} disabled={!!recovering} onClick={() => void recover('RESTART')}>{t('restartFromBeginning')}</Button>}
@@ -232,5 +246,8 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
       </div>
     </div>
   </Dialog>
-  return panel ? <Dialog open title={t('runDetail')} closeLabel={t('close')} onClose={() => onClose?.()} className="execution-detail-dialog connection-catalog-dialog">{content}{releaseDialog}</Dialog> : <>{content}{releaseDialog}</>
+  const cancelDialog = <Dialog open={cancelOpen} title={t('cancelRun')} closeLabel={t('close')} busy={cancelling} onClose={() => setCancelOpen(false)} className="akis-modal">
+    <div className="sidebar-delete-dialog"><p>{t('confirmCancelHelp')}</p><div className="sidebar-delete-actions"><Button tone="ghost" type="button" disabled={cancelling} onClick={() => setCancelOpen(false)}>{t('keepRun')}</Button><Button tone="danger" type="button" busy={cancelling} onClick={() => void cancel()}>{t('confirm')}</Button></div></div>
+  </Dialog>
+  return panel ? <Dialog open title={t('runDetail')} closeLabel={t('close')} onClose={() => onClose?.()} className="execution-detail-dialog connection-catalog-dialog">{content}{releaseDialog}{cancelDialog}</Dialog> : <>{content}{releaseDialog}{cancelDialog}</>
 }
