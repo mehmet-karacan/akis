@@ -6,7 +6,7 @@ import {
   useNodesInitialized, type Connection as FlowConnection, type Node, type NodeChange, type ReactFlowInstance,
 } from '@xyflow/react'
 import { AlertCircle, AlignCenter, CheckCircle2, CirclePlay, Copy, ExternalLink, GitBranch, Plus, Trash2, Undo2, X } from 'lucide-react'
-import { useEffect, useMemo, useState, type DragEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import { definitionsApi } from './api'
 import { DefinitionTypeIcon } from './DefinitionTypeIcon'
 import { definitionCodeLabel, definitionTypeKey, useDefinitionsI18n } from './i18n'
@@ -56,6 +56,7 @@ function PackageEditorInner({ projectUuid, definitionUuid, value, onChange, onOp
   const [transitionTarget, setTransitionTarget] = useState('')
   const [transitionOutcome, setTransitionOutcome] = useState<TransitionOutcome>('SUCCESS')
   const [message, setMessage] = useState('')
+  const canvasRef = useRef<HTMLElement | null>(null)
   const nodesInitialized = useNodesInitialized()
 
   useEffect(() => {
@@ -93,20 +94,22 @@ function PackageEditorInner({ projectUuid, definitionUuid, value, onChange, onOp
     selected: step.id === selectedStepId,
   })), [content.firstStepId, content.steps, content.transitions, definitions, language, positions, selectedStepId, t, versionSummaries])
   useEffect(() => {
-    if (!instance || nodes.length === 0 || !nodesInitialized) return
-    let retry: number | undefined
-    const frame = window.requestAnimationFrame(() => {
-      void instance.fitView({ padding: .18 })
-      // The canvas can receive its final shell dimensions one frame after the
-      // React Flow instance is initialized. Refit once after that layout pass
-      // so a freshly opened package never starts with nodes outside the view.
-      retry = window.setTimeout(() => { void instance.fitView({ padding: .18 }) }, 100)
-    })
+    if (!instance || nodes.length === 0 || !nodesInitialized || !canvasRef.current) return
+    let frame = 0
+    const refit = () => {
+      window.cancelAnimationFrame(frame)
+      frame = window.requestAnimationFrame(() => { void instance.fitView({ padding: .18, duration: 0 }) })
+    }
+    const observer = new ResizeObserver(refit)
+    observer.observe(canvasRef.current)
+    refit()
+    const retry = window.setTimeout(refit, 100)
     return () => {
       window.cancelAnimationFrame(frame)
-      if (retry !== undefined) window.clearTimeout(retry)
+      window.clearTimeout(retry)
+      observer.disconnect()
     }
-  }, [instance, nodes.length, nodesInitialized])
+  }, [instance, nodes.length, nodesInitialized, inspectorOpen, pickerOpen])
   const edges = useMemo(() => content.transitions.map((edge, index) => ({
     id: `edge-${index}-${edge.fromStepId}-${edge.toStepId}`,
     source: edge.fromStepId,
@@ -194,8 +197,8 @@ function PackageEditorInner({ projectUuid, definitionUuid, value, onChange, onOp
       <AntActionButton tone="primary" type="button" onClick={() => openPicker()}><Plus size={15} />{t('addObject')}</AntActionButton>
       <span className={`package-validation-chip ${validation.length ? 'is-invalid' : 'is-valid'}`} role="status">{validation.length ? <AlertCircle size={14} aria-hidden="true" /> : <CheckCircle2 size={14} aria-hidden="true" />}{validation.length ? t('validationErrors', { count: validation.length }) : t('designValid')}</span>
     </div>
-    <div className="package-workbench">
-        <section className="package-canvas" onDragOver={(event) => event.preventDefault()} onDrop={drop}><ReactFlow nodes={nodes} edges={edges} onInit={setInstance} onNodesChange={nodeChanges} onNodeDragStart={() => setUndoPositions(structuredClone(positions))} onNodeClick={(_, node) => { setSelectedStepId(node.id); setInspectorOpen(true); setPickerOpen(false) }} onNodeDoubleClick={(_, node) => openLinkedDefinition(node.id)} onPaneClick={() => { setInspectorOpen(false); setPickerOpen(false) }} onPaneContextMenu={openPickerFromCanvas} onConnect={connect} deleteKeyCode={null} minZoom={.25} maxZoom={2} fitView><MiniMap pannable zoomable /><Controls /><Background /></ReactFlow></section>
+    <div className={`package-workbench${inspectorOpen ? ' has-package-properties' : ''}${pickerOpen ? ' has-package-picker' : ''}`}>
+        <section ref={canvasRef} className="package-canvas" onDragOver={(event) => event.preventDefault()} onDrop={drop}><ReactFlow nodes={nodes} edges={edges} onInit={setInstance} onNodesChange={nodeChanges} onNodeDragStart={() => setUndoPositions(structuredClone(positions))} onNodeClick={(_, node) => { setSelectedStepId(node.id); setInspectorOpen(true); setPickerOpen(false) }} onNodeDoubleClick={(_, node) => openLinkedDefinition(node.id)} onPaneClick={() => { setInspectorOpen(false); setPickerOpen(false) }} onPaneContextMenu={openPickerFromCanvas} onConnect={connect} deleteKeyCode={null} minZoom={.25} maxZoom={2} fitView><MiniMap pannable zoomable /><Controls /><Background /></ReactFlow></section>
         {pickerOpen ? <aside className="package-component-picker" aria-label={t('addObject')}>
           <header><strong className="package-picker-title"><span className="procedure-heading-icon procedure-heading-icon--steps" aria-hidden="true"><Plus size={16} /></span>{t('addObject')}</strong><AntActionButton tone="ghost" className="definition-icon-button" type="button" aria-label={t('close')} onClick={() => setPickerOpen(false)}><X size={16} /></AntActionButton></header>
           <div className="package-picker-list">{pickerTypes.map((type) => { const items = pickerDefinitions.filter((item) => item.type === type); return items.length > 0 ? <section key={type}><h4><DefinitionTypeIcon type={type} size={13} />{t(definitionTypeKey[type])}<small className="procedure-heading-count">{items.length}</small></h4>{items.map((item) => <AntActionButton tone="ghost" key={item.uuid} type="button" className="package-picker-item" onClick={() => addStep(item.uuid, pickerPosition)}><DefinitionTypeIcon type={type} size={12} /><span>{item.name}</span><small>{item.code}</small></AntActionButton>)}</section> : null })}{pickerDefinitions.length === 0 ? <p>{t('noProjectObjects')}</p> : null}</div>

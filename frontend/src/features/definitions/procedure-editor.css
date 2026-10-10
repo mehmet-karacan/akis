@@ -150,13 +150,16 @@
 
 /* Definition-level tabs sit under the document header (Definition · Tasks/Design · Versions); no tall side rail. */
 .definition-tab-layout { display: flex; flex-direction: column; margin-top: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
-.definition-tabs.definition-tabs--horizontal { display: flex; align-items: flex-end; gap: 2px; width: auto; padding: 6px 12px 0; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--ink-soft) 4%, var(--surface)); }
+.definition-tabs.definition-tabs--horizontal { display: flex; align-items: flex-end; gap: 2px; width: auto; min-width: 0; padding: 6px 12px 0; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--ink-soft) 4%, var(--surface)); overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; flex-wrap: nowrap; }
+.definition-tabs--horizontal > .definition-tab { flex: 0 0 auto; }
+.definition-tabs--horizontal .definition-tabs-identity, .definition-tabs--horizontal .definition-document-save { flex: 0 0 auto; }
 .definition-tabs--horizontal .definition-tab.ant-btn { height: 38px; padding: 0 14px; border-radius: 8px 8px 0 0; border-bottom: 2px solid transparent; color: var(--ink-soft); }
 .definition-tabs--horizontal .definition-tab.ant-btn[aria-selected="true"] { background: var(--surface); }
 .definition-tabs--horizontal .definition-tab--definition[aria-selected="true"] { border-bottom-color: var(--schema-color-neutral); color: var(--schema-color-neutral) !important; }
 .definition-tabs--horizontal .definition-tab--draft[aria-selected="true"] { border-bottom-color: var(--schema-color-info); color: var(--schema-color-info) !important; }
 .definition-tabs--horizontal .definition-tab--versions[aria-selected="true"] { border-bottom-color: var(--schema-color-success); color: var(--schema-color-success) !important; }
 .definition-tab-content { min-width: 0; padding: 12px; }
+.definition-tab-content:has(.mapping-editor), .definition-tab-content:has(.mapping-editor) > .definition-editor-panel { overflow: visible; }
 .definition-tab-content > .definition-editor-panel, .definition-tab-content > .definition-version-layout { margin-top: 0; }
 .definition-context-folder { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-soft); }
 .definition-context-folder > svg { color: #64748b; }
@@ -176,8 +179,8 @@ body .explorer-resize-handle:hover::before, body .explorer-resize-handle:focus-v
 .definition-multi-connection { display: flex !important; align-items: center; gap: 8px; }
 
 /* Mapping editor: Logical · Column Mappings · Joins and Filters · Physical on a vertical rail, one color per view. */
-.mapping-editor-body { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
-.mapping-editor-detail { padding: 10px 12px 12px; }
+.mapping-editor-body { height: auto; min-width: 0; min-height: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: visible; }
+.mapping-editor-detail { min-width: 0; min-height: 0; padding: 10px 12px 12px; overflow: visible; }
 .mapping-editor-detail > [hidden] { display: none; }
 .mapping-tab--diagram svg { color: var(--schema-color-info); }
 .mapping-tab--columns svg { color: var(--schema-color-teal); }
@@ -188,6 +191,7 @@ body .explorer-resize-handle:hover::before, body .explorer-resize-handle:focus-v
 .mapping-tab--conditions[aria-selected="true"] { color: var(--schema-color-warning) !important; border-left-color: var(--schema-color-warning) !important; }
 .mapping-tab--execution[aria-selected="true"] { color: var(--schema-color-neutral) !important; border-left-color: var(--schema-color-neutral) !important; }
 .mapping-inline-actions { display: inline-flex; align-items: center; gap: 8px; }
+.mapping-section { min-width: 0; }
 .mapping-type-chip { display: inline-flex; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-family: var(--font-mono, ui-monospace, monospace); color: var(--schema-color-neutral); background: color-mix(in srgb, var(--schema-color-neutral) 12%, var(--surface)); }
 .mapping-condition-title { display: inline-flex; align-items: center; gap: 8px; }
 .procedure-heading-icon--join { color: var(--schema-color-warning); background: transparent; }

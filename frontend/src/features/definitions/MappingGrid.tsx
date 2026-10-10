@@ -299,7 +299,7 @@ export function MappingGrid({ projectUuid, value, onChange, schemaVersion = 4, o
                 <th scope="col">{t('sourceDataset')}</th>
                 <th scope="col">{t('sourceColumn')}</th>
                 <th scope="col">{t('targetDataset')}</th>
-                <th scope="col"><span className="sr-only">{t('remove')}</span></th>
+                <th scope="col" className="ui-grid-actions-column"><span className="sr-only">{t('remove')}</span></th>
               </tr>
             </thead>
             <tbody>
@@ -313,7 +313,7 @@ export function MappingGrid({ projectUuid, value, onChange, schemaVersion = 4, o
                     <td><span className="mapping-type-chip">{targetColumn?.producerType ?? '—'}</span></td>
                     <td><span className="definition-muted">{targetColumn ? columnSize(targetColumn) : '—'}</span></td>
                     <td><span className={`procedure-route-chip is-ready procedure-route-chip--${isExpression ? 'target' : 'source'}`}>{isExpression ? t('expression') : t('source')}</span></td>
-                    <td>
+                    <td className="ui-grid-actions-column">
                       <AntActionButton tone="ghost"
                         type="button"
                         className="mapping-expression-button"

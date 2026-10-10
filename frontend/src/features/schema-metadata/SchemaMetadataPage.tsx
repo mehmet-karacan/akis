@@ -67,6 +67,7 @@ export function SchemaMetadataPage() {
   const [tablolar, setTablolar] = useState<TabloTanimi[]>([])
   const [sequences, setSequences] = useState<SiraTanimi[]>([])
   const [tableStats, setTableStats] = useState<Record<string, { columns: number; constraints: number; indexes: number; relationships: number }>>({})
+  const [tableStatsLoading, setTableStatsLoading] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [query, setQuery] = useState('')
@@ -92,8 +93,8 @@ export function SchemaMetadataPage() {
   useEffect(() => { void loadSemalar() }, [loadSemalar])
 
   useEffect(() => {
-    if (!semaUuid) { setTablolar([]); setSequences([]); setTableStats({}); return }
-    setTableStats({})
+    if (!semaUuid) { setTablolar([]); setSequences([]); setTableStats({}); setTableStatsLoading(false); return }
+    setTableStats({}); setTableStatsLoading(true)
     let cancelled = false
     Promise.all([schemaMetadataApi.listTablolar(semaUuid), schemaMetadataApi.listSequences(semaUuid)])
       .then(([nextTablolar, nextSequences]) => {
@@ -109,10 +110,10 @@ export function SchemaMetadataPage() {
           ])
           return [tablo.uuid, { columns: columns.length, constraints: constraints.length, indexes: indexes.length, relationships: relationships.length }] as const
         })).then((entries) => {
-          if (!cancelled) setTableStats(Object.fromEntries(entries))
-        }).catch(() => { if (!cancelled) setTableStats({}) })
+          if (!cancelled) { setTableStats(Object.fromEntries(entries)); setTableStatsLoading(false) }
+        }).catch(() => { if (!cancelled) { setTableStats({}); setTableStatsLoading(false) } })
       })
-      .catch(() => { if (!cancelled) setError(t('common.loadError')) })
+      .catch(() => { if (!cancelled) { setError(t('common.loadError')); setTableStatsLoading(false) } })
     return () => { cancelled = true }
   }, [semaUuid, t])
 
@@ -171,13 +172,13 @@ export function SchemaMetadataPage() {
           pagination={false}
           dataSource={detay.kolonlar}
           columns={[
-            { title: <MetadataColumnTitle icon={Hash} tone="info">#</MetadataColumnTitle>, dataIndex: 'siraNo', width: 54 },
+            { title: <MetadataColumnTitle icon={Hash} tone="info"><span className="sr-only">#</span></MetadataColumnTitle>, dataIndex: 'siraNo', width: 54 },
             { title: <MetadataColumnTitle icon={Type} tone="columns">{tr ? 'Ad' : 'Name'}</MetadataColumnTitle>, dataIndex: 'ad', render: (value: string) => <code>{value}</code> },
             { title: <MetadataColumnTitle icon={Braces} tone="indexes">{tr ? 'Tip' : 'Type'}</MetadataColumnTitle>, dataIndex: 'veriTipi' },
             { title: <MetadataColumnTitle icon={Ruler} tone="info">{tr ? 'Uzunluk' : 'Length'}</MetadataColumnTitle>, dataIndex: 'uzunluk', render: (value: number | null) => value ?? '—' },
             { title: <MetadataColumnTitle icon={ShieldCheck} tone="constraints">{tr ? 'Zorunlu' : 'Required'}</MetadataColumnTitle>, dataIndex: 'zorunluMu', render: (value: boolean) => <Tag className={`schema-metadata-required-tag ${value ? 'is-yes' : 'is-no'}`} style={value ? metadataTagStyles.warning : metadataTagStyles.subdued} icon={value ? <Check size={12} /> : <X size={12} />}>{value ? (tr ? 'Evet' : 'Yes') : (tr ? 'Hayır' : 'No')}</Tag> },
             { title: <MetadataColumnTitle icon={RefreshCw} tone="info">{tr ? 'Varsayılan' : 'Default'}</MetadataColumnTitle>, dataIndex: 'varsayilanDeger', render: (value: string | null) => value ? <code>{value}</code> : '—' },
-            { title: <MetadataColumnTitle icon={ListOrdered} tone="sequences">Sequence</MetadataColumnTitle>, dataIndex: 'ad', render: (value: string) => { const sequence = sequenceForColumn(value); return sequence ? <Tag className="schema-metadata-sequence-tag" style={metadataTagStyles.success} icon={<ListOrdered size={12} />}>{sequence.ad}</Tag> : '—' } },
+            { title: <MetadataColumnTitle icon={ListOrdered} tone="sequences">{tr ? 'Sıra' : 'Sequence'}</MetadataColumnTitle>, dataIndex: 'ad', render: (value: string) => { const sequence = sequenceForColumn(value); return sequence ? <Tag className="schema-metadata-sequence-tag" style={metadataTagStyles.success} icon={<ListOrdered size={12} />}>{sequence.ad}</Tag> : '—' } },
             { title: <MetadataColumnTitle icon={FileText} tone="description">{tr ? 'Açıklama' : 'Description'}</MetadataColumnTitle>, dataIndex: 'aciklama', render: (value: string | null) => value ?? '—' },
           ]}
         />
@@ -266,10 +267,10 @@ export function SchemaMetadataPage() {
             ariaLabel={tr ? 'Şema Metadata Özeti' : 'Schema Metadata Summary'}
             items={[
               { label: tr ? 'Tablolar' : 'Tables', value: tablolar.length, icon: <Table2 />, tone: 'info' },
-              { label: tr ? 'Toplam Kolon' : 'Total Columns', value: totals.columns, icon: <Columns3 />, tone: 'teal' },
-              { label: tr ? 'Kısıtlar' : 'Constraints', value: totals.constraints, icon: <KeyRound />, tone: 'warning' },
-              { label: tr ? 'İndeksler' : 'Indexes', value: totals.indexes, icon: <ListTree />, tone: 'neutral' },
-              { label: tr ? 'İlişkiler' : 'Relationships', value: totals.relationships, icon: <Share2 />, tone: 'pink' },
+              { label: tr ? 'Toplam Kolon' : 'Total Columns', value: tableStatsLoading ? '…' : totals.columns, icon: <Columns3 />, tone: 'teal' },
+              { label: tr ? 'Kısıtlar' : 'Constraints', value: tableStatsLoading ? '…' : totals.constraints, icon: <KeyRound />, tone: 'warning' },
+              { label: tr ? 'İndeksler' : 'Indexes', value: tableStatsLoading ? '…' : totals.indexes, icon: <ListTree />, tone: 'neutral' },
+              { label: tr ? 'İlişkiler' : 'Relationships', value: tableStatsLoading ? '…' : totals.relationships, icon: <Share2 />, tone: 'pink' },
               { label: tr ? 'Sequence' : 'Sequences', value: sequences.length, icon: <ListOrdered />, tone: 'success' },
             ]}
           />
@@ -298,7 +299,7 @@ export function SchemaMetadataPage() {
                     key={tablo.uuid}
                   >
                     <td>
-                      <span className="schema-metadata-tablo-cell"><code>{tablo.ad}</code></span>
+                      <span className="schema-metadata-tablo-cell"><Table2 size={15} aria-hidden="true" /><code>{tablo.ad}</code></span>
                     </td>
                     <td>{tablo.aciklama ?? '—'}</td>
                     <td className="schema-metadata-count-cell"><strong>{tableStats[tablo.uuid]?.columns ?? '—'}</strong></td>

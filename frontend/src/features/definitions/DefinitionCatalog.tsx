@@ -31,25 +31,42 @@ export function DefinitionCatalog({ projectUuid, definitions, folders, typeLabel
   const [view, setView] = useCollectionView('akis:definitions:view')
   const [params, setParams] = useSearchParams()
   const query = params.get('q') ?? ''
+  const requestedType = params.get('type')
   const applyQuery = (next: string) => { const nextParams = new URLSearchParams(params); if (next) nextParams.set('q', next); else nextParams.delete('q'); setParams(nextParams) }
+  const applyType = (next: DefinitionType | '') => {
+    const nextParams = new URLSearchParams(params)
+    if (next) nextParams.set('type', next)
+    else nextParams.delete('type')
+    setParams(nextParams)
+  }
   const folderOf = (definition: Definition) => folders.find((folder) => folder.uuid === definition.folderUuid)
+  const typeFilters = useMemo(() => Object.entries(definitions.reduce<Record<string, number>>((acc, definition) => {
+    acc[definition.type] = (acc[definition.type] ?? 0) + 1
+    return acc
+  }, {})).sort((a, b) => typeLabel(a[0] as DefinitionType).localeCompare(typeLabel(b[0] as DefinitionType), language)), [definitions, language, typeLabel])
+  const typeFilter = typeFilters.some(([type]) => type === requestedType) ? requestedType as DefinitionType : ''
   const filtered = useMemo(() => definitions
+    .filter((definition) => !typeFilter || definition.type === typeFilter)
     .filter((definition) => `${definition.name} ${definition.code} ${typeLabel(definition.type)} ${folderOf(definition)?.name ?? ''}`.toLocaleLowerCase(language).includes(query.trim().toLocaleLowerCase(language)))
-    .sort((a, b) => a.name.localeCompare(b.name, language)), [definitions, query, language])
-  const typeCounts = useMemo(() => Object.entries(definitions.reduce<Record<string, number>>((acc, definition) => { acc[definition.type] = (acc[definition.type] ?? 0) + 1; return acc }, {})).sort((a, b) => b[1] - a[1]).slice(0, 3), [definitions])
+    .sort((a, b) => a.name.localeCompare(b.name, language)), [definitions, query, language, typeFilter, typeLabel])
+  const typeCounts = [...typeFilters].sort((a, b) => b[1] - a[1]).slice(0, 3)
   const addButton = canWrite ? <Button tone="primary" icon={<Plus size={16} />} onClick={onCreate}>{t('newDefinition')}</Button> : undefined
   const exportMenu = <ExportMenu projectUuid={projectUuid} dataset="definitions" resourceId="definitions" filters={query.trim() ? [{ field: 'query', operator: 'contains', value: query.trim() }] : []} />
 
   return <section className="page-stack connections-page definitions-catalog">
     <section className="connection-management-panel"><PageHeader icon={<Layers3 />} eyebrow={tr ? 'TASARIM VE MODELLEME' : 'DESIGN & MODELING'} title={tr ? 'Akış Tasarımı' : 'Flow Design'} description={t('subtitle')} actions={exportMenu} />
-    <QueryFilter onApply={applyQuery} placeholder={tr ? 'Ad, kod, tür veya klasöre göre ara' : 'Search by name, code, type or folder'} /></section>
+    <QueryFilter onApply={applyQuery} placeholder={tr ? 'Ad, kod, tür veya klasöre göre ara' : 'Search by name, code, type or folder'} />
+    <div className="definitions-type-filter" role="group" aria-label={tr ? 'Nesne türü filtresi' : 'Object type filter'}>
+      <Button type="button" tone={typeFilter ? 'secondary' : 'primary'} aria-pressed={!typeFilter} onClick={() => applyType('')}>{tr ? 'Tümü' : 'All'} <span>{definitions.length}</span></Button>
+      {typeFilters.map(([type, count]) => <Button key={type} type="button" tone={typeFilter === type ? 'primary' : 'secondary'} aria-pressed={typeFilter === type} onClick={() => applyType(type as DefinitionType)}><DefinitionTypeIcon type={type as DefinitionType} size={15} badge={false} />{typeLabel(type as DefinitionType)} <span>{count}</span></Button>)}
+    </div></section>
     <SummaryStrip ariaLabel={t('title')} items={[
       { label: tr ? 'Toplam Nesne' : 'Total Objects', value: definitions.length, icon: <Layers3 />, tone: 'info' },
       { label: tr ? 'Klasör' : 'Folders', value: folders.length, icon: <ProjectFolderIcon size={18} />, tone: 'neutral' },
       ...typeCounts.map(([type, count]) => ({ label: typeLabel(type as DefinitionType), value: count, icon: <DefinitionTypeIcon type={type as DefinitionType} size={18} badge={false} />, tone: DEFINITION_TYPE_TONES[type as DefinitionType] })),
     ]} />
     <section className="connections-records">
-      {filtered.length === 0 ? <AsyncState state="empty" title={definitions.length === 0 ? t('selectDefinition') : (tr ? 'Eşleşen nesne yok' : 'No matching objects')} action={addButton} /> : <ProgressiveRecords key={query} items={filtered}>{(visible) => <DataGrid auditKind="definitions" auditInFooter collectionTitle={tr ? 'Nesne Kataloğu' : 'Object Catalog'} collectionIcon={<Layers3 />} toolbarActions={addButton} cardHeaderLeadingField="type" cardHeaderField="status" cardHiddenFields={['type', 'status']} view={view} onViewChange={setView}>
+      {filtered.length === 0 ? <AsyncState state="empty" title={definitions.length === 0 ? t('selectDefinition') : (tr ? 'Eşleşen nesne yok' : 'No matching objects')} action={addButton} /> : <ProgressiveRecords key={`${query}:${typeFilter}`} items={filtered}>{(visible) => <DataGrid auditKind="definitions" auditInFooter collectionTitle={tr ? 'Nesne Kataloğu' : 'Object Catalog'} collectionIcon={<Layers3 />} toolbarActions={addButton} cardHeaderLeadingField="type" cardHeaderField="status" cardHiddenFields={['type', 'status']} view={view} onViewChange={setView}>
         <thead><tr><th data-field-key="type">{t('type')}</th><th data-field-key="name">{t('name')}</th><th data-field-key="description">{t('description')}</th><th data-field-key="folder">{t('folder')}</th><th data-field-key="status">{t('status')}</th><th data-field-key="actions" className="ui-grid-actions-column"><span className="sr-only">{tr ? 'İşlemler' : 'Actions'}</span></th></tr></thead>
         <tbody>{visible.map((definition) => { const ok = definition.status === 'AKTIF' || definition.status === 'ETKIN'; const tone = ok ? 'success' : 'neutral'; return <tr key={definition.uuid} data-connection-uuid={definition.uuid} onDoubleClick={() => onOpen(definition.uuid)}>
           <td><span className="provider-cell"><DefinitionTypeIcon type={definition.type} size={18} /><span>{typeLabel(definition.type)}</span></span></td>

@@ -12,6 +12,12 @@
 .connection-record-card .ui-collection-icon { display: grid; place-items: center; flex-shrink: 0; padding: 0; }
 .connection-record-card .database-provider-icon > svg { position: static; margin: 0; display: block; }
 .connection-catalog-dialog .topology-form-actions { position: static; }
+.definitions-type-filter { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.definitions-type-filter .akis-button { min-height: 32px; padding-inline: 10px; }
+.definitions-type-filter .akis-button .definition-type-icon { flex: 0 0 auto; }
+.definitions-type-filter .akis-button > span:last-child { color: var(--ink-soft); font-size: 11px; font-variant-numeric: tabular-nums; }
 @media (max-width: 700px) {
   .connection-management-panel .ui-filter-bar { grid-template-columns: minmax(0, 1fr); }
+  .definitions-type-filter { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 3px; scrollbar-width: thin; }
+  .definitions-type-filter .akis-button { flex: 0 0 auto; }
 }

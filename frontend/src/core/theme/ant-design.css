@@ -135,6 +135,13 @@ body .design-content > .definitions-workspace { width: 100%; max-width: none; }
 body .ui-data-grid :is(th, td).row-actions,
 body .ui-data-grid :is(th, td).ui-grid-actions-column { width: 1% !important; min-width: 0 !important; max-width: none !important; padding-inline: 8px !important; white-space: nowrap !important; }
 body .ui-data-grid .connection-row-actions { display: inline-flex; gap: 6px; }
+/* Wide catalog tables keep row actions visible while their data columns scroll horizontally. */
+body .ui-data-grid :is(th, td).row-actions,
+body .ui-data-grid :is(th, td).ui-grid-actions-column { position: sticky; right: 0; background: var(--surface); box-shadow: -8px 0 10px -10px color-mix(in srgb, var(--ink) 40%, transparent); }
+body .ui-data-grid thead :is(th, td).row-actions,
+body .ui-data-grid thead :is(th, td).ui-grid-actions-column { z-index: 3; background: var(--surface-strong); }
+body .ui-data-grid tbody :is(th, td).row-actions,
+body .ui-data-grid tbody :is(th, td).ui-grid-actions-column { z-index: 2; }
 body .shell-body .design-workspace { grid-template-columns: minmax(0, 1fr); height: 100%; min-height: 0; }
 body .shell-body.is-compact { grid-template-columns: minmax(0, 1fr); position: relative; }
 body .shell-body.is-compact > .shell-navigation-pane { position: absolute; top: 0; left: 0; bottom: 0; width: min(300px, 90vw); z-index: 30; box-shadow: 8px 0 24px #0003; }
@@ -325,6 +332,16 @@ body .procedure-general-properties label:not(.procedure-checkbox) { gap: 6px; }
 .ant-btn.akis-button > span { display: inline-flex; align-items: center; gap: 6px; }
 .ant-tag.akis-status { margin-inline-end: 0; white-space: nowrap; }
 .akis-modal .ant-modal-body { max-height: calc(100dvh - 150px); overflow-y: auto; overscroll-behavior: contain; padding: 4px 4px 4px 0; scrollbar-gutter: stable; }
+.akis-modal .ant-modal-body form > footer,
+.akis-modal .ant-modal-body .ui-record-detail > form > footer {
+  position: sticky;
+  bottom: -4px;
+  z-index: 4;
+  margin-inline: -4px 0;
+  padding: 12px 4px 4px;
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  box-shadow: 0 -8px 14px -12px color-mix(in srgb, var(--ink) 55%, transparent);
+}
 .akis-modal .ant-modal-title > div { display: grid; gap: 4px; }
 .akis-modal-eyebrow { font-size: 12px; font-weight: 400; color: var(--ink-soft); }
 .akis-modal { max-width: calc(100vw - 32px); }
@@ -417,6 +434,7 @@ body .connection-detail-page > .ui-summary-strip { margin: 0; }
 body .connection-detail-page .ant-tabs-nav { margin-bottom: 16px; }
 body .connection-detail-page .ant-tabs-content-holder { min-width: 0; }
 body .design-content { height: auto; min-height: 100%; overflow: visible; padding: 24px; }
+body .design-content:has(> .definitions-workspace) { height: 100%; min-height: 0; overflow: auto; }
 body .design-content .procedure-workbench { display: flex; flex-direction: column; gap: 24px; height: auto; min-height: 0; overflow: visible; }
 body .procedure-editor { padding: 16px; min-width: 0; }
 body .procedure-editor-heading { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
