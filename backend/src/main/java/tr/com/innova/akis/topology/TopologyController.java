@@ -188,7 +188,7 @@ final class TopologyController {
     ResponseEntity<EnvironmentView> createEnvironment(@PathVariable UUID projectUuid, @Valid @RequestBody CreateEnvironmentRequest request) {
         authorization.requireProjectPermission(projectUuid, TOPOLOGY_WRITE);
         EnvironmentRow row = service.createEnvironment(request.code(), request.name(), request.description(), request.risk(),
-                Boolean.TRUE.equals(request.defaultEnvironment()), request.policy());
+                Boolean.TRUE.equals(request.defaultEnvironment()), service.memoryPolicy(request.policy(),service.memoryOverride(request.transferMemoryBudgetMiB())));
         return ResponseEntity.created(URI.create("/api/v1/projects/" + projectUuid + "/environments/" + row.uuid()))
                 .body(EnvironmentView.from(row));
     }
@@ -203,7 +203,7 @@ final class TopologyController {
     EnvironmentView updateEnvironment(@PathVariable UUID projectUuid, @PathVariable UUID uuid, @Valid @RequestBody UpdateEnvironmentRequest request) {
         authorization.requireProjectPermission(projectUuid, TOPOLOGY_WRITE);
         return EnvironmentView.from(service.updateEnvironment(uuid, request.name(), request.description(), request.risk(),
-                request.defaultEnvironment(), request.status()));
+                request.defaultEnvironment(), request.status(),service.memoryOverride(request.transferMemoryBudgetMiB())));
     }
 
     @DeleteMapping("/environments/{uuid}")
@@ -280,10 +280,10 @@ final class TopologyController {
     }
 
     record CreateEnvironmentRequest(@NotBlank String code, @NotBlank String name, String description, String risk,
-            Boolean defaultEnvironment, JsonNode policy) {
+            Boolean defaultEnvironment, JsonNode policy, JsonNode transferMemoryBudgetMiB) {
     }
 
-    record UpdateEnvironmentRequest(@NotBlank String name, String description, String risk, Boolean defaultEnvironment, String status) {
+    record UpdateEnvironmentRequest(@NotBlank String name, String description, String risk, Boolean defaultEnvironment, String status, JsonNode transferMemoryBudgetMiB) {
     }
 
     record SchemaBindingRequest(@NotNull UUID logicalSchemaUuid, @NotNull UUID environmentUuid, @NotNull UUID physicalSchemaUuid) {
@@ -360,10 +360,10 @@ final class TopologyController {
     }
 
     record EnvironmentView(UUID uuid, String code, String name, String description, String risk,
-            boolean defaultEnvironment, int policyVersion, JsonNode policy, String status) {
+            boolean defaultEnvironment, int policyVersion, JsonNode policy, String status,long transferMemoryBudgetMiB) {
         static EnvironmentView from(EnvironmentRow r) {
             return new EnvironmentView(r.uuid(), r.code(), r.name(), r.description(), r.risk(), r.defaultEnvironment(),
-                    r.policyVersion(), r.policy(), r.status());
+                    r.policyVersion(), r.policy(), r.status(),tr.com.innova.akis.knowledge.TransferMemoryPolicy.fromPolicy(r.policy()));
         }
     }
 }

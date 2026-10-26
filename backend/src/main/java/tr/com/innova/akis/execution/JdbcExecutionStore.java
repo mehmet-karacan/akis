@@ -440,7 +440,7 @@ public class JdbcExecutionStore implements ExecutionStore {
                       join akis.senaryo s on s.id = y.senaryo_id
                       join akis.proje p on p.id = r.proje_id
                      where p.uuid = :projectUuid
-                       and r.olusturulma_zamani >= date_trunc('day', current_timestamp)
+                       and r.olusturulma_zamani >= current_timestamp - interval '24 hours'
                 ), dml as (
                     select coalesce(task.content->>'logCounter', 'NONE') as counter,
                            coalesce(sum(ad.satir_sayisi), 0)::bigint as rows

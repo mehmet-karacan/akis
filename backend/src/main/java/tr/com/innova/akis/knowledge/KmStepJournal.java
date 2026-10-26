@@ -32,7 +32,12 @@ public class KmStepJournal {
         this.exportJdbc=JdbcClient.create(template);
     }
     public record Row(long generation,int ordinal,String stepCode,String operation,String site,String slot,String state,
-            Long affectedRows,String errorCode,OffsetDateTime startedAt,OffsetDateTime completedAt,JsonNode executedSql) {
+            Long affectedRows,String errorCode,OffsetDateTime startedAt,OffsetDateTime completedAt,JsonNode executedSql,
+            TransferProgress transferProgress) {
+        public Row(long generation,int ordinal,String stepCode,String operation,String site,String slot,String state,
+                Long affectedRows,String errorCode,OffsetDateTime startedAt,OffsetDateTime completedAt,JsonNode executedSql) {
+            this(generation,ordinal,stepCode,operation,site,slot,state,affectedRows,errorCode,startedAt,completedAt,executedSql,null);
+        }
         public Row(long generation,int ordinal,String stepCode,String operation,String site,String slot,String state,
                 Long affectedRows,String errorCode,OffsetDateTime startedAt,OffsetDateTime completedAt) {
             this(generation,ordinal,stepCode,operation,site,slot,state,affectedRows,errorCode,startedAt,completedAt,null);
@@ -114,6 +119,26 @@ public class KmStepJournal {
                 .param("rows",rows,java.sql.Types.BIGINT).param("error",error,java.sql.Types.VARCHAR).update();
         if(changed!=1) throw new IllegalStateException("KM adım kaydı güncellenemedi.");
     }
+    /** Updates live counters without changing step timestamps or immutable SQL evidence. */
+    @Transactional
+    public void progress(WorkObjectStore.Owner owner,TransferProgress progress) {
+        Objects.requireNonNull(progress);
+        int changed=jdbc.sql("""
+                update akis.km_step_journal j set transfer_progress=cast(:progress as jsonb),affected_rows=:rows
+                from akis.calistirma c join akis.proje p on p.id=c.proje_id
+                join akis.calistirma_durumu d on d.proje_id=p.id and d.calistirma_id=c.id
+                where j.proje_id=p.id and j.calistirma_id=c.id and p.uuid=:project and c.uuid=:run
+                  and j.generation=:generation and j.worker_reference=:worker
+                  and j.state='RUNNING' and j.operation='TRANSFER_JDBC'
+                  and d.nesil_no=:generation and d.isleyici_referansi=:worker
+                  and d.kiralama_bitis_zamani>clock_timestamp() and d.durum='CALISIYOR'
+                """).param("project",owner.projectUuid()).param("run",owner.runUuid()).param("generation",owner.generation())
+                .param("worker",owner.worker()).param("progress",mapper.writeValueAsString(progress)).param("rows",progress.rows()).update();
+        if(changed!=1) throw new IllegalStateException("KM aktarım ilerlemesi güncellenemedi.");
+    }
+    private TransferProgress readProgress(String json) {
+        return json==null ? null : mapper.readValue(json,TransferProgress.class);
+    }
     /** RESUME: the step completed in the previous attempt and its effect (the sealed work table) was adopted. */
     @Transactional
     public void skipped(WorkObjectStore.Owner owner,int ordinal,Long rows) {
@@ -148,7 +173,7 @@ public class KmStepJournal {
                 """).param("project",project).param("run",run).query((r,n)->new Row(r.getLong("generation"),r.getInt("ordinal"),r.getString("step_code"),
                         r.getString("operation"),r.getString("site"),r.getString("slot"),r.getString("state"),r.getObject("affected_rows",Long.class),
                         r.getString("error_code"),r.getObject("started_at",OffsetDateTime.class),r.getObject("completed_at",OffsetDateTime.class),
-                        mapper.readTree(r.getString("calistirilan_sql")))).list();
+                        mapper.readTree(r.getString("calistirilan_sql")),readProgress(r.getString("transfer_progress")))).list();
     }
 
     /** Streams journal rows without materialising the run's complete detail list. */
@@ -163,7 +188,7 @@ public class KmStepJournal {
                         r.getString("operation"),r.getString("site"),r.getString("slot"),r.getString("state"),
                         r.getObject("affected_rows",Long.class),r.getString("error_code"),
                         r.getObject("started_at",OffsetDateTime.class),r.getObject("completed_at",OffsetDateTime.class),
-                        mapper.readTree(r.getString("calistirilan_sql")))).stream()) {
+                        mapper.readTree(r.getString("calistirilan_sql")),readProgress(r.getString("transfer_progress")))).stream()) {
             rows.forEach(consumer);
         }
     }
@@ -182,7 +207,7 @@ public class KmStepJournal {
                                 r.getString("operation"),r.getString("site"),r.getString("slot"),r.getString("state"),
                                 r.getObject("affected_rows",Long.class),r.getString("error_code"),
                                 r.getObject("started_at",OffsetDateTime.class),r.getObject("completed_at",OffsetDateTime.class),
-                                mapper.readTree(r.getString("calistirilan_sql"))))).stream()) {
+                                mapper.readTree(r.getString("calistirilan_sql")),readProgress(r.getString("transfer_progress"))))).stream()) {
             rows.forEach(entry->consumer.accept(entry.getKey(),entry.getValue()));
         }
     }

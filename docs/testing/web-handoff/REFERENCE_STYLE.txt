@@ -1,0 +1,26 @@
+KURUMSAL GÖRSEL REFERANS
+
+Kaynak: oracle-db-migration-generator · docs/HTML_STANDARDI.md ve reporting/assets/report.css.
+İlgili konuşma: “HTML raporuna tarama sayılarını ekle”.
+
+Ana yaklaşım: kısa yönetici özeti + doğru sayaçlar + anlaşılır durumlar + açılabilir teknik kanıt. Mevcut onaylı HTML ailesinin açık ve sade görünümü korunur.
+
+Görsel değerler:
+- Dış zemin: #EBF0F4
+- İçerik: #FFFFFF
+- Açık blok: #F3F6F8
+- Başlık: #111B2D
+- Gövde: #253142
+- İkincil yazı: #68778B
+- Kurumsal vurgu: #CF1838, ölçülü kullanılır.
+- Kenar: #DCE4EB
+- Font: Aptos, Calibri, Segoe UI, Arial, sans-serif; internetten font yüklenmez.
+- Ana genişlik: yaklaşık 1.100 px; telefonda tek sütuna uyarlanır.
+
+Korunacaklar: mevcut İnnova logosu ve oranı, sade beyaz sayfa, üst kimlik alanı, açık sayaç şeridi, sol ince vurgu çizgili başlıklar, sıkıştırılmamış tablolar, metin içeren küçük durum etiketleri, ölçülü boşluklar, kısa alt açıklamalar.
+
+Uyarlanacaklar: ürün adı SKY - DIT · Data Integration Tool, başlık “Test ve Sürüm Raporu”; taranan nesne/DDL sayaçlarının yerini test türü ve sonuç sayaçları alır. Referansın Oracle/DDL alan adları iş gereksinimi değildir. Yapay zekâ rozeti veya eski ürünün slogan/başlıkları otomatik aktarılmaz.
+
+Yapılmayacaklar: koyu/neon dashboard, büyük dekoratif grafikler, dev kartlar, bilinmeyen sonuçları 0 gösterme, her şeyi yeşil başarıya çevirme, uzun JSON/kimlik/hash metinlerini ana özet yapma, okunamayacak kadar küçük yazı, internetten CDN/font bağımlılığı.
+
+Örnek referans HTML yalnız sahte APP test şemasıyla çevrimdışı üretilir. Gerçek müşteri nesnesi, bağlantı veya iş verisi içermez; buradaki sayılar test raporunun gerçek sonuçları değildir.

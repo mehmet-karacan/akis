@@ -43,6 +43,12 @@ public final class StagedRuntimePlanResolver {
         new DefinitionContentValidator().validate(DefinitionType.MAPPING,mappingSchemaVersion,content);
         var semantic=StagedMappingDefinition.parse(content);
         var physical=manifest.path("stagedPlan"); require(physical.isObject());
+        if(semantic.options().automatic()) for(String key:List.of("batchRows","fetchRows","maxRows","maxBytes"))
+            require(physical.path("options").hasNonNull(key));
+        var physicalOptions=StagedMappingDefinition.parseOptions(physical.path("options"));
+        require(semantic.options().automatic()==physicalOptions.automatic()
+                && semantic.options().allowEmptySource()==physicalOptions.allowEmptySource());
+        if(!semantic.options().automatic()) require(semantic.options().equals(physicalOptions));
         var unsignedPhysical=(ObjectNode)physical.deepCopy(); unsignedPhysical.remove("physicalPlanHash");
         String physicalHash=text(physical,"physicalPlanHash");
         require(hash(physicalHash) && physicalHash.equals(KmCanonical.hash(mapper,unsignedPhysical))
@@ -50,9 +56,9 @@ public final class StagedRuntimePlanResolver {
                 && Set.of(AkisKmLanguage.VERSION, AkisKmLanguage.VERSION_2).contains(text(physical,"language")) && scenarioHash.equals(text(physical,"scenarioPlanHash"))
                 && versionUuid.equals(uuid(physical,"definitionVersionUuid"))
                 && uuid(physical,"environmentUuid").equals(uuid(manifest.path("environment"),"environmentUuid"))
-                && content.path("columnMappings").equals(physical.path("columns"))
-                && KmCanonical.hash(mapper,mapper.valueToTree(semantic.options())).equals(KmCanonical.hash(mapper,physical.path("options"))));
+                && content.path("columnMappings").equals(physical.path("columns")));
         var staging=physical.path("staging");
+        if(physicalOptions.memoryBudgetBytes()!=null) require(uuid(staging,"environmentUuid").equals(uuid(physical,"environmentUuid")));
         UUID project=uuid(staging,"projectUuid"); uuid(staging,"physicalSchemaUuid"); uuid(staging,"connectionVersionUuid"); uuid(staging,"bindingUuid");
         require(staging.path("bindingVersion").asLong()>0);
         if(semantic.logicalSchemaUuid()!=null) require(semantic.logicalSchemaUuid().equals(uuid(staging,"logicalSchemaUuid")));
@@ -75,7 +81,7 @@ public final class StagedRuntimePlanResolver {
             resolvedModuleOptions.put(role,resolved);
             programs.put(role,moduleSource);
         });
-        semantic=new StagedMappingDefinition(originalSemantic.logicalSchemaUuid(),originalSemantic.modules(),resolvedModuleOptions,originalSemantic.options(),originalSemantic.sources(),originalSemantic.target(),originalSemantic.joins(),originalSemantic.filters());
+        semantic=new StagedMappingDefinition(originalSemantic.logicalSchemaUuid(),originalSemantic.modules(),resolvedModuleOptions,physicalOptions,originalSemantic.sources(),originalSemantic.target(),originalSemantic.joins(),originalSemantic.filters());
         var modules=new AkisKmInterpreter.Modules(programs.get("loading"),programs.get("checking"),programs.get("integration"),resolvedModuleOptions);
         var program=AkisKmInterpreter.compile(modules);
         require(program.slots().equals(Set.of("WORK_SOURCE_1")) && mapper.valueToTree(program.steps()).equals(physical.path("steps")));

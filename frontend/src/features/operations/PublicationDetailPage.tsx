@@ -36,6 +36,8 @@ export function PublicationDetailPage() {
   const [preflightBusy, setPreflightBusy] = useState<'source' | 'target' | 'verification' | null>(null)
   const [preflightError, setPreflightError] = useState('')
   const publication = remote.data
+  const manifest = publication?.physicalManifest as { stagedPlan?: { options?: { resourceMode?: string } } } | undefined
+  const automaticResources = manifest?.stagedPlan?.options?.resourceMode === 'AUTO'
   const navigate = useNavigate()
   const [starting, setStarting] = useState(false)
   const [batchRows, setBatchRows] = useState('')
@@ -47,7 +49,7 @@ export function PublicationDetailPage() {
     setStarting(true); setStartError('')
     try {
       const batch = Number.parseInt(batchRows, 10)
-      const run = await executionApi.startRun(projectUuid, publication.uuid, crypto.randomUUID(), Number.isFinite(batch) && batch > 0 ? { batchRows: Math.min(batch, 5000) } : undefined)
+      const run = await executionApi.startRun(projectUuid, publication.uuid, crypto.randomUUID(), !automaticResources && Number.isFinite(batch) && batch > 0 ? { batchRows: Math.min(batch, 5000) } : undefined)
       navigate(`/project/operations?run=${encodeURIComponent(run.runUuid)}`)
     } catch (error) { setStartError(apiErrorMessage(error, t('requestFailed'))) }
     finally { setStarting(false) }
@@ -114,7 +116,7 @@ export function PublicationDetailPage() {
   const statusText = publication ? (['ONAY_BEKLIYOR', 'AKTIF', 'IPTAL', 'ETKIN'].includes(publication.status) ? t(`status_${publication.status}` as Parameters<typeof t>[0]) : publication.status) : ''
   const backLink = <div className="ops-header-actions">
     <Link className="ops-button ops-button-secondary" to="/project/publications"><ArrowLeft aria-hidden="true" /> {t('backToPublications')}</Link>
-    {canRun && <label className="ops-batch-field" title={t('batchRowsHint')}><span>{t('batchRows')}</span><input type="number" min={1} max={5000} inputMode="numeric" value={batchRows} placeholder="—" onChange={(event) => setBatchRows(event.target.value)} /></label>}
+    {canRun && !automaticResources && <label className="ops-batch-field" title={t('batchRowsHint')}><span>{t('batchRows')}</span><input type="number" min={1} max={5000} inputMode="numeric" value={batchRows} placeholder="—" onChange={(event) => setBatchRows(event.target.value)} /></label>}
     {canRun && <AntActionButton tone="primary" type="button" icon={<Play size={16} />} busy={starting} onClick={() => void startRun()}>{starting ? t('starting') : t('run')}</AntActionButton>}
   </div>
 

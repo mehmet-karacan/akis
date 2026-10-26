@@ -23,6 +23,7 @@ export function EnvironmentForm({ projectUuid, onCreated, onClose }: Props) {
   const [description, setDescription] = useState('')
   const [risk, setRisk] = useState<EnvironmentRisk>('DUSUK')
   const [defaultEnvironment, setDefaultEnvironment] = useState(false)
+  const [transferMemoryBudgetMiB, setTransferMemoryBudgetMiB] = useState(1024)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
@@ -32,7 +33,7 @@ export function EnvironmentForm({ projectUuid, onCreated, onClose }: Props) {
     setBusy(true); setError('')
     try {
       const created = await topologyApi.createEnvironment(projectUuid, {
-        code: code.trim().toUpperCase(), name: name.trim(), description: description.trim() || null, risk, defaultEnvironment,
+        code: code.trim().toUpperCase(), name: name.trim(), description: description.trim() || null, risk, defaultEnvironment, transferMemoryBudgetMiB,
       })
       await onCreated(created)
       onClose()
@@ -51,6 +52,8 @@ export function EnvironmentForm({ projectUuid, onCreated, onClose }: Props) {
         </FormSelect>
       </label>
       <label className="topology-field"><span>{tr ? 'Varsayılan Ortam' : 'Default Environment'}</span><span><Switch checked={defaultEnvironment} onChange={setDefaultEnvironment} /></span></label>
+      <label className="topology-field"><span>{tr ? 'Aktarım bellek bütçesi (MiB)' : 'Transfer memory budget (MiB)'}</span><Input type="number" required min={64} max={65536} step={1} value={transferMemoryBudgetMiB} onChange={(e) => setTransferMemoryBudgetMiB(Number(e.target.value))} /></label>
+      <p className="form-note topology-field--wide">{tr ? 'Varsayılan 1024 MiB (1 GiB). Interface bu bütçeyi ortamdan miras alır; okuma ve yazma tamponları otomatik yönetilir.' : 'Default 1024 MiB (1 GiB). Interfaces inherit this budget; read and write buffers are managed automatically.'}</p>
       <label className="topology-field topology-field--wide"><span>{t('schemas.description')}</span><Input.TextArea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} /></label>
       <p className="form-note topology-field--wide">{t('schemas.environmentSimpleHint')}</p>
     </div>

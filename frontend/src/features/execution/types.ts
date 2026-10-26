@@ -96,7 +96,17 @@ export interface RunEvent {
 
 export interface RunEventPage { items: RunEvent[]; nextCursor: number | null; hasMore: boolean }
 
+export interface TransferProgress {
+  rows: number
+  bytes: number
+  elapsedSeconds: number
+  readSeconds?: number | null
+  writeSeconds?: number | null
+  commitSeconds?: number | null
+}
+
 export interface RunStep {
+  transferProgress?: TransferProgress | null
   executedSql?: { step?: string; site: string; owner: string; sql: string }[] | null
   logCounter?: string | null
   transactionState?: 'COMMITTED' | 'COMMIT_CONFIRMED' | 'ROLLBACK_CONFIRMED' | 'NOT_ATTEMPTED' | 'UNCONFIRMED' | 'NOT_APPLICABLE'

@@ -1,6 +1,7 @@
 package tr.com.innova.akis.knowledge;
 
 import java.util.*;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import tools.jackson.databind.JsonNode;
 
 /** Strict additional schema-3 contract; legacy dataset/column structure remains compatible with the editor. */
@@ -23,12 +24,24 @@ public record StagedMappingDefinition(UUID logicalSchemaUuid, Map<String, Pin> m
         }
         @Override public JsonNode predicate() { return predicate == null ? null : predicate.deepCopy(); }
     }
-    public record Options(int batchRows, int fetchRows, long maxRows, long maxBytes, boolean allowEmptySource) {
+    public record Options(int batchRows, int fetchRows, long maxRows, long maxBytes, boolean allowEmptySource,
+            @JsonInclude(JsonInclude.Include.NON_NULL) String resourceMode,
+            @JsonInclude(JsonInclude.Include.NON_NULL) Long memoryBudgetBytes) {
+        public Options(int batchRows,int fetchRows,long maxRows,long maxBytes,boolean allowEmptySource,String resourceMode) {
+            this(batchRows,fetchRows,maxRows,maxBytes,allowEmptySource,resourceMode,null);
+        }
+        public Options(int batchRows, int fetchRows, long maxRows, long maxBytes, boolean allowEmptySource) {
+            this(batchRows,fetchRows,maxRows,maxBytes,allowEmptySource,null);
+        }
         public Options {
             if (batchRows < 1 || batchRows > 5000 || fetchRows < 1 || fetchRows > 5000
                     || maxRows < 1 || maxRows > 100_000_000 || maxBytes < 1 || maxBytes > 1_099_511_627_776L)
                 throw invalid("Aktarım sınırları izin verilen aralığın dışında.");
+            if(resourceMode!=null && !"AUTO".equals(resourceMode)) throw invalid("Kaynak yönetimi modu geçersiz.");
+            if(memoryBudgetBytes!=null && (memoryBudgetBytes<64L*1024*1024 || memoryBudgetBytes>65536L*1024*1024))
+                throw invalid("Aktarım bellek bütçesi izin verilen aralığın dışında.");
         }
+        public boolean automatic() { return "AUTO".equals(resourceMode); }
     }
     public StagedMappingDefinition(UUID logicalSchemaUuid, Map<String, Pin> modules, Options options) {
         this(logicalSchemaUuid, modules, Map.of(), options, List.of(), null, List.of(), List.of());
@@ -146,13 +159,24 @@ public record StagedMappingDefinition(UUID logicalSchemaUuid, Map<String, Pin> m
                 moduleOptions.put(entry.getKey(), values);
             });
         }
-        var options = root.path("options");
-        fields(options, Set.of("batchRows", "fetchRows", "maxRows", "maxBytes", "allowEmptySource"));
+        return new StagedMappingDefinition(logical, pins, moduleOptions, parseOptions(root.path("options")), sources, target, joins, filters);
+    }
+    /** AUTO is a request for server-managed limits; numeric values in a physical plan are pinned by the server. */
+    public static Options parseOptions(JsonNode options) {
+        fields(options, Set.of("resourceMode", "batchRows", "fetchRows", "maxRows", "maxBytes", "allowEmptySource", "memoryBudgetBytes"));
         if (!options.path("allowEmptySource").isBoolean()) throw invalid("Boş kaynak politikası açıkça seçilmelidir.");
-        return new StagedMappingDefinition(logical, pins, moduleOptions, new Options(
-                (int) number(options, "batchRows", 1, 5000), (int) number(options, "fetchRows", 1, 5000),
-                number(options, "maxRows", 1, 100_000_000), number(options, "maxBytes", 1, 1_099_511_627_776L),
-                options.path("allowEmptySource").booleanValue()), sources, target, joins, filters);
+        String mode=options.hasNonNull("resourceMode")?options.path("resourceMode").asText():null;
+        boolean automatic="AUTO".equals(mode);
+        return new Options(
+                (int) limit(options,"batchRows",5000,automatic?1000:0),
+                (int) limit(options,"fetchRows",5000,automatic?256:0),
+                limit(options,"maxRows",100_000_000,automatic?100_000_000:0),
+                limit(options,"maxBytes",1_099_511_627_776L,automatic?1_099_511_627_776L:0),
+                options.path("allowEmptySource").booleanValue(),mode,
+                options.has("memoryBudgetBytes")?number(options,"memoryBudgetBytes",64L*1024*1024,65536L*1024*1024):null);
+    }
+    private static long limit(JsonNode node,String key,long maximum,long fallback) {
+        return !node.has(key) && fallback>0?fallback:number(node,key,1,maximum);
     }
     private static ObjectRef objectRef(JsonNode node) { fields(node,Set.of("id","alias","dataObjectUuid","schemaSnapshotUuid")); String id=node.path("id").asText(); identifier(id); String alias=node.path("alias").asText(); identifier(alias); return new ObjectRef(id,alias,uuid(node.path("dataObjectUuid").asText()),uuid(node.path("schemaSnapshotUuid").asText())); }
     private static ColumnRef columnRef(JsonNode node) { fields(node,Set.of("object","column")); return new ColumnRef(identifier(node.path("object").asText()),identifier(node.path("column").asText())); }

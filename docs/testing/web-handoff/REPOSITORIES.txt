@@ -1,0 +1,44 @@
+WEB TASARIMI İÇİN DEPOLAR VE DOSYALAR
+
+1) GELİŞTİRİLECEK HEDEF DEPO
+https://github.com/mehmet-karacan/akis
+Dal: main
+Amaç: SKY - DIT için ortak test/sürüm raporu. Yeni çıktı test-reports/ altında önerilir; bu klasör şu an tamamlanmış bir ürün değildir.
+
+Önce okunacak dosyalar:
+- docs/testing/web-handoff/PROMPT.txt
+- docs/testing/web-handoff/REFERENCE_STYLE.txt
+- docs/testing/web-handoff/REPORT_DATA_CONTRACT.example.json
+- pom.xml ve backend/pom.xml: Java sürümü, unit/entegrasyon testleri, Surefire/Failsafe ayrımı.
+- frontend/package.json ve frontend/playwright.config.ts: TypeScript, Vitest, Playwright ve kanıt toplama ayarları.
+- backend/src/test/: unit ve entegrasyon senaryoları.
+- frontend/src/**/*.test.ts(x): frontend unit/bileşen testleri.
+- frontend/e2e/: tarayıcı bileşenleri ve E2E; dosya adının yanında gerçek test bağımlılıkları da incelenmeli.
+- scripts/test-quality-gate.ps1 ve scripts/run-e2e.ps1: mevcut çalıştırma akışları.
+- scripts/performance/: Python ölçüm araçları. Bu klasördeki tests/ unit testlerini performans koşusu sayma.
+- docs/testing/performance/rapor.html ve README.md: önceki performans raporunun veri/ölçüm kapsamı. Görsel ana referans değildir.
+
+Sürüm bilgisi şu an backend için 0.1.0-SNAPSHOT, frontend için 0.1.0. Tek bir ürün sürümüyle eşleştirme kararı henüz yeni rapor altyapısında uygulanmış değildir. Eski test sonuçlarının mevcut commit'e ait olduğunu varsayma.
+
+2) YALNIZ TASARIM REFERANSI
+https://github.com/mehmet-karacan/oracle-db-migration-generator/tree/codex/shared-ui-oracle-source
+Dal: codex/shared-ui-oracle-source (main eski görünümü içerebilir; belirtilen dalı seç).
+Bu özel depodur. Web oturumunun erişimi yoksa ekli ZIP'teki reference/ dosyaları yeterlidir. Referans deponun işlevlerini veya aktif görevini uygulama; depoyu değiştirme.
+
+Referans dosyalar:
+- docs/HTML_STANDARDI.md
+- src/oracle_db_migration_generator/reporting/assets/report.css
+- src/oracle_db_migration_generator/reporting/assets/innova-logo.png
+- src/oracle_db_migration_generator/reporting/templates/run.html.j2
+- src/oracle_db_migration_generator/reporting/templates/report.html.j2
+- src/oracle_db_migration_generator/reporting/templates/scan_scope.html.j2
+- src/oracle_db_migration_generator/reporting/templates/email.html.j2
+
+Bu referans “HTML raporuna tarama sayılarını ekle” konuşmasındaki HTML ailesidir. GPU DDL Sync veya Analyzer depolarının tamamı bu tasarım işi için gerekli değildir; üçüncü bir repo eklemene gerek yok.
+
+WEB'E EKLENECEK DOSYALAR
+- WEB-TASARIM-PAKETI.zip: prompt, repo haritası, örnek veri sözleşmesi, stil kuralları, sentetik render edilmiş referans HTML ve ilgili varlıklar.
+- ZIP açılamıyorsa: PROMPT.txt + REPOSITORIES.txt + REFERENCE_STYLE.txt + REPORT_DATA_CONTRACT.example.json + reference/report/index.html + reference/report/assets/ dosyaları ve referans ekran görüntüsü.
+- Yerel .env/.local/.data arşivleri, şifreler, gerçek SQL/DDL/iş verileri veya gerçek bağlantı bilgileri eklenmez.
+
+Tasarım ve yapı için bu iki repo yeterlidir. Hedef depo testlerin gerçeğini, referans depo ise görsel standardı sağlar. Hedef uygulamanın iş kodu ve referans ürünün işlevleri bu aşamada değiştirilmez.

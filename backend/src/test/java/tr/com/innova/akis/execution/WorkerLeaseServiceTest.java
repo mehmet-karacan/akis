@@ -1,11 +1,13 @@
 package tr.com.innova.akis.execution;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -103,6 +105,41 @@ class WorkerLeaseServiceTest {
         verify(operations).cancel(port.runToken.runUuid(), port.runToken.generation());
     }
 
+    @Test
+    void cancellationForAnotherOwnerRunOrGenerationCannotInterruptSessions() {
+        FakeLeasePort port = new FakeLeasePort();
+        port.cancelRequested = true;
+        RuntimeOperationRegistry operations = mock(RuntimeOperationRegistry.class);
+        WorkerLeaseService service = new WorkerLeaseService(port, operations);
+        RunLeaseToken current = port.runToken;
+
+        assertFalse(service.cancellationRequested(new RunLeaseToken(
+                current.runUuid(), "another-worker", current.generation(), FIRST_DEADLINE)));
+        assertFalse(service.cancellationRequested(new RunLeaseToken(
+                UUID.randomUUID(), current.workerReference(), current.generation(), FIRST_DEADLINE)));
+        assertFalse(service.cancellationRequested(new RunLeaseToken(
+                current.runUuid(), current.workerReference(), current.generation() - 1, FIRST_DEADLINE)));
+
+        verifyNoInteractions(operations);
+    }
+
+    @Test
+    void nextClaimRecoversDurableExpiredCancellationsInBoundedBatch() {
+        FakeLeasePort port = new FakeLeasePort();
+        new WorkerLeaseService(port).claimForPreflight(new WorkerIdentity("worker", UUID.randomUUID()), Duration.ofSeconds(60));
+        assertEquals(10, port.recoveryLimit);
+        assertTrue(port.recoveredBeforeClaim);
+    }
+
+    @Test
+    void failedRecoveryDoesNotPreventClaimOrAuthorizeExtraWork() {
+        FakeLeasePort port = new FakeLeasePort();
+        port.recoveryFailure = true;
+        assertTrue(new WorkerLeaseService(port).claimForPreflight(
+                new WorkerIdentity("worker", UUID.randomUUID()), Duration.ofSeconds(60)).isPresent());
+        assertEquals(10, port.recoveryLimit);
+    }
+
     private static final class FakeLeasePort implements RunLeasePort {
 
         private final RunLeaseToken runToken = new RunLeaseToken(
@@ -110,9 +147,20 @@ class WorkerLeaseServiceTest {
         private boolean acceptHeartbeat = true;
         private boolean cancelRequested;
         private RuntimeException heartbeatFailure;
+        private int recoveryLimit;
+        private boolean recoveredBeforeClaim;
+        private boolean recoveryFailure;
+
+        @Override
+        public int recoverExpiredCancellations(int limit) {
+            recoveryLimit = limit;
+            if (recoveryFailure) throw new IllegalStateException("Recovery unavailable");
+            return 1;
+        }
 
         @Override
         public Optional<ClaimedRun> claimForPreflight(WorkerIdentity worker, Duration lease) {
+            recoveredBeforeClaim = recoveryLimit > 0;
             return Optional.of(new ClaimedRun(
                     runToken, "a".repeat(64), "b".repeat(64)));
         }
@@ -140,7 +188,9 @@ class WorkerLeaseServiceTest {
 
         @Override
         public boolean cancellationRequested(RunLeaseToken token) {
-            return cancelRequested;
+            return cancelRequested && runToken.runUuid().equals(token.runUuid())
+                    && runToken.workerReference().equals(token.workerReference())
+                    && runToken.generation() == token.generation();
         }
     }
 }

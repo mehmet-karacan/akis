@@ -44,9 +44,17 @@ public class RecordAuditController {
                 ? "'/api/v1/projects/' || p.uuid || '/models/' || m.uuid || '/data-objects'"
                 : "'/api/v1/projects/' || p.uuid || '/' || :kind";
         return jdbc.sql("""
-            select r.uuid, coalesce(creator.gorunen_ad, created.principal) as created_by,
+            select r.uuid,
+                   case when lower(coalesce(creator.gorunen_ad, created.principal)) = 'developer'
+                        then 'Mehmet KARACAN'
+                        else coalesce(creator.gorunen_ad, created.principal)
+                   end as created_by,
                    r.olusturulma_zamani as created_at,
-                   case when updated.event_id is not null then updated.principal else editor.gorunen_ad end as updated_by,
+                   case when updated.event_id is not null then
+                            case when lower(updated.principal) = 'developer' then 'Mehmet KARACAN' else updated.principal end
+                        else
+                            case when lower(editor.gorunen_ad) = 'developer' then 'Mehmet KARACAN' else editor.gorunen_ad end
+                   end as updated_by,
                    coalesce(updated.olay_zamani, r.guncellenme_zamani) as updated_at
               from akis.%s r join akis.proje p on %s %s
               left join akis.kullanici creator on creator.id = r.olusturan_kullanici_id

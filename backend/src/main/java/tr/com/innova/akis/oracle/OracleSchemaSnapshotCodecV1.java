@@ -91,10 +91,13 @@ public final class OracleSchemaSnapshotCodecV1 {
             String dataType = upper(raw.dataType(), "data type");
             result.add(switch (dataType) {
                 case "NUMBER" -> number(raw, name);
-                case "VARCHAR2" -> varchar2(raw, name);
-                case "TIMESTAMP" -> timestamp(raw, name);
-                case "CLOB" -> clob(raw, name);
+                case "VARCHAR2", "CHAR", "NCHAR", "NVARCHAR2" -> character(raw, name, dataType);
+                case "TIMESTAMP", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP WITH LOCAL TIME ZONE" ->
+                        timestamp(raw, name, dataType);
+                case "CLOB", "NCLOB" -> clob(raw, name, dataType);
                 case "BLOB" -> blob(raw, name);
+                case "RAW" -> raw(raw, name);
+                case "BINARY_FLOAT", "BINARY_DOUBLE" -> binaryFloat(raw, name, dataType);
                 case "DATE" -> date(raw, name);
                 case "FLOAT" -> floating(raw, name);
                 default -> throw failure("Unsupported Oracle data type: " + dataType + ".");
@@ -115,7 +118,7 @@ public final class OracleSchemaSnapshotCodecV1 {
         if (precision == null) {
             return column(raw, name, "NUMBER", "DECIMAL", null, null, null, null);
         }
-        if (precision < 1 || precision > 38 || scale < 0 || scale > 127) {
+        if (precision < 1 || precision > 38 || scale < -84 || scale > 127) {
             throw failure("Oracle NUMBER precision or scale is outside the supported range.");
         }
         String canonicalType = scale == 0 && precision <= 19 ? "INTEGER" : "DECIMAL";
@@ -124,26 +127,27 @@ public final class OracleSchemaSnapshotCodecV1 {
                 raw, name, producerType, canonicalType, precision, scale, null, null);
     }
 
-    private Column varchar2(RawColumn raw, String name) {
-        requireNull(raw.precision(), "VARCHAR2 precision");
-        requireNull(raw.scale(), "VARCHAR2 scale");
-        requireNull(raw.timePrecision(), "VARCHAR2 time precision");
+    private Column character(RawColumn raw, String name, String dataType) {
+        requireNull(raw.precision(), dataType + " precision");
+        requireNull(raw.scale(), dataType + " scale");
+        requireNull(raw.timePrecision(), dataType + " time precision");
         Long length = raw.charLength();
-        if (length == null || length < 1 || length > 32_767) {
-            throw failure("Oracle VARCHAR2 character length is outside the supported range.");
+        int maximumLength = Set.of("CHAR", "NCHAR").contains(dataType) ? 2_000 : 32_767;
+        if (length == null || length < 1 || length > maximumLength) {
+            throw failure("Oracle " + dataType + " character length is outside the supported range.");
         }
         return column(
-                raw, name, "VARCHAR2(" + length + ")", "STRING",
+                raw, name, dataType + "(" + length + ")", "STRING",
                 null, null, length, null);
     }
 
-    private Column clob(RawColumn raw, String name) {
-        requireNull(raw.precision(), "CLOB precision");
-        requireNull(raw.scale(), "CLOB scale");
-        requireNull(raw.timePrecision(), "CLOB time precision");
+    private Column clob(RawColumn raw, String name, String dataType) {
+        requireNull(raw.precision(), dataType + " precision");
+        requireNull(raw.scale(), dataType + " scale");
+        requireNull(raw.timePrecision(), dataType + " time precision");
         // CHAR_LENGTH is not meaningful for a LOB (Oracle reports an internal locator size, not a character count),
         // so it is deliberately not validated or carried through, unlike VARCHAR2's declared length.
-        return column(raw, name, "CLOB", "STRING", null, null, null, null);
+        return column(raw, name, dataType, "STRING", null, null, null, null);
     }
 
     private Column blob(RawColumn raw, String name) {
@@ -151,6 +155,26 @@ public final class OracleSchemaSnapshotCodecV1 {
         requireNull(raw.scale(), "BLOB scale");
         requireNull(raw.timePrecision(), "BLOB time precision");
         return column(raw, name, "BLOB", "BINARY", null, null, null, null);
+    }
+
+    private Column raw(RawColumn raw, String name) {
+        requireNull(raw.precision(), "RAW precision");
+        requireNull(raw.scale(), "RAW scale");
+        requireNull(raw.timePrecision(), "RAW time precision");
+        Long length = raw.charLength(); // Dictionary reader supplies DATA_LENGTH (bytes).
+        if (length == null || length < 1 || length > 32_767) {
+            throw failure("Oracle RAW byte length is outside the supported range.");
+        }
+        return column(raw, name, "RAW(" + length + ")", "BINARY", null, null, length, null);
+    }
+
+    private Column binaryFloat(RawColumn raw, String name, String dataType) {
+        requireNull(raw.precision(), dataType + " precision");
+        requireNull(raw.scale(), dataType + " scale");
+        requireNull(raw.charLength(), dataType + " char length");
+        requireNull(raw.timePrecision(), dataType + " time precision");
+        return column(raw, name, dataType, "BINARY_FLOAT".equals(dataType) ? "FLOAT32" : "FLOAT64",
+                null, null, null, null);
     }
 
     private Column date(RawColumn raw, String name) {
@@ -172,16 +196,19 @@ public final class OracleSchemaSnapshotCodecV1 {
         return column(raw, name, "FLOAT(" + precision + ")", "FLOAT64", precision, null, null, null);
     }
 
-    private Column timestamp(RawColumn raw, String name) {
+    private Column timestamp(RawColumn raw, String name, String dataType) {
         requireNull(raw.precision(), "TIMESTAMP numeric precision");
         requireNull(raw.scale(), "TIMESTAMP numeric scale");
         requireNull(raw.charLength(), "TIMESTAMP char length");
         int timePrecision = raw.timePrecision() == null ? 6 : raw.timePrecision();
-        if (timePrecision < 0 || timePrecision > 6) {
+        if (timePrecision < 0 || timePrecision > 9) {
             throw failure("Oracle TIMESTAMP precision is outside the supported range.");
         }
+        boolean offset = !"TIMESTAMP".equals(dataType);
+        String suffix = offset ? dataType.substring("TIMESTAMP".length()) : "";
         return column(
-                raw, name, "TIMESTAMP(" + timePrecision + ")", "TIMESTAMP",
+                raw, name, "TIMESTAMP(" + timePrecision + ")" + suffix,
+                offset ? "OFFSET_TIMESTAMP" : "TIMESTAMP",
                 null, null, null, timePrecision);
     }
 

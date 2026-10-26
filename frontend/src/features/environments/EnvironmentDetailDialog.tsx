@@ -37,6 +37,7 @@ export function EnvironmentDetailDialog({ item, physicalSchemas, connections, on
   const [description, setDescription] = useState(environment.description ?? '')
   const [risk, setRisk] = useState<EnvironmentRisk>((environment.risk as EnvironmentRisk) ?? 'DUSUK')
   const [defaultEnvironment, setDefaultEnvironment] = useState(environment.defaultEnvironment)
+  const [transferMemoryBudgetMiB, setTransferMemoryBudgetMiB] = useState(environment.transferMemoryBudgetMiB ?? 1024)
   const [status, setStatus] = useState(environment.status)
   const [selection, setSelection] = useState<Record<string, string>>(() => Object.fromEntries(mappings.map((m) => [m.logicalSchema.uuid, m.binding?.physicalSchemaUuid ?? ''])))
   const [busy, setBusy] = useState('')
@@ -49,7 +50,10 @@ export function EnvironmentDetailDialog({ item, physicalSchemas, connections, on
     if (!canWrite || !name.trim()) return
     setBusy('definition'); setError('')
     try {
-      await topologyApi.updateEnvironment(projectUuid, environment.uuid, { name: name.trim(), description: description.trim() || null, risk, defaultEnvironment, status })
+      await topologyApi.updateEnvironment(projectUuid, environment.uuid, {
+        name: name.trim(), description: description.trim() || null, risk, defaultEnvironment, status,
+        ...(transferMemoryBudgetMiB !== (environment.transferMemoryBudgetMiB ?? 1024) ? { transferMemoryBudgetMiB } : {}),
+      })
       notifyFeedback(tr ? 'Ortam kaydedildi.' : 'Environment saved.')
       await onChanged(false)
     } catch (reason) { setError(reason instanceof Error ? reason.message : t('common.saveError')) }
@@ -105,6 +109,8 @@ export function EnvironmentDetailDialog({ item, physicalSchemas, connections, on
           <label>{tr ? 'Risk Sınıfı' : 'Risk Class'}<FormSelect value={risk} onChange={(e) => setRisk(e.target.value as EnvironmentRisk)}>{ENVIRONMENT_RISKS.map((r) => <option key={r} value={r}>{riskLabel(r, tr)}</option>)}</FormSelect></label>
           <label>{t('connections.status')}<FormSelect value={status} onChange={(e) => setStatus(e.target.value)}><option value="ETKIN">{tr ? 'Etkin' : 'Active'}</option><option value="PASIF">{tr ? 'Pasif' : 'Inactive'}</option></FormSelect></label>
           <label>{tr ? 'Varsayılan Ortam' : 'Default Environment'}<span><Switch checked={defaultEnvironment} onChange={setDefaultEnvironment} disabled={!canWrite} /></span></label>
+          <label>{tr ? 'Aktarım bellek bütçesi (MiB)' : 'Transfer memory budget (MiB)'}<Input type="number" required min={64} max={65536} step={1} value={transferMemoryBudgetMiB} onChange={(e) => setTransferMemoryBudgetMiB(Number(e.target.value))} /></label>
+          <p className="form-note form-grid-wide">{tr ? 'Interface ortam bütçesini miras alır. 1024 MiB = 1 GiB. Yeni bütçe yeni yayınlara uygulanır; bu alan toplam veri boyutu veya JVM RAM kotası değildir.' : 'Interfaces inherit the environment budget. 1024 MiB = 1 GiB. New budgets apply to new publications; this is not a total dataset or JVM RAM limit.'}</p>
           <label className="form-grid-wide">{t('schemas.description')}<Input.TextArea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} /></label>
         </div>
         <p className="form-note">{t('schemas.environmentSimpleHint')}</p>

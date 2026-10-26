@@ -6,6 +6,9 @@
   --login-ink: #ffffff;
   --login-ink-soft: #bfcee3;
   --login-accent: #91baff;
+  --login-panel-bg: #edf3f8;
+  --login-card-bg: #ffffff;
+  --login-line: #d5e0eb;
 }
 :root[data-theme="dark"] {
   --login-bg: #101827;
@@ -13,6 +16,9 @@
   --login-ink: #f7faff;
   --login-ink-soft: #c3d0e5;
   --login-accent: #a9c7ff;
+  --login-panel-bg: #1d2938;
+  --login-card-bg: #243244;
+  --login-line: #3c4c61;
 }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (pointer: coarse) { .ant-btn, .ant-select, .ant-input { min-height: 44px; } }
@@ -105,7 +111,9 @@ body .shell-navigation.is-collapsed .shell-navigation-toggle { width: 48px; just
 body .shell-navigation .workspace-subnavigation { display: grid; padding: 8px; gap: 2px; border-top: 1px solid var(--line); }
 body .shell-navigation .workspace-subnavigation .nav-label { margin: 0 0 8px; }
 body .shell-navigation .workspace-subnav-link { min-width: 0; min-height: 32px; padding-inline: 9px; font-size: 12.5px; }
-body .shell-project-explorer { border-top: 1px solid var(--line); padding: 4px; min-width: 0; }
+body .shell-project-explorer { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; border-top: 1px solid var(--line); padding: 4px; min-width: 0; overflow: hidden; }
+body .shell-project-explorer .sidebar-project-tree { min-height: 0; }
+body .shell-project-explorer .sidebar-tree-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
 body .shell-body > .main-content { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 body .main-content > .page-stack,
 body .design-content > .page-stack { width: 100%; max-width: none; min-width: 0; margin-inline: 0; }
@@ -347,13 +355,13 @@ body .procedure-general-properties label:not(.procedure-checkbox) { gap: 6px; }
 .akis-modal { max-width: calc(100vw - 32px); }
 body .ant-input-affix-wrapper > input.ant-input { min-height: 0; height: auto; padding: 0; border: 0; box-shadow: none; background: transparent; }
 body .ant-input-affix-wrapper .ant-input-suffix { margin-inline-start: 8px; }
-.login-page { padding: 24px; gap: 0; background: var(--bg); grid-template-columns: minmax(300px, 1fr) minmax(360px, 1fr); }
+.login-page { padding: 24px; gap: 0; background: var(--login-panel-bg); grid-template-columns: minmax(300px, 1fr) minmax(360px, 1fr); }
 .login-page .login-story { min-height: calc(100dvh - 48px); border-radius: 12px 0 0 12px; background-color: var(--login-bg); background-image: radial-gradient(ellipse at top right, var(--login-bg-highlight), transparent 65%); background-size: cover; background-repeat: no-repeat; padding: clamp(24px, 4vw, 64px); }
 .login-page .login-story::after { display: none; }
 .login-page .login-copy { margin: 40px 0; }
 .login-page .login-copy h1 { font-size: clamp(28px, 3.4vw, 48px); line-height: 1.15; }
 .login-page .login-copy > p:not(.eyebrow) { color: var(--login-ink-soft); }
-.login-page .login-panel { background: var(--surface); border: 1px solid var(--line); border-left: 0; border-radius: 0 12px 12px 0; padding: 72px 32px 40px; min-height: 0; }
+.login-page .login-panel { background: var(--login-panel-bg); border: 1px solid var(--login-line); border-left: 0; border-radius: 0 12px 12px 0; padding: 72px 32px 40px; min-height: 0; }
 .login-page .login-form { width: min(380px, 100%); }
 .login-page .login-form label { color: var(--ink); font-weight: 500; }
 .login-page .login-tools { right: 24px; top: 24px; }

@@ -25,6 +25,19 @@ class StagedMappingDefinitionTest {
         assertDoesNotThrow(()->new DefinitionContentValidator().validate(DefinitionType.MAPPING,3,mapping()));
         assertEquals(100000,StagedMappingDefinition.parse(mapping()).options().maxRows());
     }
+    @Test void automaticResourcesDoNotRequireUserSuppliedByteOrBatchLimits() {
+        var value=mapping();
+        value.putObject("options").put("resourceMode","AUTO").put("allowEmptySource",false);
+        var parsed=assertDoesNotThrow(()->StagedMappingDefinition.parse(value));
+        assertTrue(parsed.options().maxRows()>=5_000_000);
+        assertTrue(parsed.options().maxBytes()>1_073_741_824L);
+        assertFalse(parsed.options().allowEmptySource());
+    }
+    @Test void unknownResourceModesCannotSilentlyDisableLimits() {
+        var value=mapping();
+        ((ObjectNode)value.path("options")).put("resourceMode","UNLIMITED");
+        assertThrows(IllegalArgumentException.class,()->StagedMappingDefinition.parse(value));
+    }
     @Test void rejectsUnknownOperationsAndNonAtomicStrategy() {
         var value=mapping(); value.put("sql","DROP TABLE X");
         assertThrows(IllegalArgumentException.class,()->StagedMappingDefinition.parse(value));

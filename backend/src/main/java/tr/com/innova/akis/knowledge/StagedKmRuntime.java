@@ -17,6 +17,7 @@ public final class StagedKmRuntime implements AkisKmInterpreter.Runtime {
     public interface Guard {
         void preflight();
         void checkpoint();
+        default void progress(TransferProgress progress) { }
         void verifyWork(WorkTableManagerPort.Created object);
     }
     public record Contract(WorkObjectStore.Owner owner, AkisKmInterpreter.Plan plan,
@@ -128,7 +129,10 @@ public final class StagedKmRuntime implements AkisKmInterpreter.Runtime {
         change(State.LOADING, null);
         try {
             seal = transfer.transfer(source, workData, contract.source(), contract.work(), contract.transferColumns(),
-                    contract.options(), contract.timeoutSeconds(), guard::checkpoint, transaction, contract.queryOptions());
+                    contract.options(), contract.timeoutSeconds(), new TransferProgress.Listener() {
+                        @Override public void run() { guard.checkpoint(); }
+                        @Override public void report(TransferProgress progress) { guard.progress(progress); }
+                    }, transaction, contract.queryOptions());
             return seal.rows();
         } catch (RuntimeException failure) {
             review(); throw failure;

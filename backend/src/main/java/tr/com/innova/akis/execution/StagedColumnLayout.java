@@ -92,16 +92,23 @@ record StagedColumnLayout(List<WorkTableManagerPort.Column> work,List<JdbcStagin
 
     /** Oracle producer type of the column the cursor returns, as a transfer read type. */
     private static JdbcStagingTransfer.Type readType(SchemaFingerprintInput.Column column) {
-        String type=column.producerType().toUpperCase(Locale.ROOT).replaceAll("\\(.*","").strip();
+        String type=column.producerType().toUpperCase(Locale.ROOT).replaceAll("\\([^)]*\\)","").strip().replaceAll("\\s+"," ");
         return switch(type) {
             case "NUMBER" -> JdbcStagingTransfer.Type.NUMBER;
             case "VARCHAR2" -> JdbcStagingTransfer.Type.VARCHAR2;
             case "NVARCHAR2" -> JdbcStagingTransfer.Type.NVARCHAR2;
+            case "CHAR" -> JdbcStagingTransfer.Type.CHAR;
+            case "NCHAR" -> JdbcStagingTransfer.Type.NCHAR;
             case "DATE" -> JdbcStagingTransfer.Type.DATE;
             case "TIMESTAMP" -> JdbcStagingTransfer.Type.TIMESTAMP;
+            case "TIMESTAMP WITH TIME ZONE", "TIMESTAMPTZ" -> JdbcStagingTransfer.Type.TIMESTAMP_TZ;
             case "CLOB" -> JdbcStagingTransfer.Type.CLOB;
+            case "NCLOB" -> JdbcStagingTransfer.Type.NCLOB;
+            case "RAW" -> JdbcStagingTransfer.Type.RAW;
             case "BLOB" -> JdbcStagingTransfer.Type.BLOB;
-            case "FLOAT", "BINARY_FLOAT", "BINARY_DOUBLE" -> JdbcStagingTransfer.Type.FLOAT;
+            case "BINARY_FLOAT", "REAL" -> JdbcStagingTransfer.Type.BINARY_FLOAT;
+            case "BINARY_DOUBLE", "DOUBLE PRECISION" -> JdbcStagingTransfer.Type.BINARY_DOUBLE;
+            case "FLOAT" -> JdbcStagingTransfer.Type.FLOAT;
             default -> throw new IllegalArgumentException("Kaynak kolon tipi desteklenmiyor.");
         };
     }

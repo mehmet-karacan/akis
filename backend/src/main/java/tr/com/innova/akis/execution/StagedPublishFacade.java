@@ -83,7 +83,7 @@ final class StagedPublishFacade {
             List<String> keys=keyOption.isBlank()?List.of():Arrays.stream(keyOption.split(",")).map(String::strip).peek(StagedMappingDefinition::identifier).toList();
             result=technology.publish(connection,TargetLedgerContext.from(fence,execution),evidence,object.table(),
                     new JdbcStagingTransfer.Table(plan.target().owner(),plan.target().objectName()),plan.columnMappings().stream()
-                        .map(c->new JdbcStagedAtomicRefreshWriter.Column(c.targetColumn(),c.targetColumn())).toList(),30,()->{
+                        .map(c->new JdbcStagedAtomicRefreshWriter.Column(c.targetColumn(),c.targetColumn())).toList(),session.queryTimeoutSeconds(),()->{
                             verifyPolicy(plan);
                             technology.verifyLockedTarget(plan,connection,pinned);
                             technology.verifyWorkObject(connection,object);
@@ -100,8 +100,12 @@ final class StagedPublishFacade {
         return configured.isBlank()?"ATOMIC_DELETE_INSERT":configured;
     }
     private void verifyPolicy(StagedRuntimePlan plan) {
+        policies.requireCurrentOptions(plan.definition().options());
+        if(plan.definition().options().memoryBudgetBytes()!=null)
+            policies.requireEnvironmentMemory(plan.definition().options(),UUID.fromString(plan.staging().path("environmentUuid").asText()));
         var staging=plan.staging();
         var policy=policies.get(plan.projectUuid(),UUID.fromString(staging.path("physicalSchemaUuid").asText()));
+        if(plan.definition().options().automatic()) policy=policies.automaticView(policy);
         require(policy.version()==staging.path("workAreaPolicy").path("version").asLong());
         WorkAreaPolicyService.requireAllowed(policy,plan.definition().options(),staging.path("owner").asText().equals(plan.target().owner()));
     }

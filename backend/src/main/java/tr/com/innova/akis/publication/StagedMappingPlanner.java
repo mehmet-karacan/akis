@@ -75,8 +75,14 @@ final class StagedMappingPlanner {
                 return node;
             }).optional().orElseThrow(() -> rejected("Hedef fiziksel şeması hedefle aynı sağlayıcıya sahip etkin bir bağlantıya bağlı olmalıdır."));
         var workPolicy=workAreas.get(UUID.fromString(staging.path("projectUuid").asText()),UUID.fromString(staging.path("physicalSchemaUuid").asText()));
+        var effectiveOptions=definition.options();
+        staging.put("environmentUuid",context.environmentUuid().toString());
+        if(effectiveOptions.automatic()) {
+            workPolicy=workAreas.automaticView(workPolicy);
+            effectiveOptions=workAreas.automaticOptions(effectiveOptions,context.environmentUuid());
+        }
         // Same-name owners on different DBs are conservatively treated alike; live preflight proves actual DB/PDB.
-        WorkAreaPolicyService.requireAllowed(workPolicy,definition.options(),staging.path("owner").asText().equals(target.physicalSchemaReference()));
+        WorkAreaPolicyService.requireAllowed(workPolicy,effectiveOptions,staging.path("owner").asText().equals(target.physicalSchemaReference()));
         staging.set("workAreaPolicy",mapper.valueToTree(workPolicy));
         var integrationOptions = bundle.modules().get("integration").options();
         // PostgreSQL publishes APPEND, TRUNCATE_LOAD or MERGE in one transaction.
@@ -91,7 +97,7 @@ final class StagedMappingPlanner {
         plan.put("planVersion",1); plan.put("language",AkisKmLanguage.VERSION);
         plan.put("scenarioPlanHash",context.planHash()); plan.put("definitionVersionUuid",context.definitionVersionUuid().toString());
         plan.put("environmentUuid",context.environmentUuid().toString());
-        plan.set("staging",staging); plan.set("options",mapper.valueToTree(definition.options()));
+        plan.set("staging",staging); plan.set("options",mapper.valueToTree(effectiveOptions));
         plan.set("columns",content.path("columnMappings").deepCopy());
         var pins=mapper.createObjectNode();
         bundle.modules().forEach((role,module) -> {

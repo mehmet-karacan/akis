@@ -7,11 +7,13 @@ import { SqlEditor } from '../../core/ui'
 import { Button } from '../../core/ui/Button'
 import { formatOperationalDateTime, formatOperationalDuration } from '../../core/i18n/formatters'
 import { knowledgeStepLabel } from '../definitions/knowledgeModuleSteps'
+import type { TransferProgress } from './types'
+import { TransferProgressDetails } from './TransferProgressDetails'
 
 export interface SqlEvidence { step: string; site: string; owner: string; sql: string }
 export interface KmRunData {
   reconciliation?: { outcome: string; rows: number | null } | null
-  steps: { generation: number; ordinal: number; stepCode: string; operation: string; site: string; slot: string; state: string; affectedRows: number | null; errorCode: string | null; startedAt: string | null; completedAt: string | null; executedSql?: SqlEvidence[] | null }[]
+  steps: { generation: number; ordinal: number; stepCode: string; operation: string; site: string; slot: string; state: string; affectedRows: number | null; errorCode: string | null; startedAt: string | null; completedAt: string | null; executedSql?: SqlEvidence[] | null; transferProgress?: TransferProgress | null }[]
   workObjects: { uuid: string; owner: string; name: string; state: string; rows: number | null; bytes: number | null }[]
 }
 
@@ -43,6 +45,7 @@ export function KmRunDetails({ data, projectUuid, runUuid, onChanged }: { data: 
         <div data-fact="duration"><Timer /><span>{tr ? 'Süre' : 'Duration'}</span><strong>{formatOperationalDuration(selected.startedAt, selected.completedAt, i18n.language, tr ? 'Kaydedilmedi' : 'Not recorded')}</strong></div>
         <div data-fact="rows"><Rows3 /><span>{tr ? 'Etkilenen Satır' : 'Affected Rows'}</span><strong>{selected.affectedRows?.toLocaleString(i18n.language) ?? (tr ? 'Uygulanmaz' : 'Not applicable')}</strong></div>
       </div>
+      {selected.transferProgress && <TransferProgressDetails progress={selected.transferProgress} />}
       {selected.errorCode && <Alert type="error" showIcon title={selected.errorCode} />}
       <section className="km-sql-evidence"><header><div><Code2 /><span><strong>{tr ? 'Çalıştırılan SQL' : 'Executed SQL'}</strong><small>{tr ? 'Bu çalıştırmayla birlikte değişmez kanıt olarak saklanır.' : 'Stored as immutable evidence with this run.'}</small></span></div><em>{selected.executedSql?.length ?? 0} SQL</em></header>
         {selected.executedSql?.length ? <div className="km-sql-list">{selected.executedSql.map((entry, index) => <article key={`${entry.site}:${index}`}><div className="km-sql-site"><span><MapPin />{entry.site}</span><span><Database />{entry.owner || '—'}</span></div><SqlEditor value={entry.sql} onChange={() => undefined} label={`${tr ? 'Çalıştırılan SQL' : 'Executed SQL'} ${index + 1}`} readOnly wrapLines showToolbar={false} /></article>)}</div> : <div className="km-sql-empty"><Code2 /><strong>{tr ? 'Bu çalıştırmada SQL kaydedilmemiş.' : 'SQL was not recorded for this run.'}</strong><p>{tr ? 'Eski kayıtlar için SQL tahmin edilmez. Yeni çalıştırmalar SQL kanıtını adımla birlikte saklar.' : 'SQL is not guessed for historical rows. New runs store SQL evidence with each step.'}</p></div>}

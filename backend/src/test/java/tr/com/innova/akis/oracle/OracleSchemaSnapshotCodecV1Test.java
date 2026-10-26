@@ -156,17 +156,72 @@ class OracleSchemaSnapshotCodecV1Test {
     }
 
     @Test
+    void preservesSignedNumberScaleAcrossOracleBounds() {
+        for (int scale : List.of(-84, -2, 127)) {
+            Column result = codec.decode("TTBP", "SKY_DIT", List.of(number("N", 12, scale, 1)),
+                    List.of()).columns().getFirst();
+            assertEquals("NUMBER(12," + scale + ")", result.producerType());
+            assertEquals("DECIMAL", result.canonicalType());
+            assertEquals(scale, result.scale());
+            assertEquals(12, result.precision());
+        }
+        for (int scale : List.of(-85, 128)) {
+            assertCodecFailure(number("N", 12, scale, 1));
+        }
+        assertCodecFailure(number("N", 0, 0, 1));
+        assertCodecFailure(number("N", 39, 0, 1));
+    }
+
+    @Test
+    void catalogsAllFiftyDitColumnsWithProducerTypesAndOrdinalsIntact() {
+        var result = codec.decode("TTBP", "SKY_DIT", skyDitColumns(), List.of());
+        assertEquals(50, result.columns().size());
+        assertEquals("NUMBER(12,-2)", result.columns().get(7).producerType());
+        assertEquals(-2, result.columns().get(7).scale());
+        assertEquals("FLOAT32", result.columns().get(10).canonicalType());
+        assertEquals("BINARY_FLOAT", result.columns().get(10).producerType());
+        assertEquals("FLOAT64", result.columns().get(11).canonicalType());
+        assertEquals("BINARY_DOUBLE", result.columns().get(11).producerType());
+        assertEquals("TIMESTAMP", result.columns().get(14).canonicalType());
+        assertEquals(0, result.columns().get(14).timePrecision());
+        assertEquals("TIMESTAMP(6) WITH TIME ZONE", result.columns().get(18).producerType());
+        assertEquals("OFFSET_TIMESTAMP", result.columns().get(18).canonicalType());
+        assertEquals(6, result.columns().get(18).timePrecision());
+        assertEquals("CHAR(8)", result.columns().get(24).producerType());
+        assertEquals("NCHAR(8)", result.columns().get(26).producerType());
+        assertEquals("NVARCHAR2(120)", result.columns().get(27).producerType());
+        assertEquals("NCLOB", result.columns().get(33).producerType());
+        assertEquals("STRING", result.columns().get(33).canonicalType());
+        assertEquals("RAW(32)", result.columns().get(35).producerType());
+        assertEquals("BINARY", result.columns().get(35).canonicalType());
+        assertEquals(32L, result.columns().get(35).length());
+        for (int i = 0; i < 50; i++) {
+            assertEquals(i + 1, result.columns().get(i).ordinal());
+            assertEquals(skyDitColumns().get(i).name(), result.columns().get(i).name());
+        }
+    }
+
+    @Test
+    void catalogsTimestampNineWithoutPromisingRuntimePrecisionSupport() {
+        Column result = codec.decode("TTBP", "SKY_DIT", List.of(new RawColumn(
+                "T", "TIMESTAMP WITH TIME ZONE", null, null, null, 9, 1, true, null)),
+                List.of()).columns().getFirst();
+        assertEquals("TIMESTAMP(9) WITH TIME ZONE", result.producerType());
+        assertEquals(9, result.timePrecision());
+    }
+
+    @Test
     void rejectsUnsupportedOrLossyColumnMetadata() {
         assertCodecFailure(new RawColumn(
-                "VALUE", "NUMBER", 18, -2, null, null, 1, true, null));
+                "VALUE", "NUMBER", 18, -85, null, null, 1, true, null));
         assertCodecFailure(new RawColumn(
                 "VALUE", "NUMBER", null, 0, null, null, 1, true, null));
         assertCodecFailure(new RawColumn(
                 "VALUE", "VARCHAR2", null, null, null, null, 1, true, null));
         assertCodecFailure(new RawColumn(
-                "VALUE", "TIMESTAMP", null, null, null, 7, 1, true, null));
+                "VALUE", "TIMESTAMP", null, null, null, 10, 1, true, null));
         assertCodecFailure(new RawColumn(
-                "VALUE", "TIMESTAMP WITH TIME ZONE", null, null, null, 6,
+                "VALUE", "TIMESTAMP WITH TIME ZONE", null, null, null, -1,
                 1, true, null));
         assertCodecFailure(new RawColumn(
                 "VALUE", "CLOB", 1, null, null, null, 1, true, null));
@@ -174,6 +229,51 @@ class OracleSchemaSnapshotCodecV1Test {
                 "VALUE", "CLOB", null, 1, null, null, 1, true, null));
         assertCodecFailure(new RawColumn(
                 "VALUE", "CLOB", null, null, null, 6, 1, true, null));
+        assertCodecFailure(new RawColumn("VALUE", "RAW", null, null, 0L, null, 1, true, null));
+        assertCodecFailure(new RawColumn("VALUE", "RAW", null, null, 32768L, null, 1, true, null));
+        assertCodecFailure(new RawColumn("VALUE", "CHAR", null, null, 2001L, null, 1, true, null));
+        assertCodecFailure(new RawColumn("VALUE", "BINARY_FLOAT", 24, null, null, null, 1, true, null));
+        assertCodecFailure(new RawColumn("VALUE", "XMLTYPE", null, null, null, null, 1, true, null));
+    }
+
+    static List<RawColumn> skyDitColumns() {
+        // Exact ordinal/type/length/precision contract from dit_schema.COLUMNS.
+        String[] names = {"ID", "NUM_SMALL", "NUM_INT", "NUM_BIG", "NUM_DECIMAL", "NUM_NEGATIVE",
+                "NUM_PRECISE", "NUM_SCALED", "NUM_NULLABLE", "NUM_FLAG", "FLOAT32", "FLOAT64",
+                "FLOAT32_NEG", "FLOAT64_SMALL", "DATE_VALUE", "DATE_NULLABLE", "TS_VALUE", "TS_NULLABLE",
+                "TS_TZ", "TS_TZ_NULLABLE", "VARCHAR_ASCII", "VARCHAR_UNICODE", "VARCHAR_NULLABLE",
+                "VARCHAR_EMPTY", "CHAR_CODE", "CHAR_PADDED", "NCHAR_CODE", "NVARCHAR_TEXT",
+                "NVARCHAR_NULLABLE", "TEXT_SHORT", "TEXT_LONG", "TEXT_NULLABLE", "TEXT_EMPTY", "NTEXT",
+                "NTEXT_NULLABLE", "RAW_BYTES", "RAW_NULLABLE", "BLOB_BYTES", "BLOB_NULLABLE", "BLOB_EMPTY",
+                "PAYLOAD_JSON", "NUM_RATIO", "NUM_ZERO", "NUM_MAX38", "NUM_MIN38", "VARCHAR_SPACES",
+                "VARCHAR_QUOTES", "DATE_BOUNDARY", "TS_FRACTION", "RAW_EDGE"};
+        String[] types = {"NUMBER", "NUMBER", "NUMBER", "NUMBER", "NUMBER", "NUMBER", "NUMBER", "NUMBER",
+                "NUMBER", "NUMBER", "BINARY_FLOAT", "BINARY_DOUBLE", "BINARY_FLOAT", "BINARY_DOUBLE",
+                "DATE", "DATE", "TIMESTAMP", "TIMESTAMP", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP WITH TIME ZONE",
+                "VARCHAR2", "VARCHAR2", "VARCHAR2", "VARCHAR2", "CHAR", "CHAR", "NCHAR", "NVARCHAR2", "NVARCHAR2",
+                "CLOB", "CLOB", "CLOB", "CLOB", "NCLOB", "NCLOB", "RAW", "RAW", "BLOB", "BLOB", "BLOB", "CLOB",
+                "NUMBER", "NUMBER", "NUMBER", "NUMBER", "VARCHAR2", "VARCHAR2", "DATE", "TIMESTAMP", "RAW"};
+        int[] precision = {12, 5, 12, 38, 18, 18, 38, 12, 16, 1};
+        int[] scale = {0, 0, 0, 0, 6, 4, 10, -2, 3, 0};
+        long[] lengths = {80, 120, 80, 20, 8, 8, 8, 120, 120};
+        var columns = new java.util.ArrayList<RawColumn>();
+        for (int i = 0; i < 50; i++) {
+            Integer p = i < 10 ? precision[i] : null;
+            Integer s = i < 10 ? scale[i] : null;
+            if (i >= 41 && i <= 44) {
+                p = i == 41 ? 20 : i == 42 ? 10 : 38;
+                s = i == 41 ? 9 : i == 42 ? 2 : 0;
+            }
+            Long length = null;
+            if (i >= 20 && i <= 28) length = lengths[i - 20];
+            if (i == 35 || i == 36) length = 32L;
+            if (i == 45) length = 40L;
+            if (i == 46) length = 80L;
+            if (i == 49) length = 16L;
+            columns.add(new RawColumn(names[i], types[i], p, s, length,
+                    types[i].startsWith("TIMESTAMP") ? 6 : null, i + 1, i == 23 || names[i].endsWith("NULLABLE"), null));
+        }
+        return List.copyOf(columns);
     }
 
     @Test

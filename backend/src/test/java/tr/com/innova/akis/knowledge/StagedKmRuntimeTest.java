@@ -61,6 +61,24 @@ class StagedKmRuntimeTest {
         verify(tables, never()).create(any(), any(), anyString(), any(), anyList(), anyInt(), any(),any());
         verifyNoInteractions(publisher);
     }
+    @Test void transferCallbackChecksLeaseAndReportsCommittedProgress() throws Exception {
+        var runtime = runtime();
+        var progress = new TransferProgress(500, 8192, 6, 2, 3, 1);
+        when(transfer.transfer(eq(source), eq(data), any(), eq(work), anyList(), any(), eq(30), any(), eq(transaction), any()))
+                .thenAnswer(call -> {
+                    assertInstanceOf(TransferProgress.Listener.class, call.getArgument(7));
+                    TransferProgress.Listener listener = call.getArgument(7);
+                    clearInvocations(guard);
+                    listener.run();
+                    verify(guard).checkpoint();
+                    listener.report(progress);
+                    verify(guard).progress(progress);
+                    return seal;
+                });
+        runtime.verify(AkisKmInterpreter.compile(modules));
+        runtime.createWork("WORK_SOURCE_1");
+        assertEquals(1201, runtime.transferJdbc("WORK_SOURCE_1"));
+    }
     @Test void transferFailureNeverSealsOrPublishes() throws Exception {
         var runtime = runtime();
         when(transfer.transfer(eq(source), eq(data), any(), eq(work), anyList(), any(), eq(30), any(), eq(transaction), any()))

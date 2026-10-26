@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { operationsApi } from '../../operations/api'
-import { PreRunReport, preRunReportMarkdown, type PreRunPreview } from '../PreRunReport'
+import { PreRunReport, PreRunReportBody, preRunReportMarkdown, type PreRunPreview } from '../PreRunReport'
 
 const response: PreRunPreview = {
   plan: {
@@ -54,4 +54,29 @@ it('renders the same facts into the downloadable markdown report', () => {
   expect(markdown).toContain('## SQL to Execute')
   expect(markdown).toContain('TRUNCATE TABLE "TARGET_SCHEMA"."STG_SAMPLE_TABLE"')
   expect(markdown).not.toContain('undefined')
+})
+
+it('describes automatic resources without exposing resolved technical budgets in the report or markdown', () => {
+  const automatic = { ...response, plan: { ...response.plan, options: { ...response.plan.options, resourceMode: 'AUTO' } } }
+  const before = JSON.stringify(automatic)
+  const { container } = render(<PreRunReportBody preview={automatic} definitionName="Mapping" environmentName="Test" tr={false} />)
+  expect(screen.getByRole('region', { name: 'Report summary' })).toHaveTextContent('Automatic resource management')
+  expect(container).not.toHaveTextContent(/\b(?:MB|GB)\b|batch|fetch|maxRowsPerRun/i)
+  const markdown = preRunReportMarkdown(automatic, { definitionName: 'Mapping', environmentName: 'Test', tr: false })
+  expect(markdown).toContain('Automatic resource management')
+  expect(markdown).not.toMatch(/\b(?:MB|GB)\b|batchRows|fetchRows|maxRows|maxBytes/)
+  expect(JSON.stringify(automatic)).toBe(before)
+})
+
+it('keeps immutable legacy limits accurate in report details and export without technical summary sizing', () => {
+  const before = JSON.stringify(response)
+  render(<PreRunReportBody preview={response} definitionName="Mapping" environmentName="Test" tr={false} />)
+  const summary = screen.getByRole('region', { name: 'Report summary' })
+  expect(summary).toHaveTextContent('Legacy resource settings')
+  expect(summary).not.toHaveTextContent(/\b(?:MB|GB)\b|batch|fetch/i)
+  expect(screen.getByText(/maxRows: 100\.000/)).toHaveTextContent('maxBytes: 256 MB · batchRows: 500 · fetchRows: 500 · allowEmptySource: false')
+  const markdown = preRunReportMarkdown(response, { definitionName: 'Mapping', environmentName: 'Test', tr: false })
+  expect(markdown).toContain('maxRows: 100.000 · maxBytes: 256 MB · batchRows: 500 · fetchRows: 500 · allowEmptySource: false')
+  expect(markdown).not.toContain('Automatic resource management')
+  expect(JSON.stringify(response)).toBe(before)
 })

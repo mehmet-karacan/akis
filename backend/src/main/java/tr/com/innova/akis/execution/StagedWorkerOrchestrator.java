@@ -93,7 +93,12 @@ final class StagedWorkerOrchestrator {
         RuntimeOracleSession source=null,control=null,data=null;
         RunLeasePort.TargetFenceToken targetFence=null;
         var intent=new AtomicReference<PublishIntentEvidence>();
+        TransferResourcePolicy.Permit admission=null;
         try {
+            policies.requireCurrentOptions(plan.definition().options());
+            if(plan.definition().options().memoryBudgetBytes()!=null)
+                policies.requireEnvironmentMemory(plan.definition().options(),UUID.fromString(plan.staging().path("environmentUuid").asText()));
+            admission=policies.acquireTransfer(plan.definition().options(),gate::checkpoint);
             source=connections.openSource(plan.source());
             String databaseIdentity;
             TargetIdentityPort.CanonicalTargetIdentity identity;
@@ -140,10 +145,12 @@ final class StagedWorkerOrchestrator {
             StagedKmRuntime.Guard guard=new StagedKmRuntime.Guard() {
                 public void preflight() {
                     var policy=policies.get(plan.projectUuid(),workArea.physicalSchemaUuid());
+                    if(plan.definition().options().automatic()) policy=policies.automaticView(policy);
                     if(policy.version()!=workArea.policyVersion()) throw new IllegalStateException("Çalışma politikası değişmiş.");
                     WorkAreaPolicyService.requireAllowed(policy,plan.definition().options(),table.owner().equals(plan.target().owner()));
                 }
                 public void checkpoint() { gate.checkpoint(); }
+                public void progress(TransferProgress progress) { journal.progress(owner,progress); }
                 public void verifyWork(WorkTableManagerPort.Created object) {
                     try { manager.verify(workConnection,object,30); }
                     catch(SQLException failure) { throw new IllegalStateException("Çalışma nesnesi doğrulanamadı."); }
@@ -160,8 +167,8 @@ final class StagedWorkerOrchestrator {
             // Per-run batch override (job parameter) replaces the pinned batch/fetch size; Options re-validates the bounds.
             var pinnedOptions=plan.definition().options();
             int batchOverride=contexts.jobParameters(context.runUuid()).path("batchRows").asInt(0);
-            var options=batchOverride>0?new StagedMappingDefinition.Options(batchOverride,batchOverride,pinnedOptions.maxRows(),pinnedOptions.maxBytes(),pinnedOptions.allowEmptySource()):pinnedOptions;
-            if(batchOverride>0) LOG.info("KM run {} uses batch override {} (pinned {})",context.runUuid(),batchOverride,pinnedOptions.batchRows());
+            var options=batchOverride>0 && !pinnedOptions.automatic()?new StagedMappingDefinition.Options(batchOverride,batchOverride,pinnedOptions.maxRows(),pinnedOptions.maxBytes(),pinnedOptions.allowEmptySource()):pinnedOptions;
+            if(batchOverride>0 && !pinnedOptions.automatic()) LOG.info("KM run {} uses batch override {} (pinned {})",context.runUuid(),batchOverride,pinnedOptions.batchRows());
             // Pinned column protection: encrypt marked source columns while they are read into the work table.
             JsonNode sensitive=context.physicalManifest().path("sensitiveColumns");
             var transferColumns=layout.transfer().stream().map(column->{
@@ -222,6 +229,7 @@ final class StagedWorkerOrchestrator {
                 operations.unregister(context.runUuid(), targetFence.runGeneration(), data);
             }
             close(data);close(control);close(source);
+            if(admission!=null) admission.close();
         }
     }
     private void failPreflight(LeaseGate gate) {

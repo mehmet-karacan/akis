@@ -1,7 +1,7 @@
 /* Sign-in screen: story panel with feature cards, access card on the right. Colors come from the shared icon tokens. */
-.login-page .login-brand { display: flex; align-items: center; gap: 10px; }
+.login-page .login-brand { display: flex; align-items: center; gap: 16px; }
 .login-page .login-brand small { margin-left: 6px; padding: 3px 9px; border-radius: 999px; font-size: 11px; letter-spacing: .12em; color: var(--login-ink); background: color-mix(in srgb, var(--login-accent) 22%, transparent); border: 1px solid color-mix(in srgb, var(--login-accent) 40%, transparent); }
-.login-page .login-brand .brand-product-logo { flex: 0 1 auto; }
+.login-page .login-brand .product-lockup { flex: 0 1 auto; }
 .login-page .login-story-footer .brand-corporate-footer { color: var(--login-ink-soft); }
 
 @media (min-width: 821px) {
@@ -31,7 +31,7 @@
 .login-page .login-provider .database-provider-icon { width: 22px; height: 22px; }
 .login-page .login-provider .database-provider-icon img { width: 18px; height: 18px; }
 
-.login-card { padding: 30px 30px 26px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 18px 48px -28px rgba(15, 23, 42, .45); }
+.login-card { padding: 30px 30px 26px; border-radius: 16px; background: var(--login-card-bg); border: 1px solid var(--login-line); box-shadow: 0 20px 44px -30px rgba(15, 23, 42, .42); }
 .login-page .lock-badge { border-radius: 13px; color: var(--schema-color-info); background: color-mix(in srgb, var(--schema-color-info) 14%, var(--surface)); border: 1px solid color-mix(in srgb, var(--schema-color-info) 30%, var(--line)); }
 .login-page .form-heading .eyebrow { color: var(--schema-color-info); }
 .login-field-icon--user { color: var(--schema-color-success); }
@@ -42,4 +42,4 @@
 
 @media (max-width: 1100px) { .login-features { gap: 8px; } .login-feature { padding: 11px 13px; } }
 @media (max-width: 900px) { .login-features, .login-pillars, .login-providers { display: none; } .login-card { padding: 24px 20px; } }
-@media (max-width: 600px) { .login-page .login-brand { flex-wrap: wrap; } .login-page .login-brand .brand-product-logo { width: min(50vw, 170px); } .login-page .login-brand small { margin-left: 0; } }
+@media (max-width: 600px) { .login-page .login-brand { flex-wrap: wrap; } .login-page .login-brand .product-lockup-name { font-size: 16px; } .login-page .login-brand small { margin-left: 0; } }
