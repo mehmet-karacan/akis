@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import '../../core/i18n'
 import { KmRunDetails, type KmRunData } from './KmRunDetails'
@@ -8,30 +8,6 @@ const data: KmRunData = { workObjects: [], steps: [
   { generation: 1, ordinal: 2, stepCode: 'PUBLISH', operation: 'ATOMIC_REPLACE', site: 'TARGET', slot: 'WORK_SOURCE_1', state: 'UNKNOWN', affectedRows: null, errorCode: 'KM_RECONCILIATION_REQUIRED', startedAt: null, completedAt: null },
 ] }
 describe('KM run evidence', () => {
-  it('shows live committed transfer metrics and updates when the next snapshot arrives', () => {
-    const progress = { rows: 500, bytes: 1048576, elapsedSeconds: 10, readSeconds: 2, writeSeconds: 7, commitSeconds: 1 }
-    const snapshot = { ...data, steps: [{ ...data.steps[0]!, state: 'RUNNING', affectedRows: 500, transferProgress: progress }] }
-    const { rerender } = render(<KmRunDetails data={snapshot} />)
-    const metrics = within(screen.getByRole('region', { name: /Transfer progress|Aktarım ilerlemesi/ }))
-    expect(metrics.getByText('500')).toBeInTheDocument()
-    expect(metrics.getByText('1 MiB')).toBeInTheDocument()
-    expect(metrics.getByText(/50 (rows|satır)\/s/)).toBeInTheDocument()
-    for (const value of ['10 s', '2 s', '7 s', '1 s']) expect(metrics.getByText(value)).toBeInTheDocument()
-    expect(metrics.queryByRole('spinbutton')).not.toBeInTheDocument()
-    rerender(<KmRunDetails data={{ ...snapshot, steps: [{ ...snapshot.steps[0]!, transferProgress: { ...progress, rows: 1000, bytes: 2097152, elapsedSeconds: 20 } }] }} />)
-    expect(metrics.getByText('2 MiB')).toBeInTheDocument()
-  })
-  it('handles zero elapsed time without showing an infinite transfer rate', () => {
-    render(<KmRunDetails data={{ ...data, steps: [{ ...data.steps[0]!, transferProgress: { rows: 0, bytes: 0, elapsedSeconds: 0, readSeconds: 0, writeSeconds: 0, commitSeconds: 0 } }] }} />)
-    const metrics = within(screen.getByRole('region', { name: /Transfer progress|Aktarım ilerlemesi/ }))
-    expect(metrics.getByText('0 B')).toBeInTheDocument()
-    expect(metrics.queryByText(/NaN|Infinity/)).not.toBeInTheDocument()
-    expect(metrics.getByText(/Not available|Kullanılamıyor/)).toBeInTheDocument()
-  })
-  it('keeps historical runs without progress readable', () => {
-    render(<KmRunDetails data={data} />)
-    expect(screen.queryByRole('region', { name: /Transfer progress|Aktarım ilerlemesi/ })).not.toBeInTheDocument()
-  })
   it('never presents an unknown publication as successful', () => {
     render(<KmRunDetails data={data} />)
     expect(screen.getByText(/The target outcome must|Hedef sonucu doğrulanmalı/)).toBeInTheDocument()

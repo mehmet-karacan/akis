@@ -4,7 +4,6 @@ import { readFileSync } from 'node:fs'
 const shellStyles = readFileSync('src/styles.css', 'utf8')
 const themeStyles = readFileSync('src/core/theme/ant-design.css', 'utf8')
 const definitionStyles = readFileSync('src/features/definitions/definitions.css', 'utf8')
-const executionStyles = readFileSync('src/features/execution/execution.css', 'utf8')
 
 describe('responsive and input accessibility contracts', () => {
   it('keeps compact navigation and coarse-pointer targets available', () => {
@@ -20,9 +19,5 @@ describe('responsive and input accessibility contracts', () => {
     expect(definitionStyles).not.toContain('.package-accessible-list')
     expect(definitionStyles).toContain('@media (max-width: 820px)')
     expect(definitionStyles).toContain('.procedure-task-grid')
-  })
-
-  it('keeps run history vertically reachable on short viewports', () => {
-    expect(executionStyles).toMatch(/\.execution-page\s*\{[^}]*overflow-y:\s*auto\s*!important/s)
   })
 })

@@ -65,35 +65,6 @@ class StagedRuntimePlanResolverTest {
         sign();
     }
     private void sign() { manifest.remove("releaseHash");manifest.put("releaseHash",KmCanonical.hash(mapper,manifest)); }
-    private void automaticFixture() {
-        fixture();
-        var content=(ObjectNode)scenario.path("executable").path("definition");
-        content.putObject("options").put("resourceMode","AUTO").put("allowEmptySource",false);
-        String hash=KmCanonical.hash(mapper,content);
-        ((ObjectNode)scenario.path("source")).put("contentHash",hash);
-        ((ObjectNode)manifest.path("definition")).put("contentHash",hash);
-        scenarioHash=KmCanonical.hash(mapper,scenario);
-        ((ObjectNode)manifest.path("scenario")).put("planHash",scenarioHash);
-        var physical=(ObjectNode)manifest.path("stagedPlan");physical.put("scenarioPlanHash",scenarioHash);
-        physical.set("options",mapper.valueToTree(new StagedMappingDefinition.Options(750,128,5_000_000,34_359_738_368L,false,"AUTO")));
-        ((ObjectNode)physical.path("staging")).set("workAreaPolicy",mapper.valueToTree(new WorkAreaPolicyService.View(
-                new WorkAreaPolicyService.Policy(true,false,10,5_000_000,34_359_738_368L,24),1)));
-        signPhysical();
-    }
-    @Test void automaticPublicationUsesServerPinnedOptionsWithNoClientSizingFields() {
-        automaticFixture();
-        var plan=resolve();
-        assertTrue(plan.definition().options().automatic());assertEquals(750,plan.definition().options().batchRows());
-        assertEquals(34_359_738_368L,plan.definition().options().maxBytes());
-    }
-    @Test void automaticPublicationStillEnforcesAuthorizationAndPinnedCeilings() {
-        automaticFixture();
-        ((ObjectNode)manifest.path("stagedPlan").path("options")).put("maxBytes",34_359_738_369L);signPhysical();
-        assertThrows(IllegalArgumentException.class,this::resolve);
-        automaticFixture();
-        ((ObjectNode)manifest.path("stagedPlan").path("staging").path("workAreaPolicy").path("policy")).put("enabled",false);signPhysical();
-        assertThrows(IllegalArgumentException.class,this::resolve);
-    }
     @Test void conditionalPinnedStepsAreRecompiledAndCannotDriftFromPhysicalPlan() {
         for (boolean enabled : List.of(false, true)) {
             fixture();

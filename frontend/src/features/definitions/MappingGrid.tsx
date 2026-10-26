@@ -135,8 +135,6 @@ export function MappingGrid({ projectUuid, value, onChange, schemaVersion = 4, o
     return () => observer.disconnect()
   }, [hasInspector, inspectorCollapsed, view])
   const sources = value.sources
-  const resourceOptions = value.options != null && typeof value.options === 'object' ? value.options as Record<string, unknown> : undefined
-  const automaticResources = resourceOptions?.resourceMode === 'AUTO'
   const entryFor = (objectId: string) => mappingCatalogEntry(objects.find(item => item.id === objectId), catalog)
   const columnsFor = (objectId: string) => entryFor(objectId)?.snapshot?.columns ?? []
   const diagramColumns = useMemo(() => Object.fromEntries(objects.map(object => [object.id, columnsFor(object.id)])), [catalog, value.sources, value.target])
@@ -390,15 +388,6 @@ export function MappingGrid({ projectUuid, value, onChange, schemaVersion = 4, o
       <section hidden={view !== 'execution'} className="mapping-section mapping-strategy" aria-labelledby="strategy-title">
         <h3 id="strategy-title">{language === 'tr' ? 'Yürütme Modülleri ve Seçenekler' : 'Execution Modules and Options'}</h3>
         <p className="definition-help">{language === 'tr' ? 'Yazma davranışı seçilen IKM tarafından belirlenir. Anahtar kolonlar ve diğer ayarlar modül seçeneklerinden gelir.' : 'The selected IKM determines write behavior. Key columns and other settings come from module options.'}</p>
-        {schemaVersion >= 3 && <section className="mapping-condition-group">
-          <h4>{automaticResources ? (language === 'tr' ? 'Otomatik kaynak yönetimi' : 'Automatic resource management') : (language === 'tr' ? 'Kaynak yönetimi' : 'Resource management')}</h4>
-          <p className="definition-help">{automaticResources
-            ? (language === 'tr' ? 'Aktarım bellek bütçesi ortamdan miras alınır (varsayılan 1 GiB). Uygulama okuma ve yazma tamponlarını bu bütçe içinde otomatik yönetir; etkin bütçe yayın önizlemesinde gösterilir.' : 'The transfer memory budget is inherited from the environment (default 1 GiB). Read and write buffers are managed automatically within the budget; the effective budget is shown in the publication preview.')
-            : (language === 'tr' ? 'Bu eşleme eski kaynak ayarlarını kullanıyor. Otomatik kaynak yönetimini seçene kadar mevcut ayarlar korunur.' : 'This mapping uses legacy resource settings. Existing settings are retained until you choose automatic resource management.')}</p>
-          {!automaticResources && <AntActionButton type="button" tone="secondary" onClick={() => onChange({ ...value, options: { resourceMode: 'AUTO', allowEmptySource: resourceOptions?.allowEmptySource === true } })}>
-            {language === 'tr' ? 'Otomatik kaynak yönetimini kullan' : 'Use automatic resource management'}
-          </AntActionButton>}
-        </section>}
         {schemaVersion >= 3 ? <MappingKmOptions projectUuid={projectUuid} value={value} sourceTechnologies={sourceTechnologies} targetTechnology={targetTechnology} onChange={onChange} /> : <MappingDesignAssessment projectUuid={projectUuid} value={value} schemaVersion={schemaVersion} onUpgrade={onUpgrade} />}
       </section>
       </div></div>

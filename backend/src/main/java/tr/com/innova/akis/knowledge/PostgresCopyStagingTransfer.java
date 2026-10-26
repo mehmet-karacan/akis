@@ -1,6 +1,6 @@
 package tr.com.innova.akis.knowledge;
 
-import java.io.ByteArrayInputStream;
+import java.io.StringReader;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -22,8 +22,8 @@ import tr.com.innova.akis.knowledge.JdbcStagingTransfer.TransferFailure;
 
 /**
  * PostgreSQL adapter of {@link StagingTransferPort}: streams the Oracle source cursor into the PostgreSQL work table with
- * {@code COPY ... FROM STDIN (FORMAT csv)} in bounded chunks. Chunks share the JDBC adapter's row limits and
- * resource-mode memory budget, commit through the same {@link JdbcTransactionBoundary} and feed the same seal digest, so a COPY-loaded
+ * {@code COPY ... FROM STDIN (FORMAT csv)} in bounded chunks. Chunks share the Oracle adapter's limits (batchRows,
+ * 16 MB buffer), commit through the same {@link JdbcTransactionBoundary} and feed the same seal digest, so a COPY-loaded
  * work table seals identically to a JDBC-loaded one. CSV encoding is done here (quote everything textual, NULL as an
  * unquoted {@code \N}) so no value can be mistaken for a delimiter or a null marker.
  */
@@ -50,9 +50,6 @@ public final class PostgresCopyStagingTransfer implements StagingTransferPort {
         long rows = 0, bytes = 0, batchBytes = 0;
         int pending = 0;
         boolean committing = false;
-        var telemetry=new TransferTelemetry(checkpoint);
-        var checked=telemetry.checkpoint();
-        var budget=new TransferBuffer(options,checked);
         MessageDigest digest = JdbcStagingTransfer.sealDigest(columns);
         JdbcStagingTransfer.SourceQuery query = JdbcStagingTransfer.sourceQuery(from, columns, queryOptions);
         String copy = "COPY " + to.sql() + " (" + String.join(",", columns.stream().map(c -> quote(c.stage())).toList())
@@ -61,69 +58,51 @@ public final class PostgresCopyStagingTransfer implements StagingTransferPort {
         try {
             if (stage.getAutoCommit()) throw new IllegalArgumentException("Stage bağlantısında autocommit kapalı olmalıdır.");
             CopyManager copyManager = stage.unwrap(PGConnection.class).getCopyAPI();
-            checked.run();
+            checkpoint.run();
             try (PreparedStatement read = source.prepareStatement(query.select())) {
                 for (int i = 0; i < query.parameters().size(); i++) {
                     Object value = query.parameters().get(i);
                     if (value instanceof BigDecimal number) read.setBigDecimal(i + 1, number); else read.setString(i + 1, (String) value);
                 }
-                int fetchRows=budget.configure(read,columns);
-                read.setQueryTimeout(timeoutSeconds);
-                long readStarted=System.nanoTime();
+                read.setFetchSize(options.fetchRows()); read.setQueryTimeout(timeoutSeconds);
                 try (ResultSet cursor = read.executeQuery()) {
-                    telemetry.query(System.nanoTime()-readStarted);
                     if (verifySourceMetadata) JdbcStagingTransfer.verifySourceMetadata(cursor.getMetaData(), columns);
-                    if(options.automatic()) {
-                        budget.project(cursor.getMetaData(),columns);
-                        fetchRows=budget.fetchRows();cursor.setFetchSize(fetchRows);
-                    }
-                    telemetry.read(System.nanoTime()-readStarted);
-                    telemetry.window(budget.requestedBudget(),budget.effectiveBudget(),budget.readBudget(),budget.memoryBudget(),fetchRows,fetchRows,fetchRows);
-                    readStarted=System.nanoTime();
-                    while (true) {
-                        long fetchStarted=System.nanoTime();boolean hasNext=cursor.next();telemetry.fetch(System.nanoTime()-fetchStarted);
-                        if(!hasNext) {telemetry.read(System.nanoTime()-readStarted);break;}
+                    while (cursor.next()) {
                         if (rows >= options.maxRows()) throw new TransferFailure("Kaynak satır kotası aşıldı; stage mühürlenmedi.", false);
-                        long decodeStarted=System.nanoTime(),beforeLob=budget.lobNanos(),beforeCells=budget.lobCells();
-                        var row=budget.read(cursor,columns,bytes);
-                        telemetry.decode(System.nanoTime()-decodeStarted,budget.lobNanos()-beforeLob,budget.lobCells()-beforeCells);
-                        Object[] values=row.values();
-                        long rowReadNanos=System.nanoTime()-readStarted;telemetry.read(rowReadNanos);budget.observeRead(rowReadNanos);
-                        if (pending > 0 && batchBytes + row.residentBytes() > budget.memoryBudget()) {
-                            checked.run();long start=System.nanoTime();flush(copyManager,copy,buffer,pending);telemetry.write(System.nanoTime()-start);
-                            checked.run();committing=true;start=System.nanoTime();transaction.commit();telemetry.commit(System.nanoTime()-start);committing=false;
-                            telemetry.report(rows,bytes,false);
+                        Object[] values = new Object[columns.size()];
+                        long rowBytes = 0;
+                        for (int i = 0; i < columns.size(); i++) {
+                            values[i] = JdbcStagingTransfer.readCell(cursor, i + 1, columns.get(i).type());
+                            String value = JdbcStagingTransfer.canonicalText(values[i]);
+                            long cellBytes = value == null ? 4 : 4L + value.getBytes(StandardCharsets.UTF_8).length;
+                            if (cellBytes > JdbcStagingTransfer.MAX_CELL_BYTES || cellBytes > options.maxBytes())
+                                throw new TransferFailure("Tek hücre aktarım kotası aşıldı; stage mühürlenmedi.", false);
+                            rowBytes += cellBytes;
+                        }
+                        if (rowBytes > JdbcStagingTransfer.BUFFER_BYTES || bytes > options.maxBytes() - rowBytes) throw new TransferFailure("Aktarım byte kotası aşıldı; stage mühürlenmedi.", false);
+                        if (pending > 0 && batchBytes + rowBytes > JdbcStagingTransfer.BUFFER_BYTES) {
+                            checkpoint.run(); flush(copyManager, copy, buffer, pending); checkpoint.run(); committing = true; transaction.commit(); committing = false;
                             pending = 0; batchBytes = 0;
                         }
-                        long encodeStarted=System.nanoTime();
                         for (int i = 0; i < columns.size(); i++) {
-                            String canonical = row.canonical()[i];
+                            if (columns.get(i).encrypted() && values[i] != null) values[i] = tr.com.innova.akis.security.DataProtectionCipher.encrypt(String.valueOf(values[i]));
+                            String canonical = JdbcStagingTransfer.canonicalText(values[i]);
                             if (i > 0) buffer.append(',');
                             appendCsv(buffer, values[i], canonical);
                             JdbcStagingTransfer.frameValue(digest, canonical);
                         }
                         buffer.append('\n');
-                        telemetry.encode(System.nanoTime()-encodeStarted);
-                        rows++; bytes += row.logicalBytes(); batchBytes += row.residentBytes(); pending++;
-                        if (pending >= options.batchRows() || batchBytes>=budget.memoryBudget()) {
-                            checked.run();long start=System.nanoTime();flush(copyManager,copy,buffer,pending);telemetry.write(System.nanoTime()-start);
-                            checked.run();committing=true;start=System.nanoTime();transaction.commit();telemetry.commit(System.nanoTime()-start);committing=false;
-                            telemetry.report(rows,bytes,false);
+                        rows++; bytes += rowBytes; batchBytes += rowBytes; pending++;
+                        if (pending == options.batchRows()) {
+                            checkpoint.run(); flush(copyManager, copy, buffer, pending); checkpoint.run(); committing = true; transaction.commit(); committing = false;
                             pending = 0; batchBytes = 0;
                         }
-                        if(options.automatic() && budget.fetchRows()!=fetchRows) { fetchRows=budget.fetchRows();cursor.setFetchSize(fetchRows); }
-                        telemetry.window(budget.requestedBudget(),budget.effectiveBudget(),budget.readBudget(),budget.memoryBudget(),fetchRows,budget.minFetchRows(),budget.maxFetchRows());
-                        readStarted=System.nanoTime();
                     }
                 }
                 if (rows == 0 && !options.allowEmptySource()) throw new TransferFailure("Boş kaynakta hedef yenileme kapalı.", false);
-                if (pending > 0) {
-                    checked.run();long start=System.nanoTime();flush(copyManager,copy,buffer,pending);telemetry.write(System.nanoTime()-start);
-                    checked.run();committing=true;start=System.nanoTime();transaction.commit();telemetry.commit(System.nanoTime()-start);committing=false;
-                }
+                if (pending > 0) { checkpoint.run(); flush(copyManager, copy, buffer, pending); checkpoint.run(); committing = true; transaction.commit(); committing = false; }
             }
-            checked.run();
-            telemetry.report(rows,bytes,true);
+            checkpoint.run();
             return new Result(rows, bytes, HexFormat.of().formatHex(digest.digest()));
         } catch (SQLException | java.io.IOException ex) {
             try { transaction.rollback(); } catch (SQLException | RuntimeException ignored) { }
@@ -137,9 +116,7 @@ public final class PostgresCopyStagingTransfer implements StagingTransferPort {
     }
 
     private static void flush(CopyManager copyManager, String copy, StringBuilder buffer, int expected) throws SQLException, java.io.IOException {
-        // Reader COPY encodes independent char chunks and can split UTF-16 surrogate pairs.
-        // Encode the bounded batch once; byte COPY keeps UTF-8 characters intact across network chunks.
-        long copied = copyManager.copyIn(copy, new ByteArrayInputStream(buffer.toString().getBytes(StandardCharsets.UTF_8)));
+        long copied = copyManager.copyIn(copy, new StringReader(buffer.toString()));
         buffer.setLength(0);
         if (copied != expected) throw new TransferFailure("Stage satır sayısı kesin doğrulanamadı.", false);
     }
@@ -148,9 +125,6 @@ public final class PostgresCopyStagingTransfer implements StagingTransferPort {
     private static void appendCsv(StringBuilder buffer, Object value, String canonical) {
         if (value == null) { buffer.append(NULL_MARKER); return; }
         if (value instanceof BigDecimal || value instanceof Timestamp) { buffer.append(canonical); return; }
-        // The seal uses Base64 framing for binary cells; PostgreSQL bytea's input syntax is independently hex.
-        // An empty binary cell becomes "\\x", while NULL stays the unquoted NULL_MARKER.
-        if (value instanceof byte[] bytes) canonical = "\\x" + HexFormat.of().formatHex(bytes);
         buffer.append('"');
         for (int i = 0; i < canonical.length(); i++) {
             char c = canonical.charAt(i);

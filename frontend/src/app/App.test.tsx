@@ -25,9 +25,9 @@ describe('application foundation', () => {
     vi.unstubAllGlobals()
   })
 
-  it('starts in English and exposes the corporate sign-in', async () => {
+  it('starts in English and exposes the secure development sign-in', async () => {
     renderApp()
-    expect(await screen.findByRole('heading', { name: 'Govern data integration with confidence.' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Build trusted data flows.' })).toBeInTheDocument()
     expect(screen.getByLabelText('Username')).toHaveValue('')
     expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'password')
   })
@@ -36,7 +36,7 @@ describe('application foundation', () => {
     renderApp()
     fireEvent.click(await screen.findByRole('button', { name: /Language/ }))
     fireEvent.click(await screen.findByText('Turkish'))
-    expect(await screen.findByRole('heading', { name: 'Veri entegrasyonunu güvenle yönetin.' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Güvenilir veri akışları tasarlayın.' })).toBeInTheDocument()
     expect(document.documentElement.lang).toBe('tr')
   })
 
@@ -56,8 +56,8 @@ describe('application foundation', () => {
         return Promise.resolve(new Response(JSON.stringify({
           id: 1,
           uuid: 'user-uuid',
-          kullaniciKodu: 'mkaracan',
-          gorunenAd: 'Mehmet KARACAN',
+          kullaniciKodu: 'developer',
+          gorunenAd: 'Developer',
         }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
       }
       if (url.endsWith('/api/v1/projects')) {
@@ -71,7 +71,7 @@ describe('application foundation', () => {
     vi.stubGlobal('fetch', fetchMock)
     renderApp()
 
-    fireEvent.change(await screen.findByLabelText('Username'), { target: { value: 'mkaracan' } })
+    fireEvent.change(await screen.findByLabelText('Username'), { target: { value: 'developer' } })
     fireEvent.change(await screen.findByLabelText('Password'), { target: { value: 'local-password' } })
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
 

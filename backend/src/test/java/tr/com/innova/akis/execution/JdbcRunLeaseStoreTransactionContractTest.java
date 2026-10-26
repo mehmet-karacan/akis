@@ -22,15 +22,6 @@ class JdbcRunLeaseStoreTransactionContractTest {
                 "acquireTarget", RunLeaseToken.class, String.class, int.class));
     }
 
-    @Test
-    void terminalCancellationAcknowledgementRequiresAnIndependentTransaction() {
-        Method complete = org.junit.jupiter.api.Assertions.assertDoesNotThrow(
-                () -> method("completeCancellation", RunLeaseToken.class));
-        assertRequiresNew(complete);
-        assertRequiresNew(org.junit.jupiter.api.Assertions.assertDoesNotThrow(
-                () -> method("recoverExpiredCancellations", int.class)));
-    }
-
     private Method method(String name, Class<?>... parameterTypes) throws Exception {
         return JdbcRunLeaseStore.class.getMethod(name, parameterTypes);
     }

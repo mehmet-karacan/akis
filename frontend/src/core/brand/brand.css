@@ -4,16 +4,6 @@
 .brand-product-logo--topbar { width: 112px; height: 34px; }
 .brand-product-logo--compact { width: 94px; height: 32px; }
 .brand-product-logo--icon { width: 36px; height: 36px; }
-.product-lockup { display: inline-flex; align-items: center; gap: 14px; min-width: 0; color: var(--ink); }
-.product-lockup .brand-innova-logo img { height: 22px; }
-.product-lockup-divider { width: 1px; height: 24px; background: currentColor; opacity: .22; }
-.product-lockup-name { font-size: 18px; font-weight: 650; letter-spacing: -.02em; white-space: nowrap; }
-.product-lockup.is-light { color: #ffffff; }
-.product-lockup.is-light .brand-innova-logo img { height: 24px; }
-.topbar-product-lockup { gap: 10px; flex: 0 1 auto; }
-.topbar-product-lockup .brand-innova-logo img { height: 17px; }
-.topbar-product-lockup .product-lockup-divider { height: 20px; }
-.topbar-product-lockup .product-lockup-name { overflow: hidden; text-overflow: ellipsis; font-size: 16px; }
 .topbar-innova-logo { margin-left: 10px; padding-left: 10px; border-left: 1px solid var(--line); }
 .topbar-innova-logo img { height: 15px; }
 
@@ -22,8 +12,6 @@
 .brand-innova-logo--dark { display: none !important; }
 :root[data-theme="dark"] .brand-innova-logo--light { display: none !important; }
 :root[data-theme="dark"] .brand-innova-logo--dark { display: block !important; }
-.brand-innova-logo.is-light .brand-innova-logo--light { display: none !important; }
-.brand-innova-logo.is-light .brand-innova-logo--dark { display: block !important; }
 
 .brand-corporate-footer { display: flex; align-items: center; justify-content: center; gap: 10px; min-width: 0; color: var(--ink-soft); font-size: 11px; letter-spacing: .02em; }
 .brand-corporate-footer.is-compact .brand-innova-logo img { height: 12px; }
@@ -34,14 +22,8 @@
 }
 
 @media (max-width: 560px) {
-  .topbar-product-lockup { gap: 7px; }
-  .topbar-product-lockup .brand-innova-logo img { height: 15px; }
-  .topbar-product-lockup .product-lockup-divider { height: 18px; }
-  .topbar-product-lockup .product-lockup-name { font-size: 14px; }
   .topbar-innova-logo { margin-left: 6px; padding-left: 6px; }
   .topbar-innova-logo img { height: 12px; }
   .brand-corporate-footer { gap: 7px; font-size: 10px; }
   .brand-corporate-footer .brand-innova-logo img { height: 11px; }
-  .product-lockup { gap: 10px; }
-  .product-lockup-name { font-size: 16px; }
 }

@@ -154,18 +154,7 @@ final class HeartbeatSupervisor implements LeaseGate {
             // The store already confirmed the extension. A checkpoint landing right after the scheduled
             // heartbeat can read an identical deadline (clock_timestamp granularity on Windows hosts);
             // only a deadline that moved backwards is evidence of lost authority.
-            RunLeaseToken refreshed;
-            try {
-                refreshed = leases.heartbeatOrFail(freshest, lease);
-            }
-            catch (LeaseAuthorityLostException exception) {
-                // Cancellation is not a renewable state. Confirm it for this exact owner/run/generation
-                // before classifying a rejected renewal, so registered JDBC work is still interrupted.
-                if (!leases.cancellationRequested(freshest)) throw exception;
-                failure = Failure.CANCELLATION_REQUESTED;
-                cancelLocked();
-                throw new LeaseGateException(failure);
-            }
+            RunLeaseToken refreshed = leases.heartbeatOrFail(freshest, lease);
             if (!sameLeaseIdentity(freshest, refreshed)
                     || refreshed.leaseDeadline() == null
                     || refreshed.leaseDeadline().isBefore(freshest.leaseDeadline())) {

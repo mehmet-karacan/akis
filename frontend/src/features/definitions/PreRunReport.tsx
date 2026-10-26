@@ -20,7 +20,7 @@ export interface PreRunPlan {
   columns?: Array<{ source?: { object: string; column: string }; expression?: unknown; target: { object: string; column: string } }>
   bindings?: Array<{ nodeCode: string; role: string; owner: string; objectName: string; connectionVersionUuid?: string; physicalSchemaUuid?: string; schemaSnapshotFingerprint?: string }>
   staging?: { owner?: string; prefixes?: { loading?: string; integration?: string; error?: string }; nonReversibleDdl?: boolean; workAreaPolicy?: { policy?: { enabled?: boolean; allowSameSchema?: boolean; maxRowsPerRun?: number; maxBytesPerRun?: number; retentionHours?: number }; version?: number } }
-  options?: { resourceMode?: string; batchRows?: number; fetchRows?: number; maxRows?: number; maxBytes?: number; allowEmptySource?: boolean; memoryBudgetBytes?: number }
+  options?: { batchRows?: number; fetchRows?: number; maxRows?: number; maxBytes?: number; allowEmptySource?: boolean }
   modules?: Record<string, { versionUuid?: string; contentHash?: string; kind?: string; options?: Record<string, unknown> }>
 }
 export interface PreRunSqlStatement { step: string; site: string; owner: string; sql: string }
@@ -57,19 +57,11 @@ const stepLabel = (operation: string, tr: boolean) => STEP_LABELS[operation]?.[t
 const bytes = (value?: number) => value == null ? '—' : value >= 1024 ** 3 ? `${(value / 1024 ** 3).toFixed(1)} GB` : value >= 1024 ** 2 ? `${(value / 1024 ** 2).toFixed(0)} MB` : `${value} B`
 const number = (value?: number) => value == null ? '—' : new Intl.NumberFormat('tr-TR').format(value)
 const qualified = (binding?: { owner: string; objectName: string }) => binding ? `${binding.owner}.${binding.objectName}` : '—'
-const resourceManagementLabel = (automatic: boolean, tr: boolean) => automatic
-  ? (tr ? 'Otomatik kaynak yönetimi' : 'Automatic resource management')
-  : (tr ? 'Eski kaynak ayarları' : 'Legacy resource settings')
-const resourceManagementHint = (automatic: boolean, tr: boolean) => automatic
-  ? (tr ? 'Kaynak, çalışma alanı ve hedefin kaynak kullanımını uygulama yönetir.' : 'The application manages resource use across the source, staging and target.')
-  : (tr ? 'Bu yayında kayıtlı kaynak ayarları kullanılır.' : 'Uses the resource settings saved in this publication.')
-const legacyResourceLimits = (plan: PreRunPlan) => `maxRows: ${number(plan.options?.maxRows)} · maxBytes: ${bytes(plan.options?.maxBytes)} · batchRows: ${number(plan.options?.batchRows)} · fetchRows: ${number(plan.options?.fetchRows)} · allowEmptySource: ${plan.options?.allowEmptySource ? 'true' : 'false'}`
 
 /** Builds the human-readable Markdown export; the same facts the panel shows, so the download can be reviewed offline. */
 export function preRunReportMarkdown(preview: PreRunPreview, context: { definitionName: string; environmentName: string; tr: boolean; generatedAt?: Date; connections?: ConnectionUse[] }) {
   const { plan } = preview
   const tr = context.tr
-  const automaticResources = plan.options?.resourceMode === 'AUTO'
   const sources = (plan.bindings ?? []).filter((item) => item.role === 'KAYNAK')
   const target = (plan.bindings ?? []).find((item) => item.role === 'HEDEF')
   const integration = plan.modules?.integration?.options ?? {}
@@ -89,10 +81,9 @@ export function preRunReportMarkdown(preview: PreRunPreview, context: { definiti
     `- WRITE_MODE: **${writeMode}**`,
     `- TRUNCATE_TARGET: **${integration.TRUNCATE_TARGET === true ? 'true' : 'false'}**`,
     `- ${tr ? 'Geri alınamaz DDL' : 'Non-reversible DDL'}: **${plan.staging?.nonReversibleDdl ? (tr ? 'EVET (TRUNCATE TABLE)' : 'YES (TRUNCATE TABLE)') : (tr ? 'hayır' : 'no')}**`, '',
-    `## ${tr ? 'Kaynak Yönetimi' : 'Resource Management'}`, '',
-    `- ${resourceManagementLabel(automaticResources, tr)}: ${resourceManagementHint(automaticResources, tr)}`,
-    ...(automaticResources ? [`- ${tr ? 'Boş kaynağa izin ver' : 'Allow empty source'}: ${plan.options?.allowEmptySource ? 'true' : 'false'}`] : [`- ${legacyResourceLimits(plan)}`]),
-    `- ${tr ? 'Çalışma alanı politikası' : 'Work area policy'}: enabled=${plan.staging?.workAreaPolicy?.policy?.enabled ? 'true' : 'false'}, allowSameSchema=${plan.staging?.workAreaPolicy?.policy?.allowSameSchema ? 'true' : 'false'}${automaticResources ? '' : `, maxRowsPerRun=${number(plan.staging?.workAreaPolicy?.policy?.maxRowsPerRun)}`}`, '',
+    `## ${tr ? 'Sınırlar' : 'Limits'}`, '',
+    `- maxRows: ${number(plan.options?.maxRows)} · maxBytes: ${bytes(plan.options?.maxBytes)} · batchRows: ${number(plan.options?.batchRows)} · fetchRows: ${number(plan.options?.fetchRows)} · allowEmptySource: ${plan.options?.allowEmptySource ? 'true' : 'false'}`,
+    `- ${tr ? 'Çalışma alanı politikası' : 'Work area policy'}: enabled=${plan.staging?.workAreaPolicy?.policy?.enabled ? 'true' : 'false'}, allowSameSchema=${plan.staging?.workAreaPolicy?.policy?.allowSameSchema ? 'true' : 'false'}, maxRowsPerRun=${number(plan.staging?.workAreaPolicy?.policy?.maxRowsPerRun)}`, '',
     `## ${tr ? 'Yürütme Modülleri' : 'Execution Modules'}`, '',
     ...Object.entries(plan.modules ?? {}).map(([role, module]) => `- ${role}: ${module.kind ?? '—'} · ${module.versionUuid ?? '—'} · ${(module.contentHash ?? '').slice(0, 12)} · ${JSON.stringify(module.options ?? {})}`), '',
     `## ${tr ? 'Adımlar' : 'Steps'}`, '', `| # | ${tr ? 'Adım' : 'Step'} | ${tr ? 'Konum' : 'Site'} | ${tr ? 'İşlem' : 'Operation'} |`, '|---|---|---|---|',
@@ -115,13 +106,12 @@ export function PreRunReportBody({ preview, definitionName, environmentName, tr,
   const integration = plan.modules?.integration?.options ?? {}
   const writeMode = String(integration.WRITE_MODE ?? 'ATOMIC_DELETE_INSERT')
   const nonReversible = Boolean(plan.staging?.nonReversibleDdl)
-  const automaticResources = plan.options?.resourceMode === 'AUTO'
   const metrics: SummaryMetric[] = [
     { label: tr ? 'Kaynak' : 'Source', value: sources.map(qualified).join(', ') || '—', hint: connections?.find((use) => use.role === 'SOURCE')?.connection?.name ?? (tr ? 'Yalnız SELECT' : 'SELECT only'), icon: <DatabaseZap size={18} />, tone: 'teal' },
     { label: 'Staging', value: plan.staging?.owner ?? '—', hint: plannedWorkTableName(plan) || [plan.staging?.prefixes?.loading, plan.staging?.prefixes?.integration, plan.staging?.prefixes?.error].filter(Boolean).join(' · '), icon: <Layers3 size={18} />, tone: 'neutral' },
     { label: tr ? 'Hedef' : 'Target', value: qualified(target), hint: connections?.find((use) => use.role === 'TARGET')?.connection?.name ?? (tr ? 'Yazılır' : 'Written'), icon: <Target size={18} />, tone: 'info' },
     { label: tr ? 'Yazma Modu' : 'Write Mode', value: writeMode, hint: nonReversible ? (tr ? 'Geri alınamaz DDL' : 'Non-reversible DDL') : (tr ? 'İşlem içinde' : 'Transactional'), icon: nonReversible ? <AlertTriangle size={18} /> : <ShieldCheck size={18} />, tone: nonReversible ? 'danger' : 'success' },
-    { label: tr ? 'Kaynak Yönetimi' : 'Resource Management', value: resourceManagementLabel(automaticResources, tr), hint: plan.options?.memoryBudgetBytes ? `${plan.options.memoryBudgetBytes / 1048576} MiB · ${tr ? 'Ortamdan miras' : 'Inherited from environment'}` : resourceManagementHint(automaticResources, tr), icon: <Settings2 size={18} />, tone: automaticResources ? 'success' : 'warning' },
+    { label: tr ? 'Satır Sınırı' : 'Row Limit', value: number(plan.options?.maxRows), hint: `${bytes(plan.options?.maxBytes)} · batch ${number(plan.options?.batchRows)}`, icon: <Settings2 size={18} />, tone: 'warning' },
     { label: tr ? 'Plan Özeti' : 'Plan Hash', value: <code>{plan.physicalPlanHash.slice(0, 12)}</code>, hint: `${plan.steps.length} ${tr ? 'adım' : 'steps'} · ${plan.columns?.length ?? 0} ${tr ? 'kolon' : 'columns'}`, icon: <Hash size={18} />, tone: 'pink' },
   ]
   return <div className="prerun-report">
@@ -147,8 +137,7 @@ export function PreRunReportBody({ preview, definitionName, environmentName, tr,
       <dl className="prerun-facts">
         {(plan.bindings ?? []).map((binding) => <div key={binding.nodeCode}><dt>{binding.role === 'KAYNAK' ? (tr ? 'Kaynak' : 'Source') : (tr ? 'Hedef' : 'Target')} · {binding.nodeCode}</dt><dd>{qualified(binding)}<small>{tr ? 'snapshot' : 'snapshot'} {(binding.schemaSnapshotFingerprint ?? '').slice(0, 12)}</small></dd></div>)}
         {Object.entries(plan.modules ?? {}).map(([role, module]) => <div key={role}><dt>{module.kind ?? role}</dt><dd>{(module.versionUuid ?? '').slice(0, 8)} · {(module.contentHash ?? '').slice(0, 12)}<small>{Object.entries(module.options ?? {}).map(([key, value]) => `${key}=${String(value)}`).join(' · ') || '—'}</small></dd></div>)}
-        <div><dt>{tr ? 'Çalışma Alanı Politikası' : 'Work Area Policy'}</dt><dd>{plan.staging?.workAreaPolicy?.policy?.enabled ? (tr ? 'Açık' : 'Enabled') : (tr ? 'Kapalı' : 'Disabled')}<small>allowSameSchema={String(Boolean(plan.staging?.workAreaPolicy?.policy?.allowSameSchema))}{!automaticResources && ` · maxRowsPerRun=${number(plan.staging?.workAreaPolicy?.policy?.maxRowsPerRun)}`}</small></dd></div>
-        {!automaticResources && <div><dt>{tr ? 'Eski Kaynak Ayarları' : 'Legacy Resource Settings'}</dt><dd>{legacyResourceLimits(plan)}</dd></div>}
+        <div><dt>{tr ? 'Çalışma Alanı Politikası' : 'Work Area Policy'}</dt><dd>{plan.staging?.workAreaPolicy?.policy?.enabled ? (tr ? 'Açık' : 'Enabled') : (tr ? 'Kapalı' : 'Disabled')}<small>allowSameSchema={String(Boolean(plan.staging?.workAreaPolicy?.policy?.allowSameSchema))} · maxRowsPerRun={number(plan.staging?.workAreaPolicy?.policy?.maxRowsPerRun)}</small></dd></div>
       </dl>
     </section>
     {preview.sqlPreview && preview.sqlPreview.length > 0 && <section className="prerun-section prerun-section--sql">

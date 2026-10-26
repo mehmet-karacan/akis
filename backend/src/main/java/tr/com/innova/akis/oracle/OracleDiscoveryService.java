@@ -131,7 +131,7 @@ public class OracleDiscoveryService {
         if (limit < 1 || limit > 200) {
             throw validation("Keşif tablo limiti 1-200 aralığında olmalıdır.");
         }
-        String owner = catalogIdentifier(profile, physicalSchema.schemaReference(), "Fiziksel şema referansı");
+        String owner = identifier(profile, physicalSchema.schemaReference(), "Fiziksel şema referansı");
         String normalizedTableName = tableName == null || tableName.isBlank() ? null : identifier(profile, tableName, "Tablo adı");
         Set<String> allowedTypes = "POSTGRESQL".equals(profile.databaseType())
                 ? Set.of("TABLE", "VIEW", "MATERIALIZED_VIEW")
@@ -249,14 +249,14 @@ public class OracleDiscoveryService {
                         .contains(dataObject.objectType())) {
             throw validation("Şema görüntüsü yalnız aktif tablo benzeri veri nesneleri için alınabilir.");
         }
-        String tableName = catalogIdentifier(profile, dataObject.objectReference(), "Veri nesnesi referansı");
+        String tableName = identifier(profile, dataObject.objectReference(), "Veri nesnesi referansı");
         ConnectionProbe probe;
         SnapshotCapture capture;
         try (Credentials credentials = credentials(profile)) {
             probe = probe(profile, credentials);
             capture = gateway(profile).captureSnapshot(
                     profile, credentials,
-                    catalogIdentifier(profile, physicalSchema.schemaReference(), "Fiziksel şema referansı"),
+                    identifier(profile, physicalSchema.schemaReference(), "Fiziksel şema referansı"),
                     tableName);
         }
         return new GovernedSnapshotCapture(
@@ -355,16 +355,7 @@ public class OracleDiscoveryService {
         return value != null && DATABASE_NAME.matcher(value).matches();
     }
 
-    /** Stored PostgreSQL names are dictionary values, not unquoted SQL tokens. */
-    private String catalogIdentifier(ConnectionProfile profile, String value, String field) {
-        if (!"POSTGRESQL".equals(profile.databaseType())) return identifier(value, field);
-        String name = value == null ? "" : value.strip();
-        if (name.startsWith("\"") && name.endsWith("\"")) return postgresIdentifier(name, field);
-        if (!POSTGRES_IDENTIFIER.matcher(name).matches()) throw validation(field + " geçersiz.");
-        return name;
-    }
-
-    /** User-entered SQL identifiers fold to lower case unless explicitly quoted. */
+    /** Oracle identifiers are upper-cased dictionary names; PostgreSQL identifiers are kept case-sensitive when quoted. */
     private String identifier(ConnectionProfile profile, String value, String field) {
         if ("POSTGRESQL".equals(profile.databaseType())) {
             return postgresIdentifier(value, field);

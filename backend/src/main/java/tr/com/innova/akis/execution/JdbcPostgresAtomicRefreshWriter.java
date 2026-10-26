@@ -65,12 +65,9 @@ final class JdbcPostgresAtomicRefreshWriter {
                 return new Result(Outcome.ALREADY_RECORDED, null, evidence.publishedRowCount());
             }
             prepared = true;
-            // Autoanalyze holds SHARE UPDATE EXCLUSIVE on the sealed stage. Give maintenance
-            // a bounded chance to finish before taking the target lock; keep SHARE to exclude
-            // stage writers, and preserve fail-fast behavior for a busy production target.
-            command(connection, "LOCK TABLE " + stage.sql() + " IN SHARE MODE", Math.min(timeoutSeconds, 15));
-            leaseCheckpoint.run();
+            // ACCESS EXCLUSIVE on the target (what TRUNCATE takes anyway) and a read lock on the sealed work table.
             command(connection, "LOCK TABLE " + target.sql() + " IN ACCESS EXCLUSIVE MODE NOWAIT", timeoutSeconds);
+            command(connection, "LOCK TABLE " + stage.sql() + " IN SHARE MODE NOWAIT", timeoutSeconds);
             lockedPreflight.run();
             leaseCheckpoint.run();
             if (count(connection, stage, timeoutSeconds) != evidence.stageRowCount()) throw new IllegalStateException("Mühürlü stage satır sayısı değişmiş.");

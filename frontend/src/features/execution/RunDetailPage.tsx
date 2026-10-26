@@ -13,7 +13,6 @@ import { formatOperationalDateTime, formatOperationalDuration } from '../../core
 import { useRemoteData } from '../operations/useRemoteData'
 import { executionApi } from './api'
 import type { RunStatus, RunStep } from './types'
-import { TransferProgressDetails } from './TransferProgressDetails'
 import { useExecutionI18n } from './i18n'
 import { RunStatusBadge, runStatusPresentation } from './RunStatusBadge'
 import { buildRunStepTree, firstFailedPath, groupRunStepUnits, type RunStepNode } from './runTree'
@@ -83,7 +82,6 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
           transactionState: item.state === 'SUCCEEDED' && item.operation === 'ATOMIC_REPLACE' ? 'COMMIT_CONFIRMED' : 'NOT_APPLICABLE',
           risk: null, startedAt: item.startedAt, finishedAt: item.completedAt, rowCount: item.affectedRows, byteCount: null, errorCode: item.errorCode,
           executedSql: item.executedSql,
-          transferProgress: item.transferProgress,
         })))
       } catch { /* child detail stays reachable through its own page */ }
     }))
@@ -121,10 +119,10 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
   const rowsValue = (item: RunStep) => (exactCount(item.rowCountExact) ?? (item.rowCount == null ? null : BigInt(item.rowCount)))?.toLocaleString(locale) ?? t('notRecorded')
   const failure = events.data?.items.filter(item => /FAIL|ERROR|HATA|BASARISIZ/i.test(item.type)).map(item => eventError(item.data)).find(Boolean)
   // Run history is read-only: it shows what happened; operations (cancel, recovery) live with the publication.
-  const refresh = () => Promise.all([run.reload(), steps.reload(), events.reload(), km.reload(), chunks.reload(), childSteps.reload()])
+  const refresh = () => Promise.all([run.reload(), steps.reload(), events.reload(), km.reload(), chunks.reload()])
   // Poll while the worker still owns the run so a freshly started run settles without manual refresh.
   const inFlight = !!run.data && !/^(BASARILI|BASARISIZ|IPTAL|MUDAHALE_GEREKLI|YENIDEN_DENENEBILIR)$/.test(run.data.status)
-  useEffect(() => { if (!inFlight) return; const timer = setInterval(() => { void refresh() }, 4000); return () => clearInterval(timer) }, [inFlight, uuid, childKeys])
+  useEffect(() => { if (!inFlight) return; const timer = setInterval(() => { void refresh() }, 4000); return () => clearInterval(timer) }, [inFlight, uuid])
   const statusTag = (status: string) => { const presentation = runStatusPresentation(status, t); return <Tag className={`connection-status-tag connection-status-tag--${presentation.tone} run-status run-status--${status.toLowerCase().replaceAll('_', '-')}`} style={connectionStatusTagStyles[presentation.tone]} icon={presentation.icon}><span className="connection-status-tag-label">{presentation.label}</span></Tag> }
   const statusSignal = (status: string) => { const presentation = runStatusPresentation(status, t); return <span className={`run-status-signal run-status-signal--${presentation.tone}`} title={presentation.label} aria-label={presentation.label}>{presentation.icon}<span className="sr-only">{presentation.label}</span></span> }
   // Resume / restart: no approval step. A run whose target outcome is unknown is reconciled first; NOT_PUBLISHED makes it resumable.
@@ -216,7 +214,6 @@ export function RunDetailPage({ runUuidOverride, panel = false, onClose, objectN
           ]} />{selectedUnit.commands.map(item => item.errorCode && <Alert key={item.uuid} type="error" showIcon title={item.errorCode} description={t('errorMessageUnavailable')} />)}
           {step.type === 'PAKET' && step.childRunUuid && <p className="run-step-child"><Link to={`/project/operations?run=${encodeURIComponent(step.childRunUuid)}`}><PlayCircle size={14} aria-hidden="true" /> {t('openChildRun')}</Link></p>}
           {step.type !== 'PAKET' && <>
-          {step.transferProgress ? <TransferProgressDetails progress={step.transferProgress} /> : selectedUnit.commands.filter(item => item.transferProgress).map(item => <TransferProgressDetails key={item.uuid} progress={item.transferProgress!} />)}
           <ul className="prerun-sql-list run-step-commands" aria-label={t('commandSql')}>{selectedUnit.commands.map(item => {
             const evidence = item.executedSql ?? []
             const entries = evidence.length ? evidence : [{ site: item.connectionRole ?? '—', owner: '', sql: '' }]

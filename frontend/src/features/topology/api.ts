@@ -147,7 +147,6 @@ export interface LogicalSchema {
 }
 
 export interface Environment {
-  transferMemoryBudgetMiB?: number
   uuid: string
   code: string
   name: string
@@ -162,7 +161,6 @@ export interface Environment {
 export type EnvironmentRisk = 'DUSUK' | 'ORTA' | 'YUKSEK' | 'URETIM'
 
 export interface CreateEnvironmentRequest extends JsonRecord {
-  transferMemoryBudgetMiB?: number
   code: string
   name: string
   description?: string | null
@@ -171,7 +169,6 @@ export interface CreateEnvironmentRequest extends JsonRecord {
 }
 
 export interface UpdateEnvironmentRequest extends JsonRecord {
-  transferMemoryBudgetMiB?: number
   name: string
   description?: string | null
   risk?: EnvironmentRisk

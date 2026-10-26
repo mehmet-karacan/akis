@@ -1,6 +1,0 @@
-cryptography>=44,<47
-JPype1>=1.6,<2
-oracledb>=3,<5
-psutil>=6,<8
-psycopg[binary]>=3.2,<4
-requests>=2.32,<3

@@ -20,7 +20,7 @@ import {
   type SiraTanimi,
   type TabloTanimi,
 } from './api'
-import { findSequenceForColumn, findSequencesForTable } from './sequenceAssociation'
+import { findSequenceForColumn } from './sequenceAssociation'
 import './schema-metadata.css'
 
 interface TabloDetayVerisi {
@@ -147,7 +147,7 @@ export function SchemaMetadataPage() {
   }, [i18n.language, query, tablolar])
 
   const sequencesByTable = useMemo(() => Object.fromEntries(
-    tablolar.map((tablo) => [tablo.uuid, findSequencesForTable(tablo.ad, sequences)]),
+    tablolar.map((tablo) => [tablo.uuid, sequences.filter((sequence) => sequence.ad.startsWith(`${tablo.ad}_`))]),
   ), [sequences, tablolar])
 
   const selectedTablo = tablolar.find((tablo) => tablo.uuid === selectedTabloUuid) ?? null

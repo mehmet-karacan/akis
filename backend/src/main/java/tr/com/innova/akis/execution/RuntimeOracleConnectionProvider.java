@@ -423,11 +423,6 @@ final class RuntimeOracleConnectionProvider {
             return purpose;
         }
 
-        int queryTimeoutSeconds() {
-            ensureOpen();
-            return queryTimeoutSeconds;
-        }
-
         <T extends Statement> T applyQueryTimeout(T statement) {
             ensureOpen();
             if (statement == null) {

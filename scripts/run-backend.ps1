@@ -1,14 +1,10 @@
 [CmdletBinding()]
 param(
-    [switch] $PrepareEnvironmentOnly,
-    [string] $ProjectRoot
+    [switch] $PrepareEnvironmentOnly
 )
 
 $ErrorActionPreference = "Stop"
-if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
-    $ProjectRoot = Split-Path -Parent $PSScriptRoot
-}
-$projectRoot = [System.IO.Path]::GetFullPath($ProjectRoot)
+$projectRoot = Split-Path -Parent $PSScriptRoot
 $envFile = Join-Path $projectRoot ".env"
 
 if (-not (Test-Path -LiteralPath $envFile)) {

@@ -93,23 +93,6 @@ final class ProcedureWorkerOrchestrator {
     }
 
     private RunOnceResult runClaimed(ClaimedRun claimed, LeaseGate gate, WorkerIdentity worker, Duration lease) {
-        try {
-            return executeClaimed(claimed, gate, worker, lease);
-        }
-        finally {
-            // Every dispatch, including package children, reaches this after its runtime sessions unwind.
-            // This is a terminal acknowledgement only; a failed work gate is never reopened.
-            try {
-                leases.completeCancellation(claimed.token());
-            }
-            catch (RuntimeException ignored) {
-                LOG.warn("Cancellation completion deferred to expired-request recovery for run {} generation {}.",
-                        claimed.token().runUuid(), claimed.token().generation());
-            }
-        }
-    }
-
-    private RunOnceResult executeClaimed(ClaimedRun claimed, LeaseGate gate, WorkerIdentity worker, Duration lease) {
         PinnedExecutionContext context;
         ProcedureRuntimePlan plan;
         ProcedureRuntimePlan.Task targetTask;

@@ -40,12 +40,10 @@ final class OracleSchemaDictionaryReader {
                    data_type,
                    data_precision,
                    CASE WHEN data_type = 'NUMBER' THEN data_scale END AS numeric_scale,
-                   CASE
-                       WHEN data_type IN ('VARCHAR2', 'CHAR', 'NCHAR', 'NVARCHAR2') THEN char_length
-                       WHEN data_type = 'RAW' THEN data_length
-                   END AS char_length,
+                   CASE WHEN data_type = 'VARCHAR2' THEN char_length END AS char_length,
                    CASE
                        WHEN data_type LIKE 'TIMESTAMP%'
+                        AND data_type NOT LIKE '%TIME ZONE%'
                        THEN data_scale
                    END AS time_precision,
                    nullable,
@@ -304,8 +302,8 @@ final class OracleSchemaDictionaryReader {
 
     private String codecType(String value) {
         String normalized = value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
-        if (normalized.matches("TIMESTAMP(?:\\([0-9]+\\))?(?: WITH (?:LOCAL )?TIME ZONE)?")) {
-            return normalized.replaceFirst("\\([0-9]+\\)", "");
+        if (normalized.matches("TIMESTAMP(?:\\([0-9]+\\))?")) {
+            return "TIMESTAMP";
         }
         return normalized;
     }

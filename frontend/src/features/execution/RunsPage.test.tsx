@@ -48,8 +48,6 @@ describe('RunsPage', () => {
     const summary = screen.getByLabelText('Çalıştırma özeti')
     expect(summary).toHaveClass('ui-summary-strip')
     expect(summary.querySelectorAll('.ui-summary-card')).toHaveLength(9)
-    const filters = screen.getByLabelText('Tetikleyici').closest('form')!
-    expect(filters.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('sends the selected date range and automatic trigger to the search API', async () => {

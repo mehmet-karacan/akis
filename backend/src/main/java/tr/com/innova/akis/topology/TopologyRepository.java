@@ -443,16 +443,6 @@ class TopologyRepository {
         return jdbc.sql("delete from akis.ortam where uuid = :uuid").param("uuid", uuid).update() == 1;
     }
 
-    void updateEnvironmentMemoryPolicy(UUID uuid,JsonNode policy) {
-        long memoryMiB=tr.com.innova.akis.knowledge.TransferMemoryPolicy.fromPolicy(policy);
-        jdbc.sql("""
-                update akis.ortam
-                   set politika=jsonb_set(coalesce(politika,'{}'::jsonb),
-                       '{transferMemoryBudgetMiB}',to_jsonb(cast(:memoryMiB as bigint)))
-                 where uuid=:uuid
-                """).param("uuid",uuid).param("memoryMiB",memoryMiB).update();
-    }
-
     boolean environmentInUse(UUID uuid) {
         return Boolean.TRUE.equals(jdbc.sql("""
                 select exists (

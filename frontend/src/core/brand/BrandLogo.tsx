@@ -32,13 +32,11 @@ export function BrandLogo({ className = '', variant = 'topbar' }: BrandLogoProps
 
 interface InnovaLogoProps {
   className?: string
-  appearance?: 'auto' | 'light'
 }
 
-export function InnovaLogo({ className = '', appearance = 'auto' }: InnovaLogoProps) {
-  const appearanceClass = appearance === 'light' ? ' is-light' : ''
+export function InnovaLogo({ className = '' }: InnovaLogoProps) {
   return (
-    <span className={`brand-innova-logo${appearanceClass} ${className}`.trim()} aria-label={BRAND.companyName} role="img">
+    <span className={`brand-innova-logo ${className}`.trim()} aria-label={BRAND.companyName} role="img">
       <img className="brand-innova-logo--light" src={innovaLogo} alt="" aria-hidden="true" />
       <img className="brand-innova-logo--dark" src={innovaLogoWhite} alt="" aria-hidden="true" />
     </span>

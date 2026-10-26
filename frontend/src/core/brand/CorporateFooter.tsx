@@ -4,13 +4,12 @@ import { InnovaLogo } from './BrandLogo'
 interface CorporateFooterProps {
   className?: string
   compact?: boolean
-  appearance?: 'auto' | 'light'
 }
 
-export function CorporateFooter({ className = '', compact = false, appearance = 'auto' }: CorporateFooterProps) {
+export function CorporateFooter({ className = '', compact = false }: CorporateFooterProps) {
   return (
     <footer className={`brand-corporate-footer${compact ? ' is-compact' : ''} ${className}`.trim()}>
-      <InnovaLogo appearance={appearance} />
+      <InnovaLogo />
       <span>{BRAND.copyright}</span>
     </footer>
   )

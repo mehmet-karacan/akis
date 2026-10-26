@@ -56,24 +56,6 @@ class JdbcStagingTransferTest {
         assertThrows(JdbcStagingTransfer.TransferFailure.class,()->fixture.run(1000));
         verify(fixture.stage).rollback(); verify(fixture.stage,times(2)).commit();
     }
-    @Test void automaticWideRowsFlushBeforeTheRowCountBatchFills() throws Exception {
-        var fixture=new Fixture(100);
-        when(fixture.cursor.getMetaData().getColumnTypeName(1)).thenReturn("VARCHAR2");
-        when(fixture.cursor.getString(1)).thenReturn("İ".repeat(32*1024));
-        var result=new JdbcStagingTransfer().transfer(fixture.source,fixture.stage,
-                new JdbcStagingTransfer.Table("SRC","ITEMS"),new JdbcStagingTransfer.Table("WORK","ITEMS"),
-                List.of(new JdbcStagingTransfer.Column("TEXT","TEXT",JdbcStagingTransfer.Type.VARCHAR2)),
-                new StagedMappingDefinition.Options(1000,1000,100,20_000_000,false,"AUTO"),30,()->{});
-        assertEquals(100,result.rows());
-        verify(fixture.stage,atLeast(2)).commit();
-        verify(fixture.write,times(100)).setString(1,"İ".repeat(32*1024));
-    }
-    @Test void automaticFetchStartsWithOneRowBeforeProjectionWidthsAreKnown() throws Exception {
-        var read=mock(PreparedStatement.class);
-        new TransferBuffer(new StagedMappingDefinition.Options(1000,256,10000,1_000_000_000L,false,"AUTO"),()->{})
-                .configure(read,List.of(new JdbcStagingTransfer.Column("TEXT","TEXT",JdbcStagingTransfer.Type.VARCHAR2)));
-        verify(read).setFetchSize(1);
-    }
     @Test void commitAcknowledgementLossIsNotRetried() throws Exception {
         var fixture=new Fixture(1);
         doThrow(new SQLException("sensitive connection detail")).when(fixture.stage).commit();
@@ -94,7 +76,7 @@ class JdbcStagingTransferTest {
         when(source.prepareStatement(anyString())).thenReturn(read); when(stage.prepareStatement(anyString())).thenReturn(write);
         when(read.executeQuery()).thenReturn(cursor); when(cursor.getMetaData()).thenReturn(metadata);
         when(metadata.getColumnCount()).thenReturn(1); when(metadata.getColumnTypeName(1)).thenReturn("BLOB");
-        when(cursor.next()).thenReturn(true,false); when(cursor.getBlob(1)).thenReturn(new javax.sql.rowset.serial.SerialBlob(payload));
+        when(cursor.next()).thenReturn(true,false); when(cursor.getBytes(1)).thenReturn(payload);
         when(write.executeBatch()).thenReturn(new int[]{1});
         var result=new JdbcStagingTransfer().transfer(source,stage,new JdbcStagingTransfer.Table("SRC","DOCS"),
                 new JdbcStagingTransfer.Table("WORK","AKIS_C_DOCS"),List.of(new JdbcStagingTransfer.Column("PAYLOAD","PAYLOAD",JdbcStagingTransfer.Type.BLOB)),

@@ -178,50 +178,6 @@ class OracleDiscoveryServiceTest {
     }
 
     @Test
-    void postgresDiscoveryPreservesThePhysicalSchemaNameReturnedByTheCatalog() {
-        ConnectionProfile base = OracleDiscoveryTestFixtures.profile(7L, "ENV", ENVIRONMENT_NAME, "AKTIF");
-        ConnectionProfile pg = new ConnectionProfile(base.projectId(), base.connectionId(), base.connectionUuid(),
-                base.connectionVersionUuid(), "POSTGRESQL", "JDBC", null, "org.postgresql.Driver",
-                "127.0.0.1", "akis", null, "DISABLED", 5432, base.policy(), base.secretProvider(),
-                base.secretReferencePath(), base.secretStatus(), base.lifecycleStatus(), 1L, null, null, null);
-        StubRepository repository = new StubRepository(pg,
-                new PhysicalSchemaProfile(OracleDiscoveryTestFixtures.PHYSICAL_SCHEMA_UUID, 7L, "SKY_DIT_PERF", "AKTIF"), "TABLO");
-        CapturingGateway gateway = new CapturingGateway();
-        gateway.technology = "POSTGRESQL";
-        gateway.discovery = new DiscoveryResult("POSTGRESQL", "SKY_DIT_PERF", OffsetDateTime.now(ZoneOffset.UTC), false, List.of());
-
-        service(repository, gateway).discover(OracleDiscoveryTestFixtures.CONNECTION_UUID,
-                OracleDiscoveryTestFixtures.PHYSICAL_SCHEMA_UUID, "\"SKY_DIT_PERF_50\"", 50);
-
-        assertEquals("SKY_DIT_PERF", gateway.owner);
-        assertEquals("SKY_DIT_PERF_50", gateway.tableName);
-    }
-
-    @Test
-    void postgresCapturePreservesStoredDictionaryObjectAndSchemaNames() {
-        ConnectionProfile base = OracleDiscoveryTestFixtures.profile(7L, "ENV", ENVIRONMENT_NAME, "AKTIF");
-        ConnectionProfile pg = new ConnectionProfile(base.projectId(), base.connectionId(), base.connectionUuid(),
-                base.connectionVersionUuid(), "POSTGRESQL", "JDBC", null, "org.postgresql.Driver",
-                "127.0.0.1", "akis", null, "DISABLED", 5432, base.policy(), base.secretProvider(),
-                base.secretReferencePath(), base.secretStatus(), base.lifecycleStatus(), 1L, null, null, null);
-        StubRepository repository = new StubRepository(pg,
-                new PhysicalSchemaProfile(OracleDiscoveryTestFixtures.PHYSICAL_SCHEMA_UUID, 7L, "SKY_DIT_PERF", "AKTIF"),
-                "TABLO", "SKY_DIT_PERF_50");
-        CapturingGateway gateway = new CapturingGateway();
-        gateway.technology = "POSTGRESQL";
-        gateway.probe = new ConnectionProbe("PostgreSQL", "18.6", 18, 6, "PostgreSQL JDBC", "42", 1, "a".repeat(64));
-        gateway.capture = new SnapshotCapture(OffsetDateTime.now(ZoneOffset.UTC),
-                new OracleSchemaSnapshotCodecV1.SnapshotDefinition("POSTGRESQL_16", 1,
-                        new ObjectMapper().createObjectNode(), List.of(), List.of()));
-
-        service(repository, gateway).captureSchemaSnapshot(OracleDiscoveryTestFixtures.PROJECT_UUID,
-                OracleDiscoveryTestFixtures.CONNECTION_UUID, OracleDiscoveryTestFixtures.PHYSICAL_SCHEMA_UUID, UUID.randomUUID());
-
-        assertEquals("SKY_DIT_PERF", gateway.owner);
-        assertEquals("SKY_DIT_PERF_50", gateway.tableName);
-    }
-
-    @Test
     void discoveryPassesSelectedObjectTypeToGatewayBeforeResultLimit() {
         CapturingGateway gateway = new CapturingGateway();
         gateway.discovery = new DiscoveryResult("APP_OWNER", OffsetDateTime.now(ZoneOffset.UTC), false, List.of());
@@ -343,14 +299,10 @@ class OracleDiscoveryServiceTest {
         private final DataObjectCaptureProfile dataObject;
 
         private StubRepository(ConnectionProfile profile, PhysicalSchemaProfile physicalSchema, String dataObjectType) {
-            this(profile, physicalSchema, dataObjectType, "sample_table");
-        }
-
-        private StubRepository(ConnectionProfile profile, PhysicalSchemaProfile physicalSchema, String dataObjectType, String objectReference) {
             super(null, null);
             this.profile = profile;
             this.physicalSchema = physicalSchema;
-            this.dataObject = new DataObjectCaptureProfile(UUID.randomUUID(), objectReference, dataObjectType, "AKTIF");
+            this.dataObject = new DataObjectCaptureProfile(UUID.randomUUID(), "sample_table", dataObjectType, "AKTIF");
         }
 
         @Override

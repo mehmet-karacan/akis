@@ -9,6 +9,7 @@ Kapsam: Chrome üzerinde açık olan yerel uygulamanın ana ekranları, alt ekra
 - Backend: `http://127.0.0.1:8080/`
 - Veritabanı: Docker PostgreSQL sağlıklı.
 - Backend Flyway şeması onarıldı; 65 migration güncel ve actuator health `UP`.
+- Repo graft grafiği `npx -y @nanonets/graft build` ile yenilendi; ilgili kaynak eşlemesi graf ve doğrudan dosya aralıklarıyla yapıldı.
 
 ## Ekran envanteri
 
@@ -90,6 +91,7 @@ Sonraki dilimde liste tabloları ile modal gövdeleri ortak bir overflow standar
 - `npm run lint`, `npm run build`, mapping/brand testleri ve güncel tam frontend suite başarılı; 108 dosya / 407 test geçti. Güncel Playwright mapping testi de başarılı.
 - Tam ekran Playwright kalite turu kimlik bilgisi ortam değişkenleri (`AKIS_E2E_USERNAME`, `AKIS_E2E_PASSWORD`) verilmediği için login sonrasında ilerleyemedi; bu uygulama hatası değil, test ortamı önkoşuludur.
 - Backend `/actuator/health` `UP`, frontend kök URL'si HTTP 200 döndürüyor.
+- Son değişikliklerden sonra repo grafiği `npx -y @nanonets/graft build` ile yenilendi: 902 dosya, 8.806 düğüm ve 28.296 kenar.
 
 ## Kabul kontrol listesi
 

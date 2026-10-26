@@ -8,8 +8,8 @@ import { LanguageSwitcher } from '../../core/ui/LanguageSwitcher'
 import { ThemeSwitcher } from '../../core/ui/ThemeSwitcher'
 import { ApiProblem } from '../../core/api/client'
 import { useAuth } from '../../core/auth/AuthContext'
+import { BrandLogo } from '../../core/brand/BrandLogo'
 import { CorporateFooter } from '../../core/brand/CorporateFooter'
-import { ProductLockup } from '../../core/brand/ProductLockup'
 import { DatabaseProviderIcon, databaseProviderVisual } from '../topology/DatabaseProviderIcon'
 import './login.css'
 
@@ -17,7 +17,8 @@ const PROVIDERS = ['ORACLE', 'POSTGRESQL'] as const
 
 /** Sign-in: story panel with the three product promises as colored feature cards, and the access card. */
 export function LoginPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const tr = i18n.language.startsWith('tr')
   const { login, setupPassword } = useAuth()
   const navigate = useNavigate()
   const [username, setUsername] = useState('')
@@ -55,28 +56,28 @@ export function LoginPage() {
     { tone: 'pink', icon: Rocket, title: t('auth.proofPublish'), text: t('auth.proofPublishText') },
   ] as const
   const pillars = [
-    { tone: 'teal', icon: Cable, label: t('auth.connections') },
-    { tone: 'warning', icon: Workflow, label: t('auth.environments') },
-    { tone: 'info', icon: MonitorSmartphone, label: t('auth.operations') },
+    { tone: 'teal', icon: Cable, label: tr ? 'Bağlantılar' : 'Connections' },
+    { tone: 'warning', icon: Workflow, label: tr ? 'Ortamlar' : 'Environments' },
+    { tone: 'info', icon: MonitorSmartphone, label: tr ? 'Operasyon' : 'Operations' },
   ] as const
 
   return (
-    <main className="login-page login-page--corporate">
+    <main className="login-page">
       <section className="login-story">
-        <div className="login-brand"><ProductLockup appearance="light" /><small>{t('auth.eyebrow')}</small></div>
+        <div className="login-brand"><BrandLogo variant="login" /><small>{t('auth.eyebrow')}</small></div>
         <div className="login-copy">
           <h1>{t('auth.title')}</h1>
           <p>{t('auth.description')}</p>
           <div className="login-features">
             {features.map(({ tone, icon: Icon, title, text }) => <article key={title} className={`login-feature tone-${tone}`}><span className="login-feature-icon" aria-hidden="true"><Icon size={20} /></span><div><strong>{title.trim()}</strong><p>{text}</p></div></article>)}
           </div>
-          <ul className="login-pillars" aria-label={t('auth.pillarsLabel')}>
+          <ul className="login-pillars" aria-label={tr ? 'Çalışma alanları' : 'Workspaces'}>
             {pillars.map(({ tone, icon: Icon, label }) => <li key={label} className={`tone-${tone}`}><Icon size={15} aria-hidden="true" />{label}</li>)}
           </ul>
         </div>
         <div className="login-story-footer">
-          <CorporateFooter compact appearance="light" />
-          <span className="login-providers" aria-label={t('auth.supportedDatabases')}>{PROVIDERS.map((provider) => <span key={provider} className="login-provider"><DatabaseProviderIcon databaseType={provider} /><span>{databaseProviderVisual(provider).label}</span></span>)}</span>
+          <CorporateFooter compact />
+          <span className="login-providers" aria-label={tr ? 'Desteklenen veritabanları' : 'Supported databases'}>{PROVIDERS.map((provider) => <span key={provider} className="login-provider"><DatabaseProviderIcon databaseType={provider} /><span>{databaseProviderVisual(provider).label}</span></span>)}</span>
         </div>
       </section>
 
@@ -88,26 +89,26 @@ export function LoginPage() {
         <form className="login-form login-card" onSubmit={submit}>
           <div className="form-heading">
             <div className="lock-badge"><LockKeyhole size={22} /></div>
-            <div><p className="eyebrow">{t('auth.secureAccess')}</p><h2>{setupMode ? t('auth.passwordSetup') : t('auth.signIn')}</h2></div>
+            <div><p className="eyebrow">{t('auth.secureAccess')}</p><h2>{setupMode ? (tr ? 'Parola Kurulumu' : 'Password Setup') : t('auth.signIn')}</h2></div>
           </div>
           {!setupMode && <label>{t('auth.username')}
             <Input size="large" autoComplete="username" prefix={<UserRound size={16} className="login-field-icon login-field-icon--user" aria-hidden="true" />} value={username} onChange={(event) => setUsername(event.target.value)} required />
           </label>}
-          {setupMode && <label>{t('auth.oneTimeSetupToken')}
+          {setupMode && <label>{tr ? 'Tek Kullanımlık Kurulum Kodu' : 'One-time Setup Token'}
             <Input size="large" autoComplete="off" prefix={<ShieldCheck size={16} className="login-field-icon login-field-icon--user" aria-hidden="true" />} value={setupToken} onChange={(event) => setSetupToken(event.target.value)} required autoFocus />
           </label>}
-          <label>{setupMode ? t('auth.newPassword') : t('auth.password')}
+          <label>{setupMode ? (tr ? 'Yeni Parola' : 'New Password') : t('auth.password')}
             <Input.Password size="large" autoComplete={setupMode ? 'new-password' : 'current-password'} prefix={<KeyRound size={16} className="login-field-icon login-field-icon--key" aria-hidden="true" />} value={password} onChange={(event) => setPassword(event.target.value)} required autoFocus={!setupMode} />
           </label>
-          {setupSuccess && <Alert type="success" showIcon title={t('auth.passwordReady')} role="status" />}
+          {setupSuccess && <Alert type="success" showIcon title={tr ? 'Parolanız oluşturuldu. Şimdi giriş yapabilirsiniz.' : 'Your password is ready. You can now sign in.'} role="status" />}
           {error && <Alert type="error" showIcon title={error} role="alert" />}
           <Button tone="primary" className="login-submit" busy={busy} type="submit">
-            {busy ? t('auth.signingIn') : setupMode ? t('auth.createPassword') : t('auth.signIn')}<ArrowRight size={17} />
+            {busy ? t('auth.signingIn') : setupMode ? (tr ? 'Parolayı Oluştur' : 'Set Password') : t('auth.signIn')}<ArrowRight size={17} />
           </Button>
           <Button tone="ghost" type="button" onClick={() => { setSetupMode((value) => !value); setError(''); setSetupSuccess(false); setPassword('') }}>
-            {setupMode ? t('auth.backToSignIn') : t('auth.setFirstPassword')}
+            {setupMode ? (tr ? 'Giriş ekranına dön' : 'Back to sign in') : (tr ? 'İlk parolamı oluştur' : 'Set my first password')}
           </Button>
-          <p className="local-notice"><ShieldCheck size={15} aria-hidden="true" />{t('auth.securityNotice')}</p>
+          <p className="local-notice"><ShieldCheck size={15} aria-hidden="true" />{t('auth.localNotice')}</p>
         </form>
       </section>
     </main>

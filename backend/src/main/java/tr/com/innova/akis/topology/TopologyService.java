@@ -370,7 +370,6 @@ public class TopologyService {
     EnvironmentRow createEnvironment(String code, String name, String description, String risk, boolean defaultEnvironment, JsonNode policy) {
         JsonNode safePolicy = policy == null ? objectMapper.createObjectNode() : policy;
         if (!safePolicy.isObject()) throw validation("Ortam politikası JSON nesnesi olmalıdır.");
-        safePolicy=memoryPolicy(safePolicy,null);
         if (defaultEnvironment) repository.clearDefaultEnvironment(null);
         return repository.createEnvironment(normalizeCode(code), normalizeName(name), trimToNull(description),
                 allowed(risk == null ? "DUSUK" : risk, RISKS, "ortam riski"), defaultEnvironment, 1, safePolicy, null);
@@ -378,34 +377,13 @@ public class TopologyService {
 
     @Transactional
     EnvironmentRow updateEnvironment(UUID uuid, String name, String description, String risk, Boolean defaultEnvironment, String status) {
-        return updateEnvironment(uuid,name,description,risk,defaultEnvironment,status,null);
-    }
-    @Transactional
-    EnvironmentRow updateEnvironment(UUID uuid, String name, String description, String risk, Boolean defaultEnvironment, String status,Long memoryMiB) {
         EnvironmentRow current = environment(uuid);
-        JsonNode policy=memoryMiB==null?null:memoryPolicy(null,memoryMiB);
         boolean makeDefault = defaultEnvironment == null ? current.defaultEnvironment() : defaultEnvironment;
         if (makeDefault) repository.clearDefaultEnvironment(uuid);
         repository.updateEnvironment(uuid, normalizeName(name), trimToNull(description),
                 allowed(risk == null ? current.risk() : risk, RISKS, "ortam riski"), makeDefault,
                 allowed(status == null ? current.status() : status, STATUSES, "durum"), null);
-        if(policy!=null) repository.updateEnvironmentMemoryPolicy(uuid,policy);
         return environment(uuid);
-    }
-
-    JsonNode memoryPolicy(JsonNode existing,Long override) {
-        if(existing!=null && !existing.isObject()) throw validation("Ortam politikası JSON nesnesi olmalıdır.");
-        var policy=existing==null?objectMapper.createObjectNode():(tools.jackson.databind.node.ObjectNode)existing.deepCopy();
-        try {
-            long value=override==null?tr.com.innova.akis.knowledge.TransferMemoryPolicy.fromPolicy(policy)
-                    :tr.com.innova.akis.knowledge.TransferMemoryPolicy.validateMiB(override);
-            policy.put(tr.com.innova.akis.knowledge.TransferMemoryPolicy.KEY,value);return policy;
-        } catch(IllegalArgumentException invalid) { throw validation(invalid.getMessage()); }
-    }
-    Long memoryOverride(JsonNode value) {
-        if(value==null || value.isNull()) return null;
-        if(!value.isIntegralNumber() || !value.canConvertToLong()) throw validation("Aktarım bellek bütçesi tam sayı olmalıdır.");
-        return value.longValue();
     }
 
     @Transactional

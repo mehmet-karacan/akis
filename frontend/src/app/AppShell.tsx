@@ -1,6 +1,6 @@
 import { Button as AntActionButton } from '../core/ui/Button'
+import { BrandLogo, InnovaLogo } from '../core/brand/BrandLogo'
 import { BRAND } from '../core/brand/brand'
-import { ProductLockup } from '../core/brand/ProductLockup'
 import { LanguageSwitcher } from '../core/ui/LanguageSwitcher'
 import { ThemeSwitcher } from '../core/ui/ThemeSwitcher'
 import {
@@ -22,11 +22,6 @@ import { ProjectSwitcher } from './ProjectSwitcher'
 import { resolveWorkspace, WorkspaceNavigation } from './WorkspaceNavigation'
 import { DocumentTabsProvider, useDocumentTabs } from './DocumentTabsContext'
 import { DocumentTabBar } from './DocumentTabBar'
-import { DesignWorkspace } from './DesignWorkspace'
-
-export function TopbarBrand({ compact }: { compact: boolean }) {
-  return <ProductLockup className={`topbar-product-lockup${compact ? ' is-compact' : ''}`} />
-}
 
 export function AppShell() {
   const { username, logout } = useAuth()
@@ -121,7 +116,7 @@ function ShellBody({ compact, mobileNavigationOpen, setMobileNavigationOpen, nav
       <a className="skip-link" href="#main-content">{t('common.skipToContent')}</a>
       <div className="shell-content">
         <header className="topbar">
-          <div className="topbar-identity">{compact && <AntActionButton aria-label={t('nav.workspaces')} aria-expanded={mobileNavigationOpen} onClick={() => setMobileNavigationOpen(value => !value)} icon={<PanelLeft size={18} />} />}<TopbarBrand compact={compact} /><ProjectSwitcher currentProject={project} projectUuid={projectUuid} onNavigate={requestNavigation} /></div>
+          <div className="topbar-identity">{compact && <AntActionButton aria-label={t('nav.workspaces')} aria-expanded={mobileNavigationOpen} onClick={() => setMobileNavigationOpen(value => !value)} icon={<PanelLeft size={18} />} />}<span className="compact-brand"><BrandLogo variant={compact ? 'compact' : 'topbar'} /><InnovaLogo className="topbar-innova-logo" /></span><ProjectSwitcher currentProject={project} projectUuid={projectUuid} onNavigate={requestNavigation} /></div>
           <div className="topbar-actions">
             <LanguageSwitcher className="compact-select" />
             <ThemeSwitcher className="compact-select" />
@@ -135,15 +130,12 @@ function ShellBody({ compact, mobileNavigationOpen, setMobileNavigationOpen, nav
           {(!compact || mobileNavigationOpen) && <div className="shell-navigation-pane"><aside className={`shell-navigation${!compact && navigationCollapsed ? ' is-collapsed' : ''}`} aria-label={t('nav.workspaces')}>
             <div className="shell-navigation-content">
               <WorkspaceNavigation projectUuid={projectUuid} collapsed={!compact && navigationCollapsed} hasPendingChanges={Boolean(pendingChanges)} onNavigate={requestNavigation} />
-              {activeWorkspace === 'development' && !navigationCollapsed && <DesignWorkspace explorerOnly projectUuid={projectUuid} onNavigate={requestNavigation} />}
             </div>
             {!compact && <footer className="shell-navigation-footer"><AntActionButton type="button" tone="ghost" className="shell-navigation-toggle" aria-label={navigationCollapsed ? t('nav.expand') : t('nav.collapse')} title={navigationCollapsed ? t('nav.expand') : t('nav.collapse')} onClick={() => setNavigationCollapsed(value => !value)} icon={navigationCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}>{!navigationCollapsed && <span>{t('nav.collapse')}</span>}</AntActionButton></footer>}
           </aside></div>}
           <main id="main-content" className="main-content" tabIndex={-1}>
             <DocumentTabBar onNavigate={requestNavigation} dirtyPath={pendingChanges ? location.pathname : null} />
-            {activeWorkspace === 'development'
-              ? <div className="design-workspace definitions-workspace"><div className="design-content"><Outlet /></div></div>
-              : <Outlet />}
+            {activeWorkspace === 'development' ? <div className="design-workspace definitions-workspace"><div className="design-content"><Outlet /></div></div> : <Outlet />}
           </main>
         </div>
         <footer className="app-copyright">{BRAND.copyright}</footer>

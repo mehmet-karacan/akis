@@ -7,7 +7,6 @@ import { SuggestionInput } from '../../core/ui/SuggestionInput'
 import { RecordAuditFields } from '../../core/ui/RecordAuditFields'
 import { useRecordAudit } from '../../core/ui/useRecordAudit'
 import { topologyApi, type PhysicalSchema, type PhysicalSchemaRequest } from '../topology/api'
-import { WorkAreaPolicyEditor } from './WorkAreaPolicyEditor'
 
 interface Draft {
   name: string
@@ -139,7 +138,6 @@ export function PhysicalSchemaDetailDialog({ projectUuid, connectionUuid, item, 
           {canManage && <Button type="submit" tone="primary" icon={<Save size={16} />} busy={busy}>{t('common.save')}</Button>}
         </footer>
       </form>
-      {item && <WorkAreaPolicyEditor key={item.uuid} projectUuid={projectUuid} schemaUuid={item.uuid} schemaName={item.workSchemaName ?? item.schemaName} canManage={canManage} />}
     </RecordDetailDialog>
     {item && <Dialog open={confirmDelete} title={tr ? 'Fiziksel Şemayı Sil' : 'Delete Physical Schema'} closeLabel={t('common.close')} busy={busy} onClose={() => setConfirmDelete(false)}>
       {dependencyCount > 0 && <p role="alert">{t('schemas.deletePhysicalBlocked', { count: dependencyCount })}</p>}

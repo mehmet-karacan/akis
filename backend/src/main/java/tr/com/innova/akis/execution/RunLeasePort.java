@@ -13,12 +13,6 @@ interface RunLeasePort {
 
     default boolean cancellationRequested(RunLeaseToken token) { return false; }
 
-    /** Terminal acknowledgement after runtime sessions unwind; never authorizes or renews work. */
-    default boolean completeCancellation(RunLeaseToken token) { return false; }
-
-    /** Bounded durable recovery of cancellation requests whose work authority has expired. */
-    default int recoverExpiredCancellations(int limit) { return 0; }
-
     TargetFenceToken acquireTarget(
             RunLeaseToken token, String canonicalTargetHash, int identityVersion);
 

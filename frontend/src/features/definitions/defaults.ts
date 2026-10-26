@@ -8,7 +8,7 @@ export const DEFAULT_MAPPING: MappingContent = {
   filters: [],
   modules: {},
   moduleOptions: {},
-  options: { resourceMode: 'AUTO', allowEmptySource: false },
+  options: { batchRows: 500, fetchRows: 500, maxRows: 100000, maxBytes: 268435456, allowEmptySource: false },
   columnMappings: [
     {
       source: { object: 'SOURCE_1', column: 'ID' },

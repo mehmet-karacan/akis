@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { MappingGrid } from './MappingGrid'
-import { createDefaultContent, DEFAULT_MAPPING } from './defaults'
+import { DEFAULT_MAPPING } from './defaults'
 import { topologyApi, type SchemaSnapshot } from '../topology/api'
 import type { MappingContent } from './types'
 
@@ -28,46 +28,6 @@ beforeEach(() => {
   vi.mocked(topologyApi.listSubmodels).mockResolvedValue([])
   vi.mocked(topologyApi.listDataObjects).mockResolvedValue([object])
   vi.mocked(topologyApi.listSchemaSnapshots).mockResolvedValue([latest, older])
-})
-it.each([false, true])('switches legacy limits to automatic resources only on request, preserving allowEmptySource=%s and mapping settings', async allowEmptySource => {
-  const legacy: MappingContent = {
-    ...content,
-    options: { batchRows: 500, fetchRows: 500, maxRows: 100000, maxBytes: 268435456, allowEmptySource },
-    modules: { loading: { versionUuid: 'loading-version', contentHash: 'loading-hash' } },
-    moduleOptions: { integration: { WRITE_MODE: 'TRUNCATE_LOAD', TRUNCATE_TARGET: true } },
-    extension: { retained: true },
-  }
-  render(<Harness initial={legacy} />)
-  await screen.findByLabelText('Diagram columns')
-  fireEvent.click(screen.getByRole('tab', { name: 'Physical' }))
-  expect(changed).not.toHaveBeenCalled()
-  expect(screen.getByText(/uses legacy resource settings/i)).toBeInTheDocument()
-  expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
-  fireEvent.click(screen.getByRole('button', { name: 'Use automatic resource management' }))
-  expect(changed).toHaveBeenCalledExactlyOnceWith({ ...legacy, options: { resourceMode: 'AUTO', allowEmptySource } })
-  expect(screen.getByRole('heading', { name: 'Automatic resource management' })).toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: 'Use automatic resource management' })).not.toBeInTheDocument()
-})
-it('creates new mappings with automatic resources and shows information without resource controls or load-time changes', async () => {
-  const initial = createDefaultContent('MAPPING') as MappingContent
-  expect(initial.options).toEqual({ resourceMode: 'AUTO', allowEmptySource: false })
-  render(<Harness initial={initial} />)
-  await screen.findByLabelText('Diagram columns')
-  fireEvent.click(screen.getByRole('tab', { name: 'Physical' }))
-  expect(screen.getByRole('heading', { name: 'Automatic resource management' })).toBeInTheDocument()
-  expect(screen.getByText(/budget is inherited from the environment \(default 1 GiB\)/i)).toBeInTheDocument()
-  expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: 'Use automatic resource management' })).not.toBeInTheDocument()
-  expect(changed).not.toHaveBeenCalled()
-})
-it('treats omitted mapping options as legacy until the user explicitly adopts automatic resources', async () => {
-  const initial = { ...content, options: undefined }
-  render(<Harness initial={initial} />)
-  await screen.findByLabelText('Diagram columns')
-  fireEvent.click(screen.getByRole('tab', { name: 'Physical' }))
-  expect(changed).not.toHaveBeenCalled()
-  fireEvent.click(screen.getByRole('button', { name: 'Use automatic resource management' }))
-  expect(changed).toHaveBeenCalledExactlyOnceWith({ ...initial, options: { resourceMode: 'AUTO', allowEmptySource: false } })
 })
 it('shows pinned columns and changes the pin only on explicit reassignment, with Undo', async () => {
   render(<Harness />)

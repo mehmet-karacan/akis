@@ -19,8 +19,8 @@ class TopologyApiContractTest {
 
     @Test
     void environmentCreationAcceptsOnlyUserFacingIdentityFields() {
-        assertEquals(Set.of("code", "name", "description", "risk", "defaultEnvironment", "policy","transferMemoryBudgetMiB"), fields(TopologyController.CreateEnvironmentRequest.class));
-        assertEquals(Set.of("name", "description", "risk", "defaultEnvironment", "status","transferMemoryBudgetMiB"), fields(TopologyController.UpdateEnvironmentRequest.class));
+        assertEquals(Set.of("code", "name", "description", "risk", "defaultEnvironment", "policy"), fields(TopologyController.CreateEnvironmentRequest.class));
+        assertEquals(Set.of("name", "description", "risk", "defaultEnvironment", "status"), fields(TopologyController.UpdateEnvironmentRequest.class));
     }
 
     @Test

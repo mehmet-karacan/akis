@@ -91,11 +91,8 @@ final class JdbcPostgresSchemaPreflight {
      */
     static void requireCompatible(Column source, Column target) {
         String canonical = source.canonicalType().toUpperCase(Locale.ROOT);
-        String targetCanonical = target.canonicalType().toUpperCase(Locale.ROOT);
-        // NUMBER(12,-2) is DECIMAL in Oracle's snapshot but NUMERIC(14,0) is INTEGER in PG's.
-        boolean numericPair=Set.of("INTEGER","DECIMAL").contains(canonical)&&Set.of("INTEGER","DECIMAL").contains(targetCanonical);
-        if ((!canonical.equals(targetCanonical)&&!numericPair)
-                || !Set.of("INTEGER", "DECIMAL", "STRING", "TIMESTAMP", "OFFSET_TIMESTAMP", "BINARY", "FLOAT32", "FLOAT64").contains(canonical)
+        if (!canonical.equals(target.canonicalType().toUpperCase(Locale.ROOT))
+                || !Set.of("INTEGER", "DECIMAL", "STRING", "TIMESTAMP", "BINARY", "FLOAT64").contains(canonical)
                 || source.nullable() && !target.nullable()) {
             LOGGER.warn("PostgreSQL mapping rejected for source column {} and target column {}: canonical type/nullability mismatch.",
                     source.reference(), target.reference());
@@ -104,25 +101,24 @@ final class JdbcPostgresSchemaPreflight {
         String sourceType = baseType(source.producerType());
         String targetType = baseType(target.producerType());
         boolean compatible = switch (canonical) {
-            case "INTEGER", "DECIMAL" -> sourceType.equals("NUMBER")
+            case "INTEGER" -> sourceType.equals("NUMBER") && Objects.equals(source.scale(), 0) && source.precision() != null
                     && switch (targetType) {
-                        case "SMALLINT" -> Objects.equals(source.scale(),0)&&source.precision()!=null&&source.precision()<=4;
-                        case "INTEGER" -> Objects.equals(source.scale(),0)&&source.precision()!=null&&source.precision()<=9;
-                        case "BIGINT" -> Objects.equals(source.scale(),0)&&source.precision()!=null&&source.precision()<=18;
-                        case "NUMERIC" -> numericCapacity(source,target);
+                        case "SMALLINT" -> source.precision() <= 4;
+                        case "INTEGER" -> source.precision() <= 9;
+                        case "BIGINT" -> source.precision() <= 18;
+                        case "NUMERIC" -> Objects.equals(target.scale(), 0) && atLeast(target.precision(), source.precision());
                         default -> false;
                     };
-            case "STRING" -> (Set.of("VARCHAR2","NVARCHAR2","CHAR","NCHAR").contains(sourceType) && source.length() != null
-                    && (targetType.equals("TEXT") || targetType.equals("VARCHAR") && (target.length()==null||atLeast(target.length(),source.length()))
-                    || Set.of("CHAR","NCHAR").contains(sourceType)&&targetType.equals("CHAR")&&atLeast(target.length(),source.length())))
-                    || (Set.of("CLOB","NCLOB").contains(sourceType) && targetType.equals("TEXT"));
+            case "DECIMAL" -> sourceType.equals("NUMBER") && targetType.equals("NUMERIC")
+                    && (source.scale() == null ? target.scale() == null : Objects.equals(source.scale(), target.scale()))
+                    && (source.precision() == null ? target.precision() == null : atLeast(target.precision(), source.precision()));
+            case "STRING" -> (sourceType.equals("VARCHAR2") && source.length() != null
+                    && (targetType.equals("TEXT") || targetType.equals("VARCHAR") && atLeast(target.length(), source.length())))
+                    || (sourceType.equals("CLOB") && targetType.equals("TEXT"));
             case "TIMESTAMP" -> Set.of("DATE", "TIMESTAMP").contains(sourceType) && targetType.equals("TIMESTAMP")
                     && (sourceType.equals("DATE") || source.timePrecision() != null && source.timePrecision() <= 6
                     && atLeast(target.timePrecision(), source.timePrecision()));
-            case "OFFSET_TIMESTAMP" -> sourceType.equals("TIMESTAMP WITH TIME ZONE") && targetType.equals("TIMESTAMPTZ")
-                    && source.timePrecision()!=null&&source.timePrecision()<=6&&atLeast(target.timePrecision(),source.timePrecision());
-            case "BINARY" -> Set.of("RAW","BLOB").contains(sourceType) && targetType.equals("BYTEA");
-            case "FLOAT32" -> sourceType.equals("BINARY_FLOAT") && targetType.equals("REAL");
+            case "BINARY" -> sourceType.equals("BLOB") && targetType.equals("BYTEA");
             case "FLOAT64" -> Set.of("FLOAT", "BINARY_FLOAT", "BINARY_DOUBLE").contains(sourceType)
                     && targetType.equals("DOUBLE PRECISION");
             default -> false;
@@ -214,15 +210,8 @@ final class JdbcPostgresSchemaPreflight {
 
     private static String baseType(String producerType) {
         String type = producerType == null ? "" : producerType.strip().toUpperCase(Locale.ROOT);
-        return type.replaceAll("\\([^)]*\\)","").replaceAll("\\s+"," ").strip();
-    }
-
-    private static boolean numericCapacity(Column source,Column target) {
-        if(target.precision()==null&&target.scale()==null)return true;
-        if(source.precision()==null||source.scale()==null||target.precision()==null||target.scale()==null)return false;
-        // Negative Oracle scale adds integer digits, rather than requiring a negative PG scale.
-        return target.scale()>=Math.max(0,source.scale())
-                && (long)target.precision()-target.scale()>=(long)source.precision()-source.scale();
+        int paren = type.indexOf('(');
+        return paren < 0 ? type : type.substring(0, paren);
     }
 
     private static boolean atLeast(Integer target, Integer source) { return source == null ? target == null : target != null && target >= source; }

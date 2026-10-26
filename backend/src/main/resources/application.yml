@@ -51,13 +51,6 @@ akis:
     worker-poll-delay-ms: ${AKIS_EXECUTION_WORKER_POLL_DELAY_MS:2000}
     scheduler-enabled: ${AKIS_EXECUTION_SCHEDULER_ENABLED:false}
     schedule-poll-delay-ms: ${AKIS_EXECUTION_SCHEDULE_POLL_DELAY_MS:15000}
-    transfer:
-      memory-pool-mib: ${AKIS_TRANSFER_MEMORY_POOL_MIB:1024}
-      max-concurrent: ${AKIS_TRANSFER_MAX_CONCURRENT:1}
-      batch-rows: ${AKIS_TRANSFER_BATCH_ROWS:1000}
-      fetch-rows: ${AKIS_TRANSFER_FETCH_ROWS:5000}
-      max-rows: ${AKIS_TRANSFER_MAX_ROWS:100000000}
-      max-bytes: ${AKIS_TRANSFER_MAX_BYTES:1099511627776}
   security:
     mode: ${AKIS_SECURITY_MODE:local}
     data-encryption-key: ${AKIS_DATA_ENCRYPTION_KEY:}

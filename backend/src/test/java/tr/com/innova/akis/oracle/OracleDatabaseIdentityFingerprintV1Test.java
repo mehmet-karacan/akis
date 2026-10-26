@@ -12,10 +12,9 @@ import org.junit.jupiter.api.Test;
 class OracleDatabaseIdentityFingerprintV1Test {
 
     private static final String EXPECTED_PAYLOAD = "0000001d414b49535f4f5241434c455f"
-            + "44415441424153455f4944454e544954590000000131"
-            + "00000011555053545245414d5f534348454d415f320000000450444231";
+            + "44415441424153455f4944454e5449545900000001310000000554544250320000000450444231";
     private static final String EXPECTED_FINGERPRINT =
-            "dc3ddd575f00052c39d3b8a234b880a2bcfd17097cd0cdf7de1bb30112852e66";
+            "2c426daf2cebdb13b173deed52db7135011d0ad07a1d46245dda6bc88214c731";
 
     private final OracleDatabaseIdentityFingerprintV1 fingerprint =
             new OracleDatabaseIdentityFingerprintV1();

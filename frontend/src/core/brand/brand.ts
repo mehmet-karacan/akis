@@ -1,5 +1,5 @@
 export const BRAND = {
-  productName: 'Data Integrator Tool',
+  productName: 'AKIŞ',
   companyName: 'İnnova Bilişim Çözümleri A.Ş.',
   copyright: '2025 - 2026 İnnova Bilişim Çözümleri A.Ş.',
 } as const

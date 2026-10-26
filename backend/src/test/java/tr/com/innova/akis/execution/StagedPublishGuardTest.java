@@ -8,24 +8,6 @@ import static org.mockito.Mockito.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class StagedPublishGuardTest {
-    @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.ValueSource(ints={15,60,300})
-    void targetPublishUsesTheConnectionQueryPolicyInsteadOfHardcodedThirtySeconds(int timeout) {
-        fixture();when(plan.target().databaseType()).thenReturn(PilotRuntimePlan.DatabaseType.POSTGRESQL);
-        when(plan.target().objectName()).thenReturn("ITEMS");
-        var technology=mock(TargetTechnology.class);when(technology.technology()).thenReturn(PilotRuntimePlan.DatabaseType.POSTGRESQL);
-        var session=mock(RuntimeOracleConnectionProvider.RuntimeOracleSession.class);
-        when(session.connection()).thenReturn(mock(java.sql.Connection.class));when(session.queryTimeoutSeconds()).thenReturn(timeout);
-        when(connections.openTargetData(eq(plan.target()),any())).thenReturn(session);
-        var captured=org.mockito.ArgumentCaptor.forClass(Integer.class);
-        when(technology.publish(any(),any(),any(),any(),any(),anyList(),captured.capture(),any(),any(),any(),anyString(),any(),anyList()))
-            .thenReturn(new JdbcStagedAtomicRefreshWriter.Result(JdbcStagedAtomicRefreshWriter.Outcome.COMMITTED,0L,seal.rows()));
-        var publisher=new StagedPublishFacade(connections,intents,mock(TargetLedgerPort.class),objects,snapshots,mapper,policies,journal,
-            new TargetTechnologyRegistry(List.of(technology)));
-        var result=publisher.publish(plan,execution,fence,object,seal,()->{});
-        assertEquals(timeout,captured.getValue());assertEquals(StagedKmRuntime.PublishOutcome.COMMITTED,result.outcome());
-        verify(session).close();
-    }
     private final JsonMapper mapper=new JsonMapper();
     private final RuntimeOracleConnectionProvider connections=mock(RuntimeOracleConnectionProvider.class);
     private final PilotPublishIntentPort intents=mock(PilotPublishIntentPort.class);

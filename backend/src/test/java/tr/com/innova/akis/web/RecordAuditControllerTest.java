@@ -44,8 +44,7 @@ class RecordAuditControllerTest {
             String sql = queryFor(kind);
             assertFalse(sql.contains("r.model_id"), kind);
             assertTrue(sql.contains("regexp_replace(a.ayrinti->>'path', '^/api/v2/', '/api/v1/')"), kind);
-            assertTrue(sql.contains("when updated.event_id is not null then"), kind);
-            assertTrue(sql.contains("'Mehmet KARACAN'"), kind);
+            assertTrue(sql.contains("when updated.event_id is not null then updated.principal else editor.gorunen_ad"), kind);
             assertFalse(sql.contains("coalesce(updated.principal, editor.gorunen_ad)"), kind);
         }
     }

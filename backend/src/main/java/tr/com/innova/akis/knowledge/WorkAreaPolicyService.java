@@ -1,7 +1,6 @@
 package tr.com.innova.akis.knowledge;
 
 import java.util.*;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -21,29 +20,7 @@ public class WorkAreaPolicyService {
     public record View(Policy policy,long version) { }
     private record Scope(long project,long schema) { }
     private final JdbcClient jdbc;
-    private final TransferResourcePolicy resources;
-    public WorkAreaPolicyService(JdbcClient jdbc) { this(jdbc,new TransferResourcePolicy(100_000_000,1_099_511_627_776L,1000,256,1)); }
-    @Autowired
-    public WorkAreaPolicyService(JdbcClient jdbc,TransferResourcePolicy resources) { this.jdbc=jdbc;this.resources=resources; }
-    public View automaticView(View view) { return new View(resources.managed(view.policy()),view.version()); }
-    public Policy automaticPolicy(Policy policy) { return resources.managed(policy); }
-    public StagedMappingDefinition.Options automaticOptions(StagedMappingDefinition.Options options) { return resources.resolve(options); }
-    public StagedMappingDefinition.Options automaticOptions(StagedMappingDefinition.Options options,UUID environment) {
-        return resources.resolve(options,environmentMemoryMiB(environment));
-    }
-    private long environmentMemoryMiB(UUID environment) {
-        String policy=jdbc.sql("select politika::text from akis.ortam where uuid=:uuid and durum='ETKIN'")
-                .param("uuid",environment).query(String.class).single();
-        return TransferMemoryPolicy.fromPolicy(new tools.jackson.databind.ObjectMapper().readTree(policy));
-    }
-    public void requireEnvironmentMemory(StagedMappingDefinition.Options options,UUID environment) {
-        if(options.automatic() && options.memoryBudgetBytes()!=null &&
-                options.memoryBudgetBytes()>environmentMemoryMiB(environment)*TransferMemoryPolicy.MIB)
-            throw new IllegalStateException("Ortam bellek bütçesi azaltılmış; aktarımı yeniden yayınlayın.");
-    }
-    public TransferResourcePolicy.Permit acquireTransfer(Runnable checkpoint) { return resources.acquire(checkpoint); }
-    public TransferResourcePolicy.Permit acquireTransfer(StagedMappingDefinition.Options options,Runnable checkpoint) { return resources.acquire(options,checkpoint); }
-    public void requireCurrentOptions(StagedMappingDefinition.Options options) { resources.validate(options); }
+    public WorkAreaPolicyService(JdbcClient jdbc) { this.jdbc=jdbc; }
     private Scope scope(UUID project,UUID schema,boolean lock) {
         return jdbc.sql("""
                 select p.id project_id,f.id schema_id from akis.proje p

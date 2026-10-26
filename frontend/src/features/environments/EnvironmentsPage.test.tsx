@@ -15,10 +15,6 @@ describe('EnvironmentsPage', () => {
   beforeEach(async () => {
     vi.restoreAllMocks()
     await i18n.changeLanguage('en')
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
-      if (String(input).includes('/record-audit/')) return new Response('[]', { status: 200 })
-      throw new Error(`Unexpected unmocked request: ${String(input)}`)
-    })
     vi.spyOn(topologyApi, 'listEnvironments').mockResolvedValue([environmentFixture({ uuid: 'test', code: 'TEST', name: 'Test', risk: 'URETIM', defaultEnvironment: true })])
     vi.spyOn(topologyApi, 'listLogicalSchemas').mockResolvedValue([logicalSchemaFixture({ uuid: 'orders', code: 'ORDERS', name: 'Orders' })])
     vi.spyOn(topologyApi, 'listPhysicalSchemas').mockResolvedValue([physicalSchemaFixture({ uuid: 'physical-source', connectionUuid: 'source', schemaName: 'UPSTREAM_SCHEMA' })])
@@ -41,31 +37,10 @@ describe('EnvironmentsPage', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Add environment' }))
     fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Prod' } })
     fireEvent.change(screen.getByLabelText('Code *'), { target: { value: 'prod' } })
-    expect(screen.getByLabelText('Transfer memory budget (MiB)')).toHaveValue(1024)
     fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Risk Class *' }))
     fireEvent.click(await screen.findByRole('option', { name: 'Production' }))
     fireEvent.click(screen.getByRole('switch'))
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
-    await waitFor(() => expect(create).toHaveBeenCalledWith('project', { code: 'PROD', name: 'Prod', description: null, risk: 'URETIM', defaultEnvironment: true, transferMemoryBudgetMiB: 1024 }))
-  })
-
-  it('does not send a stale budget when only environment metadata is edited', async () => {
-    const update = vi.spyOn(topologyApi, 'updateEnvironment').mockResolvedValue(environmentFixture({ uuid: 'test' }))
-    open()
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit: Test', hidden: true }))
-    fireEvent.change(screen.getByLabelText('Name *'), { target: { value: 'Renamed' } })
-    fireEvent.submit(screen.getByLabelText('Transfer memory budget (MiB)').closest('form')!)
-    await waitFor(() => expect(update).toHaveBeenCalled())
-    expect(update.mock.calls[0]?.[2]).not.toHaveProperty('transferMemoryBudgetMiB')
-  })
-
-  it('sends an explicitly changed environment budget', async () => {
-    const update = vi.spyOn(topologyApi, 'updateEnvironment').mockResolvedValue(environmentFixture({ uuid: 'test' }))
-    open()
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit: Test', hidden: true }))
-    fireEvent.change(screen.getByLabelText('Transfer memory budget (MiB)'), { target: { value: '64' } })
-    fireEvent.submit(screen.getByLabelText('Transfer memory budget (MiB)').closest('form')!)
-    await waitFor(() => expect(update).toHaveBeenCalled())
-    expect(update.mock.calls[0]?.[2]).toHaveProperty('transferMemoryBudgetMiB', 64)
+    await waitFor(() => expect(create).toHaveBeenCalledWith('project', { code: 'PROD', name: 'Prod', description: null, risk: 'URETIM', defaultEnvironment: true }))
   })
 })

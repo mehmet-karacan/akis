@@ -159,7 +159,6 @@ Transaction protokolü, nesneler ve negatif test kapıları:
 | Oracle çalışma nesneleri adlandırma (`AKIS_C$`, `AKIS_I$`, `AKIS_E$`) | [`ORACLE_WORK_OBJECT_NAMING.md`](docs/architecture/ORACLE_WORK_OBJECT_NAMING.md) |
 | Bağlantı çalışma alanı UX | [`CONNECTION_WORKSPACE_UX.md`](docs/architecture/CONNECTION_WORKSPACE_UX.md) |
 | Yerel veritabanı runbook | [`LOCAL_DATABASE_RUNBOOK.md`](docs/LOCAL_DATABASE_RUNBOOK.md) |
-| Rocky Linux / çevrimdışı sunucu kurulumu (`/u01/akis`) | [`ROCKY_LINUX_KURULUM.md`](docs/ROCKY_LINUX_KURULUM.md) |
 | UI tasarım sistemi | [`UI_DESIGN_SYSTEM.md`](docs/UI_DESIGN_SYSTEM.md) |
 
 ## Güvenlik notları

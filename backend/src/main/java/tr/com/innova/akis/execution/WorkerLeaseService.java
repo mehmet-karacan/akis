@@ -16,7 +16,6 @@ import tr.com.innova.akis.execution.RunLeasePort.WorkerIdentity;
 /** Domain facade only; Phase 3A deliberately has no poller or worker lifecycle bean. */
 @Service
 final class WorkerLeaseService {
-    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(WorkerLeaseService.class);
 
     private final RunLeasePort leases;
     private final RuntimeOperationRegistry operations;
@@ -32,12 +31,6 @@ final class WorkerLeaseService {
     }
 
     Optional<ClaimedRun> claimForPreflight(WorkerIdentity worker, Duration lease) {
-        try {
-            leases.recoverExpiredCancellations(10);
-        }
-        catch (RuntimeException ignored) {
-            LOG.warn("Expired cancellation recovery unconfirmed; durable requests remain pending.");
-        }
         return leases.claimForPreflight(worker, lease);
     }
 
@@ -63,17 +56,6 @@ final class WorkerLeaseService {
         boolean requested = leases.cancellationRequested(token);
         if (requested) operations.cancel(token.runUuid(), token.generation());
         return requested;
-    }
-
-    boolean completeCancellation(RunLeaseToken token) {
-        for (int attempt = 1; ; attempt++) {
-            try {
-                return leases.completeCancellation(token);
-            }
-            catch (RuntimeException failure) {
-                if (attempt == 3) throw failure;
-            }
-        }
     }
 
     TargetFenceToken acquireTarget(

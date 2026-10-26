@@ -30,13 +30,12 @@ class OracleTargetIdentityV1Test {
         assertEquals("CT_TARGET_TESTDB", identity.container());
         assertEquals(
                 "0000001b414b49535f4f5241434c455f5441524745545f4944454e54495459"
-                        + "00000001310000001043545f5441524745545f544553544442"
-                        + "0000001043545f5441524745545f544553544442"
-                        + "0000000d5441524745545f534348454d41000000055441424c45"
-                        + "000000105354475f53414d504c455f5441424c45",
+                        + "00000001310000000d43545f4750555f5445535444420000000d43545f4750"
+                        + "555f5445535444420000000a494e4e4f56415f4f4449000000055441424c"
+                        + "45000000105354475f48414b454449535f54495049",
                 HexFormat.of().formatHex(identity.canonicalPayload()));
         assertEquals(
-                "5c55e3999cb97e4d1231ffcb768ecbfeb14696db97397e56f02d7af21e618639",
+                "0385c5624b49aa4da18d249032db5387da0df0e6889195764c88a16c77cc1803",
                 identity.canonicalTargetHash());
         assertFalse(identity.canonicalTargetHash().matches(".*[A-F].*"));
         assertFalse(new String(identity.canonicalPayload(), StandardCharsets.UTF_8)

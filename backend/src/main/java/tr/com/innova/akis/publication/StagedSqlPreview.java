@@ -46,21 +46,18 @@ public final class StagedSqlPreview {
                   from akis.kolon_goruntusu kg join akis.sema_goruntusu sg on sg.id = kg.sema_goruntusu_id
                  where sg.uuid = :snapshot order by kg.sira_no, kg.kolon_referansi
                 """).param("snapshot", UUID.fromString(target.path("schemaSnapshotUuid").asText())).query(rs -> {
-            String type = rs.getString("uretici_tipi").toUpperCase(Locale.ROOT).replaceAll("\\([^)]*\\)", "").strip().replaceAll("\\s+"," ");
+            String type = rs.getString("uretici_tipi").toUpperCase(Locale.ROOT).replaceAll("\\(.*", "").strip();
             Integer precision = rs.getObject("hassasiyet", Integer.class); Integer scale = rs.getObject("olcek", Integer.class);
             Long length = rs.getObject("uzunluk", Long.class); Integer timePrecision = rs.getObject("zaman_hassasiyeti", Integer.class);
             String ddl = switch (type) {
                 case "NUMBER" -> precision == null ? "NUMBER" : "NUMBER(" + precision + "," + (scale == null ? 0 : scale) + ")";
                 case "VARCHAR2" -> "VARCHAR2(" + length + " CHAR)";
                 case "NVARCHAR2" -> "NVARCHAR2(" + length + ")";
-                case "CHAR", "NCHAR" -> length == null ? null : type + "(" + length + ")";
                 case "NUMERIC", "DECIMAL" -> precision == null ? "NUMERIC" : "NUMERIC(" + precision + "," + (scale == null ? 0 : scale) + ")";
                 case "VARCHAR", "CHARACTER VARYING" -> length == null ? null : "VARCHAR(" + length + ")";
-                case "TEXT", "SMALLINT", "INTEGER", "BIGINT", "REAL", "DOUBLE PRECISION", "BYTEA", "RAW", "BLOB", "CLOB", "NCLOB", "BINARY_FLOAT", "BINARY_DOUBLE" -> type;
+                case "TEXT", "SMALLINT", "INTEGER", "BIGINT" -> type;
                 case "DATE" -> "DATE";
                 case "TIMESTAMP", "TIMESTAMP WITHOUT TIME ZONE" -> "TIMESTAMP(" + (timePrecision == null ? 6 : timePrecision) + ")";
-                case "TIMESTAMPTZ" -> "TIMESTAMPTZ(" + (timePrecision == null ? 6 : timePrecision) + ")";
-                case "TIMESTAMP WITH TIME ZONE" -> "TIMESTAMP(" + (timePrecision == null ? 6 : timePrecision) + ") WITH TIME ZONE";
                 default -> null;
             };
             ddlTypes.put(rs.getString("kolon_referansi"), ddl);
@@ -68,10 +65,6 @@ public final class StagedSqlPreview {
                 case "NUMERIC", "DECIMAL", "SMALLINT", "INTEGER", "BIGINT" -> JdbcStagingTransfer.Type.NUMBER;
                 case "VARCHAR", "CHARACTER VARYING", "TEXT" -> JdbcStagingTransfer.Type.VARCHAR2;
                 case "TIMESTAMP WITHOUT TIME ZONE" -> JdbcStagingTransfer.Type.TIMESTAMP;
-                case "TIMESTAMPTZ", "TIMESTAMP WITH TIME ZONE" -> JdbcStagingTransfer.Type.TIMESTAMP_TZ;
-                case "REAL" -> JdbcStagingTransfer.Type.BINARY_FLOAT;
-                case "DOUBLE PRECISION" -> JdbcStagingTransfer.Type.BINARY_DOUBLE;
-                case "BYTEA" -> JdbcStagingTransfer.Type.BLOB;
                 default -> { try { yield JdbcStagingTransfer.Type.valueOf(type); } catch (IllegalArgumentException unsupported) { yield null; } }
             };
             if (transfer != null) transferTypes.put(rs.getString("kolon_referansi"), transfer);
@@ -96,14 +89,7 @@ public final class StagedSqlPreview {
         List<JdbcStagingTransfer.QuerySource> sources = definition.sources().stream().map(reference -> {
             JsonNode binding = bindings.get(reference.id());
             var table = new JdbcStagingTransfer.Table(binding.path("owner").asText(), binding.path("objectName").asText());
-            Set<String> sourceColumns = new LinkedHashSet<>();
-            jdbc.sql("""
-                    select kg.kolon_referansi from akis.kolon_goruntusu kg
-                    join akis.sema_goruntusu sg on sg.id=kg.sema_goruntusu_id
-                    where sg.uuid=:snapshot order by kg.sira_no
-                    """).param("snapshot", UUID.fromString(binding.path("schemaSnapshotUuid").asText()))
-                    .query((org.springframework.jdbc.core.RowCallbackHandler) row -> sourceColumns.add(row.getString("kolon_referansi")));
-            return new JdbcStagingTransfer.QuerySource(reference.id(), reference.alias(), table, sourceColumns);
+            return new JdbcStagingTransfer.QuerySource(reference.id(), reference.alias(), table, Set.of());
         }).toList();
         var options = new JdbcStagingTransfer.QueryOptions(definition.booleanOption("loading", "DISTINCT"), definition.stringOption("loading", "ORACLE_HINT"), sources, definition.joins(), definition.filters());
         try {

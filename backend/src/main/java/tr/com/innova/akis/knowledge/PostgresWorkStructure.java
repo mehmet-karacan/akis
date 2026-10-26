@@ -18,14 +18,12 @@ import java.util.regex.Pattern;
 public final class PostgresWorkStructure {
     private static final Pattern NUMERIC = Pattern.compile("NUMERIC(?:\\((\\d+),(\\d+)\\))?");
     private static final Pattern TEXT = Pattern.compile("VARCHAR\\((\\d+)\\)");
-    private static final Pattern CHARACTER = Pattern.compile("CHAR\\((\\d+)\\)");
     private static final Pattern TIME = Pattern.compile("TIMESTAMP\\((\\d)\\)");
-    private static final Pattern OFFSET_TIME = Pattern.compile("TIMESTAMPTZ\\((\\d)\\)");
     private record Shape(String name, String type, Integer precision, Integer scale, Long characters) { }
 
     private PostgresWorkStructure() { }
 
-    /** Accepted work DDL includes the lossless Oracle→PG numeric, binary32/64, character, binary and timestamp types. */
+    /** Accepted work DDL types: NUMERIC[(p,s)], SMALLINT, INTEGER, BIGINT, FLOAT8, VARCHAR(n), TEXT, BYTEA, TIMESTAMP(p), DATE. */
     public static boolean supported(String ddlType) {
         try { shape(new WorkTableManagerPort.Column("c", ddlType)); return true; }
         catch (IllegalArgumentException unsupported) { return false; }
@@ -71,9 +69,7 @@ public final class PostgresWorkStructure {
         Matcher m;
         if ((m = Pattern.compile("numeric\\((\\d+),(\\d+)\\)").matcher(type)).matches()) return "NUMERIC(" + m.group(1) + "," + m.group(2) + ")";
         if ((m = Pattern.compile("character varying\\((\\d+)\\)").matcher(type)).matches()) return "VARCHAR(" + m.group(1) + ")";
-        if ((m = Pattern.compile("character\\((\\d+)\\)").matcher(type)).matches()) return "CHAR(" + m.group(1) + ")";
         if ((m = Pattern.compile("timestamp(?:\\((\\d)\\))? without time zone").matcher(type)).matches()) return "TIMESTAMP(" + (m.group(1) == null ? "6" : m.group(1)) + ")";
-        if ((m = Pattern.compile("timestamp(?:\\((\\d)\\))? with time zone").matcher(type)).matches()) return "TIMESTAMPTZ(" + (m.group(1) == null ? "6" : m.group(1)) + ")";
         return switch (type) {
             case "numeric" -> "NUMERIC";
             case "smallint" -> "SMALLINT";
@@ -91,17 +87,14 @@ public final class PostgresWorkStructure {
 
     private static Shape shape(WorkTableManagerPort.Column column) {
         String ddl = column.ddlType() == null ? "" : column.ddlType().toUpperCase(Locale.ROOT).replaceAll("\\s+", "");
-        Matcher numeric = NUMERIC.matcher(ddl), text = TEXT.matcher(ddl), character = CHARACTER.matcher(ddl), time = TIME.matcher(ddl), offsetTime = OFFSET_TIME.matcher(ddl);
+        Matcher numeric = NUMERIC.matcher(ddl), text = TEXT.matcher(ddl), time = TIME.matcher(ddl);
         if (numeric.matches()) return new Shape(column.name(), "NUMERIC", numeric.group(1) == null ? null : Integer.valueOf(numeric.group(1)),
                 numeric.group(1) == null ? null : Integer.valueOf(numeric.group(2)), null);
         if (text.matches()) return new Shape(column.name(), "VARCHAR", null, null, Long.valueOf(text.group(1)));
-        if (character.matches()) return new Shape(column.name(), "CHAR", null, null, Long.valueOf(character.group(1)));
         if (time.matches()) return new Shape(column.name(), "TIMESTAMP", null, Integer.valueOf(time.group(1)), null);
-        if (offsetTime.matches()) return new Shape(column.name(), "TIMESTAMPTZ", null, Integer.valueOf(offsetTime.group(1)), null);
         return switch (ddl) {
             case "SMALLINT", "INTEGER", "BIGINT", "TEXT", "BYTEA", "DATE" -> new Shape(column.name(), ddl, null, null, null);
             case "DOUBLEPRECISION", "FLOAT8" -> new Shape(column.name(), "DOUBLE PRECISION", null, null, null);
-            case "REAL", "FLOAT4" -> new Shape(column.name(), "REAL", null, null, null);
             default -> throw new IllegalArgumentException("Çalışma kolonu tipi desteklenmiyor.");
         };
     }

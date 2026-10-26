@@ -5,7 +5,6 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.sql.*;
-import java.time.OffsetDateTime;
 import java.util.*;
 import tools.jackson.databind.JsonNode;
 
@@ -14,8 +13,7 @@ public final class JdbcStagingTransfer implements StagingTransferPort {
     public static final long BUFFER_BYTES = 16L * 1024 * 1024;
     /** Protects the worker from unbounded LOB allocation while allowing ordinary document payloads. */
     public static final long MAX_CELL_BYTES = 64L * 1024 * 1024;
-    public enum Type { NUMBER, FLOAT, BINARY_FLOAT, BINARY_DOUBLE, VARCHAR2, NVARCHAR2, CHAR, NCHAR,
-        DATE, TIMESTAMP, TIMESTAMP_TZ, CLOB, NCLOB, RAW, BLOB }
+    public enum Type { NUMBER, FLOAT, VARCHAR2, NVARCHAR2, DATE, TIMESTAMP, CLOB, BLOB }
     public record Column(String sourceObject, String source, String stage, Type type, JsonNode expression, boolean encrypted) {
         public Column(String sourceObject, String source, String stage, Type type, JsonNode expression) { this(sourceObject, source, stage, type, expression, false); }
         public Column(String sourceObject,String source,String stage,Type type) { this(sourceObject,source,stage,type,null); }
@@ -76,9 +74,6 @@ public final class JdbcStagingTransfer implements StagingTransferPort {
         long rows=0, bytes=0, batchBytes=0;
         int pending=0;
         boolean committing=false;
-        var telemetry=new TransferTelemetry(checkpoint);
-        var checked=telemetry.checkpoint();
-        var buffer=new TransferBuffer(options,checked);
         MessageDigest digest;
         try { digest=MessageDigest.getInstance("SHA-256"); }
         catch (java.security.NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
@@ -90,64 +85,49 @@ public final class JdbcStagingTransfer implements StagingTransferPort {
         String insert="INSERT INTO "+to.sql()+" ("+String.join(",",columns.stream().map(c->quote(c.stage())).toList())+") VALUES ("+String.join(",",Collections.nCopies(columns.size(),"?"))+")";
         try {
             if (stage.getAutoCommit()) throw new IllegalArgumentException("Stage bağlantısında autocommit kapalı olmalıdır.");
-            checked.run();
+            checkpoint.run();
             try (PreparedStatement read=source.prepareStatement(select); PreparedStatement write=stage.prepareStatement(insert)) {
                 for(int i=0;i<query.parameters().size();i++) {
                     Object value=query.parameters().get(i);
                     if(value instanceof BigDecimal number) read.setBigDecimal(i+1,number);
                     else read.setString(i+1,(String)value);
                 }
-                int fetchRows=buffer.configure(read,columns);
-                read.setQueryTimeout(timeoutSeconds); write.setQueryTimeout(timeoutSeconds);
-                long readStarted=System.nanoTime();
+                read.setFetchSize(options.fetchRows()); read.setQueryTimeout(timeoutSeconds); write.setQueryTimeout(timeoutSeconds);
                 try (ResultSet cursor=read.executeQuery()) {
-                    telemetry.query(System.nanoTime()-readStarted);
                     verifyMetadata(cursor.getMetaData(),columns);
-                    buffer.project(cursor.getMetaData(),columns);
-                    if(options.automatic()) { fetchRows=buffer.fetchRows();cursor.setFetchSize(fetchRows); }
-                    telemetry.read(System.nanoTime()-readStarted);
-                    telemetry.window(buffer.requestedBudget(),buffer.effectiveBudget(),buffer.readBudget(),buffer.memoryBudget(),fetchRows,fetchRows,fetchRows);
-                    readStarted=System.nanoTime();
-                    while (true) {
-                        long fetchStarted=System.nanoTime();boolean hasNext=cursor.next();telemetry.fetch(System.nanoTime()-fetchStarted);
-                        if(!hasNext) {telemetry.read(System.nanoTime()-readStarted);break;}
+                    while (cursor.next()) {
                         // Lease checkpoints happen per batch (below); one per row cost two control-plane round trips per row.
                         if (rows>=options.maxRows()) throw new TransferFailure("Kaynak satır kotası aşıldı; stage mühürlenmedi.",false);
-                        long decodeStarted=System.nanoTime(),beforeLob=buffer.lobNanos(),beforeCells=buffer.lobCells();
-                        var row=buffer.read(cursor,columns,bytes);
-                        telemetry.decode(System.nanoTime()-decodeStarted,buffer.lobNanos()-beforeLob,buffer.lobCells()-beforeCells);
-                        Object[] values=row.values();
-                        long rowReadNanos=System.nanoTime()-readStarted;telemetry.read(rowReadNanos);buffer.observeRead(rowReadNanos);
-                        if (pending>0 && batchBytes+row.residentBytes()>buffer.memoryBudget()) {
-                            checked.run();long start=System.nanoTime();execute(write,pending);telemetry.write(System.nanoTime()-start);
-                            checked.run();committing=true;start=System.nanoTime();transaction.commit();telemetry.commit(System.nanoTime()-start);committing=false;
-                            telemetry.report(rows,bytes,false);
-                            pending=0; batchBytes=0;
-                        }
-                        long encodeStarted=System.nanoTime();
+                        Object[] values=new Object[columns.size()];
+                        long rowBytes=0;
                         for (int i=0;i<columns.size();i++) {
-                            bind(write,i+1,columns.get(i).type(),values[i]); frame(digest,row.canonical()[i]);
+                            values[i]=read(cursor,i+1,columns.get(i).type());
+                            String value=canonical(values[i]);
+                            long cellBytes=value==null?4:4L+value.getBytes(StandardCharsets.UTF_8).length;
+                            if (cellBytes>MAX_CELL_BYTES || cellBytes>options.maxBytes())
+                                throw new TransferFailure("Tek hücre aktarım kotası aşıldı; stage mühürlenmedi.",false);
+                            rowBytes+=cellBytes;
                         }
-                        write.addBatch();telemetry.encode(System.nanoTime()-encodeStarted); rows++; bytes+=row.logicalBytes(); batchBytes+=row.residentBytes(); pending++;
-                        if (pending>=options.batchRows() || batchBytes>=buffer.memoryBudget()) {
-                            checked.run();long start=System.nanoTime();execute(write,pending);telemetry.write(System.nanoTime()-start);
-                            checked.run();committing=true;start=System.nanoTime();transaction.commit();telemetry.commit(System.nanoTime()-start);committing=false;
-                            telemetry.report(rows,bytes,false);
+                        if (rowBytes>BUFFER_BYTES || bytes>options.maxBytes()-rowBytes) throw new TransferFailure("Aktarım byte kotası aşıldı; stage mühürlenmedi.",false);
+                        if (pending>0 && batchBytes+rowBytes>BUFFER_BYTES) {
+                            checkpoint.run(); execute(write,pending); checkpoint.run(); committing=true; transaction.commit(); committing=false;
                             pending=0; batchBytes=0;
                         }
-                        if(options.automatic() && buffer.fetchRows()!=fetchRows) { fetchRows=buffer.fetchRows();cursor.setFetchSize(fetchRows); }
-                        telemetry.window(buffer.requestedBudget(),buffer.effectiveBudget(),buffer.readBudget(),buffer.memoryBudget(),fetchRows,buffer.minFetchRows(),buffer.maxFetchRows());
-                        readStarted=System.nanoTime();
+                        for (int i=0;i<columns.size();i++) {
+                            if (columns.get(i).encrypted() && values[i]!=null) values[i]=tr.com.innova.akis.security.DataProtectionCipher.encrypt(String.valueOf(values[i]));
+                            bind(write,i+1,columns.get(i).type(),values[i]); frame(digest,canonical(values[i]));
+                        }
+                        write.addBatch(); rows++; bytes+=rowBytes; batchBytes+=rowBytes; pending++;
+                        if (pending==options.batchRows()) {
+                            checkpoint.run(); execute(write,pending); checkpoint.run(); committing=true; transaction.commit(); committing=false;
+                            pending=0; batchBytes=0;
+                        }
                     }
                 }
                 if (rows==0 && !options.allowEmptySource()) throw new TransferFailure("Boş kaynakta hedef yenileme kapalı.",false);
-                if (pending>0) {
-                    checked.run();long start=System.nanoTime();execute(write,pending);telemetry.write(System.nanoTime()-start);
-                    checked.run();committing=true;start=System.nanoTime();transaction.commit();telemetry.commit(System.nanoTime()-start);committing=false;
-                }
+                if (pending>0) { checkpoint.run(); execute(write,pending); checkpoint.run(); committing=true; transaction.commit(); committing=false; }
             }
-            checked.run();
-            telemetry.report(rows,bytes,true);
+            checkpoint.run();
             return new Result(rows,bytes,HexFormat.of().formatHex(digest.digest()));
         } catch (SQLException ex) {
             try { transaction.rollback(); } catch (SQLException | RuntimeException ignored) { }
@@ -253,49 +233,27 @@ public final class JdbcStagingTransfer implements StagingTransferPort {
         write.clearBatch();
     }
     private static Object read(ResultSet r,int i,Type type) throws SQLException {
-        if (type==Type.FLOAT || type==Type.BINARY_DOUBLE) { double value=r.getDouble(i); return r.wasNull()?null:value; }
-        if (type==Type.BINARY_FLOAT) { float value=r.getFloat(i); return r.wasNull()?null:value; }
-        return switch(type) {
-            case NUMBER -> r.getBigDecimal(i);
-            case VARCHAR2,CHAR,CLOB -> r.getString(i);
-            case NVARCHAR2,NCHAR,NCLOB -> r.getNString(i);
-            // Oracle DATE contains hours/minutes/seconds; getDate would discard them.
-            case DATE,TIMESTAMP -> r.getTimestamp(i);
-            case TIMESTAMP_TZ -> r.getObject(i,OffsetDateTime.class);
-            case RAW,BLOB -> r.getBytes(i);
-            case FLOAT,BINARY_FLOAT,BINARY_DOUBLE -> throw new AssertionError();
-        };
+        if (type==Type.FLOAT) { double value=r.getDouble(i); return r.wasNull()?null:value; }
+        return switch(type) { case NUMBER -> r.getBigDecimal(i); case VARCHAR2,CLOB -> r.getString(i); case NVARCHAR2 -> r.getNString(i); case DATE,TIMESTAMP -> r.getTimestamp(i); case BLOB -> r.getBytes(i); case FLOAT -> throw new AssertionError(); };
     }
     private static String canonical(Object value) {
         if (value==null) return null;
         if (value instanceof BigDecimal n) return n.signum()==0?"0":n.stripTrailingZeros().toPlainString();
         if (value instanceof Double n) return Double.toString(n);
-        if (value instanceof Float n) return Float.toString(n);
-        if (value instanceof OffsetDateTime t) return t.toInstant().toString();
         if (value instanceof Timestamp t) return t.toLocalDateTime().toString();
         if (value instanceof byte[] bytes) return Base64.getEncoder().encodeToString(bytes);
         return value.toString();
     }
     private static void bind(PreparedStatement s,int i,Type type,Object value) throws SQLException {
-        if (value==null) { s.setNull(i,switch(type){case NUMBER->Types.NUMERIC;case FLOAT,BINARY_DOUBLE->Types.DOUBLE;case BINARY_FLOAT->Types.REAL;case VARCHAR2->Types.VARCHAR;case CHAR->Types.CHAR;case NVARCHAR2->Types.NVARCHAR;case NCHAR->Types.NCHAR;case DATE,TIMESTAMP->Types.TIMESTAMP;case TIMESTAMP_TZ->Types.TIMESTAMP_WITH_TIMEZONE;case CLOB->Types.CLOB;case NCLOB->Types.NCLOB;case RAW,BLOB->Types.BINARY;}); return; }
-        switch(type) {
-            case NUMBER -> s.setBigDecimal(i,(BigDecimal)value);
-            case FLOAT,BINARY_DOUBLE -> s.setDouble(i,(Double)value);
-            case BINARY_FLOAT -> s.setFloat(i,(Float)value);
-            case VARCHAR2,CHAR,CLOB -> s.setString(i,(String)value);
-            case NVARCHAR2,NCHAR,NCLOB -> s.setNString(i,(String)value);
-            case DATE,TIMESTAMP -> s.setTimestamp(i,(Timestamp)value);
-            case TIMESTAMP_TZ -> s.setObject(i,value,Types.TIMESTAMP_WITH_TIMEZONE);
-            case RAW,BLOB -> s.setBytes(i,(byte[])value);
-        }
+        if (value==null) { s.setNull(i,switch(type){case NUMBER->Types.NUMERIC;case FLOAT->Types.DOUBLE;case VARCHAR2->Types.VARCHAR;case NVARCHAR2->Types.NVARCHAR;case DATE,TIMESTAMP->Types.TIMESTAMP;case CLOB->Types.CLOB;case BLOB->Types.BINARY;}); return; }
+        switch(type) { case NUMBER -> s.setBigDecimal(i,(BigDecimal)value); case FLOAT -> s.setDouble(i,(Double)value); case VARCHAR2 -> s.setString(i,(String)value); case NVARCHAR2 -> s.setNString(i,(String)value); case DATE,TIMESTAMP -> s.setTimestamp(i,(Timestamp)value); case CLOB -> s.setString(i,(String)value); case BLOB -> s.setBytes(i,(byte[])value); }
     }
     private static void verifyMetadata(ResultSetMetaData metadata,List<Column> columns) throws SQLException {
         if (metadata.getColumnCount()!=columns.size()) throw new TransferFailure("Kaynak kolonları değişmiş.",false);
         for (int i=0;i<columns.size();i++) {
-            String type=metadata.getColumnTypeName(i+1).toUpperCase(Locale.ROOT).strip().replaceAll("\\s+"," ");
+            String type=metadata.getColumnTypeName(i+1).toUpperCase(Locale.ROOT);
             Type expected=columns.get(i).type();
             boolean matches=expected==Type.TIMESTAMP ? type.matches("TIMESTAMP(\\([0-9]\\))?")
-                    : expected==Type.TIMESTAMP_TZ ? type.matches("TIMESTAMP(\\([0-9]\\))? WITH TIME ZONE") || type.equals("TIMESTAMPTZ")
                     : expected==Type.CLOB ? Set.of("CLOB","NCLOB").contains(type)
                     // Oracle JDBC exposes dictionary FLOAT columns as NUMBER in ResultSetMetaData.
                     : expected==Type.FLOAT ? Set.of("FLOAT","NUMBER","BINARY_FLOAT","BINARY_DOUBLE").contains(type)

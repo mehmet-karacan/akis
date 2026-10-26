@@ -111,28 +111,6 @@ public class JdbcRunLeaseStore implements RunLeasePort {
     }
 
     @Override
-    @Transactional(propagation = Propagation.REQUIRES_NEW, timeout = 5)
-    public boolean completeCancellation(RunLeaseToken token) {
-        RunLeaseToken safeToken = token(token);
-        return Boolean.TRUE.equals(jdbc.sql("""
-                        select akis.calistirma_iptal_tamamla(:runUuid, :workerReference, :generation)
-                        """)
-                .param("runUuid", safeToken.runUuid())
-                .param("workerReference", safeToken.workerReference())
-                .param("generation", safeToken.generation())
-                .query(Boolean.class)
-                .single());
-    }
-
-    @Override
-    @Transactional(propagation = Propagation.REQUIRES_NEW, timeout = 5)
-    public int recoverExpiredCancellations(int limit) {
-        if (limit < 1 || limit > 100) throw new IllegalArgumentException("Recovery batch must contain 1-100 requests.");
-        return jdbc.sql("select akis.calistirma_suresi_dolan_iptalleri_tamamla(:limit)")
-                .param("limit", limit).query(Integer.class).single();
-    }
-
-    @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public TargetFenceToken acquireTarget(
             RunLeaseToken token, String canonicalTargetHash, int identityVersion) {
